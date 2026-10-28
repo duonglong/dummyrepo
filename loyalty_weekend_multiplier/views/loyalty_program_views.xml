@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="loyalty_program_view_form_weekend_multiplier" model="ir.ui.view">
+        <field name="name">loyalty.program.view.form.weekend.multiplier</field>
+        <field name="model">loyalty.program</field>
+        <field name="inherit_id" ref="loyalty.loyalty_program_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[field[@name='expire_after']]" position="after">
+                <field name="weekend_multiplier" invisible="program_type != 'loyalty'"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
