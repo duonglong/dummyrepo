@@ -8,6 +8,11 @@
     'data': [
         'views/loyalty_program_views.xml',
     ],
+    'assets': {
+        'point_of_sale._assets_pos': [
+            'loyalty_weekend_multiplier/static/src/app/pos_weekend_points.js',
+        ],
+    },
     'license': 'LGPL-3',
     'installable': True,
 }
