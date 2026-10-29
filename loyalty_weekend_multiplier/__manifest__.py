@@ -12,6 +12,9 @@
         'point_of_sale._assets_pos': [
             'loyalty_weekend_multiplier/static/src/app/pos_weekend_points.js',
         ],
+        'web.assets_tests': [
+            'loyalty_weekend_multiplier/static/tests/tours/**/*',
+        ],
     },
     'license': 'LGPL-3',
     'installable': True,
