@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import float_round
 
 
 class LoyaltyProgram(models.Model):
@@ -24,3 +25,15 @@ class LoyaltyProgram(models.Model):
             raise ValidationError(self.env._(
                 "The Weekend Multiplier must be greater than 0."
             ))
+
+    def _apply_weekend_multiplier(self, points):
+        """Multiply points earned by this program, rounded down to 2 decimals.
+
+        Requirements: FR-LAP-003, FR-LAP-006, BR-LAP-003
+        """
+        self.ensure_one()
+        return float_round(
+            points * self.weekend_multiplier,
+            precision_digits=2,
+            rounding_method='DOWN',
+        )
