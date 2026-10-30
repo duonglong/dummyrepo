@@ -5,7 +5,9 @@
     'category': 'Sales',
     'author': 'Empty Sandbox',
     'depends': ['loyalty', 'sale_loyalty', 'pos_loyalty'],
-    'data': [],
+    'data': [
+        'views/loyalty_program_views.xml',
+    ],
     'license': 'LGPL-3',
     'installable': True,
 }
