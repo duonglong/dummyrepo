@@ -4,3 +4,4 @@ from . import test_weekend_multiplier_form_acceptance
 from . import test_weekend_points_sale_acceptance
 from . import test_weekend_confirm_and_scope_acceptance
 from . import test_weekend_points_sale
+from . import test_weekend_points_pos_acceptance
