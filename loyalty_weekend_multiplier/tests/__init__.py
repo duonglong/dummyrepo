@@ -9,3 +9,4 @@ from . import test_weekend_points_pos_acceptance
 from . import test_weekend_points_pos
 from . import test_i18n
 from . import test_performance
+from . import test_bug_b_0010
