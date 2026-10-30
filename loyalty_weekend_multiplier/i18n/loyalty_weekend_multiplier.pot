@@ -1,0 +1,96 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* loyalty_weekend_multiplier
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 20.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-29 07:22+0000\n"
+"PO-Revision-Date: 2026-10-29 07:22+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.module.module,description:base.module_loyalty_weekend_multiplier
+msgid ""
+"# Loyalty Weekend Multiplier\n"
+"\n"
+"## Purpose\n"
+"\n"
+"Customers of a Loyalty Cards program earn more points at the weekend: the\n"
+"points an order earns are multiplied by a Weekend Multiplier that the user\n"
+"keys in on each program.\n"
+"\n"
+"## Scope\n"
+"\n"
+"- The weekend is Saturday and Sunday.\n"
+"- One field, Weekend Multiplier, is added to the native `loyalty.program`\n"
+"  (Loyalty Cards programs only; other program types are left untouched).\n"
+"- It applies to every purchase: sales orders and Point of Sale orders.\n"
+"\n"
+"The module extends the native loyalty models by inheritance only; it does not\n"
+"copy or replace the native point computation.\n"
+"\n"
+"## Dependencies\n"
+"\n"
+"Odoo 20.0 Community modules only:\n"
+"\n"
+"- `loyalty`: loyalty programs, rules and cards.\n"
+"- `sale_loyalty`: loyalty points on sales orders.\n"
+"- `pos_loyalty`: loyalty points on Point of Sale orders.\n"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model.fields,field_description:loyalty_weekend_multiplier.field_loyalty_program__display_name
+#: model:ir.model.fields,field_description:loyalty_weekend_multiplier.field_sale_order__display_name
+msgid "Display Name"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model.fields,help:loyalty_weekend_multiplier.field_loyalty_program__weekend_multiplier
+msgid ""
+"Factor applied to the points a Loyalty Cards program earns on Saturday and "
+"Sunday orders. 1.00 earns the same points as a weekday."
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model.fields,field_description:loyalty_weekend_multiplier.field_loyalty_program__id
+#: model:ir.model.fields,field_description:loyalty_weekend_multiplier.field_sale_order__id
+msgid "ID"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model,name:loyalty_weekend_multiplier.model_loyalty_program
+msgid "Loyalty Program"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.module.module,shortdesc:base.module_loyalty_weekend_multiplier
+msgid "Loyalty Weekend Multiplier"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.module.module,summary:base.module_loyalty_weekend_multiplier
+msgid "Multiply loyalty points earned on Saturday and Sunday orders"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model,name:loyalty_weekend_multiplier.model_sale_order
+msgid "Sales Order"
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#. odoo-python
+#: code:addons/loyalty_weekend_multiplier/models/loyalty_program.py:0
+msgid "The Weekend Multiplier must be greater than 0."
+msgstr ""
+
+#. module: loyalty_weekend_multiplier
+#: model:ir.model.fields,field_description:loyalty_weekend_multiplier.field_loyalty_program__weekend_multiplier
+msgid "Weekend Multiplier"
+msgstr ""
