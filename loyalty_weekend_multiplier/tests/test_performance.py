@@ -4,15 +4,17 @@ from datetime import datetime
 from odoo import Command
 from odoo.tests.common import tagged
 
+from ..models.sale_order import SaleOrder
 from .common import WeekendMultiplierCase
 
 LINES = 100
 MAX_EXTRA_SECONDS = 0.05
 MAX_EXTRA_QUERIES = 2
+RUNS = 5
 
 
 @tagged('post_install', '-at_install')
-class TestWeekendPerformance(WeekendMultiplierCase):
+class TestPerformance(WeekendMultiplierCase):
     """The weekend check stays negligible on a 100-line order.
 
     Requirements: NFR-PERF-001
@@ -32,31 +34,38 @@ class TestWeekendPerformance(WeekendMultiplierCase):
 
     def _native_compute(self, order, programs):
         """The points computation without this module (parent implementation)."""
-        module_class = next(
-            klass for klass in type(order).__mro__
-            if klass.__module__.startswith('odoo.addons.loyalty_weekend_multiplier')
-            and '_program_check_compute_points' in vars(klass))
-        return super(module_class, order)._program_check_compute_points(programs)
+        return super(SaleOrder, order)._program_check_compute_points(programs)
 
-    def test_weekend_computation_overhead(self):
-        """Requirements: NFR-PERF-001 - at most 50 ms and 2 queries more."""
+    def _measure(self, func, runs=RUNS):
+        """Return (best elapsed seconds, queries of one run) of ``func``."""
+        best = None
+        queries = 0
+        for _run in range(runs):
+            before = self.cr.sql_log_count
+            started = time.perf_counter()
+            func()
+            elapsed = time.perf_counter() - started
+            queries = self.cr.sql_log_count - before
+            best = elapsed if best is None else min(best, elapsed)
+        return best, queries
+
+    def _measure_both(self):
+        self.program.weekend_multiplier = 2.0
         order = self._make_order(datetime(2026, 10, 24, 10, 0))  # Saturday
         programs = self.program
         # warm the caches so both runs read the same data
         order._program_check_compute_points(programs)
         self._native_compute(order, programs)
+        native = self._measure(lambda: self._native_compute(order, programs))
+        module = self._measure(lambda: order._program_check_compute_points(programs))
+        return native, module
 
-        queries = []
-        for func in (lambda: self._native_compute(order, programs),
-                     lambda: order._program_check_compute_points(programs)):
-            before = self.cr.sql_log_count
-            elapsed = self._measure_plain(func)
-            queries.append((elapsed, self.cr.sql_log_count - before))
-        (native_time, native_queries), (module_time, module_queries) = queries
+    def test_query_overhead_le_2(self):
+        """Requirements: NFR-PERF-001 - at most 2 queries more."""
+        (_native_time, native_queries), (_module_time, module_queries) = self._measure_both()
         self.assertLessEqual(module_queries - native_queries, MAX_EXTRA_QUERIES)
-        self.assertLessEqual(module_time - native_time, MAX_EXTRA_SECONDS)
 
-    def _measure_plain(self, func):
-        started = time.perf_counter()
-        func()
-        return time.perf_counter() - started
+    def test_time_overhead_le_50ms(self):
+        """Requirements: NFR-PERF-001 - at most 50 ms more."""
+        (native_time, _native_queries), (module_time, _module_queries) = self._measure_both()
+        self.assertLessEqual(module_time - native_time, MAX_EXTRA_SECONDS)
