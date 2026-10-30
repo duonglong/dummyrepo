@@ -42,8 +42,8 @@ class TestWeekendPointsPos(CommonPosTest):
         })
         cls.program = _make_program(cls.env, reward_ids=[Command.create({
             'reward_type': 'discount',
-            'discount_mode': 'per_point',
-            'discount': 1,
+            'discount_mode': 'percent',
+            'discount': 10,
             'required_points': 100,
             'discount_applicability': 'order',
         })])
@@ -51,7 +51,7 @@ class TestWeekendPointsPos(CommonPosTest):
         if not cls.config.current_session_id:
             cls.config.open_ui()
 
-    def _order(self, date_order):
+    def _order(self, date_order, extra_lines=()):
         return self.env['pos.order'].create({
             'config_id': self.config.id,
             'session_id': self.config.current_session_id.id,
@@ -68,7 +68,7 @@ class TestWeekendPointsPos(CommonPosTest):
                 'price_subtotal': 100.0,
                 'price_subtotal_incl': 100.0,
                 'tax_ids': [Command.clear()],
-            })],
+            })] + [Command.create(vals) for vals in extra_lines],
         })
 
     def _points(self):
@@ -108,14 +108,42 @@ class TestWeekendPointsPos(CommonPosTest):
         self.assertAlmostEqual(self._points(), 0.0, places=2)
 
     def test_pos_reward_cost_unchanged(self):
-        """Requirements: FR-LAP-008, FR-LAP-012 - the reward cost is not multiplied on a Sunday."""
+        """Requirements: FR-LAP-008, FR-LAP-012 - a reward claimed on a Sunday costs 100, not 200.
+
+        The card first holds 100 points from a Tuesday order. A Sunday order
+        then claims the 100-point reward: the native cost path
+        (loyalty.reward._get_pos_points_cost) charges 100 while the points the
+        order earns are still multiplied.
+        """
+        self._order('2026-10-27 12:00:00')._process_loyalty()
+        card = self.env['loyalty.card'].search([
+            ('program_id', '=', self.program.id),
+            ('partner_id', '=', self.partner.id),
+        ])
+        self.assertAlmostEqual(card.points, 100.0, places=2)
         reward = self.program.reward_ids
-        self.assertEqual(reward.required_points, 100)
-        order = self._order('2026-10-25 12:00:00')
-        order._process_loyalty()
-        # The order earns the multiplied points; the reward still costs 100.
+        sunday = self._order('2026-10-25 12:00:00', extra_lines=[{
+            'product_id': reward.discount_line_product_id.id,
+            'qty': 1,
+            'price_unit': -10.0,
+            'price_subtotal': -10.0,
+            'price_subtotal_incl': -10.0,
+            'tax_ids': [Command.clear()],
+            'is_reward_line': True,
+            'reward_id': reward.id,
+            'card_id': card.id,
+        }])
+        sunday._process_loyalty()
+        reward_line = sunday.lines.filtered('is_reward_line')
+        self.assertAlmostEqual(reward_line.points_cost, 100.0, places=2)
+        history = self.env['loyalty.history'].search([
+            ('order_model', '=', 'pos.order'),
+            ('order_id', '=', sunday.id),
+            ('card_id', '=', card.id),
+        ])
+        self.assertAlmostEqual(sum(history.mapped('used')), 100.0, places=2)
+        self.assertAlmostEqual(sum(history.mapped('issued')), 200.0, places=2)
         self.assertAlmostEqual(self._points(), 200.0, places=2)
-        self.assertEqual(reward.required_points, 100)
 
 
 @tagged('post_install', '-at_install')
