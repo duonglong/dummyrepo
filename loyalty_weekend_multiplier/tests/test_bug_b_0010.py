@@ -9,7 +9,7 @@ class TestBugB0010(WeekendMultiplierCase):
     def test_bug_b_0010_loyalty_program_extended_from_one_file(self):
         """Regression test for B-0010: loyalty.program is extended from one file only.
 
-        Requirements: NFR-MNT-001, FR-LAP-008
+        Requirements: NFR-MNT-001, FR-LAP-013
         """
         classes = [
             cls for cls in type(self.env['loyalty.program']).__mro__
