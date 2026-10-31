@@ -31,13 +31,15 @@ class TestSmoke(WeekendMultiplierCase):
         self.assertFalse(self.user_no_tz.tz)
 
     def test_no_enterprise_dependency(self):
-        """Requirements: NFR-COMP-001 - no module of the dependency closure is Enterprise."""
-        depends = get_manifest(MODULE)['depends']
-        self.assertEqual(set(depends), {'loyalty', 'sale_loyalty', 'pos_loyalty'})
+        """Requirements: NFR-COMP-001 - no module of the core or bridge closures is Enterprise."""
         enterprise = os.environ.get('SDD_ENTERPRISE_SRC')
         enterprise = enterprise and os.path.realpath(enterprise)
+        names = [MODULE] + [
+            name for name in self.env['ir.module.module'].search(
+                [('name', '=like', MODULE + '\\_%')]).mapped('name')
+        ]
         closure = set()
-        todo = list(depends)
+        todo = list(names)
         while todo:
             name = todo.pop()
             if name in closure:
