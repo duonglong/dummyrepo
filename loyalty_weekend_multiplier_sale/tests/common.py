@@ -26,7 +26,7 @@ class WeekendMultiplierCase(TransactionCase):
             'name': 'Weekend Product',
             'list_price': 100.0,
         })
-        groups = 'base.group_user,sales_team.group_sale_salesman,point_of_sale.group_pos_user'
+        groups = 'base.group_user,sales_team.group_sale_salesman'
         cls.user_brussels = new_test_user(
             cls.env, login='weekend_brussels', groups=groups, tz='Europe/Brussels')
         cls.user_new_york = new_test_user(
