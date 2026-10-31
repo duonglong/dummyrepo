@@ -136,7 +136,8 @@ class TestSaleBridgeInstallAcceptance(TransactionCase):
             'required_points': 100,
         })
         card = self.env['loyalty.card'].create({
-            'program_id': program.id, 'partner_id': partner.id, 'points': 300})
+            'program_id': program.id, 'partner_id': partner.id})
+        card._adjust_points(300, 'Initial balance')
         order = self._order(partner, product, user, '2026-10-25 12:00:00')
         with freeze_time('2026-10-25 12:00:00'):
             order._apply_program_reward(reward, card)
