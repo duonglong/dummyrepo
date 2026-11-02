@@ -21,6 +21,7 @@ class TestProgramOptionAcceptance(WeekendSaleMixin, SaleCommon):
     def test_option_shown_and_off_on_new_loyalty_program(self):
         """Requirements: FR-DLP-001; scenario SC-DLP-001-1."""
         with Form(self.env['loyalty.program'].sudo()) as form:
+            form.name = 'P'
             form.program_type = 'loyalty'
             self.assertFalse(form._get_modifier('weekend_double_points', 'invisible'))
             self.assertFalse(form.weekend_double_points)
@@ -30,6 +31,7 @@ class TestProgramOptionAcceptance(WeekendSaleMixin, SaleCommon):
     def test_option_hidden_on_gift_card_program(self):
         """Requirements: FR-DLP-001, BR-DLP-003; scenario SC-DLP-001-2."""
         with Form(self.env['loyalty.program'].sudo()) as form:
+            form.name = 'P'
             form.program_type = 'gift_card'
             self.assertTrue(form._get_modifier('weekend_double_points', 'invisible'))
 
