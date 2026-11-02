@@ -4,7 +4,7 @@
     'category': 'Sales/Loyalty',
     'summary': 'Double loyalty points on purchases made on Saturday and Sunday',
     'depends': ['sale_loyalty', 'pos_loyalty'],
-    'data': [],
+    'data': ['views/loyalty_program_views.xml'],
     'license': 'LGPL-3',
     'installable': True,
     'application': False,
