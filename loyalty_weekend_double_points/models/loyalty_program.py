@@ -41,3 +41,17 @@ class LoyaltyProgram(models.Model):
         tz = pytz.timezone(company.tz or 'UTC')
         local = pytz.utc.localize(order_date).astimezone(tz)
         return 2 if local.weekday() >= 5 else 1
+
+    def _get_pos_order_points(self, order, lines=None):
+        """Requirements: FR-DLP-003, FR-DLP-006, BR-DLP-001, NFR-REL-001.
+
+        Double the points earned by a point of sale order placed on a weekend. A refund
+        reverses the points recorded in the history, so only earning is doubled here.
+        """
+        points = super()._get_pos_order_points(order, lines)
+        return points * self._get_weekend_factor(order.date_order, order.company_id)
+
+    @api.model
+    def _load_pos_data_fields(self, config):
+        """Requirements: FR-DLP-007: send the weekend option to the point of sale."""
+        return super()._load_pos_data_fields(config) + ['weekend_double_points']

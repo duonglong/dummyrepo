@@ -24,7 +24,7 @@ patch(LoyaltyProgram.prototype, {
         const date = tz ? moment.setZone(tz) : moment.toUTC();
         return date.weekday >= WEEKEND_FIRST_WEEKDAY ? WEEKEND_MULTIPLIER : 1;
     },
-    // mirror of *models/loyalty_program_pos.py* LoyaltyProgram._get_pos_order_points
+    // mirror of *models/loyalty_program.py* LoyaltyProgram._get_pos_order_points
     getEarnedPoints(order) {
         const points = super.getEarnedPoints(...arguments);
         if (order.isRefund && !this.is_payment_program) {
