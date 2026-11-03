@@ -18,6 +18,19 @@ function setBrowserDate(isoDate) {
     };
 }
 
+// the order keeps its opening moment, only the clock moves on (the order is paid later)
+function moveClockTo(isoDate) {
+    return {
+        content: `Clock moves on to ${isoDate}`,
+        trigger: "body",
+        run: () => {
+            const { DateTime, Settings } = luxon;
+            const fixed = DateTime.fromISO(isoDate, { zone: "utc" }).toMillis();
+            Settings.now = () => fixed;
+        },
+    };
+}
+
 function buildOrder(isoDate, expectedPoints) {
     return [
         Chrome.startPoS(),
@@ -42,4 +55,19 @@ registry.category("web_tour.tours").add("WeekendPointsSaturdayTour", {
 
 registry.category("web_tour.tours").add("WeekendPointsWeekdayTour", {
     steps: () => buildOrder("2026-11-03T10:00:00", 40).flat(),
+});
+
+// opened Friday 23:50 Brussels (22:50 UTC), points read Saturday 00:10 Brussels (23:10 UTC)
+registry.category("web_tour.tours").add("WeekendPointsMidnightTour", {
+    steps: () =>
+        [
+            Chrome.startPoS(),
+            Dialog.confirm("Open Register"),
+            setBrowserDate("2026-11-06T22:50:00"),
+            ProductScreen.addOrderline("Whiteboard Pen", "1", "40"),
+            moveClockTo("2026-11-06T23:10:00"),
+            ProductScreen.clickPartnerButton(),
+            ProductScreen.clickCustomer("Weekend screen customer"),
+            PosLoyalty.pointsAwardedAre("+80"),
+        ].flat(),
 });

@@ -1,6 +1,8 @@
 import { LoyaltyProgram } from "@pos_loyalty/app/models/loyalty_program";
 import { patch } from "@web/core/utils/patch";
 
+const { DateTime } = luxon;
+
 // Saturday and Sunday in luxon's ISO numbering
 const WEEKEND_FIRST_WEEKDAY = 6;
 const WEEKEND_MULTIPLIER = 2;
@@ -17,7 +19,9 @@ patch(LoyaltyProgram.prototype, {
             return 1;
         }
         const tz = order.company?.tz;
-        const date = tz ? order.date_order.setZone(tz) : order.date_order.toUTC();
+        // an order not yet paid earns from the moment it will be paid, as the server stamps the payment date
+        const moment = order.finalized ? order.date_order : DateTime.now();
+        const date = tz ? moment.setZone(tz) : moment.toUTC();
         return date.weekday >= WEEKEND_FIRST_WEEKDAY ? WEEKEND_MULTIPLIER : 1;
     },
     // mirror of *models/loyalty_program_pos.py* LoyaltyProgram._get_pos_order_points
