@@ -5,3 +5,4 @@ from . import test_sale_order_points_acceptance
 from . import test_pos_acceptance
 from . import test_pos_order_points
 from . import test_sale_order_points
+from . import test_pos_screen_acceptance
