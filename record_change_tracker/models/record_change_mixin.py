@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+from odoo.tools import format_date, format_datetime
 
 HISTORY_PAGE_SIZE = 80  # entries shown on the first page of the history tab (NFR-PERF-001)
 
@@ -102,8 +103,9 @@ class RecordChangeMixin(models.AbstractModel):
         if field.type == 'many2many':
             return ', '.join(value.mapped('display_name'))
         if field.type in ('date', 'datetime'):
-            return fields.Date.to_string(value) if field.type == 'date' \
-                else fields.Datetime.to_string(value)
+            # stored as text: a date-time is shown in the saving user's time zone, not as UTC
+            return format_date(self.env, value) if field.type == 'date' \
+                else format_datetime(self.env, value)
         return str(value)
 
     def write(self, vals):

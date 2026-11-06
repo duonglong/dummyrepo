@@ -26,3 +26,16 @@ class TestBugfixes(TransactionCase):
         order.write({'order_line': [(0, 0, {'product_id': self.product.id, 'product_uom_qty': 2})]})
         entries = self._entries('sale.order', order, 'amount_total')
         self.assertEqual(len(entries), 1, "one Total entry after adding a line")
+
+    def test_bug_b_0095_datetime_shown_in_user_time_zone(self):
+        """Regression test for B-0095: date-times are stored in the saving user's time zone.
+
+        Requirements: FR-RCT-003, FR-RCT-009
+        """
+        self.user.tz = 'Europe/Brussels'
+        order = self.env['purchase.order'].with_user(self.user).create({'partner_id': self.partner.id})
+        order.write({'date_planned': '2026-07-05 08:00:00'})
+        entry = self._entries('purchase.order', order, 'date_planned')
+        self.assertEqual(len(entry), 1)
+        self.assertIn('10:00', entry.new_value)
+        self.assertNotIn('08:00', entry.new_value)
