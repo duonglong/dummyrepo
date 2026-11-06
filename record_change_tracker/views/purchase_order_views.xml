@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_purchase_order_form_change_history" model="ir.ui.view">
+        <field name="name">purchase.order.form.change.history</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <field name="change_tracking_followed" invisible="1"/>
+                <page string="Change history" name="change_history" invisible="not change_tracking_followed">
+                    <field name="change_entry_ids" nolabel="1" readonly="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="change_date"/>
+                            <field name="author_id"/>
+                            <field name="field_label"/>
+                            <field name="old_value"/>
+                            <field name="new_value"/>
+                        </list>
+                    </field>
+                    <p class="text-muted" invisible="change_entry_ids">No changes recorded yet</p>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

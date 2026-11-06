@@ -1,4 +1,7 @@
-from odoo import fields, models
+from collections import defaultdict
+
+from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class RecordChangeEntry(models.Model):
@@ -24,6 +27,38 @@ class RecordChangeEntry(models.Model):
         'res.users', string='Changed by', ondelete='set null', readonly=True)
     change_date = fields.Datetime(
         string='Changed on', required=True, default=fields.Datetime.now, index=True, readonly=True)
+
+    res_access_read = fields.Boolean(
+        string='Record readable', groups=fields.NO_ACCESS, compute='_compute_res_access_read',
+        search='_search_res_access_read', compute_sudo=True, depends_context=('uid',))
+
+    @api.depends('res_model', 'res_id')
+    def _compute_res_access_read(self):
+        """Requirements: NFR-SEC-001. True when the current user can read the linked record."""
+        by_model = defaultdict(list)
+        for entry in self:
+            by_model[entry.res_model].append(entry.res_id)
+        user_env = self.env(su=False)
+        readable = {}
+        for model, ids in by_model.items():
+            if model in user_env and user_env[model].has_access('read'):
+                readable[model] = set(user_env[model].browse(ids)._filtered_access('read').ids)
+        for entry in self:
+            entry.res_access_read = entry.res_id in readable.get(entry.res_model, ())
+
+    @api.model
+    def _search_res_access_read(self, operator, value):
+        """Requirements: NFR-SEC-001. Entries whose record the current user can read."""
+        if operator != 'in':
+            return NotImplemented
+        user_env = self.env(su=False)
+        sec_domain = Domain.FALSE
+        for model in ('res.partner', 'sale.order', 'purchase.order', 'product.template'):
+            if model not in user_env or not user_env[model].has_access('read'):
+                continue
+            query = user_env[model].with_context(active_test=False)._search(Domain.TRUE)
+            sec_domain |= Domain('res_model', '=', model) & Domain('res_id', 'any!', query)
+        return sec_domain
 
     def init(self):
         """Index serving the history of one record, newest first (NFR-PERF-001)."""

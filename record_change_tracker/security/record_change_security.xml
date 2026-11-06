@@ -44,5 +44,6 @@
         <field name="model_id" ref="model_record_change_entry"/>
         <field name="group_id" ref="base.group_user"/>
         <field name="operation">r</field>
+        <field name="domain">[('res_access_read', '=', True)]</field>
     </record>
 </odoo>

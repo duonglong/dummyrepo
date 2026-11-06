@@ -1,9 +1,49 @@
+from collections import defaultdict
+
 from odoo import _, api, fields, models
+
+HISTORY_PAGE_SIZE = 80  # entries shown on the first page of the history tab (NFR-PERF-001)
 
 
 class RecordChangeMixin(models.AbstractModel):
     _name = 'record.change.mixin'
     _description = 'Change recording of followed fields'
+
+    change_entry_ids = fields.One2many(
+        'record.change.entry', 'res_id', string='Change history',
+        compute='_compute_change_entry_ids', readonly=True)
+    change_tracking_followed = fields.Boolean(
+        string='Change tracking followed', compute='_compute_change_tracking_followed')
+
+    @api.depends_context('uid')
+    def _compute_change_tracking_followed(self):
+        """Requirements: FR-RCT-002. True when the record type is followed (drives the tab)."""
+        followed = bool(self._rct_followed_setting())
+        for rec in self:
+            rec.change_tracking_followed = followed
+
+    @api.depends_context('uid')
+    def _compute_change_entry_ids(self):
+        """Requirements: FR-RCT-002, FR-RCT-013, NFR-SEC-001.
+
+        Entries of each record, newest first, readable by the user, without sensitive fields.
+        """
+        sensitive = self.env['record.change.field'].sudo().search([
+            ('tracked_model_id.model_id.model', '=', self._name),
+            ('is_sensitive', '=', True)]).field_id.mapped('name')
+        domain = [('res_model', '=', self._name), ('res_id', 'in', self.ids),
+                  ('field_name', 'not in', sensitive)]
+        by_record = defaultdict(list)
+        for entry in self.env['record.change.entry'].search(domain):
+            if len(by_record[entry.res_id]) < HISTORY_PAGE_SIZE:
+                by_record[entry.res_id].append(entry.id)
+        for rec in self:
+            rec.change_entry_ids = self.env['record.change.entry'].browse(by_record.get(rec.id, []))
+
+    @api.model
+    def _rct_followed_setting(self):
+        return self.env['record.change.model'].sudo().search([
+            ('model_id.model', '=', self._name), ('is_followed', '=', True)], limit=1)
 
     @api.model
     def _rct_tracker_lines(self):
