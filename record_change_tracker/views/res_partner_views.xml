@@ -10,6 +10,8 @@
                 <page string="Change history" name="change_history" invisible="not change_tracking_followed">
                     <field name="change_entry_ids" nolabel="1" readonly="1">
                         <list create="0" edit="0" delete="0">
+                            <field name="is_new" column_invisible="1"/>
+                            <field name="new_label" decoration-success="is_new"/>
                             <field name="change_date"/>
                             <field name="author_id"/>
                             <field name="field_label"/>
@@ -18,6 +20,7 @@
                         </list>
                     </field>
                     <p class="text-muted" invisible="change_entry_ids">No changes recorded yet</p>
+                    <p class="text-muted" invisible="not change_entry_ids">Lines marked New were changed by someone else since your previous visit.</p>
                 </page>
             </xpath>
         </field>

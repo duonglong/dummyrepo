@@ -1,6 +1,7 @@
 from . import record_change_model
 from . import record_change_field
 from . import record_change_entry
+from . import record_change_visit
 from . import record_change_mixin
 from . import res_partner
 from . import sale_order

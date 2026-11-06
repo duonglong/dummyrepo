@@ -46,4 +46,11 @@
         <field name="operation">r</field>
         <field name="domain">[('res_access_read', '=', True)]</field>
     </record>
+    <record id="access_record_change_visit_user" model="ir.access">
+        <field name="name">record.change.visit own visits</field>
+        <field name="model_id" ref="model_record_change_visit"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+        <field name="domain">[('user_id', '=', user.id)]</field>
+    </record>
 </odoo>

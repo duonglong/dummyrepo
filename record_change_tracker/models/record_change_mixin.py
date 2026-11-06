@@ -40,6 +40,16 @@ class RecordChangeMixin(models.AbstractModel):
         for rec in self:
             rec.change_entry_ids = self.env['record.change.entry'].browse(by_record.get(rec.id, []))
 
+    def web_read(self, specification):
+        """Requirements: FR-RCT-004, BR-RCT-005.
+
+        Opening a form of a followed record type (it asks for the history tab) stores the visit
+        before the history is read, so the New marks compare with the opening before.
+        """
+        if 'change_entry_ids' in specification and self.ids and self._rct_followed_setting():
+            self.env['record.change.visit']._register_visit(self)
+        return super().web_read(specification)
+
     @api.model
     def _rct_followed_setting(self):
         return self.env['record.change.model'].sudo().search([

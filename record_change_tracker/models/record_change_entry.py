@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.fields import Domain
 
 
@@ -31,6 +31,27 @@ class RecordChangeEntry(models.Model):
     res_access_read = fields.Boolean(
         string='Record readable', groups=fields.NO_ACCESS, compute='_compute_res_access_read',
         search='_search_res_access_read', compute_sudo=True, depends_context=('uid',))
+
+    is_new = fields.Boolean(
+        string='New', compute='_compute_is_new', depends_context=('uid',))
+    new_label = fields.Char(string='New', compute='_compute_is_new', depends_context=('uid',))
+
+    @api.depends('res_model', 'res_id', 'change_date', 'author_id')
+    def _compute_is_new(self):
+        """Requirements: FR-RCT-005, FR-RCT-006, NFR-USE-001.
+
+        New: the user has a previous visit, the change is later and was made by someone else.
+        The word is also given as text, so the mark does not rely on colour.
+        """
+        visits = self.env['record.change.visit'].sudo().search([
+            ('user_id', '=', self.env.uid), ('res_model', 'in', self.mapped('res_model')),
+            ('res_id', 'in', self.mapped('res_id'))])
+        previous = {(v.res_model, v.res_id): v.previous_visit for v in visits}
+        for entry in self:
+            seen = previous.get((entry.res_model, entry.res_id))
+            entry.is_new = bool(
+                seen and entry.change_date > seen and entry.author_id.id != self.env.uid)
+            entry.new_label = _('New') if entry.is_new else ''
 
     @api.depends('res_model', 'res_id')
     def _compute_res_access_read(self):
