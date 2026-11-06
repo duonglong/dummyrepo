@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
+    <!-- Requirements: FR-RCT-009 -->
     <record id="tracked_model_contact" model="record.change.model">
         <field name="model_id" model="ir.model" eval="obj()._get_id('res.partner')"/>
         <field name="is_followed" eval="True"/>

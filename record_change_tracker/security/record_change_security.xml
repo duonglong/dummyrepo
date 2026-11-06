@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Requirements: FR-RCT-014, BR-RCT-001 -->
     <record id="access_record_change_model_user" model="ir.access">
         <field name="name">record.change.model read</field>
         <field name="model_id" ref="model_record_change_model"/>

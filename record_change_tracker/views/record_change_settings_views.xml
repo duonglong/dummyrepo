@@ -24,7 +24,7 @@
                     <field name="field_ids">
                         <list editable="bottom">
                             <field name="field_id"
-                                   domain="[('model_id', '=', parent.model_id), ('store', '=', True), ('ttype', 'in', ['char', 'text', 'integer', 'float', 'monetary', 'date', 'datetime', 'boolean', 'selection', 'html', 'many2one', 'many2many']), ('name', 'not in', ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name'])]"
+                                   domain="[('model_id', '=', parent.model_id), ('store', '=', True), ('ttype', 'in', ['char', 'text', 'integer', 'float', 'monetary', 'date', 'datetime', 'boolean', 'selection', 'html', 'many2one', 'many2many']), ('name', 'not in', ['id', 'create_uid', 'create_date', 'write_uid', 'write_date', 'display_name', 'access_token']), ('name', 'not =like', 'message_%'), ('name', 'not =like', 'activity_%'), ('name', 'not =like', 'website_message_%'), ('name', 'not =like', 'access_%')]"
                                    options="{'no_create': True, 'no_open': True}"/>
                             <field name="is_followed"/>
                             <field name="is_sensitive"/>

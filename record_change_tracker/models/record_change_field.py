@@ -5,7 +5,9 @@ FOLLOWABLE_TYPES = (
     'char', 'text', 'integer', 'float', 'monetary', 'date', 'datetime',
     'boolean', 'selection', 'html', 'many2one', 'many2many',
 )
-BOOKKEEPING_FIELDS = tuple(models.MAGIC_COLUMNS) + ('display_name',)
+BOOKKEEPING_FIELDS = tuple(models.MAGIC_COLUMNS) + ('display_name', 'access_token')
+# Name prefixes of the chatter, activity and portal mixins: logs and bookkeeping, not business data.
+MIXIN_FIELD_PREFIXES = ('message_', 'activity_', 'website_message_', 'access_')
 
 
 def followable_domain(model_name):
@@ -15,10 +17,14 @@ def followable_domain(model_name):
         ('store', '=', True),
         ('ttype', 'in', FOLLOWABLE_TYPES),
         ('name', 'not in', BOOKKEEPING_FIELDS),
-    ]
+    ] + [('name', 'not =like', prefix + '%') for prefix in MIXIN_FIELD_PREFIXES]
 
 
 class RecordChangeField(models.Model):
+    """Requirements: FR-RCT-008, FR-RCT-010, FR-RCT-011, BR-RCT-003, BR-RCT-004.
+
+    One field of a record type, with its followed and sensitive marks.
+    """
     _name = 'record.change.field'
     _description = 'Followed or sensitive field'
     _rec_name = 'field_id'
@@ -32,8 +38,18 @@ class RecordChangeField(models.Model):
     is_followed = fields.Boolean(string='Followed', default=True)
     is_sensitive = fields.Boolean(string='Sensitive', default=False)
 
+    is_tracked = fields.Boolean(
+        string='Recorded', compute='_compute_is_tracked',
+        help="Followed and not sensitive: a sensitive field is never recorded.")
+
     _tracked_model_field_uniq = models.Constraint(
         'unique (tracked_model_id, field_id)', 'A field is set once per record type.')
+
+    @api.depends('is_followed', 'is_sensitive')
+    def _compute_is_tracked(self):
+        """Requirements: BR-RCT-004. Sensitive wins over followed."""
+        for line in self:
+            line.is_tracked = line.is_followed and not line.is_sensitive
 
     @api.constrains('tracked_model_id', 'field_id')
     def _check_field_followable(self):
