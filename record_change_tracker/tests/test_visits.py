@@ -86,5 +86,9 @@ class TestVisits(TransactionCase):
         self.assertFalse(self._visit())
 
     def test_web_read_is_not_readonly(self):
-        """Requirements: FR-RCT-004. The opening stores a visit, so web_read must not be readonly."""
-        self.assertFalse(getattr(type(self.partner).web_read, '_readonly', False))
+        """Requirements: FR-RCT-004. The router takes the first web_read in the MRO that has _readonly."""
+        for model in ('res.partner', 'sale.order', 'purchase.order', 'product.template'):
+            readonly = next(
+                cls.web_read._readonly for cls in type(self.env[model]).mro()
+                if hasattr(getattr(cls, 'web_read', None), '_readonly'))
+            self.assertIs(readonly, False, model)

@@ -22,18 +22,16 @@ class RecordChangeVisit(models.Model):
     def _register_visit(self, records):
         """Requirements: FR-RCT-004. Shift last visit into previous and store now for each record."""
         now = fields.Datetime.now()
-        visits = self.sudo().search([
-            ('user_id', '=', self.env.uid), ('res_model', '=', records._name),
-            ('res_id', 'in', records.ids)])
-        by_id = {visit.res_id: visit for visit in visits}
-        to_create = []
-        for rec_id in records.ids:
-            visit = by_id.get(rec_id)
-            if visit:
-                visit.write({'previous_visit': visit.last_visit, 'last_visit': now})
-            else:
-                to_create.append({
-                    'user_id': self.env.uid, 'res_model': records._name,
-                    'res_id': rec_id, 'last_visit': now})
-        if to_create:
-            self.sudo().create(to_create)
+        # One atomic upsert: two simultaneous first openings must not hit the unique constraint.
+        self.env.cr.execute("""
+            INSERT INTO record_change_visit
+                   (user_id, res_model, res_id, last_visit, create_uid, create_date,
+                    write_uid, write_date)
+            SELECT %(uid)s, %(model)s, rec_id, %(now)s, %(uid)s, %(now)s, %(uid)s, %(now)s
+              FROM unnest(%(ids)s) AS rec_id
+            ON CONFLICT (user_id, res_model, res_id) DO UPDATE
+               SET previous_visit = record_change_visit.last_visit,
+                   last_visit = EXCLUDED.last_visit,
+                   write_uid = EXCLUDED.write_uid, write_date = EXCLUDED.write_date
+        """, {'uid': self.env.uid, 'model': records._name, 'now': now, 'ids': list(records.ids)})
+        self.invalidate_model(['last_visit', 'previous_visit'])
