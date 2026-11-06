@@ -46,9 +46,20 @@ class RecordChangeMixin(models.AbstractModel):
         Opening a form of a followed record type (it asks for the history tab) stores the visit
         before the history is read, so the New marks compare with the opening before.
         """
-        if 'change_entry_ids' in specification and self.ids and self._rct_followed_setting():
+        if ('change_entry_ids' in specification and self.ids
+                and not self.env.context.get('rct_skip_visit') and self._rct_followed_setting()):
             self.env['record.change.visit']._register_visit(self)
         return super().web_read(specification)
+
+    def web_save(self, vals, specification, next_id=None):
+        """Requirements: FR-RCT-004, BR-RCT-005. Saving the form is not an opening."""
+        return super(RecordChangeMixin, self.with_context(rct_skip_visit=True)).web_save(
+            vals, specification, next_id=next_id)
+
+    def web_save_multi(self, vals_list, specification):
+        """Requirements: FR-RCT-004, BR-RCT-005. Saving the form is not an opening."""
+        return super(RecordChangeMixin, self.with_context(rct_skip_visit=True)).web_save_multi(
+            vals_list, specification)
 
     @api.model
     def _rct_followed_setting(self):
