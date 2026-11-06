@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.tools import format_date, format_datetime
+from odoo.tools import float_repr, format_amount, format_date, format_datetime
 
 HISTORY_PAGE_SIZE = 80  # entries shown on the first page of the history tab (NFR-PERF-001)
 
@@ -106,6 +106,12 @@ class RecordChangeMixin(models.AbstractModel):
             # stored as text: a date-time is shown in the saving user's time zone, not as UTC
             return format_date(self.env, value) if field.type == 'date' \
                 else format_datetime(self.env, value)
+        if field.type == 'monetary':
+            currency = self[field.get_currency_field(self)] or self.env.company.currency_id
+            return format_amount(self.env, value, currency)
+        if field.type == 'float':
+            digits = field.get_digits(self.env)
+            return float_repr(value, digits[1]) if digits else str(value)
         return str(value)
 
     def _rct_snapshot(self, vals):

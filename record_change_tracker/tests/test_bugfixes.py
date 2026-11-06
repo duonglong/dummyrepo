@@ -114,6 +114,19 @@ class TestBugfixes(TransactionCase):
             self.assertEqual(len(self._entries(model, source, 'amount_total')), 2, "%s: source" % model)
             self.assertEqual(len(self._entries(model, destination, 'amount_total')), 1, "%s: destination" % model)
 
+    def test_bug_b_0100_money_shown_with_currency_and_rounding(self):
+        """Regression test for B-0100 (R4-03): a money change is kept as text with currency and rounding.
+
+        Requirements: FR-RCT-003
+        """
+        order, vals = self._order_and_line_vals('sale.order')
+        self.env['sale.order.line'].with_user(self.user).create(vals)
+        entry = self._entries('sale.order', order, 'amount_total')
+        self.assertEqual(len(entry), 1)
+        self.assertEqual(entry.old_value, format_amount(self.env, 0.0, order.currency_id))
+        self.assertEqual(entry.new_value, format_amount(self.env, order.amount_total, order.currency_id))
+        self.assertIn(order.currency_id.symbol, entry.new_value)
+
 
 class TestPerformance(TransactionCase):
 
