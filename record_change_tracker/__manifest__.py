@@ -13,6 +13,11 @@
         'views/product_template_views.xml',
         'data/record_change_data.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'record_change_tracker/static/src/scss/history.scss',
+        ],
+    },
     'license': 'LGPL-3',
     'installable': True,
 }
