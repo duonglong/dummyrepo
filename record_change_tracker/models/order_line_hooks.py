@@ -30,7 +30,11 @@ class RecordChangeLineMixin(models.AbstractModel):
         return lines
 
     def write(self, vals):
-        state = self._rct_line_snapshot(self.order_id)
+        orders = self.order_id
+        if vals.get('order_id'):
+            # a line moved to another order changes the total of the destination too
+            orders |= orders.browse(vals['order_id'])
+        state = self._rct_line_snapshot(orders)
         result = super().write(vals)
         if state:
             state[0]._rct_record_changes(state[1])

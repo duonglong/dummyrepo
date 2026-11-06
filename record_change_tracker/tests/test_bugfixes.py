@@ -101,6 +101,19 @@ class TestBugfixes(TransactionCase):
                 len(self._entries(model, order, 'amount_total')), 1,
                 "%s: one Total entry for one change" % model)
 
+    def test_bug_b_0099_moving_line_records_destination_total(self):
+        """Regression test for B-0099 (R4-02): a line moved to another order records both orders' totals.
+
+        Requirements: FR-RCT-001
+        """
+        for model in ('sale.order', 'purchase.order'):
+            source, vals = self._order_and_line_vals(model)
+            destination = self.env[model].with_user(self.user).create({'partner_id': self.partner.id})
+            line = self.env[model + '.line'].with_user(self.user).create(vals)
+            line.write({'order_id': destination.id})
+            self.assertEqual(len(self._entries(model, source, 'amount_total')), 2, "%s: source" % model)
+            self.assertEqual(len(self._entries(model, destination, 'amount_total')), 1, "%s: destination" % model)
+
 
 class TestPerformance(TransactionCase):
 
