@@ -10,7 +10,8 @@ class TestEntriesAcceptance(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        groups = 'base.group_user,base.group_system,base.group_partner_manager'
+        groups = ('base.group_user,base.group_system,base.group_partner_manager,'
+                  'sales_team.group_sale_salesman_all_leads,purchase.group_purchase_user')
         cls.anna = new_test_user(cls.env, login='rct_anna', name='Anna', groups=groups)
         cls.marc = new_test_user(cls.env, login='rct_marc2', name='Marc Demo', groups=groups)
 
