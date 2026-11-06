@@ -52,6 +52,21 @@ class TestVisits(TransactionCase):
             self.partner.with_user(self.anna).web_save_multi([{'comment': 'y'}], SPEC)
         self.assertEqual(str(self._visit().last_visit), '2026-03-03 09:00:00')
 
+    def test_save_with_next_record_is_a_visit_of_the_next(self):
+        """Requirements: FR-RCT-004, BR-RCT-005. Pager after an edit opens the next record."""
+        other = self.env['res.partner'].create({'name': 'Other VV'})
+        self._open('2026-03-01 09:00:00')
+        with freeze_time('2026-03-02 09:00:00'):
+            res = self.partner.with_user(self.anna).web_save(
+                {'comment': 'x'}, SPEC, next_id=other.id)
+        self.assertEqual(res[0]['id'], other.id)
+        self.assertEqual(str(self._visit().last_visit), '2026-03-01 09:00:00')
+        self.env.flush_all()
+        visit = self.env['record.change.visit'].sudo().search([
+            ('user_id', '=', self.anna.id), ('res_model', '=', 'res.partner'),
+            ('res_id', '=', other.id)])
+        self.assertEqual(str(visit.last_visit), '2026-03-02 09:00:00')
+
     def test_boundary_at_previous_visit(self):
         """Requirements: FR-RCT-005. Only changes strictly after the previous visit are New."""
         self._open('2026-03-01 09:00:00')

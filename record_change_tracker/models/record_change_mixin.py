@@ -52,9 +52,13 @@ class RecordChangeMixin(models.AbstractModel):
         return super().web_read(specification)
 
     def web_save(self, vals, specification, next_id=None):
-        """Requirements: FR-RCT-004, BR-RCT-005. Saving the form is not an opening."""
-        return super(RecordChangeMixin, self.with_context(rct_skip_visit=True)).web_save(
-            vals, specification, next_id=next_id)
+        """Requirements: FR-RCT-004, BR-RCT-005.
+
+        Saving the form is not an opening; with next_id (the pager after an edit) the next
+        record's form is returned, which is an opening of that record.
+        """
+        records = self if next_id else self.with_context(rct_skip_visit=True)
+        return super(RecordChangeMixin, records).web_save(vals, specification, next_id=next_id)
 
     def web_save_multi(self, vals_list, specification):
         """Requirements: FR-RCT-004, BR-RCT-005. Saving the form is not an opening."""
