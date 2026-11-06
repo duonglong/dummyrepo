@@ -1,4 +1,7 @@
 """Regression tests of the bug fixes of record_change_tracker."""
+import statistics
+import time
+
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -39,3 +42,56 @@ class TestBugfixes(TransactionCase):
         self.assertEqual(len(entry), 1)
         self.assertIn('10:00', entry.new_value)
         self.assertNotIn('08:00', entry.new_value)
+
+
+class TestPerformance(TransactionCase):
+
+    RUNS = 15
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(
+            cls.env, login='rct_perf_user', groups='base.group_user,sales_team.group_sale_manager')
+        cls.rtype = cls.env['record.change.model'].search([('model_id.model', '=', 'sale.order')])
+        cls.partner = cls.env['res.partner'].create({'name': 'Perf partner'})
+        cls.order = cls.env['sale.order'].with_user(cls.user).create({'partner_id': cls.partner.id})
+
+    def _median(self, action):
+        times = []
+        for _i in range(self.RUNS):
+            start = time.perf_counter()
+            action()
+            self.env.flush_all()
+            times.append(time.perf_counter() - start)
+        return statistics.median(times)
+
+    def _added_time(self, make_action):
+        """Median time of the action with the record type followed minus not followed."""
+        self.rtype.is_followed = False
+        self.env.flush_all()
+        off = self._median(make_action())
+        self.rtype.is_followed = True
+        self.env.flush_all()
+        on = self._median(make_action())
+        return on - off
+
+    def test_nfr_perf_002_open_adds_under_200ms(self):
+        """NFR-PERF-002: opening a followed record adds at most 200 ms.
+
+        Requirements: NFR-PERF-002
+        """
+        order = self.order.with_user(self.user)
+        spec = {'name': {}, 'change_entry_ids': {'fields': {'field_name': {}, 'new_value': {}}}}
+        added = self._added_time(lambda: (lambda: order.web_read(spec)))
+        self.assertLess(added, 0.2, "opening added %.3f s" % added)
+
+    def test_nfr_perf_002_save_adds_under_200ms(self):
+        """NFR-PERF-002: saving a followed record adds at most 200 ms.
+
+        Requirements: NFR-PERF-002
+        """
+        order = self.order.with_user(self.user)
+        counter = iter(range(10 ** 6))
+        added = self._added_time(lambda: (lambda: order.write({'note': 'n%d' % next(counter)})))
+        self.assertLess(added, 0.2, "saving added %.3f s" % added)
