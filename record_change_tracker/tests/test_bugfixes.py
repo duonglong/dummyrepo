@@ -3,6 +3,7 @@ import statistics
 import time
 
 from odoo.tests.common import TransactionCase, new_test_user
+from odoo.tools import format_amount
 
 
 class TestBugfixes(TransactionCase):
@@ -79,6 +80,26 @@ class TestBugfixes(TransactionCase):
                 self.env['record.change.entry'].search([
                     ('res_model', '=', model), ('res_id', '=', order.id)]),
                 "%s: creation records no entry" % model)
+    def _order_and_line_vals(self, model):
+        order = self.env[model].with_user(self.user).create({'partner_id': self.partner.id})
+        if model == 'sale.order':
+            vals = {'order_id': order.id, 'product_id': self.product.id, 'product_uom_qty': 1}
+        else:
+            vals = {'order_id': order.id, 'product_id': self.product.id, 'product_qty': 1, 'price_unit': 10.0}
+        return order, vals
+
+    def test_bug_b_0099_batch_line_create_records_one_total_entry(self):
+        """Regression test for B-0099 (R4-01): two lines of one order created in one call give one Total entry.
+
+        Requirements: FR-RCT-001
+        """
+        for model in ('sale.order', 'purchase.order'):
+            order, vals = self._order_and_line_vals(model)
+            line_model = self.env[model + '.line'].with_user(self.user)
+            line_model.create([dict(vals), dict(vals)])
+            self.assertEqual(
+                len(self._entries(model, order, 'amount_total')), 1,
+                "%s: one Total entry for one change" % model)
 
 
 class TestPerformance(TransactionCase):

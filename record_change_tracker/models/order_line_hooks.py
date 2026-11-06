@@ -20,8 +20,9 @@ class RecordChangeLineMixin(models.AbstractModel):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # one copy of each order: a batch of lines of one order is one change, not one per line
         orders = self.env[self._fields['order_id'].comodel_name].browse(
-            [v['order_id'] for v in vals_list if v.get('order_id')])
+            list(dict.fromkeys(v['order_id'] for v in vals_list if v.get('order_id'))))
         state = self._rct_line_snapshot(orders)
         lines = super().create(vals_list)
         if state:
