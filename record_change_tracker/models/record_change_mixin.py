@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from odoo import _, api, fields, models
 
 HISTORY_PAGE_SIZE = 80  # entries shown on the first page of the history tab (NFR-PERF-001)
@@ -31,14 +29,12 @@ class RecordChangeMixin(models.AbstractModel):
         sensitive = self.env['record.change.field'].sudo().search([
             ('tracked_model_id.model_id.model', '=', self._name),
             ('is_sensitive', '=', True)]).field_id.mapped('name')
-        domain = [('res_model', '=', self._name), ('res_id', 'in', self.ids),
-                  ('field_name', 'not in', sensitive)]
-        by_record = defaultdict(list)
-        for entry in self.env['record.change.entry'].search(domain):
-            if len(by_record[entry.res_id]) < HISTORY_PAGE_SIZE:
-                by_record[entry.res_id].append(entry.id)
+        Entry = self.env['record.change.entry']
         for rec in self:
-            rec.change_entry_ids = self.env['record.change.entry'].browse(by_record.get(rec.id, []))
+            # only the first page is read, served by the (res_model, res_id, change_date) index
+            rec.change_entry_ids = Entry.search([
+                ('res_model', '=', self._name), ('res_id', '=', rec.id),
+                ('field_name', 'not in', sensitive)], limit=HISTORY_PAGE_SIZE) if rec.id else Entry
 
     def web_read(self, specification):
         """Requirements: FR-RCT-004, BR-RCT-005.
