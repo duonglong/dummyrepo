@@ -64,6 +64,22 @@ class TestBugfixes(TransactionCase):
                 len(self._entries(model, order, 'amount_total')), 3,
                 "%s: a third Total entry after removing the line through the catalog" % model)
 
+    def test_bug_b_0098_creating_order_with_lines_records_nothing(self):
+        """Regression test for B-0098: creating an order with lines leaves no entry.
+
+        Requirements: FR-RCT-001, FR-RCT-009
+        """
+        line = {'product_id': self.product.id, 'product_qty': 1, 'price_unit': 10.0}
+        for model, line_vals in (
+                ('sale.order', {'product_id': self.product.id, 'product_uom_qty': 1}),
+                ('purchase.order', line)):
+            order = self.env[model].with_user(self.user).create({
+                'partner_id': self.partner.id, 'order_line': [(0, 0, line_vals)]})
+            self.assertFalse(
+                self.env['record.change.entry'].search([
+                    ('res_model', '=', model), ('res_id', '=', order.id)]),
+                "%s: creation records no entry" % model)
+
 
 class TestPerformance(TransactionCase):
 

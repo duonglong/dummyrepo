@@ -152,6 +152,16 @@ class RecordChangeMixin(models.AbstractModel):
         if entries:
             self.env['record.change.entry'].sudo().create(entries)
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Requirements: FR-RCT-001, FR-RCT-009.
+
+        Creating a record leaves no entry: the line hooks of an order stay quiet while its lines
+        are created with it (history starts with the first later change).
+        """
+        records = super(RecordChangeMixin, self.with_context(rct_in_write=True)).create(vals_list)
+        return records.with_env(self.env)  # the quiet context must not stay on the new records
+
     def write(self, vals):
         """Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015, FR-RCT-016.
 
