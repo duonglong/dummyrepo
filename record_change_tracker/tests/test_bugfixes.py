@@ -14,7 +14,7 @@ class TestBugfixes(TransactionCase):
             cls.env, login='rct_bugfix_user',
             groups='base.group_user,sales_team.group_sale_manager,purchase.group_purchase_manager')
         cls.partner = cls.env['res.partner'].create({'name': 'Bugfix partner'})
-        cls.product = cls.env['product.product'].create({'name': 'Bugfix product', 'list_price': 10.0})
+        cls.product = cls.env['product.product'].create({'name': 'Bugfix product', 'list_price': 10.0, 'standard_price': 10.0})
 
     def _entries(self, model, record, field_name):
         return self.env['record.change.entry'].search([
@@ -42,6 +42,27 @@ class TestBugfixes(TransactionCase):
         self.assertEqual(len(entry), 1)
         self.assertIn('10:00', entry.new_value)
         self.assertNotIn('08:00', entry.new_value)
+
+
+    def test_bug_b_0097_total_recorded_when_line_changes_outside_order_write(self):
+        """Regression test for B-0097: the order total is recorded when a line changes without an order write.
+
+        Requirements: FR-RCT-001, FR-RCT-009
+        """
+        for model in ('sale.order', 'purchase.order'):
+            order = self.env[model].with_user(self.user).create({'partner_id': self.partner.id})
+            order._update_order_line_info(self.product, 2, self.product.uom_id, 'order_line')
+            self.assertEqual(
+                len(self._entries(model, order, 'amount_total')), 1,
+                "%s: one Total entry after adding a product through the catalog" % model)
+            order._update_order_line_info(self.product, 5, self.product.uom_id, 'order_line')
+            self.assertEqual(
+                len(self._entries(model, order, 'amount_total')), 2,
+                "%s: a second Total entry after changing the catalog quantity" % model)
+            order._update_order_line_info(self.product, 0, self.product.uom_id, 'order_line')
+            self.assertEqual(
+                len(self._entries(model, order, 'amount_total')), 3,
+                "%s: a third Total entry after removing the line through the catalog" % model)
 
 
 class TestPerformance(TransactionCase):

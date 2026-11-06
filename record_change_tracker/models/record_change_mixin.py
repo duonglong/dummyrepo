@@ -108,26 +108,31 @@ class RecordChangeMixin(models.AbstractModel):
                 else format_datetime(self.env, value)
         return str(value)
 
-    def write(self, vals):
-        """Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015, FR-RCT-016.
+    def _rct_snapshot(self, vals):
+        """State of the followed fields before a change, None when nothing is followed.
 
-        Write one entry per changed followed, non-sensitive field of each record.
+        Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015
         """
-        if self.env.context.get('tracking_disable'):
-            return super().write(vals)
         lines = self._rct_tracker_lines().filtered('is_tracked')
         # a stored computed field (an order total) is never in vals: it changes through its inputs
         ir_fields = lines.field_id.filtered(lambda f: f.name in self._fields and (
             f.name in vals or (vals and self._fields[f.name].compute and self._fields[f.name].store)))
         if not ir_fields:
-            return super().write(vals)
+            return None
         records = self.sudo().filtered('id')
         before = {
             rec.id: {f.name: rec[f.name] for f in ir_fields} for rec in records}
         texts_before = {
             rec.id: {f.name: rec._rct_display(f.name, before[rec.id][f.name]) for f in ir_fields}
             for rec in records}
-        result = super().write(vals)
+        return records, ir_fields, before, texts_before
+
+    def _rct_record_changes(self, snapshot):
+        """Write one entry per followed field that differs from the snapshot.
+
+        Requirements: FR-RCT-001, FR-RCT-003
+        """
+        records, ir_fields, before, texts_before = snapshot
         entries = []
         for rec in records:
             for ir_field in ir_fields:
@@ -146,4 +151,18 @@ class RecordChangeMixin(models.AbstractModel):
                 })
         if entries:
             self.env['record.change.entry'].sudo().create(entries)
+
+    def write(self, vals):
+        """Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015, FR-RCT-016.
+
+        Write one entry per changed followed, non-sensitive field of each record.
+        """
+        if self.env.context.get('tracking_disable'):
+            return super().write(vals)
+        snapshot = self._rct_snapshot(vals)
+        if not snapshot:
+            return super().write(vals)
+        # the line hooks of the order lines stay quiet: this write records the whole change
+        result = super(RecordChangeMixin, self.with_context(rct_in_write=True)).write(vals)
+        self._rct_record_changes(snapshot)
         return result

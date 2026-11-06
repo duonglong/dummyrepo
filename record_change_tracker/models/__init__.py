@@ -7,3 +7,6 @@ from . import res_partner
 from . import sale_order
 from . import purchase_order
 from . import product_template
+from . import order_line_hooks
+from . import sale_order_line
+from . import purchase_order_line
