@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="access_record_change_model_user" model="ir.access">
+        <field name="name">record.change.model read</field>
+        <field name="model_id" ref="model_record_change_model"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+    </record>
+    <record id="access_record_change_model_system" model="ir.access">
+        <field name="name">record.change.model settings administrator</field>
+        <field name="model_id" ref="model_record_change_model"/>
+        <field name="group_id" ref="base.group_system"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_record_change_field_user" model="ir.access">
+        <field name="name">record.change.field read</field>
+        <field name="model_id" ref="model_record_change_field"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+    </record>
+    <record id="access_record_change_field_system" model="ir.access">
+        <field name="name">record.change.field settings administrator</field>
+        <field name="model_id" ref="model_record_change_field"/>
+        <field name="group_id" ref="base.group_system"/>
+        <field name="operation">crud</field>
+    </record>
+    <record id="access_record_change_model_read_ir_model" model="ir.access">
+        <field name="name">record.change tracked models readable by internal users</field>
+        <field name="model_id" ref="base.model_ir_model"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+        <field name="domain">[('model', 'in', ['res.partner', 'sale.order', 'purchase.order', 'product.template'])]</field>
+    </record>
+    <record id="access_record_change_field_read_ir_field" model="ir.access">
+        <field name="name">record.change tracked fields readable by internal users</field>
+        <field name="model_id" ref="base.model_ir_model_fields"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+        <field name="domain">[('model', 'in', ['res.partner', 'sale.order', 'purchase.order', 'product.template'])]</field>
+    </record>
+</odoo>

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="tracked_model_contact" model="record.change.model">
+        <field name="model_id" model="ir.model" eval="obj()._get_id('res.partner')"/>
+        <field name="is_followed" eval="True"/>
+    </record>
+    <record id="tracked_field_contact_name" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'name').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_email" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'email').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_phone" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'phone').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_street" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'street').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_city" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'city').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_country_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'country_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_vat" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'vat').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_contact_user_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_contact"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('res.partner', 'user_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_model_sale_order" model="record.change.model">
+        <field name="model_id" model="ir.model" eval="obj()._get_id('sale.order')"/>
+        <field name="is_followed" eval="True"/>
+    </record>
+    <record id="tracked_field_sale_order_partner_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'partner_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_sale_order_user_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'user_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_sale_order_payment_term_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'payment_term_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_sale_order_validity_date" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'validity_date').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_sale_order_state" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'state').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_sale_order_amount_total" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_sale_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('sale.order', 'amount_total').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_model_purchase_order" model="record.change.model">
+        <field name="model_id" model="ir.model" eval="obj()._get_id('purchase.order')"/>
+        <field name="is_followed" eval="True"/>
+    </record>
+    <record id="tracked_field_purchase_order_partner_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'partner_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_user_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'user_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_date_order" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'date_order').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_date_planned" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'date_planned').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_payment_term_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'payment_term_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_state" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'state').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_purchase_order_amount_total" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_purchase_order"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('purchase.order', 'amount_total').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_model_product" model="record.change.model">
+        <field name="model_id" model="ir.model" eval="obj()._get_id('product.template')"/>
+        <field name="is_followed" eval="True"/>
+    </record>
+    <record id="tracked_field_product_name" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_product"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('product.template', 'name').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_product_default_code" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_product"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('product.template', 'default_code').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_product_list_price" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_product"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('product.template', 'list_price').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_product_categ_id" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_product"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('product.template', 'categ_id').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+    <record id="tracked_field_product_barcode" model="record.change.field">
+        <field name="tracked_model_id" ref="tracked_model_product"/>
+        <field name="field_id" model="ir.model.fields" eval="obj()._get('product.template', 'barcode').id"/>
+        <field name="is_followed" eval="True"/>
+        <field name="is_sensitive" eval="False"/>
+    </record>
+</odoo>
