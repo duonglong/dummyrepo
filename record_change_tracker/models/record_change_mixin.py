@@ -107,7 +107,7 @@ class RecordChangeMixin(models.AbstractModel):
         return str(value)
 
     def write(self, vals):
-        """Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015.
+        """Requirements: FR-RCT-001, FR-RCT-003, FR-RCT-012, FR-RCT-015, FR-RCT-016.
 
         Write one entry per changed followed, non-sensitive field of each record.
         """
