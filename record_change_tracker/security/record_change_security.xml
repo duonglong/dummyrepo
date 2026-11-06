@@ -39,4 +39,10 @@
         <field name="operation">r</field>
         <field name="domain">[('model', 'in', ['res.partner', 'sale.order', 'purchase.order', 'product.template'])]</field>
     </record>
+    <record id="access_record_change_entry_user" model="ir.access">
+        <field name="name">record.change.entry read</field>
+        <field name="model_id" ref="model_record_change_entry"/>
+        <field name="group_id" ref="base.group_user"/>
+        <field name="operation">r</field>
+    </record>
 </odoo>
