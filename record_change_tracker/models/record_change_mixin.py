@@ -51,6 +51,9 @@ class RecordChangeMixin(models.AbstractModel):
             self.env['record.change.visit']._register_visit(self)
         return super().web_read(specification)
 
+    # The visit is a write: the opening RPC must not run on a read-only cursor.
+    web_read._readonly = False
+
     def web_save(self, vals, specification, next_id=None):
         """Requirements: FR-RCT-004, BR-RCT-005.
 

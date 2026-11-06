@@ -84,3 +84,7 @@ class TestVisits(TransactionCase):
             [('model_id.model', '=', 'res.partner')]).write({'is_followed': False})
         self._open('2026-03-01 09:00:00')
         self.assertFalse(self._visit())
+
+    def test_web_read_is_not_readonly(self):
+        """Requirements: FR-RCT-004. The opening stores a visit, so web_read must not be readonly."""
+        self.assertFalse(getattr(type(self.partner).web_read, '_readonly', False))

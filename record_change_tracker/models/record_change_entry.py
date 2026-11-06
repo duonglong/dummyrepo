@@ -33,7 +33,7 @@ class RecordChangeEntry(models.Model):
         search='_search_res_access_read', compute_sudo=True, depends_context=('uid',))
 
     is_new = fields.Boolean(
-        string='New', compute='_compute_is_new', depends_context=('uid',))
+        string='Is new', compute='_compute_is_new', depends_context=('uid',))
     new_label = fields.Char(string='New', compute='_compute_is_new', depends_context=('uid',))
 
     @api.depends('res_model', 'res_id', 'change_date', 'author_id')
