@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_template_form_change_history" model="ir.ui.view">
+        <field name="name">product.template.form.change.history</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <field name="change_tracking_followed" invisible="1"/>
+                <page string="Change history" name="change_history" invisible="not change_tracking_followed">
+                    <field name="change_entry_ids" nolabel="1" readonly="1" class="o_rct_history">
+                        <list create="0" edit="0" delete="0">
+                            <field name="is_new" column_invisible="1"/>
+                            <field name="new_label" decoration-success="is_new"/>
+                            <field name="change_date"/>
+                            <field name="author_id"/>
+                            <field name="field_label"/>
+                            <field name="old_value"/>
+                            <field name="new_value"/>
+                        </list>
+                    </field>
+                    <p class="text-muted" invisible="change_entry_ids">No changes recorded yet</p>
+                    <p class="text-muted" invisible="not change_entry_ids">Lines marked New were changed by someone else since your previous visit.</p>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

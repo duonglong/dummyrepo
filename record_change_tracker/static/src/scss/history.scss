@@ -1,0 +1,16 @@
+// Keep the change history table inside its box on a phone: share the width
+// between the columns and wrap long values instead of scrolling sideways.
+.o_rct_history .o_list_table {
+    table-layout: fixed;
+    width: 100% !important;
+
+    th {
+        // the list freezes pixel widths from the content; let the columns share the box
+        width: auto !important;
+    }
+
+    th, td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
