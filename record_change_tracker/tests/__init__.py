@@ -9,3 +9,4 @@ from . import test_sensitive_acceptance
 from . import test_visits
 from . import test_import_option_acceptance
 from . import test_history_tab
+from . import test_bugfixes

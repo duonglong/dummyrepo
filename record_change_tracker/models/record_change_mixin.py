@@ -114,7 +114,9 @@ class RecordChangeMixin(models.AbstractModel):
         if self.env.context.get('tracking_disable'):
             return super().write(vals)
         lines = self._rct_tracker_lines().filtered('is_tracked')
-        ir_fields = lines.field_id.filtered(lambda f: f.name in vals and f.name in self._fields)
+        # a stored computed field (an order total) is never in vals: it changes through its inputs
+        ir_fields = lines.field_id.filtered(lambda f: f.name in self._fields and (
+            f.name in vals or (vals and self._fields[f.name].compute and self._fields[f.name].store)))
         if not ir_fields:
             return super().write(vals)
         records = self.sudo().filtered('id')
