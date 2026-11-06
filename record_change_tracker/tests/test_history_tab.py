@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests.common import TransactionCase, new_test_user
 
 
@@ -10,11 +12,13 @@ class TestHistoryTabPaging(TransactionCase):
         self.env['record.change.model'].sudo().search(
             [('model_id.model', '=', 'res.partner')]).write({'is_followed': True})
         partner = self.env['res.partner'].create({'name': 'Busy'})
+        base = datetime(2026, 1, 1)
         self.env['record.change.entry'].sudo().create([{
             'res_model': 'res.partner', 'res_id': partner.id,
             'field_name': 'phone', 'field_label': 'Phone', 'old_value': str(i),
-            'new_value': str(i + 1), 'change_date': '2026-01-01 00:00:00',
-        } for i in range(120)])
+            'new_value': str(i + 1),
+            'change_date': fields.Datetime.to_string(base + timedelta(minutes=i)),
+        } for i in range(1000)])
         user = new_test_user(self.env, login='rct_page_u', groups='base.group_user,base.group_system')
         real = self.env.registry['record.change.entry'].search
         limits = []
@@ -27,4 +31,6 @@ class TestHistoryTabPaging(TransactionCase):
         with patch.object(self.env.registry['record.change.entry'], 'search', spy):
             entries = partner.with_user(user).change_entry_ids
         self.assertEqual(len(entries), 80)
+        # the 80 newest: old values 999 down to 920
+        self.assertEqual(entries.mapped('old_value'), [str(i) for i in range(999, 919, -1)])
         self.assertTrue(limits and all(limit == 80 for limit in limits), limits)

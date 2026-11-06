@@ -22,7 +22,7 @@ class RecordChangeMixin(models.AbstractModel):
 
     @api.depends_context('uid')
     def _compute_change_entry_ids(self):
-        """Requirements: FR-RCT-002, FR-RCT-013, NFR-SEC-001.
+        """Requirements: FR-RCT-002, FR-RCT-013, NFR-SEC-001, NFR-PERF-001.
 
         Entries of each record, newest first, readable by the user, without sensitive fields.
         """
@@ -31,7 +31,7 @@ class RecordChangeMixin(models.AbstractModel):
             ('is_sensitive', '=', True)]).field_id.mapped('name')
         Entry = self.env['record.change.entry']
         for rec in self:
-            # only the first page is read, served by the (res_model, res_id, change_date) index
+            # only the first page is read, bounded by the limit; res_model, res_id and change_date are each indexed
             rec.change_entry_ids = Entry.search([
                 ('res_model', '=', self._name), ('res_id', '=', rec.id),
                 ('field_name', 'not in', sensitive)], limit=HISTORY_PAGE_SIZE) if rec.id else Entry
