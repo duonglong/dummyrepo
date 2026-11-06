@@ -7,3 +7,4 @@ from . import test_visits_acceptance
 from . import test_start_set_acceptance
 from . import test_sensitive_acceptance
 from . import test_visits
+from . import test_import_option_acceptance
