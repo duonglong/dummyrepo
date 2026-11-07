@@ -83,10 +83,11 @@ class PerfAuditRun(models.Model):
         }
 
     @api.model
-    def action_start_scheduled_audit(self):
+    def _cron_start_scheduled_audit(self):
         """Start a run for the scheduled audit; skipped silently while another one runs.
 
-        The scheduled action already runs in the background, so the run executes at once.
+        The run starts like one started by hand: this action ends and commits it in state running,
+        then the background action executes it.
 
         Requirements: FR-OPA-0032, FR-OPA-0034
         """
@@ -94,21 +95,23 @@ class PerfAuditRun(models.Model):
         if self.search_count([('state', '=', 'running')]):
             _logger.info('Scheduled audit skipped: a run is already in progress')
             return
-        self._start_run('scheduled')._execute()
+        self._start_run('scheduled')
 
     @api.model
     def _start_run(self, trigger):
-        """Create a running run started by the current user with `trigger`.
+        """Create a running run started by the current user with `trigger` and have it executed.
 
-        A manual run is executed at once in a test, else by the background action.
+        A run is executed at once in a test, else by the background action once the run is committed.
+
+        Requirements: FR-OPA-0001, FR-OPA-0032
         """
         run = self.create({'user_id': self.env.user.id, 'trigger': trigger})
-        if trigger == 'manual' and odoo_module.current_test:
+        if odoo_module.current_test:
             run._execute()
-        elif trigger == 'manual':
-            # The request commits the run in state running; the trigger wakes the background action after it.
-            cron = self.env.ref('perf_audit.ir_cron_execute_audit').sudo()  # an administrator may not own the cron
-            cron._trigger()
+            return run
+        # The trigger wakes the background action after the caller's transaction commits the run.
+        cron = self.env.ref('perf_audit.ir_cron_execute_audit').sudo()  # an administrator may not own the cron
+        cron._trigger()
         return run
 
     @api.model

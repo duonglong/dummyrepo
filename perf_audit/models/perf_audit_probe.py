@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import api, models
 
 
 class PerfAuditProbe(models.AbstractModel):
@@ -48,6 +48,7 @@ class PerfAuditProbe(models.AbstractModel):
         self.env.cr.execute('SELECT extname FROM pg_extension')
         return {name for (name,) in self.env.cr.fetchall()}
 
+    @api.private
     def stats_reset(self):
         """Return `(time, source)` of the last statistics reset of this database.
 
@@ -64,9 +65,11 @@ class PerfAuditProbe(models.AbstractModel):
         self.env.cr.execute('SELECT pg_postmaster_start_time()')
         return self.env.cr.fetchone()[0], 'server_start'
 
-    def execute_pending_runs(self):
+    def _cron_execute_pending_runs(self):
         """Entry of the background action that executes started runs.
 
         It sits here so the scheduled audit is the only action of the run model.
+
+        Requirements: FR-OPA-0001
         """
         self.env['perf.audit.run']._execute_pending_runs()

@@ -4,7 +4,7 @@
         <field name="name">Performance audit: execute started runs</field>
         <field name="model_id" ref="model_perf_audit_probe"/>
         <field name="state">code</field>
-        <field name="code">model.execute_pending_runs()</field>
+        <field name="code">model._cron_execute_pending_runs()</field>
         <field name="user_id" ref="base.user_root"/>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
@@ -13,10 +13,11 @@
         <field name="name">Performance audit (scheduled)</field>
         <field name="model_id" ref="model_perf_audit_run"/>
         <field name="state">code</field>
-        <field name="code">model.action_start_scheduled_audit()</field>
+        <field name="code">model._cron_start_scheduled_audit()</field>
         <field name="user_id" ref="base.user_root"/>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 02:00:00')"/>
         <field name="active" eval="False"/>
     </record>
 </odoo>

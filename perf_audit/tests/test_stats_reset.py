@@ -44,3 +44,7 @@ class TestStatsReset(PerfAuditCase):
         reset_date, source = self.env['perf.audit.probe'].stats_reset()
         self.assertTrue(reset_date)
         self.assertIn(source, ('reset', 'server_start'))
+
+    def test_probe_entry_is_private(self):
+        """The probe's statistics reads cannot be called remotely."""
+        self.assertTrue(getattr(type(self.env['perf.audit.probe']).stats_reset, '_api_private', False))
