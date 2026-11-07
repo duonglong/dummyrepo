@@ -12,5 +12,6 @@
         'views/config_snapshot_export_views.xml',
         'views/menus.xml',
         'views/config_snapshot_import_views.xml',
+        'views/config_snapshot_item_buttons.xml',
     ],
 }

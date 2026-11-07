@@ -61,6 +61,18 @@ class TestCoveredListUx(ConfigSnapshotCase):
         arch = self.env['config.snapshot.item'].get_view(view_type='list')['arch']
         return etree.fromstring(arch)
 
+    def test_bug_b_0080_export_import_buttons_above_list(self):
+        """Regression test for B-0080: Export and Import buttons are not above the covered list.
+
+        Requirements: FR-TCM-003, FR-TCM-005
+        """
+        buttons = self._list_arch().xpath('//header/button[@display="always"]')
+        expected = {
+            self.env.ref('config_snapshot_manager.config_snapshot_export_action').id,
+            self.env.ref('config_snapshot_manager.config_snapshot_import_action').id,
+        }
+        self.assertEqual({int(b.get('name')) for b in buttons}, expected)
+
     def test_bug_b_0081_setting_and_key_not_duplicated(self):
         """Regression test for B-0081: long names cut, Setting and Key columns repeat each other.
 
