@@ -4,6 +4,11 @@ from ..const import MASK
 
 
 class ConfigSnapshotItem(models.Model):
+    """A system setting covered by snapshots.
+
+    Requirements: FR-TCM-001, BR-TCM-003
+    """
+
     _name = 'config.snapshot.item'
     _description = 'Covered system setting'
     _order = 'key'
