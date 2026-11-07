@@ -14,3 +14,5 @@ from . import test_check_a6_acceptance
 from . import test_run_engine
 from . import test_finding
 from . import test_one_run
+from . import test_fix_script_apply_acceptance
+from . import test_compare_acceptance
