@@ -61,6 +61,7 @@ class PerfAuditRun(models.Model):
         for run in self:
             run.is_latest = run == latest
 
+    @api.depends('finding_ids')
     def _compute_fix_script(self):
         """Build the SQL file of the run: a comment per finding and its statement, none of them run.
 
@@ -88,7 +89,8 @@ class PerfAuditRun(models.Model):
                 finding.threshold_label, finding.found_value, finding.threshold_value)
             if finding.threshold_label else '',
         ]
-        return '-- Evidence: ' + (', '.join(part for part in parts if part) or 'none')
+        evidence = ', '.join(part for part in parts if part) or 'none'
+        return '-- Evidence: ' + ' '.join(evidence.split())
 
     # -- start ------------------------------------------------------------
 

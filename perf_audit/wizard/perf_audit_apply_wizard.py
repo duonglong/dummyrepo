@@ -20,4 +20,4 @@ class PerfAuditApplyWizard(models.TransientModel):
         """
         self.ensure_one()
         self.finding_id._apply_fix()
-        return {'type': 'ir.actions.act_window_close'}
+        return {'type': 'ir.actions.client', 'tag': 'reload'}

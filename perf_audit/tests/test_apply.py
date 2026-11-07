@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.exceptions import UserError
 from odoo.tests.common import tagged
 
@@ -55,3 +57,29 @@ class TestApply(PerfAuditCase):
             'state': 'done', 'start_date': '2999-01-01 00:00:00'})
         self.assertFalse(self._finding().can_apply)
         self.assertTrue(self._finding(run_id=newer.id).can_apply)
+
+    def test_outside_a_test_the_statement_runs_after_the_request_commits(self):
+        """FR-OPA-0029: the real path defers the statement so no snapshot of the request is open."""
+        finding = self._finding().with_user(self.audit_admin)
+        ran = []
+
+        def run_alone(dbname, statement):
+            ran.append(statement)
+            return None
+
+        with self.registry_test_mode(), \
+                patch.object(type(finding), '_run_statement_alone', staticmethod(run_alone)):
+            with patch('odoo.addons.perf_audit.models.perf_audit_finding.odoo_module.current_test', False):
+                finding._apply_fix()
+            self.assertEqual((ran, finding.apply_state), ([], 'none'), 'nothing runs inside the request')
+            self.env.cr.postcommit.run()
+        self.assertEqual(ran, ['ANALYZE "res_partner"'])
+        self.assertEqual((finding.apply_state, finding.applied_by), ('applied', self.audit_admin))
+
+    def test_deferred_failure_is_recorded(self):
+        """FR-OPA-0029: a database error of the deferred statement is recorded as failed."""
+        finding = self._finding()
+        with patch.object(type(finding), '_run_statement_alone', staticmethod(lambda d, s: 'boom')), \
+                self.registry_test_mode():
+            finding._apply_after_commit(self.env.cr.dbname, finding.id, self.env.uid, 'x')
+        self.assertEqual((finding.apply_state, finding.apply_error), ('failed', 'boom'))

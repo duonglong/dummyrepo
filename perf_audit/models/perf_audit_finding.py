@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 
@@ -170,13 +171,45 @@ class PerfAuditFinding(models.Model):
     def _apply_fix(self):
         """Run the statement of this finding on its own and record who, when and the outcome.
 
-        A failing statement records its database error and changes nothing else.
+        A failing statement records its database error and changes nothing else. A concurrent
+        index build waits for every older snapshot of the database, including the one of this
+        request, so outside a test the statement runs once the request has committed.
 
         Requirements: FR-OPA-0029, BR-OPA-0004
         """
         self.ensure_one()
         self._check_can_apply()
-        error = self._execute_statement(self.fix_statement)
+        if odoo_module.current_test:
+            self._record_apply_outcome(self._execute_in_savepoint(
+                self.fix_statement.replace(' CONCURRENTLY', '')))
+            return
+        self.env.cr.postcommit.add(functools.partial(
+            self._apply_after_commit, self.env.cr.dbname, self.id, self.env.uid, self.fix_statement))
+
+    @api.model
+    def _apply_after_commit(self, dbname, finding_id, uid, statement):
+        """Run the statement of a committed request, then record its outcome on a fresh cursor.
+
+        Requirements: FR-OPA-0029
+        """
+        error = self._run_statement_alone(dbname, statement)
+        with self.pool.cursor() as cr:
+            finding = api.Environment(cr, uid, {})['perf.audit.finding'].browse(finding_id)
+            finding._record_apply_outcome(error)
+
+    @staticmethod
+    def _run_statement_alone(dbname, statement):
+        """Run one statement on its own autocommit connection; return the database error or None."""
+        with sql_db.db_connect(dbname).cursor() as cr:
+            cr._cnx.autocommit = True
+            try:
+                cr.execute(statement)
+            except psycopg2.Error as error:
+                return str(error)
+        return None
+
+    def _record_apply_outcome(self, error):
+        """Record who applied the fix, when, and its outcome; a failure keeps its database error."""
         self.write({
             'apply_state': 'failed' if error else 'applied',
             'apply_error': error or False,
@@ -184,23 +217,6 @@ class PerfAuditFinding(models.Model):
             'applied_date': fields.Datetime.now(),
         })
         _logger.info('Fix of finding %s %s', self.identity_key, 'failed' if error else 'applied')
-
-    def _execute_statement(self, statement):
-        """Run one statement outside the current transaction; return the database error or None.
-
-        Statements that build an index concurrently cannot run inside a transaction, so the
-        statement gets its own autocommit connection. A test cursor cannot open one, so tests run
-        it in a savepoint without the concurrent option.
-        """
-        if odoo_module.current_test:
-            return self._execute_in_savepoint(statement.replace(' CONCURRENTLY', ''))
-        with sql_db.db_connect(self.env.cr.dbname).cursor() as cr:
-            cr._cnx.autocommit = True
-            try:
-                cr.execute(statement)
-            except psycopg2.Error as error:
-                return str(error)
-        return None
 
     def _execute_in_savepoint(self, statement):
         """Run the statement in a savepoint of the current cursor; return the error or None."""

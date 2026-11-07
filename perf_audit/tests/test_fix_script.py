@@ -41,3 +41,9 @@ class TestFixScript(PerfAuditCase):
         self._finding('k', message='first\nDROP TABLE res_partner')
         self.assertTrue(all(
             line.startswith('--') for line in self._script().splitlines() if line.strip()))
+
+    def test_line_break_in_the_table_name_stays_a_comment(self):
+        """FR-OPA-0028: the evidence line is collapsed like the message."""
+        self._finding('k', table_name='t\nDROP TABLE res_partner')
+        self.assertTrue(all(
+            line.startswith('--') for line in self._script().splitlines() if line.strip()))
