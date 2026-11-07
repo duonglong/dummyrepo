@@ -1,0 +1,20 @@
+// B-0083/B-0084: list cells are truncated with an ellipsis; let long setting keys wrap.
+// Core rules (.o_data_row:not(.o_selected_row) .o_list_char ... span) are more specific
+// than these selectors and set nowrap, overflow hidden and an ellipsis, so !important is needed.
+.o_list_renderer td.cs_wrap_cell,
+.o_list_renderer td.cs_wrap_cell .o_field_widget,
+.o_list_renderer td.cs_wrap_cell span {
+    white-space: normal !important;
+    overflow: visible !important;
+    overflow-wrap: anywhere;
+    text-overflow: clip !important;
+    max-width: none !important;
+}
+
+// B-0106: a fixed key width fills a phone dialog and pushes the value columns out of sight.
+@media (max-width: 767.98px) {
+    .o_list_renderer.cs_diff_list th[data-name="key"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+}

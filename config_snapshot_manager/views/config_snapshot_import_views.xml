@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="config_snapshot_import_view_form" model="ir.ui.view">
+        <field name="name">config.snapshot.import.form</field>
+        <field name="model">config.snapshot.import</field>
+        <field name="arch" type="xml">
+            <form string="Import settings">
+                <field name="state" invisible="1"/>
+                <group invisible="state != 'upload'">
+                    <field name="file" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <field name="difference_count" invisible="1"/>
+                <div class="d-flex flex-wrap gap-4 mb-3" invisible="state != 'review'">
+                    <span>Added: <field name="added_count" class="oe_inline fw-bold"/></span>
+                    <span>Modified: <field name="modified_count" class="oe_inline fw-bold"/></span>
+                    <span>Removed: <field name="removed_count" class="oe_inline fw-bold"/></span>
+                </div>
+                <group invisible="state != 'confirm'">
+                    <field name="confirmation_text" nolabel="1" colspan="2"/>
+                </group>
+                <field name="line_ids" readonly="1" invisible="state == 'upload'">
+                    <list create="false" delete="false" class="cs_diff_list"
+                          decoration-success="change_type == 'added'"
+                          decoration-warning="change_type == 'modified'"
+                          decoration-danger="change_type == 'removed'">
+                        <field name="change_type" string="Kind" width="90px"/>
+                        <field name="key" width="320px" class="text-break cs_wrap_cell"/>
+                        <field name="current_value" string="Current" class="text-break"/>
+                        <field name="file_value" string="In file" class="text-break"/>
+                        <field name="sensitive" column_invisible="1"/>
+                    </list>
+                </field>
+                <footer>
+                    <button string="Compare" name="action_compare" type="object"
+                            class="btn-primary" invisible="state != 'upload'"/>
+                    <button string="Apply" name="action_confirm" type="object"
+                            class="btn-primary"
+                            invisible="state != 'review' or difference_count == 0"/>
+                    <button string="Confirm" name="action_apply" type="object"
+                            class="btn-primary" invisible="state != 'confirm'"/>
+                    <button string="Cancel" name="action_cancel" type="object"
+                            class="btn-secondary" invisible="state != 'confirm'"/>
+                    <button string="Close" invisible="state == 'confirm'" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="config_snapshot_import_action" model="ir.actions.act_window">
+        <field name="name">Import</field>
+        <field name="res_model">config.snapshot.import</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_config_snapshot_import" name="Import"
+              parent="menu_config_snapshot_root" action="config_snapshot_import_action"
+              sequence="30" groups="base.group_system"/>
+</odoo>

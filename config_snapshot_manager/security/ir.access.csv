@@ -1,0 +1,6 @@
+id,name,model_id,group_id/id,operation,domain
+access_config_snapshot_item_system,config.snapshot.item system,config.snapshot.item,base.group_system,crud,
+access_config_snapshot_log_system,config.snapshot.log system,config.snapshot.log,base.group_system,r,
+access_config_snapshot_import_system,config.snapshot.import system,config.snapshot.import,base.group_system,crud,
+access_config_snapshot_import_line_system,config.snapshot.import.line system,config.snapshot.import.line,base.group_system,crud,
+access_config_snapshot_export_system,config.snapshot.export system,config.snapshot.export,base.group_system,crud,
