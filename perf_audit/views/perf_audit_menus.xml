@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_perf_audit_root" name="Performance Audit"
+              sequence="95" groups="base.group_system"/>
+    <menuitem id="menu_perf_audit_check" name="Checks"
+              parent="menu_perf_audit_root" action="perf_audit_check_action"
+              sequence="90" groups="base.group_system"/>
+</odoo>

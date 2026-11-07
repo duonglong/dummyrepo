@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="check_a1" model="perf.audit.check">
+        <field name="code">A1</field>
+        <field name="name">Big tables read by sequential scans</field>
+        <field name="category">database</field>
+        <field name="severity">high</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="check_a2" model="perf.audit.check">
+        <field name="code">A2</field>
+        <field name="name">Stored many2one without an index on a big table</field>
+        <field name="category">database</field>
+        <field name="severity">medium</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="check_a3" model="perf.audit.check">
+        <field name="code">A3</field>
+        <field name="name">Unused and duplicate indexes</field>
+        <field name="category">database</field>
+        <field name="severity">low</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="check_a4" model="perf.audit.check">
+        <field name="code">A4</field>
+        <field name="name">Tables that need vacuum</field>
+        <field name="category">database</field>
+        <field name="severity">medium</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="check_a5" model="perf.audit.check">
+        <field name="code">A5</field>
+        <field name="name">Stale planner statistics</field>
+        <field name="category">database</field>
+        <field name="severity">low</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="check_a6" model="perf.audit.check">
+        <field name="code">A6</field>
+        <field name="name">Most expensive queries</field>
+        <field name="category">database</field>
+        <field name="severity">variable</field>
+        <field name="sequence">60</field>
+    </record>
+    <record id="check_a7" model="perf.audit.check">
+        <field name="code">A7</field>
+        <field name="name">Tables that only grow</field>
+        <field name="category">database</field>
+        <field name="severity">medium</field>
+        <field name="sequence">70</field>
+    </record>
+    <record id="check_a8" model="perf.audit.check">
+        <field name="code">A8</field>
+        <field name="name">Long and idle-in-transaction sessions and lock chains</field>
+        <field name="category">database</field>
+        <field name="severity">high</field>
+        <field name="sequence">80</field>
+    </record>
+    <record id="check_b1" model="perf.audit.check">
+        <field name="code">B1</field>
+        <field name="name">Heavy fields in list and kanban views</field>
+        <field name="category">odoo</field>
+        <field name="severity">high</field>
+        <field name="sequence">90</field>
+    </record>
+    <record id="check_b2" model="perf.audit.check">
+        <field name="code">B2</field>
+        <field name="name">Stored computes whose dependencies fan out</field>
+        <field name="category">odoo</field>
+        <field name="severity">medium</field>
+        <field name="sequence">100</field>
+    </record>
+    <record id="check_b3" model="perf.audit.check">
+        <field name="code">B3</field>
+        <field name="name">Fields used in domains with no index</field>
+        <field name="category">odoo</field>
+        <field name="severity">medium</field>
+        <field name="sequence">110</field>
+    </record>
+    <record id="check_b4" model="perf.audit.check">
+        <field name="code">B4</field>
+        <field name="name">Complex record rules</field>
+        <field name="category">odoo</field>
+        <field name="severity">medium</field>
+        <field name="sequence">120</field>
+    </record>
+    <record id="check_b5" model="perf.audit.check">
+        <field name="code">B5</field>
+        <field name="name">Costly default sort order</field>
+        <field name="category">odoo</field>
+        <field name="severity">low</field>
+        <field name="sequence">130</field>
+    </record>
+    <record id="check_b6" model="perf.audit.check">
+        <field name="code">B6</field>
+        <field name="name">Too much tracking</field>
+        <field name="category">odoo</field>
+        <field name="severity">low</field>
+        <field name="sequence">140</field>
+    </record>
+    <record id="check_b7" model="perf.audit.check">
+        <field name="code">B7</field>
+        <field name="name">Scheduled actions that fail, run late or overlap</field>
+        <field name="category">odoo</field>
+        <field name="severity">variable</field>
+        <field name="sequence">150</field>
+    </record>
+</odoo>
