@@ -28,8 +28,11 @@ class IndexesCheck(Check):
         findings = [
             self._unused_finding(ctx, index) for index in indexes
             if index['idx_scan'] == 0 and not _guards_data(index) and index['size'] >= minimum_bytes]
+        by_table = {}
         for index in indexes:
-            if (cover := self._covering_index(index, indexes)) is not None:
+            by_table.setdefault(index['table'], []).append(index)
+        for index in indexes:
+            if (cover := self._covering_index(index, by_table[index['table']])) is not None:
                 findings.append(self._duplicate_finding(ctx, index, cover))
         return findings
 

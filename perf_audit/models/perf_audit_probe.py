@@ -46,6 +46,7 @@ class PerfAuditProbe(models.AbstractModel):
         """)
         return dict(self.env.cr.fetchall())
 
+    @api.private
     def scan_statistics(self):
         """Live rows, scan counts, rows read by sequential scans and total size, per table of the public schema.
 
@@ -65,6 +66,7 @@ class PerfAuditProbe(models.AbstractModel):
             for table, live_rows, seq_scan, idx_scan, seq_tup_read, total_size in self.env.cr.fetchall()
         }
 
+    @api.private
     def index_definitions(self):
         """The valid indexes of the public schema with their key columns, kind, size and scan count.
 

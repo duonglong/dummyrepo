@@ -47,7 +47,7 @@ class SeqScanCheck(Check):
             'model_id': ctx.env['ir.model']._get_id(model_name) if model_name else False,
             'table_name': table,
             'row_estimate': stats['live_rows'],
-            'found_value': stats['seq_scan'],
+            'found_value': stats['live_rows'],
             'threshold_label': 'big_table',
             'threshold_value': ctx.thresholds['big_table'],
             'stats_reset_date': ctx.run.stats_reset_date,
