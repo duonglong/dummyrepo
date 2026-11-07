@@ -55,3 +55,27 @@ class TestImportCompare(ConfigSnapshotCase):
         self._compare([{'key': 't4.log', 'value': 'v'}])
         entry = self.env['config.snapshot.log'].search([('log_type', '=', 'import')], limit=1)
         self.assertEqual((entry.file_name, entry.added_count), ('prod.json', 1))
+
+    def test_removed_secret_masked(self):
+        """Requirements: NFR-SEC-001, BR-TCM-001, FR-TCM-007"""
+        self.env['config.snapshot.item'].sudo().search([]).unlink()
+        param = self._param('t4.hidden', 'local-key')
+        self.env['config.snapshot.item'].sudo().create(
+            {'parameter_id': param.id, 'sensitive': True})
+        wiz = self._compare([{'key': 't4.other', 'value': 'o'}])
+        line = wiz.line_ids.filtered(lambda rec: rec.key == 't4.hidden')
+        self.assertEqual(len(line), 1)
+        self.assertEqual(line.change_type, 'removed')
+        self.assertEqual(line.current_value, '********')
+        self.assertTrue(line.sensitive)
+        for rec in wiz.line_ids:
+            self.assertNotIn('local-key', (rec.current_value or '') + (rec.file_value or ''))
+
+    def test_secret_in_file_only_kept(self):
+        """Requirements: FR-TCM-007, SC-TCM-007-2"""
+        self.env['config.snapshot.item'].sudo().search([]).unlink()
+        param = self._param('t4.plain', 'here')
+        self.env['config.snapshot.item'].sudo().create(
+            {'parameter_id': param.id, 'sensitive': False})
+        wiz = self._compare([{'key': 't4.plain', 'value': '********', 'sensitive': True}])
+        self.assertFalse(wiz.line_ids)
