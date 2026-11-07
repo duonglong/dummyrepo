@@ -23,3 +23,20 @@ class TestExport(AcceptanceBase):
         self.assertNotIn('val-x.two', raw)
         values = {s['key']: s['value'] for s in json.loads(raw)['settings']}
         self.assertEqual(values['x.three'], 'val-x.three')
+
+    def test_bug_b_0090_empty_value_round_trip(self):
+        """Regression test for B-0090: an empty setting is exported as null, not false.
+
+        Requirements: FR-TCM-003, FR-TCM-005
+        """
+        self.env['config.snapshot.item'].sudo().search([]).unlink()
+        param = self.env['ir.config_parameter'].sudo().create({'key': 'b90.empty'})
+        self.assertFalse(param.value)
+        self.env['config.snapshot.item'].sudo().create(
+            {'parameter_id': param.id, 'sensitive': False})
+        wiz = self.env['config.snapshot.export'].with_user(self.admin_user).create({})
+        wiz.action_export()
+        imp = self.env['config.snapshot.import'].with_user(self.admin_user).create(
+            {'file': wiz.file, 'file_name': 'self.json'})
+        imp.action_compare()
+        self.assertFalse(imp.line_ids)

@@ -41,7 +41,7 @@ class ConfigSnapshotExport(models.TransientModel):
         items = self.env['config.snapshot.item'].search([], order='key')
         settings = [{
             'key': item.key,
-            'value': MASK if item.sensitive else item.parameter_id.value,
+            'value': MASK if item.sensitive else (item.parameter_id.value or None),
             'sensitive': item.sensitive,
         } for item in items]
         payload = {
