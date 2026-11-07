@@ -97,3 +97,29 @@ class TestDifferencesDialog(ViewCase):
         payload = {'format': 'config_snapshot_manager', 'format_version': 1,
                    'settings': [{'key': 'b0104.new', 'value': 'v', 'sensitive': False}]}
         return base64.b64encode(json.dumps(payload).encode())
+
+
+class TestAuditLogList(ViewCase):
+    """Tests for FR-TCM-015."""
+
+    COUNTS = ('setting_count', 'added_count', 'modified_count', 'removed_count')
+
+    def test_bug_b_0105_counts_hidden_on_change_rows(self):
+        """Regression test for B-0105: change rows do not show zero counts.
+
+        Requirements: FR-TCM-015
+        """
+        root = self._arch('config.snapshot.log', 'list')
+        for name in self.COUNTS:
+            self.assertIn('change', self._field(root, name).get('invisible', ''), name)
+
+    def test_bug_b_0105_headers_short_and_file_name_shown(self):
+        """Regression test for B-0105: short headers and the file name of a file row.
+
+        Requirements: FR-TCM-015
+        """
+        root = self._arch('config.snapshot.log', 'list')
+        self._field(root, 'file_name')
+        for name in self.COUNTS:
+            header = self._field(root, name).get('string')
+            self.assertTrue(header and len(header) <= 9, f'{name}: {header!r}')
