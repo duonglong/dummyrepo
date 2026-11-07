@@ -1,6 +1,8 @@
 import base64
 import json
 
+from lxml import etree
+
 from odoo.exceptions import UserError
 from odoo.tests.common import tagged
 
@@ -37,3 +39,18 @@ class TestImportApply(ConfigSnapshotCase):
         entries = self.env['config.snapshot.log'].sudo().search(
             [('log_type', '=', 'change'), ('key', 'in', ['own.a', 'own.b'])])
         self.assertEqual(len(entries), 2)
+
+
+@tagged('post_install', '-at_install')
+class TestImportUx(ConfigSnapshotCase):
+    """Regression tests of the UX findings of the import wizard."""
+
+    def test_bug_b_0077_key_column_is_wide(self):
+        """Regression test for B-0077: the Key column of the differences list is cut off.
+
+        Requirements: NFR-USE-001
+        """
+        arch = self.env['config.snapshot.import'].get_view(view_type='form')['arch']
+        key = etree.fromstring(arch).xpath('//field[@name="line_ids"]//list/field[@name="key"]')[0]
+        width = int((key.get('width') or '0').replace('px', ''))
+        self.assertGreaterEqual(width, 280, 'the Key column must be wide enough to read a key')
