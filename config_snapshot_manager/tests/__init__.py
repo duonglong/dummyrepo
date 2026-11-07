@@ -6,3 +6,4 @@ from . import test_export_acceptance
 from . import test_import_compare_acceptance
 from . import test_import_compare
 from . import test_export
+from . import test_import_apply_acceptance
