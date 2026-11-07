@@ -29,6 +29,8 @@ SEVERITY = {
     ('B7', 'shared'): 'low',
 }
 
+BYTES_PER_MEGABYTE = 1024 * 1024
+
 _REGISTRY = {}
 
 
@@ -48,6 +50,8 @@ class AuditContext:
     probe: object
     thresholds: dict = field(default_factory=dict)
     run: object = None
+    # values a check adds to its result line: part_skip_reason, measures
+    outcome: dict = field(default_factory=dict)
 
 
 class Check(ABC):

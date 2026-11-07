@@ -25,3 +25,6 @@ from . import test_check_b6
 from . import test_check_a1
 from . import test_check_a2
 from . import test_check_a3
+from . import test_check_a4
+from . import test_check_a5
+from . import test_check_a7
