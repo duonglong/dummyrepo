@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_config_snapshot_root" name="Config Snapshot"
+              parent="base.menu_administration" sequence="90"
+              groups="base.group_system"/>
+    <menuitem id="menu_config_snapshot_item" name="Covered settings"
+              parent="menu_config_snapshot_root" action="config_snapshot_item_action"
+              sequence="10" groups="base.group_system"/>
+</odoo>
