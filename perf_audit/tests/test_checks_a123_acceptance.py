@@ -93,8 +93,10 @@ class TestA2Acceptance(ChecksAcceptanceBase):
 
     def test_first_column_of_an_index_is_not_reported(self):
         """FR-OPA-0006 / SC-OPA-0006-2: partner_id first column of an index: no finding."""
-        self.make_x_line(rows=200000)
+        self.make_x_line()
         self.env.cr.execute('CREATE INDEX x_line_p_d ON x_line (x_partner_id, x_date)')
+        # CREATE INDEX resets reltuples on an empty table: set the estimate after it.
+        self.set_reltuples('x_line', 200000)
         run = self.start_run()
         self.assertFalse(self._a2(run))
 
@@ -108,8 +110,10 @@ class TestA2Acceptance(ChecksAcceptanceBase):
 
     def test_second_column_of_an_index_is_still_reported(self):
         """FR-OPA-0006: a column that is only the second of an index has no usable index."""
-        self.make_x_line(rows=200000)
+        self.make_x_line()
         self.env.cr.execute('CREATE INDEX x_line_d_p ON x_line (x_date, x_partner_id)')
+        # CREATE INDEX resets reltuples on an empty table: set the estimate after it.
+        self.set_reltuples('x_line', 200000)
         run = self.start_run()
         self.assertEqual(len(self._a2(run)), 1)
 
