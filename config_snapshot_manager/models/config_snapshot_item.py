@@ -32,4 +32,4 @@ class ConfigSnapshotItem(models.Model):
         Requirements: FR-TCM-002, BR-TCM-001
         """
         for item in self:
-            item.value_display = MASK if item.sensitive else item.parameter_id.sudo().value
+            item.value_display = MASK if item.sensitive else item.parameter_id.value

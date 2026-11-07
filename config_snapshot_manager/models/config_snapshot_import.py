@@ -89,11 +89,11 @@ class ConfigSnapshotImport(models.TransientModel):
         """
         covered = {
             item['parameter_id'][0]: item['sensitive']
-            for item in self.env['config.snapshot.item'].sudo().search_read(
+            for item in self.env['config.snapshot.item'].search_read(
                 [], ['parameter_id', 'sensitive'])}
         params = {
             param['key']: param
-            for param in self.env['ir.config_parameter'].sudo().search_read(
+            for param in self.env['ir.config_parameter'].search_read(
                 ['|', ('key', 'in', list(entries)), ('id', 'in', list(covered))],
                 ['key', 'value'])}
         lines = []
@@ -207,8 +207,8 @@ class ConfigSnapshotImport(models.TransientModel):
 
     def _apply_line(self, line, params, entries):
         """Apply one difference through the ORM; return its change values."""
-        Param = self.env['ir.config_parameter'].sudo()
-        Item = self.env['config.snapshot.item'].sudo()
+        Param = self.env['ir.config_parameter']
+        Item = self.env['config.snapshot.item']
         if line.change_type == 'added':
             param = Param.create({'key': line.key, 'value': line.file_value or False})
             Item.create({'parameter_id': param.id, 'sensitive': line.file_sensitive})
@@ -223,8 +223,8 @@ class ConfigSnapshotImport(models.TransientModel):
 
     def _cover_file_keys(self, entries):
         """After apply, every setting of the file is covered (ADR-TCM-005)."""
-        Item = self.env['config.snapshot.item'].sudo()
-        params = self.env['ir.config_parameter'].sudo().search(
+        Item = self.env['config.snapshot.item']
+        params = self.env['ir.config_parameter'].search(
             [('key', 'in', list(entries))])
         covered = set(Item.search([('parameter_id', 'in', params.ids)]).parameter_id.ids)
         for param in params:
@@ -245,13 +245,13 @@ class ConfigSnapshotImport(models.TransientModel):
             raise UserError(self.env._('Confirm the differences first.'))
         changes = []
         with self.env.cr.savepoint():
-            params_model = self.env['ir.config_parameter'].sudo()
+            params_model = self.env['ir.config_parameter']
             params = {p.key: p for p in params_model.search(
                 ['|', ('key', 'in', self.line_ids.mapped('key')),
                  ('id', 'in', self.line_ids.parameter_id.ids)])}
             covered = {
                 item.parameter_id.id: item.sensitive
-                for item in self.env['config.snapshot.item'].sudo().search(
+                for item in self.env['config.snapshot.item'].search(
                     [('parameter_id', 'in', [p.id for p in params.values()])])}
             self._check_not_stale(params, covered)
             entries = self._read_file()

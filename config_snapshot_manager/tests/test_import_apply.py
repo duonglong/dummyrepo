@@ -1,8 +1,12 @@
 import base64
+import contextlib
 import json
+import sys
+from unittest.mock import patch
 
 from lxml import etree
 
+from odoo import models
 from odoo.exceptions import UserError
 from odoo.tests.common import tagged
 
@@ -71,3 +75,59 @@ class TestImportUx(ConfigSnapshotCase):
         self.assertEqual(action.get('tag'), 'display_notification')
         self.assertIn('1', action['params']['message'])
         self.assertEqual(action['params']['next'], {'type': 'ir.actions.act_window_close'})
+
+
+@tagged('post_install', '-at_install')
+class TestImportNoSudo(ConfigSnapshotCase):
+    """Regression test of the review finding on bare sudo."""
+
+    def test_bug_b_0089_settings_handled_as_acting_admin(self):
+        """Regression test for B-0089: settings are read and written without sudo.
+
+        Requirements: FR-TCM-016, FR-TCM-009, NFR-SEC-001
+        """
+        watched = ('ir.config_parameter', 'config.snapshot.item')
+        seen = []
+        original = models.BaseModel._fetch_field
+
+        def in_module(frame):
+            # the ORM's own cascade searches run as superuser; only the module's calls count
+            return 'config_snapshot_manager' in frame.f_code.co_filename
+
+        def spy(name):
+            real = getattr(models.BaseModel, name)
+
+            def wrapper(self, *args, **kwargs):
+                if self._name in watched and in_module(sys._getframe(1)):
+                    seen.append((self._name, name, self.env.su))
+                return real(self, *args, **kwargs)
+            return wrapper
+
+        def spy_fetch(self, field):
+            if self._name in watched and in_module(sys._getframe(1)):
+                seen.append((self._name, 'fetch', self.env.su))
+            return original(self, field)
+
+        self.env['config.snapshot.item'].sudo().search([]).unlink()
+        old = self._param('b89.old', 'x')
+        mod = self._param('b89.mod', 'a')
+        for param in (old, mod):
+            self.env['config.snapshot.item'].sudo().create({'parameter_id': param.id})
+        raw = json.dumps({'format_version': 1, 'settings': [
+            {'key': 'b89.mod', 'value': 'b'}, {'key': 'b89.new', 'value': 'n'}]}).encode()
+        wiz = self.env['config.snapshot.import'].with_user(self.admin_user).create(
+            {'file': base64.b64encode(raw), 'file_name': 'f.json'})
+        export = self.env['config.snapshot.export'].with_user(self.admin_user).create({})
+        names = ('create', 'write', 'unlink', 'search', 'search_read')
+        with contextlib.ExitStack() as stack:
+            for name in names:
+                stack.enter_context(patch.object(models.BaseModel, name, spy(name)))
+            stack.enter_context(patch.object(models.BaseModel, '_fetch_field', spy_fetch))
+            wiz.action_compare()
+            wiz.action_confirm()
+            wiz.action_apply()
+            export.action_export()
+            self.env['config.snapshot.item'].with_user(self.admin_user).search([]).mapped(
+                'value_display')
+        self.assertTrue(seen)
+        self.assertEqual([entry for entry in seen if entry[2]], [])
