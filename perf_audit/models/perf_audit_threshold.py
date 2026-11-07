@@ -3,7 +3,12 @@ from odoo.exceptions import ValidationError
 
 
 class PerfAuditThreshold(models.Model):
-    """One tunable limit of a check, or a global limit of the audit."""
+    """One tunable limit of a check, or a global limit of the audit.
+
+    Starting values are shipped in data/perf_audit_threshold_data.xml.
+
+    Requirements: BR-OPA-0006, FR-OPA-0031, FR-OPA-0033
+    """
 
     _name = 'perf.audit.threshold'
     _description = 'Performance audit threshold'

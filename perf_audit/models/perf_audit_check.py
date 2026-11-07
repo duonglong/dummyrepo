@@ -2,7 +2,12 @@ from odoo import fields, models
 
 
 class PerfAuditCheck(models.Model):
-    """One check the audit can run, shipped as data and switched on or off."""
+    """One check the audit can run, shipped as data and switched on or off.
+
+    Only system administrators reach it (security/ir.access.csv).
+
+    Requirements: FR-OPA-0031, FR-OPA-0033
+    """
 
     _name = 'perf.audit.check'
     _description = 'Performance audit check'
