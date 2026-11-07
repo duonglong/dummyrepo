@@ -2,3 +2,11 @@ from . import test_config_acceptance
 from . import test_config
 from . import test_access
 from . import test_install
+from . import test_run_engine_acceptance
+from . import test_stats_scheduled_acceptance
+from . import test_checks_a123_acceptance
+from . import test_checks_a457_acceptance
+from . import test_checks_a68_acceptance
+from . import test_checks_b135_acceptance
+from . import test_checks_b246_acceptance
+from . import test_check_b7_acceptance
