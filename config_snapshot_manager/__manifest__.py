@@ -8,6 +8,7 @@
     'data': [
         'security/ir.access.csv',
         'views/config_snapshot_item_views.xml',
+        'views/config_snapshot_log_views.xml',
         'views/menus.xml',
     ],
 }

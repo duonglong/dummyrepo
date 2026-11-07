@@ -6,4 +6,7 @@
     <menuitem id="menu_config_snapshot_item" name="Covered settings"
               parent="menu_config_snapshot_root" action="config_snapshot_item_action"
               sequence="10" groups="base.group_system"/>
+    <menuitem id="menu_config_snapshot_log" name="Audit log"
+              parent="menu_config_snapshot_root" action="config_snapshot_log_action"
+              sequence="90" groups="base.group_system"/>
 </odoo>
