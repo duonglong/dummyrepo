@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 from psycopg2.errors import QueryCanceled
 
@@ -63,7 +63,7 @@ class PerfAuditRun(models.Model):
 
     @api.model
     def action_start_audit(self):
-        """Start an audit run, refusing while another one runs.
+        """Start an audit run by hand, refusing while another one runs.
 
         A run left running for more than an hour is closed as failed first.
         The request commits the run in state running, then a background action executes it.
@@ -74,19 +74,45 @@ class PerfAuditRun(models.Model):
         running = self.search([('state', '=', 'running')], limit=1)
         if running:
             raise UserError(_('The audit run "%s" is already in progress.', running.name))
-        run = self.create({'user_id': self.env.user.id, 'trigger': 'manual'})
-        if odoo_module.current_test:
-            run._execute()
-        else:
-            # The request commits the run in state running; the trigger wakes the background action after it.
-            cron = self.env.ref('perf_audit.ir_cron_execute_audit').sudo()  # an administrator may not own the cron
-            cron._trigger()
+        run = self._start_run('manual')
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
             'res_id': run.id,
             'view_mode': 'form',
         }
+
+    @api.model
+    def _cron_start_scheduled_audit(self):
+        """Start a run for the scheduled audit; skipped silently while another one runs.
+
+        The run starts like one started by hand: this action ends and commits it in state running,
+        then the background action executes it.
+
+        Requirements: FR-OPA-0032, FR-OPA-0034
+        """
+        self._close_stale_runs()
+        if self.search_count([('state', '=', 'running')]):
+            _logger.info('Scheduled audit skipped: a run is already in progress')
+            return
+        self._start_run('scheduled')
+
+    @api.model
+    def _start_run(self, trigger):
+        """Create a running run started by the current user with `trigger` and have it executed.
+
+        A run is executed at once in a test, else by the background action once the run is committed.
+
+        Requirements: FR-OPA-0001, FR-OPA-0032
+        """
+        run = self.create({'user_id': self.env.user.id, 'trigger': trigger})
+        if odoo_module.current_test:
+            run._execute()
+            return run
+        # The trigger wakes the background action after the caller's transaction commits the run.
+        cron = self.env.ref('perf_audit.ir_cron_execute_audit').sudo()  # an administrator may not own the cron
+        cron._trigger()
+        return run
 
     @api.model
     def _close_stale_runs(self):
@@ -139,6 +165,7 @@ class PerfAuditRun(models.Model):
         self.ensure_one()
         global_thresholds = self._global_thresholds()
         self.thresholds_used = global_thresholds
+        self._record_stats_reset(global_thresholds['weak_evidence'])
         registry = self._check_registry()
         for check in self.env['perf.audit.check'].sudo().search([]):  # the background action runs without the user
             self._execute_check(check, registry.get(check.code), global_thresholds)
@@ -147,6 +174,19 @@ class PerfAuditRun(models.Model):
             'state': 'done',
             'end_date': fields.Datetime.now(),
             'finding_count': len(self.finding_ids),
+        })
+
+    def _record_stats_reset(self, weak_evidence_days):
+        """Store when the statistics were last reset and whether that makes the evidence weak.
+
+        Requirements: FR-OPA-0004
+        """
+        reset_date, source = self.env['perf.audit.probe'].stats_reset()
+        reset_date = reset_date.astimezone(timezone.utc).replace(tzinfo=None)
+        self.write({
+            'stats_reset_date': reset_date,
+            'stats_reset_source': source,
+            'weak_evidence': reset_date > fields.Datetime.now() - timedelta(days=weak_evidence_days),
         })
 
     def _execute_check(self, check, check_impl, global_thresholds):

@@ -24,6 +24,10 @@
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not weak_evidence">
+                        The database statistics were reset recently: counters such as unused indexes
+                        are weak evidence.
+                    </div>
                     <group>
                         <group>
                             <field name="name"/>
@@ -35,6 +39,9 @@
                             <field name="start_date"/>
                             <field name="end_date"/>
                             <field name="finding_count"/>
+                            <field name="stats_reset_date"/>
+                            <field name="stats_reset_source"/>
+                            <field name="weak_evidence"/>
                         </group>
                     </group>
                     <notebook>
