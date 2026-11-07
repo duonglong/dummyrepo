@@ -1,0 +1,205 @@
+import logging
+import time
+from datetime import timedelta
+
+from psycopg2.errors import QueryCanceled
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+from odoo.modules import module as odoo_module
+
+from ..checks import base as checks_base
+
+_logger = logging.getLogger(__name__)
+
+STALE_RUN_AFTER = timedelta(hours=1)
+MILLISECONDS_PER_SECOND = 1000
+
+
+class PerfAuditRun(models.Model):
+    """One audit of the database: its timing, state and the results of every check.
+
+    Requirements: FR-OPA-0001, FR-OPA-0002, FR-OPA-0003, FR-OPA-0034, BR-OPA-0002
+    """
+
+    _name = 'perf.audit.run'
+    _description = 'Performance audit run'
+    _order = 'start_date desc, id desc'
+
+    name = fields.Char(compute='_compute_name', store=True)
+    state = fields.Selection(
+        [('running', 'Running'), ('done', 'Done'), ('failed', 'Failed')],
+        required=True, default='running', index=True)
+    trigger = fields.Selection(
+        [('manual', 'Manual'), ('scheduled', 'Scheduled')], required=True, default='manual')
+    user_id = fields.Many2one('res.users', ondelete='set null')
+    failure_reason = fields.Char()
+    start_date = fields.Datetime(required=True, default=fields.Datetime.now, index=True)
+    end_date = fields.Datetime()
+    stats_reset_date = fields.Datetime()
+    stats_reset_source = fields.Selection([('reset', 'Statistics reset'), ('server_start', 'Server start')])
+    weak_evidence = fields.Boolean()
+    thresholds_used = fields.Json()
+    previous_run_id = fields.Many2one('perf.audit.run', ondelete='set null')
+    check_result_ids = fields.One2many('perf.audit.check.result', 'run_id')
+    finding_ids = fields.One2many('perf.audit.finding', 'run_id')
+    finding_count = fields.Integer()
+    new_count = fields.Integer()
+    fixed_count = fields.Integer()
+    regressed_count = fields.Integer()
+    is_latest = fields.Boolean(compute='_compute_is_latest')
+
+    @api.depends('start_date')
+    def _compute_name(self):
+        for run in self:
+            run.name = _('Audit %s', fields.Datetime.to_string(run.start_date)[:16]) if run.start_date else _('Audit')
+
+    def _compute_is_latest(self):
+        latest = self.search([('state', '=', 'done')], order='start_date desc, id desc', limit=1)
+        for run in self:
+            run.is_latest = run == latest
+
+    # -- start ------------------------------------------------------------
+
+    @api.model
+    def action_start_audit(self):
+        """Start an audit run, refusing while another one runs.
+
+        A run left running for more than an hour is closed as failed first.
+        The request commits the run in state running, then a background action executes it.
+
+        Requirements: FR-OPA-0001, FR-OPA-0034
+        """
+        self._close_stale_runs()
+        running = self.search([('state', '=', 'running')], limit=1)
+        if running:
+            raise UserError(_('The audit run "%s" is already in progress.', running.name))
+        run = self.create({'user_id': self.env.user.id, 'trigger': 'manual'})
+        if odoo_module.current_test:
+            run._execute()
+        else:
+            # The request commits the run in state running; the trigger wakes the background action after it.
+            cron = self.env.ref('perf_audit.ir_cron_execute_audit').sudo()  # an administrator may not own the cron
+            cron._trigger()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': run.id,
+            'view_mode': 'form',
+        }
+
+    @api.model
+    def _close_stale_runs(self):
+        """Close as failed the runs still running after the stale limit.
+
+        Requirements: FR-OPA-0034
+        """
+        stale = self.search([
+            ('state', '=', 'running'),
+            ('start_date', '<', fields.Datetime.now() - STALE_RUN_AFTER),
+        ])
+        stale.write({
+            'state': 'failed',
+            'end_date': fields.Datetime.now(),
+            'failure_reason': _('Closed as failed: it was still running after one hour.'),
+        })
+
+    @api.model
+    def _execute_pending_runs(self):
+        """Execute the runs started and not yet executed; called by the background action."""
+        for run in self.search([('state', '=', 'running'), ('check_result_ids', '=', False)], order='id'):
+            try:
+                with self.env.cr.savepoint():
+                    run._execute()
+            except Exception as error:  # noqa: BLE001 - an unexpected error closes the run as failed
+                _logger.exception('Audit run %s failed', run.name)
+                run.write({
+                    'state': 'failed', 'end_date': fields.Datetime.now(),
+                    'failure_reason': str(error) or type(error).__name__,
+                })
+
+    # -- execution --------------------------------------------------------
+
+    @api.model
+    def _check_registry(self):
+        """The checks available to a run by code; the seam tests replace."""
+        return checks_base.registry()
+
+    def _global_thresholds(self):
+        """Values of the thresholds that belong to no check, by key."""
+        # the thresholds are read for the run itself, whoever executes it
+        globals_ = self.env['perf.audit.threshold'].sudo().search([('check_id', '=', False)])
+        return {threshold.key: threshold.value for threshold in globals_}
+
+    def _execute(self):
+        """Run every check in sequence order and close the run.
+
+        Requirements: FR-OPA-0001, FR-OPA-0003, BR-OPA-0002
+        """
+        self.ensure_one()
+        global_thresholds = self._global_thresholds()
+        self.thresholds_used = global_thresholds
+        registry = self._check_registry()
+        for check in self.env['perf.audit.check'].sudo().search([]):  # the background action runs without the user
+            self._execute_check(check, registry.get(check.code), global_thresholds)
+        self.env.flush_all()
+        self.write({
+            'state': 'done',
+            'end_date': fields.Datetime.now(),
+            'finding_count': len(self.finding_ids),
+        })
+
+    def _execute_check(self, check, check_impl, global_thresholds):
+        """Run one check and store its result line; never raises for a failing check.
+
+        Requirements: FR-OPA-0001, FR-OPA-0002, FR-OPA-0003
+        """
+        thresholds = dict(global_thresholds)
+        thresholds.update({threshold.key: threshold.value for threshold in check.threshold_ids})
+        result = {
+            'run_id': self.id, 'check_id': check.id, 'thresholds_used': thresholds,
+            'state': 'skipped', 'finding_count': 0, 'duration': 0.0,
+        }
+        ctx = checks_base.AuditContext(
+            env=self.env, probe=self.env['perf.audit.probe'], thresholds=thresholds, run=self)
+        if not check.active_check:
+            result['reason'] = _('Switched off')
+        elif check_impl is None:
+            result['reason'] = _('No implementation of this check is installed')
+        elif reason := check_impl.needs(ctx):
+            result['reason'] = reason
+        else:
+            result.update(self._run_check_guarded(check, check_impl, ctx))
+        self.env['perf.audit.check.result'].create(result)
+
+    def _run_check_guarded(self, check, check_impl, ctx):
+        """Run a check in a savepoint under the query time limit; return its result values.
+
+        Requirements: FR-OPA-0002
+        """
+        probe = ctx.probe
+        milliseconds = ctx.thresholds['query_time_limit'] * MILLISECONDS_PER_SECOND
+        started = time.monotonic()
+        try:
+            with self.env.cr.savepoint():
+                previous_limit = probe.set_statement_timeout(milliseconds)
+                findings = check_impl.run(ctx)
+                created = self.env['perf.audit.finding'].create(
+                    [self._finding_values(check, finding) for finding in findings])
+                probe.restore_statement_timeout(previous_limit)
+        except QueryCanceled:
+            outcome = {'state': 'failed', 'reason': _('Time limit reached')}
+        except Exception as error:  # noqa: BLE001 - one failing check must not stop the others
+            _logger.warning('Audit check %s failed', check.code, exc_info=True)
+            outcome = {'state': 'failed', 'reason': str(error) or type(error).__name__}
+        else:
+            outcome = {'state': 'done', 'finding_count': len(created)}
+        outcome['duration'] = time.monotonic() - started
+        return outcome
+
+    def _finding_values(self, check, finding):
+        """Values of one finding of `check`, with the severity BR-OPA-0005 gives when it is not set."""
+        values = dict(finding, run_id=self.id, check_id=check.id)
+        if not values.get('severity'):
+            values['severity'] = checks_base.severity_for(check.code, values.get('kind'))
+        return values
