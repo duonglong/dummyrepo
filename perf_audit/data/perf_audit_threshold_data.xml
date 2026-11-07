@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="threshold_global_query_time_limit" model="perf.audit.threshold">
+        <field name="key">query_time_limit</field>
+        <field name="name">Query time limit</field>
+        <field name="unit">seconds</field>
+        <field name="value">30</field>
+        <field name="default_value">30</field>
+    </record>
+    <record id="threshold_global_big_table" model="perf.audit.threshold">
+        <field name="key">big_table</field>
+        <field name="name">Big table</field>
+        <field name="unit">rows</field>
+        <field name="value">100000</field>
+        <field name="default_value">100000</field>
+    </record>
+    <record id="threshold_global_weak_evidence" model="perf.audit.threshold">
+        <field name="key">weak_evidence</field>
+        <field name="name">Weak evidence after a statistics reset</field>
+        <field name="unit">days</field>
+        <field name="value">7</field>
+        <field name="default_value">7</field>
+    </record>
+    <record id="threshold_a3_min_index_size" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a3"/>
+        <field name="key">min_index_size</field>
+        <field name="name">Minimum index size</field>
+        <field name="unit">megabytes</field>
+        <field name="value">1</field>
+        <field name="default_value">1</field>
+    </record>
+    <record id="threshold_a4_dead_rows" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a4"/>
+        <field name="key">dead_rows</field>
+        <field name="name">Dead rows</field>
+        <field name="unit">rows</field>
+        <field name="value">10000</field>
+        <field name="default_value">10000</field>
+    </record>
+    <record id="threshold_a4_dead_percent" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a4"/>
+        <field name="key">dead_percent</field>
+        <field name="name">Dead rows share</field>
+        <field name="unit">percent</field>
+        <field name="value">20</field>
+        <field name="default_value">20</field>
+    </record>
+    <record id="threshold_a5_analyze_age" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a5"/>
+        <field name="key">analyze_age</field>
+        <field name="name">Days since analyze</field>
+        <field name="unit">days</field>
+        <field name="value">30</field>
+        <field name="default_value">30</field>
+    </record>
+    <record id="threshold_a5_modified_percent" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a5"/>
+        <field name="key">modified_percent</field>
+        <field name="name">Rows modified since analyze</field>
+        <field name="unit">percent</field>
+        <field name="value">20</field>
+        <field name="default_value">20</field>
+    </record>
+    <record id="threshold_a5_min_rows" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a5"/>
+        <field name="key">min_rows</field>
+        <field name="name">Minimum rows of a table</field>
+        <field name="unit">rows</field>
+        <field name="value">10000</field>
+        <field name="default_value">10000</field>
+    </record>
+    <record id="threshold_a6_top" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a6"/>
+        <field name="key">top</field>
+        <field name="name">Number of queries listed</field>
+        <field name="unit">count</field>
+        <field name="value">20</field>
+        <field name="default_value">20</field>
+    </record>
+    <record id="threshold_a7_size" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a7"/>
+        <field name="key">size</field>
+        <field name="name">Table size</field>
+        <field name="unit">megabytes</field>
+        <field name="value">1024</field>
+        <field name="default_value">1024</field>
+    </record>
+    <record id="threshold_a7_growth" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a7"/>
+        <field name="key">growth</field>
+        <field name="name">Growth since the previous run</field>
+        <field name="unit">percent</field>
+        <field name="value">20</field>
+        <field name="default_value">20</field>
+    </record>
+    <record id="threshold_a8_session_age" model="perf.audit.threshold">
+        <field name="check_id" ref="check_a8"/>
+        <field name="key">session_age</field>
+        <field name="name">Session age</field>
+        <field name="unit">minutes</field>
+        <field name="value">5</field>
+        <field name="default_value">5</field>
+    </record>
+    <record id="threshold_b2_fan_out" model="perf.audit.threshold">
+        <field name="check_id" ref="check_b2"/>
+        <field name="key">fan_out</field>
+        <field name="name">Fan-out</field>
+        <field name="unit">count</field>
+        <field name="value">1000</field>
+        <field name="default_value">1000</field>
+    </record>
+    <record id="threshold_b6_tracked_fields" model="perf.audit.threshold">
+        <field name="check_id" ref="check_b6"/>
+        <field name="key">tracked_fields</field>
+        <field name="name">Tracked fields on a model</field>
+        <field name="unit">count</field>
+        <field name="value">10</field>
+        <field name="default_value">10</field>
+    </record>
+    <record id="threshold_b6_updates" model="perf.audit.threshold">
+        <field name="check_id" ref="check_b6"/>
+        <field name="key">updates</field>
+        <field name="name">Updates of the model table</field>
+        <field name="unit">count</field>
+        <field name="value">100000</field>
+        <field name="default_value">100000</field>
+    </record>
+    <record id="threshold_b7_failures" model="perf.audit.threshold">
+        <field name="check_id" ref="check_b7"/>
+        <field name="key">failures</field>
+        <field name="name">Consecutive failures</field>
+        <field name="unit">count</field>
+        <field name="value">3</field>
+        <field name="default_value">3</field>
+    </record>
+    <record id="threshold_b7_lateness" model="perf.audit.threshold">
+        <field name="check_id" ref="check_b7"/>
+        <field name="key">lateness</field>
+        <field name="name">Lateness</field>
+        <field name="unit">hours</field>
+        <field name="value">1</field>
+        <field name="default_value">1</field>
+    </record>
+</odoo>
