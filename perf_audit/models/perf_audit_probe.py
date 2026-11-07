@@ -46,6 +46,56 @@ class PerfAuditProbe(models.AbstractModel):
         """)
         return dict(self.env.cr.fetchall())
 
+    @api.private
+    def scan_statistics(self):
+        """Live rows, scan counts, rows read by sequential scans and total size, per table of the public schema.
+
+        Requirements: FR-OPA-0005, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT relname, n_live_tup, seq_scan, COALESCE(idx_scan, 0), seq_tup_read,
+                   pg_total_relation_size(relid)
+              FROM pg_stat_user_tables
+             WHERE schemaname = current_schema()
+        """)
+        return {
+            table: {
+                'live_rows': live_rows, 'seq_scan': seq_scan, 'idx_scan': idx_scan,
+                'seq_tup_read': seq_tup_read, 'total_size': total_size,
+            }
+            for table, live_rows, seq_scan, idx_scan, seq_tup_read, total_size in self.env.cr.fetchall()
+        }
+
+    @api.private
+    def index_definitions(self):
+        """The valid indexes of the public schema with their key columns, kind, size and scan count.
+
+        `columns` lists the key columns in order (an expression is given as its text),
+        `constraint` tells that the index backs a constraint and `predicate` is the
+        condition of a partial index, or an empty string.
+
+        Requirements: FR-OPA-0006, FR-OPA-0007, FR-OPA-0008, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT ic.relname, tc.relname,
+                   ARRAY(SELECT pg_get_indexdef(i.indexrelid, k, true)
+                           FROM generate_series(1, i.indnkeyatts) k ORDER BY k),
+                   i.indisunique, i.indisprimary,
+                   EXISTS (SELECT 1 FROM pg_constraint WHERE conindid = i.indexrelid),
+                   COALESCE(pg_get_expr(i.indpred, i.indrelid), ''),
+                   am.amname, pg_relation_size(i.indexrelid), COALESCE(s.idx_scan, 0)
+              FROM pg_index i
+              JOIN pg_class ic ON ic.oid = i.indexrelid
+              JOIN pg_class tc ON tc.oid = i.indrelid
+              JOIN pg_namespace n ON n.oid = tc.relnamespace AND n.nspname = current_schema()
+              JOIN pg_am am ON am.oid = ic.relam
+         LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.indexrelid
+             WHERE i.indisvalid
+        """)
+        keys = ('name', 'table', 'columns', 'unique', 'primary', 'constraint',
+                'predicate', 'method', 'size', 'idx_scan')
+        return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
+
     def distinct_values(self, table, column):
         """Estimated number of distinct values of a column, from the planner statistics, or None.
 
