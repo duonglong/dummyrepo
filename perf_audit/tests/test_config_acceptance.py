@@ -216,6 +216,9 @@ class TestAdminOnlyAcceptance(ConfigAcceptanceBase):
     def test_menu_only_for_administrators(self):
         """FR-OPA-0033: the audit's top-level menu shows for an administrator, not for a plain user."""
         Menu = self.env['ir.ui.menu']
-        domain = [('parent_id', '=', False), ('name', 'ilike', 'audit')]
-        self.assertTrue(Menu.with_user(self.admin_user).search(domain))
-        self.assertFalse(Menu.with_user(self.plain_user).search(domain))
+        roots = Menu.sudo().search([('parent_id', '=', False), ('name', 'ilike', 'audit')])
+        self.assertTrue(roots, 'the audit has a top-level menu')
+        admin_visible = Menu.with_user(self.admin_user)._visible_menu_ids()
+        plain_visible = Menu.with_user(self.plain_user)._visible_menu_ids()
+        self.assertTrue(set(roots.ids) & set(admin_visible))
+        self.assertFalse(set(roots.ids) & set(plain_visible))
