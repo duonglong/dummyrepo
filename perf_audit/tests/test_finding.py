@@ -9,7 +9,7 @@ class TestFinding(PerfAuditCase):
 
     def setUp(self):
         super().setUp()
-        self.run = self.env['perf.audit.run'].create({})
+        self.run = self.env['perf.audit.run'].create({'state': 'done'})
         self.check = self.env['perf.audit.check'].search([('code', '=', 'A2')])
 
     def _finding(self, **values):

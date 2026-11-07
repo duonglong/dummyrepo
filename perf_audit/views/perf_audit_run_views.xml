@@ -30,6 +30,8 @@
                     </div>
                     <group>
                         <group>
+                            <field name="fix_script" widget="binary" readonly="1"
+                                   string="Fix script (SQL)"/>
                             <field name="name"/>
                             <field name="trigger"/>
                             <field name="user_id"/>
