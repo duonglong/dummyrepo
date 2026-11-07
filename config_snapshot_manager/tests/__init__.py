@@ -9,3 +9,4 @@ from . import test_export
 from . import test_import_apply_acceptance
 from . import test_import_apply
 from . import test_import_cancel_acceptance
+from . import test_import_stale_acceptance
