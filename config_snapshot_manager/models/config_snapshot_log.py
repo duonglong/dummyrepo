@@ -7,7 +7,7 @@ from ..const import MASK
 class ConfigSnapshotLog(models.Model):
     """Append-only audit log of exports, imports and applied changes.
 
-    Requirements: FR-TCM-015, FR-TCM-016, NFR-SEC-001
+    Requirements: BR-TCM-001, FR-TCM-015, FR-TCM-016, NFR-SEC-001
     """
 
     _name = 'config.snapshot.log'
@@ -21,7 +21,7 @@ class ConfigSnapshotLog(models.Model):
         'res.users', string='User', required=True, readonly=True,
         ondelete='restrict')
     date = fields.Datetime(
-        default=fields.Datetime.now, readonly=True, index=True)
+        required=True, default=fields.Datetime.now, readonly=True, index=True)
     file_name = fields.Char()
     setting_count = fields.Integer()
     added_count = fields.Integer()
@@ -37,7 +37,7 @@ class ConfigSnapshotLog(models.Model):
     def _record(self, vals, sensitive=False):
         """Append one entry as the current user; mask sensitive values.
 
-        Requirements: FR-TCM-015, NFR-SEC-001
+        Requirements: BR-TCM-001, FR-TCM-015, NFR-SEC-001
         """
         vals = dict(vals, user_id=self.env.uid)
         if sensitive:

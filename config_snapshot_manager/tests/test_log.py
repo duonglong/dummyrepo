@@ -8,7 +8,7 @@ from .common import ConfigSnapshotCase
 
 @tagged('post_install', '-at_install')
 class TestLog(ConfigSnapshotCase):
-    """Requirements: FR-TCM-015, FR-TCM-016, NFR-SEC-001"""
+    """Requirements: BR-TCM-001, FR-TCM-015, FR-TCM-016, NFR-SEC-001"""
 
     def _log(self, user=None):
         return self.env['config.snapshot.log'].with_user(user or self.admin_user)
@@ -17,6 +17,7 @@ class TestLog(ConfigSnapshotCase):
         entry = self._log()._record({'log_type': 'export', 'setting_count': 3})
         self.assertEqual(entry.user_id, self.admin_user)
         self.assertEqual(entry.setting_count, 3)
+        self.assertTrue(entry.date)
 
     def test_write_refused(self):
         entry = self._log()._record({'log_type': 'export'})
@@ -32,6 +33,7 @@ class TestLog(ConfigSnapshotCase):
         self.assertTrue(entry.exists())
 
     def test_sensitive_masked(self):
+        """Requirements: BR-TCM-001, NFR-SEC-001"""
         entry = self._log()._record(
             {'log_type': 'change', 'key': 'k', 'old_value': 's3cret', 'new_value': 'n3w'},
             sensitive=True)

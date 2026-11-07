@@ -61,6 +61,8 @@
                 <filter string="Exports" name="exports" domain="[('log_type', '=', 'export')]"/>
                 <filter string="Imports" name="imports" domain="[('log_type', '=', 'import')]"/>
                 <filter string="Changes" name="changes" domain="[('log_type', '=', 'change')]"/>
+                <separator/>
+                <filter string="Date" name="filter_date" date="date"/>
                 <group>
                     <filter string="Type" name="group_type" context="{'group_by': 'log_type'}"/>
                     <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
