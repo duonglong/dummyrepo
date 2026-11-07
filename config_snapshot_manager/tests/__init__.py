@@ -11,3 +11,4 @@ from . import test_import_apply
 from . import test_import_cancel_acceptance
 from . import test_import_stale_acceptance
 from . import test_import_removed_acceptance
+from . import test_views

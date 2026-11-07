@@ -5,7 +5,8 @@
         <field name="model">config.snapshot.item</field>
         <field name="arch" type="xml">
             <list editable="bottom">
-                <field name="parameter_id" width="360px" class="text-break cs_wrap_cell"/>
+                <field name="parameter_id" width="360px" class="text-break cs_wrap_cell"
+                       options="{'no_create': True}"/>
                 <field name="key" optional="hide" width="360px" class="text-break cs_wrap_cell"/>
                 <field name="value_display"/>
                 <field name="sensitive" width="100px"/>
@@ -20,7 +21,7 @@
             <form>
                 <sheet>
                     <group>
-                        <field name="parameter_id"/>
+                        <field name="parameter_id" options="{'no_create': True}"/>
                         <field name="key"/>
                         <field name="value_display"/>
                         <field name="sensitive"/>
