@@ -21,7 +21,12 @@
         <field name="model">perf.audit.finding</field>
         <field name="arch" type="xml">
             <form edit="0" create="0">
+                <header>
+                    <button name="action_apply" type="object" string="Apply"
+                            class="btn-primary" invisible="not can_apply"/>
+                </header>
                 <sheet>
+                    <field name="can_apply" invisible="1"/>
                     <group>
                         <group string="Finding">
                             <field name="run_id"/>

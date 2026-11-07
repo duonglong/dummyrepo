@@ -7,6 +7,7 @@ from psycopg2.errors import QueryCanceled
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.modules import module as odoo_module
+from odoo.tools.binary import BinaryBytes
 
 from ..checks import base as checks_base
 
@@ -48,6 +49,7 @@ class PerfAuditRun(models.Model):
     fixed_count = fields.Integer()
     regressed_count = fields.Integer()
     is_latest = fields.Boolean(compute='_compute_is_latest')
+    fix_script = fields.Binary(compute='_compute_fix_script', attachment=False)
 
     @api.depends('start_date')
     def _compute_name(self):
@@ -58,6 +60,37 @@ class PerfAuditRun(models.Model):
         latest = self.search([('state', '=', 'done')], order='start_date desc, id desc', limit=1)
         for run in self:
             run.is_latest = run == latest
+
+    @api.depends('finding_ids')
+    def _compute_fix_script(self):
+        """Build the SQL file of the run: a comment per finding and its statement, none of them run.
+
+        Requirements: FR-OPA-0028
+        """
+        for run in self:
+            lines = ['-- Fix script of %s' % run.name]
+            for finding in run.finding_ids:
+                lines.append('-- [%s] %s' % (finding.code, ' '.join(finding.message.split())))
+                lines.append(self._evidence_comment(finding))
+                if finding.code_suggestion:
+                    lines.extend('-- Suggestion: ' + line for line in finding.code_suggestion.splitlines())
+                if finding.fix_statement:
+                    lines.append(finding.fix_statement + ';')
+            run.fix_script = BinaryBytes(
+                ('\n'.join(lines) + '\n').encode(), filename='perf_audit_fix_script.sql')
+
+    @staticmethod
+    def _evidence_comment(finding):
+        """One comment line with the evidence of a finding."""
+        parts = [
+            'table %s' % finding.table_name if finding.table_name else '',
+            'about %s rows (estimate)' % finding.row_estimate if finding.row_estimate else '',
+            '%s: found %s, threshold %s' % (
+                finding.threshold_label, finding.found_value, finding.threshold_value)
+            if finding.threshold_label else '',
+        ]
+        evidence = ', '.join(part for part in parts if part) or 'none'
+        return '-- Evidence: ' + ' '.join(evidence.split())
 
     # -- start ------------------------------------------------------------
 

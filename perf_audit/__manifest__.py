@@ -10,6 +10,7 @@
         'views/perf_audit_check_views.xml',
         'views/perf_audit_finding_views.xml',
         'views/perf_audit_run_views.xml',
+        'views/perf_audit_apply_wizard_views.xml',
         'views/perf_audit_menus.xml',
     ],
     'license': 'LGPL-3',

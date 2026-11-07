@@ -25,3 +25,5 @@ from . import test_check_b6
 from . import test_check_a1
 from . import test_check_a2
 from . import test_check_a3
+from . import test_fix_script
+from . import test_apply

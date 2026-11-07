@@ -1,6 +1,14 @@
+import functools
+import logging
 import re
 
-from odoo import api, fields, models
+import psycopg2
+
+from odoo import _, api, fields, models, sql_db
+from odoo.exceptions import UserError
+from odoo.modules import module as odoo_module
+
+_logger = logging.getLogger(__name__)
 
 QUERY_TEXT_LIMIT = 500
 AUTOVACUUM_SETTING = re.compile(r'autovacuum_[a-z_]+')
@@ -18,7 +26,7 @@ class PerfAuditFinding(models.Model):
     The fix is stored as a kind plus names and the statement is rebuilt from them,
     so only the safe statements of BR-OPA-0004 can ever exist.
 
-    Requirements: FR-OPA-0026, FR-OPA-0027, NFR-OPA-0005, BR-OPA-0002
+    Requirements: FR-OPA-0026, FR-OPA-0027, FR-OPA-0029, NFR-OPA-0005, BR-OPA-0002, BR-OPA-0004
     """
 
     _name = 'perf.audit.finding'
@@ -127,11 +135,97 @@ class PerfAuditFinding(models.Model):
             AUTOVACUUM_SETTING.fullmatch(key) and isinstance(value, (int, float))
             for key, value in settings.items())
 
-    @api.depends('fix_statement', 'apply_state')
+    @api.depends('fix_statement', 'apply_state', 'run_id.is_latest')
     def _compute_can_apply(self):
-        """A finding can be applied when it has a statement that was not applied yet."""
+        """A finding offers Apply when its run is the latest, it has a statement and it was not applied.
+
+        Requirements: FR-OPA-0029
+        """
         for finding in self:
-            finding.can_apply = bool(finding.fix_statement) and finding.apply_state != 'applied'
+            finding.can_apply = (
+                bool(finding.fix_statement)
+                and finding.apply_state != 'applied'
+                and finding.run_id.is_latest)
+
+    def action_apply(self):
+        """Open the confirmation that shows the statement before it runs.
+
+        Requirements: FR-OPA-0029
+        """
+        self.ensure_one()
+        self._check_can_apply()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Apply the fix'),
+            'res_model': 'perf.audit.apply.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_finding_id': self.id},
+        }
+
+    def _check_can_apply(self):
+        """Refuse a finding that offers no Apply."""
+        if not self.can_apply:
+            raise UserError(_('This finding cannot be applied.'))
+
+    def _apply_fix(self):
+        """Run the statement of this finding on its own and record who, when and the outcome.
+
+        A failing statement records its database error and changes nothing else. A concurrent
+        index build waits for every older snapshot of the database, including the one of this
+        request, so outside a test the statement runs once the request has committed.
+
+        Requirements: FR-OPA-0029, BR-OPA-0004
+        """
+        self.ensure_one()
+        self._check_can_apply()
+        if odoo_module.current_test:
+            self._record_apply_outcome(self._execute_in_savepoint(
+                self.fix_statement.replace(' CONCURRENTLY', '')))
+            return
+        self.env.cr.postcommit.add(functools.partial(
+            self._apply_after_commit, self.env.cr.dbname, self.id, self.env.uid, self.fix_statement))
+
+    @api.model
+    def _apply_after_commit(self, dbname, finding_id, uid, statement):
+        """Run the statement of a committed request, then record its outcome on a fresh cursor.
+
+        Requirements: FR-OPA-0029
+        """
+        error = self._run_statement_alone(dbname, statement)
+        with self.pool.cursor() as cr:
+            finding = api.Environment(cr, uid, {})['perf.audit.finding'].browse(finding_id)
+            finding._record_apply_outcome(error)
+
+    @staticmethod
+    def _run_statement_alone(dbname, statement):
+        """Run one statement on its own autocommit connection; return the database error or None."""
+        with sql_db.db_connect(dbname).cursor() as cr:
+            cr._cnx.autocommit = True
+            try:
+                cr.execute(statement)
+            except psycopg2.Error as error:
+                return str(error)
+        return None
+
+    def _record_apply_outcome(self, error):
+        """Record who applied the fix, when, and its outcome; a failure keeps its database error."""
+        self.write({
+            'apply_state': 'failed' if error else 'applied',
+            'apply_error': error or False,
+            'applied_by': self.env.uid,
+            'applied_date': fields.Datetime.now(),
+        })
+        _logger.info('Fix of finding %s %s', self.identity_key, 'failed' if error else 'applied')
+
+    def _execute_in_savepoint(self, statement):
+        """Run the statement in a savepoint of the current cursor; return the error or None."""
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute(statement)
+        except psycopg2.Error as error:
+            return str(error)
+        return None
 
     @api.model
     def _cut_query_text(self, vals):
