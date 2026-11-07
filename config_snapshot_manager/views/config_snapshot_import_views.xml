@@ -20,7 +20,7 @@
                     <field name="confirmation_text" nolabel="1" colspan="2"/>
                 </group>
                 <field name="line_ids" readonly="1" invisible="state == 'upload'">
-                    <list create="false" delete="false"
+                    <list create="false" delete="false" class="cs_diff_list"
                           decoration-success="change_type == 'added'"
                           decoration-warning="change_type == 'modified'"
                           decoration-danger="change_type == 'removed'">

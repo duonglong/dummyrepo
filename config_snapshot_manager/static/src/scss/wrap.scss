@@ -10,3 +10,11 @@
     text-overflow: clip !important;
     max-width: none !important;
 }
+
+// B-0106: a fixed key width fills a phone dialog and pushes the value columns out of sight.
+@media (max-width: 767.98px) {
+    .o_list_renderer.cs_diff_list th[data-name="key"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+}

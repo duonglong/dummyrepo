@@ -3,6 +3,8 @@ import json
 
 from lxml import etree
 
+from odoo.tools import file_open
+
 from .common import ConfigSnapshotCase
 
 
@@ -78,6 +80,18 @@ class TestDifferencesDialog(ViewCase):
             'file': self._file_b64(), 'file_name': 'x.json'})
         action = wizard.action_compare()
         self.assertEqual(action.get('name'), 'Differences')
+
+    def test_bug_b_0106_key_width_is_released_on_a_phone(self):
+        """Regression test for B-0106: a fixed wide key column pushes values off a phone.
+
+        The key keeps its desktop width (B-0077); a phone rule must release it.
+
+        Requirements: NFR-USE-001
+        """
+        self.assertIn('cs_diff_list', self._lines_list().get('class', ''))
+        scss = file_open('config_snapshot_manager/static/src/scss/wrap.scss').read()
+        self.assertRegex(
+            scss, r'@media \(max-width[^)]*\)\s*\{[^}]*cs_diff_list[^}]*data-name="key"[^}]*width:\s*auto')
 
     def _file_b64(self):
         payload = {'format': 'config_snapshot_manager', 'format_version': 1,
