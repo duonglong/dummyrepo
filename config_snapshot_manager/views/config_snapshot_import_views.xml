@@ -18,7 +18,10 @@
                         <field name="difference_count"/>
                     </group>
                 </group>
-                <field name="line_ids" readonly="1" invisible="state != 'review'">
+                <group invisible="state != 'confirm'">
+                    <field name="confirmation_text" nolabel="1" colspan="2"/>
+                </group>
+                <field name="line_ids" readonly="1" invisible="state == 'upload'">
                     <list create="false" delete="false"
                           decoration-success="change_type == 'added'"
                           decoration-warning="change_type == 'modified'"
@@ -33,7 +36,14 @@
                 <footer>
                     <button string="Compare" name="action_compare" type="object"
                             class="btn-primary" invisible="state != 'upload'"/>
-                    <button string="Close" special="cancel" class="btn-secondary"/>
+                    <button string="Apply" name="action_confirm" type="object"
+                            class="btn-primary"
+                            invisible="state != 'review' or difference_count == 0"/>
+                    <button string="Confirm" name="action_apply" type="object"
+                            class="btn-primary" invisible="state != 'confirm'"/>
+                    <button string="Cancel" name="action_cancel" type="object"
+                            class="btn-secondary" invisible="state != 'confirm'"/>
+                    <button string="Close" invisible="state == 'confirm'" special="cancel" class="btn-secondary"/>
                 </footer>
             </form>
         </field>
