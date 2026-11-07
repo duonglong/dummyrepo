@@ -10,3 +10,4 @@ from . import test_checks_a68_acceptance
 from . import test_checks_b135_acceptance
 from . import test_checks_b246_acceptance
 from . import test_check_b7_acceptance
+from . import test_check_a6_acceptance
