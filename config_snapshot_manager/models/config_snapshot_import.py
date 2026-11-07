@@ -169,13 +169,15 @@ class ConfigSnapshotImport(models.TransientModel):
         return self._form_action()
 
     def action_cancel(self):
-        """Close the wizard; no setting and no log entry changes.
+        """Return from the confirmation to the differences list; change nothing.
 
         Requirements: FR-TCM-008
         """
         self.ensure_one()
         self._check_admin()
-        return {'type': 'ir.actions.act_window_close'}
+        if self.state == 'confirm':
+            self.state = 'review'
+        return self._form_action()
 
     def _check_not_stale(self, params, covered):
         """Refuse when a listed setting changed since the comparison.
