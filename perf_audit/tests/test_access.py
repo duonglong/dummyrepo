@@ -43,6 +43,6 @@ class TestAccess(TransactionCase):
     def test_menu_visible_only_to_administrators(self):
         """FR-OPA-0033: the top-level menu is visible to an administrator, not to a plain user."""
         menu = self.env.ref('perf_audit.menu_perf_audit_root')
-        visible = self.env['ir.ui.menu']._visible_menu_ids
-        self.assertIn(menu.id, visible.__func__(self.env['ir.ui.menu'].with_user(self.admin)))
-        self.assertNotIn(menu.id, visible.__func__(self.env['ir.ui.menu'].with_user(self.plain)))
+        Menu = self.env['ir.ui.menu']
+        self.assertIn(menu.id, Menu.with_user(self.admin)._visible_menu_ids())
+        self.assertNotIn(menu.id, Menu.with_user(self.plain)._visible_menu_ids())

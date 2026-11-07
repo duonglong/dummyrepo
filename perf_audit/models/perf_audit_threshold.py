@@ -31,13 +31,18 @@ class PerfAuditThreshold(models.Model):
     _value_positive = models.Constraint(
         'CHECK(value > 0)', 'A threshold must be a positive number.')
 
+    @staticmethod
+    def _is_non_positive_number(value):
+        """True for a number that is zero or negative; an empty value is left to the required-field error."""
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and value <= 0
+
     @api.model_create_multi
     def create(self, vals_list):
         """Refuse a non-positive value before the database constraint does.
 
         Requirements: FR-OPA-0031
         """
-        if any(vals.get('value', 1) <= 0 for vals in vals_list):
+        if any(self._is_non_positive_number(vals.get('value')) for vals in vals_list):
             raise ValidationError(_('A threshold must be a positive number.'))
         return super().create(vals_list)
 

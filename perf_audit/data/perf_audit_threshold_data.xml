@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo>
+<odoo noupdate="1">
     <record id="threshold_global_query_time_limit" model="perf.audit.threshold">
         <field name="key">query_time_limit</field>
         <field name="name">Query time limit</field>

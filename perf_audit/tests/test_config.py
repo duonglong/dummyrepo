@@ -2,7 +2,7 @@ from psycopg2 import IntegrityError
 
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tools import convert_file, mute_logger
 
 
 @tagged('post_install', '-at_install')
@@ -75,3 +75,28 @@ class TestConfig(TransactionCase):
         """BR-OPA-0006: a check code is unique."""
         with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.env.cr.savepoint():
             self.env['perf.audit.check'].create({'code': 'A1', 'name': 'Dup', 'category': 'database'})
+
+    def test_upgrade_keeps_tuned_threshold(self):
+        """FR-OPA-0031: reloading the shipped data (module upgrade) keeps a tuned value."""
+        threshold = self._threshold('big_table')
+        threshold.write({'value': 50000})
+        convert_file(
+            self.env, 'perf_audit', 'data/perf_audit_threshold_data.xml', {}, mode='update', kind='data')
+        threshold.invalidate_recordset()
+        self.assertEqual(threshold.value, 50000)
+
+    def test_upgrade_keeps_switched_off_check_name(self):
+        """FR-OPA-0031: reloading the shipped checks keeps an edited check name."""
+        check = self.env['perf.audit.check'].search([('code', '=', 'A1')])
+        check.write({'name': 'Renamed'})
+        convert_file(
+            self.env, 'perf_audit', 'data/perf_audit_check_data.xml', {}, mode='update', kind='data')
+        check.invalidate_recordset()
+        self.assertEqual(check.name, 'Renamed')
+
+    def test_missing_or_empty_value_is_not_a_positive_number_error(self):
+        """FR-OPA-0031: an empty value hits the required-field error, not the positive-number one."""
+        base = {'key': 'x_key', 'name': 'X', 'unit': 'rows'}
+        for empty in (False, None):
+            with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+                self.env['perf.audit.threshold'].create({**base, 'default_value': 1, 'value': empty})

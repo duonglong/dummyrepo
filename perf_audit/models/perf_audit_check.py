@@ -13,7 +13,7 @@ class PerfAuditCheck(models.Model):
     _description = 'Performance audit check'
     _order = 'sequence, id'
 
-    code = fields.Char(required=True, index=True)
+    code = fields.Char(required=True)
     name = fields.Char(required=True, translate=True)
     category = fields.Selection(
         [('database', 'Database'), ('odoo', 'Odoo')], required=True)
