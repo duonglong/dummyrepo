@@ -47,3 +47,18 @@ class PerfAuditProbe(models.AbstractModel):
         """Names of the extensions installed in the database."""
         self.env.cr.execute('SELECT extname FROM pg_extension')
         return {name for (name,) in self.env.cr.fetchall()}
+
+    def indexed_leading_columns(self):
+        """The (table, column) pairs that are the first column of at least one index.
+
+        Requirements: FR-OPA-0018, FR-OPA-0020
+        """
+        self.env.cr.execute("""
+            SELECT c.relname, a.attname
+              FROM pg_index i
+              JOIN pg_class c ON c.oid = i.indrelid
+              JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = current_schema()
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+             WHERE i.indkey[0] > 0
+        """)
+        return {(table, column) for table, column in self.env.cr.fetchall()}
