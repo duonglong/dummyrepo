@@ -10,14 +10,12 @@
                     <field name="file" filename="file_name"/>
                     <field name="file_name" invisible="1"/>
                 </group>
-                <group invisible="state != 'review'">
-                    <group>
-                        <field name="added_count"/>
-                        <field name="modified_count"/>
-                        <field name="removed_count"/>
-                        <field name="difference_count"/>
-                    </group>
-                </group>
+                <field name="difference_count" invisible="1"/>
+                <div class="d-flex flex-wrap gap-4 mb-3" invisible="state != 'review'">
+                    <span>Added: <field name="added_count" class="oe_inline fw-bold"/></span>
+                    <span>Modified: <field name="modified_count" class="oe_inline fw-bold"/></span>
+                    <span>Removed: <field name="removed_count" class="oe_inline fw-bold"/></span>
+                </div>
                 <group invisible="state != 'confirm'">
                     <field name="confirmation_text" nolabel="1" colspan="2"/>
                 </group>
@@ -26,10 +24,10 @@
                           decoration-success="change_type == 'added'"
                           decoration-warning="change_type == 'modified'"
                           decoration-danger="change_type == 'removed'">
-                        <field name="change_type"/>
+                        <field name="change_type" string="Kind" width="90px"/>
                         <field name="key" width="320px" class="text-break cs_wrap_cell"/>
-                        <field name="current_value"/>
-                        <field name="file_value"/>
+                        <field name="current_value" string="Current" class="text-break"/>
+                        <field name="file_value" string="In file" class="text-break"/>
                         <field name="sensitive" column_invisible="1"/>
                     </list>
                 </field>

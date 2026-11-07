@@ -142,22 +142,17 @@ class ConfigSnapshotImport(models.TransientModel):
             'modified_count': self.modified_count,
             'removed_count': self.removed_count,
         })
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self._name,
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'new',
-        }
-
+        return self._form_action()
 
     def _check_admin(self):
         if not self.env.user.has_group('base.group_system'):
             raise AccessError(self.env._('Only administrators can import settings.'))
 
     def _form_action(self):
+        """Re-open this session in the dialog, titled by its step."""
         return {
             'type': 'ir.actions.act_window',
+            'name': self.env._('Differences') if self.state == 'review' else self.env._('Import'),
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
