@@ -1,5 +1,6 @@
 import ast
 import os
+import re
 
 from lxml import etree
 from psycopg2 import IntegrityError
@@ -129,3 +130,20 @@ class TestLongKeyWrap(ConfigSnapshotCase):
             manifest = ast.literal_eval(f.read())
         self.assertIn('config_snapshot_manager/static/src/scss/wrap.scss',
                       manifest.get('assets', {}).get('web.assets_backend', []))
+
+    def test_bug_b_0084_rule_beats_core_nowrap(self):
+        """Regression test for B-0084: long keys were still cut in the demo.
+
+        Core list rules (.o_data_row:not(.o_selected_row) .o_list_char,
+        with white-space: nowrap, overflow hidden and an ellipsis on inner
+        spans) are more specific than our selectors, so the wrapping rule
+        must be !important to win.
+
+        Requirements: NFR-USE-001
+        """
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, 'static/src/scss/wrap.scss')) as f:
+            css = f.read()
+        for decl in ('white-space: normal', 'text-overflow: clip',
+                     'overflow: visible', 'max-width: none'):
+            self.assertRegex(css, re.escape(decl) + r'\s*!important', decl)
