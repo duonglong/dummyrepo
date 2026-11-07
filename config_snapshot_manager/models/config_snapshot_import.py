@@ -259,10 +259,23 @@ class ConfigSnapshotImport(models.TransientModel):
                 raise UserError(self.env._(
                     'Covering the settings of the file failed: %(error)s',
                     error=error)) from error
+        added, modified, removed = (
+            sum(1 for change in changes if change[0].change_type == kind)
+            for kind in ('added', 'modified', 'removed'))
         for line, old, new, sensitive in changes:
             self.env['config.snapshot.log']._record({
                 'log_type': 'change', 'key': line.key,
                 'change_type': line.change_type,
                 'old_value': old, 'new_value': new}, sensitive=sensitive)
         self.env.invalidate_all()
-        return {'type': 'ir.actions.act_window_close'}
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'success',
+                'message': self.env._(
+                    'Settings applied: %(added)s added, %(modified)s modified, %(removed)s removed.',
+                    added=added, modified=modified, removed=removed),
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }

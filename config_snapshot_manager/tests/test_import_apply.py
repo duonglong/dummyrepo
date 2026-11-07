@@ -54,3 +54,20 @@ class TestImportUx(ConfigSnapshotCase):
         key = etree.fromstring(arch).xpath('//field[@name="line_ids"]//list/field[@name="key"]')[0]
         width = int((key.get('width') or '0').replace('px', ''))
         self.assertGreaterEqual(width, 280, 'the Key column must be wide enough to read a key')
+
+    def test_bug_b_0078_apply_notifies_counts(self):
+        """Regression test for B-0078: apply gives no feedback after confirming.
+
+        Requirements: FR-TCM-009
+        """
+        self.env['config.snapshot.item'].sudo().search([]).unlink()
+        raw = json.dumps({'format_version': 1, 'settings': [
+            {'key': 'own.ux1', 'value': '1', 'sensitive': False}]}).encode()
+        wiz = self.env['config.snapshot.import'].with_user(self.admin_user).create(
+            {'file': base64.b64encode(raw), 'file_name': 'f.json'})
+        wiz.action_compare()
+        wiz.action_confirm()
+        action = wiz.action_apply()
+        self.assertEqual(action.get('tag'), 'display_notification')
+        self.assertIn('1', action['params']['message'])
+        self.assertEqual(action['params']['next'], {'type': 'ir.actions.act_window_close'})
