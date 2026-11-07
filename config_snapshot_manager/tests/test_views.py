@@ -123,3 +123,19 @@ class TestAuditLogList(ViewCase):
         for name in self.COUNTS:
             header = self._field(root, name).get('string')
             self.assertTrue(header and len(header) <= 9, f'{name}: {header!r}')
+
+    def test_bug_b_0108_key_column_is_roomy_and_wraps(self):
+        """Regression test for B-0108: the audit log Key column shows the whole setting key.
+
+        Requirements: FR-TCM-015
+        """
+        root = self._arch('config.snapshot.log', 'list')
+        key, file_name = self._field(root, 'key'), self._field(root, 'file_name')
+        self.assertIn('cs_wrap_cell', key.get('class', ''))
+        key_width = int((key.get('width') or '0').removesuffix('px'))
+        self.assertGreaterEqual(key_width, 280)
+        file_width = int((file_name.get('width') or '9999').removesuffix('px'))
+        self.assertLess(file_width, key_width)
+        for name in self.COUNTS:
+            count_width = int((self._field(root, name).get('width') or '9999').removesuffix('px'))
+            self.assertLess(count_width, key_width, name)

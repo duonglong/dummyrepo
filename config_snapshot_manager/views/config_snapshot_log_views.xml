@@ -8,15 +8,15 @@
                 <field name="log_type"/>
                 <field name="user_id"/>
                 <field name="date"/>
-                <field name="file_name"/>
-                <field name="key"/>
+                <field name="file_name" width="140px"/>
+                <field name="key" width="320px" class="text-break cs_wrap_cell"/>
                 <field name="change_type"/>
                 <field name="old_value"/>
                 <field name="new_value"/>
-                <field name="setting_count" string="Settings" invisible="log_type == 'change'"/>
-                <field name="added_count" string="Added" invisible="log_type == 'change'"/>
-                <field name="modified_count" string="Modified" invisible="log_type == 'change'"/>
-                <field name="removed_count" string="Removed" invisible="log_type == 'change'"/>
+                <field name="setting_count" width="80px" string="Settings" invisible="log_type == 'change'"/>
+                <field name="added_count" width="80px" string="Added" invisible="log_type == 'change'"/>
+                <field name="modified_count" width="80px" string="Modified" invisible="log_type == 'change'"/>
+                <field name="removed_count" width="80px" string="Removed" invisible="log_type == 'change'"/>
             </list>
         </field>
     </record>
