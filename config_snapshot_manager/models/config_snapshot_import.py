@@ -3,7 +3,7 @@ import json
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..const import MASK
+from ..const import FORMAT_VERSION, MASK
 
 
 class Base64Binary(fields.Binary):
@@ -67,11 +67,19 @@ class ConfigSnapshotImport(models.TransientModel):
         if (not isinstance(data, dict) or 'format_version' not in data
                 or not isinstance(data.get('settings'), list)):
             raise UserError(self.env._('The file is not a configuration export.'))
+        if data['format_version'] != FORMAT_VERSION or isinstance(data['format_version'], bool):
+            raise UserError(self.env._(
+                'This export format version is not supported: %s', data['format_version']))
         entries = {}
         for entry in data['settings']:
             if not isinstance(entry, dict) or not isinstance(entry.get('key'), str):
                 raise UserError(self.env._('The file is not a configuration export.'))
-            entries[entry['key']] = entry
+            key = entry['key']
+            if (not key or key in entries
+                    or not isinstance(entry.get('value'), (str, type(None)))
+                    or not isinstance(entry.get('sensitive', False), bool)):
+                raise UserError(self.env._('The file holds an invalid setting entry: %s', key))
+            entries[key] = entry
         return entries
 
     def _build_lines(self, entries):

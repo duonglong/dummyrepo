@@ -3,9 +3,7 @@ import json
 
 from odoo import api, fields, models
 
-from ..const import MASK
-
-FORMAT_VERSION = 1
+from ..const import FORMAT_VERSION, MASK
 
 
 class ConfigSnapshotExport(models.TransientModel):

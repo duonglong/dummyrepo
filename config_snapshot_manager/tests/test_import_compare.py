@@ -50,6 +50,30 @@ class TestImportCompare(ConfigSnapshotCase):
         self.assertEqual(
             self.env['config.snapshot.log'].search_count([('log_type', '=', 'import')]), before)
 
+    def test_bug_b_0088_invalid_files_refused(self):
+        """Regression test for B-0088: unsupported version, bad entries, duplicate keys.
+
+        Requirements: FR-TCM-005, BR-TCM-002
+        """
+        before = self.env['config.snapshot.log'].search_count([('log_type', '=', 'import')])
+        with self.assertRaisesRegex(UserError, 'format version is not supported'):
+            self._compare(raw=json.dumps({
+                'format_version': 2, 'settings': [{'key': 'b88.a', 'value': 'x'}]}).encode())
+        bad_entries = [
+            {'key': 'b88.a', 'value': {'x': 1}},
+            {'key': 'b88.a', 'value': ['x']},
+            {'key': 'b88.a', 'value': 'x', 'sensitive': 'false'},
+            {'key': '', 'value': 'x'},
+        ]
+        for entry in bad_entries:
+            with self.subTest(entry=entry), self.assertRaisesRegex(
+                    UserError, 'invalid setting entry'):
+                self._compare([entry])
+        with self.assertRaisesRegex(UserError, 'invalid setting entry'):
+            self._compare([{'key': 'b88.a', 'value': '1'}, {'key': 'b88.a', 'value': '2'}])
+        self.assertEqual(
+            self.env['config.snapshot.log'].search_count([('log_type', '=', 'import')]), before)
+
     def test_import_logged(self):
         """Requirements: FR-TCM-013, SC-TCM-013-1"""
         self._compare([{'key': 't4.log', 'value': 'v'}])
