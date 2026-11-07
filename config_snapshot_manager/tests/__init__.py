@@ -2,3 +2,5 @@ from . import test_item_acceptance
 from . import test_log_acceptance
 from . import test_item
 from . import test_log
+from . import test_export_acceptance
+from . import test_import_compare_acceptance
