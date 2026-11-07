@@ -27,7 +27,7 @@
                           decoration-warning="change_type == 'modified'"
                           decoration-danger="change_type == 'removed'">
                         <field name="change_type"/>
-                        <field name="key" width="320px" class="text-break"/>
+                        <field name="key" width="320px" class="text-break cs_wrap_cell"/>
                         <field name="current_value"/>
                         <field name="file_value"/>
                         <field name="sensitive" column_invisible="1"/>

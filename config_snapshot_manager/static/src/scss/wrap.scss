@@ -1,0 +1,8 @@
+// B-0083: list cells are truncated with an ellipsis; let long setting keys wrap.
+.o_list_renderer td.cs_wrap_cell,
+.o_list_renderer td.cs_wrap_cell .o_field_widget,
+.o_list_renderer td.cs_wrap_cell span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+}

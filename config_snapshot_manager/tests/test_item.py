@@ -1,3 +1,6 @@
+import ast
+import os
+
 from lxml import etree
 from psycopg2 import IntegrityError
 
@@ -88,3 +91,41 @@ class TestCoveredListUx(ConfigSnapshotCase):
         self.assertTrue(widths and max(widths) >= 320, 'the key column must be wide enough to read')
         sensitive = arch.xpath('//field[@name="sensitive"]')[0]
         self.assertGreaterEqual(int((sensitive.get('width') or '0').replace('px', '')), 90)
+
+
+@tagged('post_install', '-at_install')
+class TestLongKeyWrap(ConfigSnapshotCase):
+    """Requirements: NFR-USE-001"""
+
+    def _classes(self, model, xmlid, xpath):
+        arch = self.env[model].get_view(self.env.ref(xmlid).id)['arch']
+        return (etree.fromstring(arch).xpath(xpath)[0].get('class') or '').split()
+
+    def test_bug_b_0083_long_keys_wrap(self):
+        """Regression test for B-0083: long keys are cut with an ellipsis.
+
+        Requirements: NFR-USE-001
+        """
+        item = 'config_snapshot_manager.config_snapshot_item_view_list'
+        imp = 'config_snapshot_manager.config_snapshot_import_view_form'
+        for model, xmlid, xpath in (
+            ('config.snapshot.item', item, "//field[@name='parameter_id']"),
+            ('config.snapshot.item', item, "//field[@name='key']"),
+            ('config.snapshot.import', imp, "//list//field[@name='key']"),
+        ):
+            self.assertIn('cs_wrap_cell', self._classes(model, xmlid, xpath), xpath)
+
+    def test_bug_b_0083_stylesheet_declared(self):
+        """Regression test for B-0083: the wrapping rule is loaded in the backend.
+
+        Requirements: NFR-USE-001
+        """
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, 'static/src/scss/wrap.scss')) as f:
+            css = f.read()
+        self.assertIn('.cs_wrap_cell', css)
+        self.assertIn('overflow-wrap', css)
+        with open(os.path.join(root, '__manifest__.py')) as f:
+            manifest = ast.literal_eval(f.read())
+        self.assertIn('config_snapshot_manager/static/src/scss/wrap.scss',
+                      manifest.get('assets', {}).get('web.assets_backend', []))

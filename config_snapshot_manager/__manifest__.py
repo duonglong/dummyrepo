@@ -14,4 +14,9 @@
         'views/config_snapshot_import_views.xml',
         'views/config_snapshot_item_buttons.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'config_snapshot_manager/static/src/scss/wrap.scss',
+        ],
+    },
 }
