@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="config_snapshot_export_view_form" model="ir.ui.view">
+        <field name="name">config.snapshot.export.form</field>
+        <field name="model">config.snapshot.export</field>
+        <field name="arch" type="xml">
+            <form string="Export settings">
+                <group invisible="file">
+                    <p>Export the covered settings to a JSON file. Sensitive values are masked.</p>
+                </group>
+                <group invisible="not file">
+                    <field name="setting_count"/>
+                    <field name="download" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                    <field name="file" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_export" type="object" string="Export"
+                            class="btn-primary" invisible="file"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="config_snapshot_export_action" model="ir.actions.act_window">
+        <field name="name">Export settings</field>
+        <field name="res_model">config.snapshot.export</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
