@@ -5,10 +5,10 @@
         <field name="model">config.snapshot.item</field>
         <field name="arch" type="xml">
             <list editable="bottom">
-                <field name="parameter_id"/>
-                <field name="key"/>
+                <field name="parameter_id" width="360px" class="text-break"/>
+                <field name="key" optional="hide" width="360px" class="text-break"/>
                 <field name="value_display"/>
-                <field name="sensitive"/>
+                <field name="sensitive" width="100px"/>
             </list>
         </field>
     </record>

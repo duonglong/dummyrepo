@@ -1,3 +1,4 @@
+from lxml import etree
 from psycopg2 import IntegrityError
 
 from odoo.exceptions import AccessError, ValidationError
@@ -50,3 +51,28 @@ class TestItem(ConfigSnapshotCase):
         with self.assertRaises(AccessError):
             self._items(self.plain_user).create({'parameter_id': param.id})
         self.assertFalse(self._items().search([('key', '=', 'zzz')]))
+
+
+@tagged('post_install', '-at_install')
+class TestCoveredListUx(ConfigSnapshotCase):
+    """Regression tests of the UX findings of the covered settings list."""
+
+    def _list_arch(self):
+        arch = self.env['config.snapshot.item'].get_view(view_type='list')['arch']
+        return etree.fromstring(arch)
+
+    def test_bug_b_0081_setting_and_key_not_duplicated(self):
+        """Regression test for B-0081: long names cut, Setting and Key columns repeat each other.
+
+        Requirements: NFR-USE-001
+        """
+        arch = self._list_arch()
+        visible = [f.get('name') for f in arch.xpath('//field')
+                   if f.get('optional') != 'hide' and f.get('column_invisible') != '1']
+        self.assertFalse({'parameter_id', 'key'} <= set(visible), 'Setting and Key show the same text')
+        name_field = arch.xpath('//field[@name="parameter_id"] | //field[@name="key"]')
+        widths = [int((f.get('width') or '0').replace('px', '')) for f in name_field
+                  if f.get('name') in visible]
+        self.assertTrue(widths and max(widths) >= 320, 'the key column must be wide enough to read')
+        sensitive = arch.xpath('//field[@name="sensitive"]')[0]
+        self.assertGreaterEqual(int((sensitive.get('width') or '0').replace('px', '')), 90)
