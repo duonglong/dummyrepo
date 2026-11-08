@@ -1,4 +1,5 @@
 from odoo import Command
+from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
 
 
@@ -55,3 +56,32 @@ class TestCompanyRules(TransactionCase):
         """
         lines = self.env['duplicate.group.line'].with_user(self.manager_a).search([('id', 'in', self.lines.ids)])
         self.assertEqual(lines.group_id, self.group_a | self.group_shared)
+
+    def test_bug_b_0139_manager_cannot_create_a_set_line(self):
+        """Regression test for B-0139: a manager cannot point a line of their own set at any record.
+
+        Requirements: FR-DRD-0018, BR-DRD-0004
+        """
+        other = self.env['res.partner'].create({'name': 'CR Other'})
+        with self.assertRaises(AccessError):
+            self.env['duplicate.group.line'].with_user(self.manager_a).create(
+                dict(self._line_values(self.group_a), res_id=other.id))
+
+    def test_bug_b_0139_manager_cannot_change_or_delete_a_set_line(self):
+        """Regression test for B-0139: existing lines are read only for a manager.
+
+        Requirements: FR-DRD-0018, BR-DRD-0004
+        """
+        line = self.lines[0].with_user(self.manager_a)
+        with self.assertRaises(AccessError):
+            line.write({'res_id': self.partner.id})
+        with self.assertRaises(AccessError):
+            line.unlink()
+
+    def test_bug_b_0139_manager_cannot_delete_a_set(self):
+        """Regression test for B-0139: a manager updates sets but never deletes them.
+
+        Requirements: FR-DRD-0018
+        """
+        with self.assertRaises(AccessError):
+            self.group_a.with_user(self.manager_a).unlink()
