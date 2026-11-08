@@ -93,3 +93,12 @@ class DuplicateGroup(models.Model):
         other.line_ids.write({'group_id': self.id})
         self.company_id = self.company_id or other.company_id
         other.unlink()
+
+    def action_not_duplicate(self) -> bool:
+        """Requirements: FR-DRD-0008.
+
+        Close the open sets as not duplicates; later checks and saves do not report these records
+        together again. The access rights allow only managers to write a set.
+        """
+        self.filtered(lambda g: g.state == 'open').write({'state': 'not_duplicate'})
+        return True

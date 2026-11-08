@@ -7,3 +7,5 @@ from . import test_merge_contacts_acceptance
 from . import test_merge_products_acceptance
 from . import test_matching
 from . import test_on_save
+from . import test_full_check
+from . import test_group_list
