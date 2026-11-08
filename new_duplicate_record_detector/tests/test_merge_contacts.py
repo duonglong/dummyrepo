@@ -178,3 +178,46 @@ class TestMergeOtherOpenSets(TransactionCase):
             ('rule_id', '=', self.rule_name.id), ('state', '=', 'open')])
         self.assertEqual(len(open_sets), 1)
         self.assertEqual(set(open_sets.line_ids.mapped('res_id')), {self.x.id, self.z.id})
+
+
+class TestMergeKeptRecordScope(TransactionCase):
+    """Regression tests for B-0142 and B-0143: what the merge fills and what it moves.
+
+    Requirements: FR-DRD-0009, FR-DRD-0011, FR-DRD-0012, BR-DRD-0004.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        groups = cls.env.ref('base.group_user') | cls.env.ref('base.group_partner_manager') | cls.env.ref(
+            'new_duplicate_record_detector.group_duplicate_manager')
+        cls.manager = cls.env['res.users'].create({
+            'name': 'Scope Mgr', 'login': 'scope_mgr_b0142', 'group_ids': [Command.set(groups.ids)]})
+
+    def _wizard(self, records):
+        return self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model=records._name, active_ids=records.ids).create({})
+
+    def test_bug_b_0142_shared_contact_does_not_take_a_company(self):
+        """Regression test for B-0142: a contact shared by all companies stays shared, and the
+        preview shows no company line.
+
+        Requirements: FR-DRD-0012, BR-DRD-0004
+        """
+        shared = self.env['res.partner'].create({'name': 'Scope Shared'})
+        owned = self.env['res.partner'].create({'name': 'Scope Shared ', 'company_id': self.manager.company_id.id})
+        wizard = self._wizard(shared | owned)
+        self.assertNotIn('company_id', wizard.value_line_ids.mapped('field_name'))
+        wizard.action_merge()
+        self.env.invalidate_all()
+        self.assertFalse(shared.company_id)
+
+    def test_bug_b_0142_chatter_fields_are_not_filled(self):
+        """Regression test for B-0142: the preview offers no chatter or access-token field.
+
+        Requirements: FR-DRD-0009, FR-DRD-0012
+        """
+        wizard = self._wizard(self.env['res.partner'].create([{'name': 'Scope Chat'}, {'name': 'Scope Chat '}]))
+        names = [field.name for field in wizard.sudo()._preview_fields()]
+        self.assertFalse([name for name in names if name.startswith(
+            ('message_', 'activity_', 'website_message_', 'access_'))])

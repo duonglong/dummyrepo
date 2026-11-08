@@ -18,6 +18,9 @@ MERGE_MAX_RECORDS = 10
 PREVIEW_FIELD_TYPES = (
     'char', 'text', 'html', 'selection', 'many2one', 'date', 'datetime', 'integer', 'float', 'monetary')
 BOOKKEEPING_FIELDS = ('id', 'display_name', 'active', 'create_uid', 'create_date', 'write_uid', 'write_date')
+# Fields the merge never fills: the record's company (a shared record stays shared) and chatter data.
+UNFILLED_FIELDS = ('company_id',)
+UNFILLED_FIELD_PREFIXES = ('message_', 'activity_', 'website_message_', 'access_')
 # Fields of a record type that are computed from its variant (so skipped by the generic rule) but
 # that a person fills in on the form: they take part in the preview and the fill.
 PREVIEW_EXTRA_FIELDS = {'product.template': ('barcode', 'default_code')}
@@ -210,7 +213,8 @@ class DuplicateMergeWizard(models.TransientModel):
             field for field in model._fields.values()
             if field.name in extra or (
                 field.store and not field.compute and not field.readonly
-                and field.type in PREVIEW_FIELD_TYPES and field.name not in BOOKKEEPING_FIELDS)]
+                and field.type in PREVIEW_FIELD_TYPES and field.name not in BOOKKEEPING_FIELDS
+                and field.name not in UNFILLED_FIELDS and not field.name.startswith(UNFILLED_FIELD_PREFIXES))]
 
     @api.model
     def _readable_value(self, field, record: models.BaseModel) -> str:
