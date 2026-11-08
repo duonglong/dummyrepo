@@ -407,6 +407,8 @@ class DuplicateMergeWizard(models.TransientModel):
 
         Move the links of the merged-away templates to the kept template and the links of their
         variant to the variant of the kept template; the variants themselves stay where they are.
+        The links of archived merged-away variants move too, so the kept product holds the whole
+        history (old orders, stock moves) of the products merged into it.
         """
         kept_variant = kept.product_variant_ids.filtered('active')
         if len(kept_variant) != 1:
@@ -450,14 +452,22 @@ class DuplicateMergeWizard(models.TransientModel):
 
     def _repoint_relation_table(self, table: str, column: str, other_column: str,
                                 src_records: models.BaseModel, dst_record: models.BaseModel) -> None:
-        """Requirements: FR-DRD-0011. Move the rows of a two-column relation the destination does not hold yet."""
-        self.env.cr.execute(SQL(
-            """UPDATE %(table)s AS moved SET %(column)s = %(dst)s
-                WHERE %(column)s = ANY(%(src)s) AND NOT EXISTS (
-                    SELECT 1 FROM %(table)s AS held
-                    WHERE held.%(column)s = %(dst)s AND held.%(other)s = moved.%(other)s)""",
-            table=SQL.identifier(table), column=SQL.identifier(column), other=SQL.identifier(other_column),
-            dst=dst_record.id, src=src_records.ids))
+        """Requirements: FR-DRD-0011.
+
+        Move the rows of a two-column relation the destination does not hold yet.
+
+        One update per source record (at most MERGE_MAX_RECORDS - 1): a single update for all of
+        them would not see the rows it moves itself, so two sources sharing a value the destination
+        lacks would both move it and break the relation's primary key.
+        """
+        for src_id in src_records.ids:
+            self.env.cr.execute(SQL(
+                """UPDATE %(table)s AS moved SET %(column)s = %(dst)s
+                    WHERE %(column)s = %(src)s AND NOT EXISTS (
+                        SELECT 1 FROM %(table)s AS held
+                        WHERE held.%(column)s = %(dst)s AND held.%(other)s = moved.%(other)s)""",
+                table=SQL.identifier(table), column=SQL.identifier(column), other=SQL.identifier(other_column),
+                dst=dst_record.id, src=src_id))
 
     def _repoint_table(self, table: str, column: str, src_records: models.BaseModel,
                        dst_record: models.BaseModel, native: models.BaseModel) -> None:

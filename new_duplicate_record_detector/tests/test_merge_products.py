@@ -30,6 +30,16 @@ class TestMergeProducts(TransactionCase):
         self._merge(kept, gone)
         self.assertEqual(kept.product_tag_ids, self.tag_shared | self.tag_only)
 
+    def test_tag_shared_by_two_merged_away_products_moves_once(self):
+        """Requirements: FR-DRD-0011. Two merged-away products with a tag the kept one lacks give it once."""
+        kept = self.T.create({'name': 'Desk'})
+        first, second = self.T.create([
+            {'name': 'Desk 1', 'product_tag_ids': [Command.set(self.tag_shared.ids)]},
+            {'name': 'Desk 2', 'product_tag_ids': [Command.set(self.tag_shared.ids)]}])
+        self._merge(kept, first, second)
+        self.assertEqual(kept.product_tag_ids, self.tag_shared)
+        self.assertFalse(first.active or second.active)
+
     def test_empty_default_code_is_filled(self):
         """Requirements: FR-DRD-0012. An empty internal reference takes the merged-away value."""
         kept = self.T.create({'name': 'Desk'})
