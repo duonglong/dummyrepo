@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="perf_audit_finding_view_search" model="ir.ui.view">
+        <field name="name">perf.audit.finding.search</field>
+        <field name="model">perf.audit.finding</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="run_id"/>
+                <field name="code"/>
+                <field name="message"/>
+                <filter name="new" string="New" domain="[('comparison_state', '=', 'new')]"/>
+                <filter name="open" string="Still open" domain="[('comparison_state', '=', 'open')]"/>
+                <filter name="regressed" string="Regressed"
+                        domain="[('comparison_state', '=', 'regressed')]"/>
+                <filter name="fixed" string="Fixed" domain="[('comparison_state', '=', 'fixed')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="perf_audit_finding_compare_action" model="ir.actions.act_window">
+        <field name="name">Findings</field>
+        <field name="res_model">perf.audit.finding</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="perf_audit_finding_view_search"/>
+    </record>
+
     <record id="perf_audit_run_view_list" model="ir.ui.view">
         <field name="name">perf.audit.run.list</field>
         <field name="model">perf.audit.run</field>
@@ -11,6 +35,9 @@
                 <field name="user_id"/>
                 <field name="state"/>
                 <field name="finding_count"/>
+                <field name="new_count"/>
+                <field name="fixed_count"/>
+                <field name="regressed_count"/>
             </list>
         </field>
     </record>
@@ -24,6 +51,28 @@
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(perf_audit_finding_compare_action)d" type="action"
+                                class="oe_stat_button" icon="fa-list"
+                                context="{'search_default_run_id': id}">
+                            <field name="finding_count" string="Findings" widget="statinfo"/>
+                        </button>
+                        <button name="%(perf_audit_finding_compare_action)d" type="action"
+                                class="oe_stat_button" icon="fa-plus"
+                                context="{'search_default_run_id': id, 'search_default_new': 1}">
+                            <field name="new_count" string="New" widget="statinfo"/>
+                        </button>
+                        <button name="%(perf_audit_finding_compare_action)d" type="action"
+                                class="oe_stat_button" icon="fa-check"
+                                context="{'search_default_run_id': id, 'search_default_fixed': 1}">
+                            <field name="fixed_count" string="Fixed" widget="statinfo"/>
+                        </button>
+                        <button name="%(perf_audit_finding_compare_action)d" type="action"
+                                class="oe_stat_button" icon="fa-undo"
+                                context="{'search_default_run_id': id, 'search_default_regressed': 1}">
+                            <field name="regressed_count" string="Regressed" widget="statinfo"/>
+                        </button>
+                    </div>
                     <div class="alert alert-warning" role="alert" invisible="not weak_evidence">
                         The database statistics were reset recently: counters such as unused indexes
                         are weak evidence.
@@ -40,7 +89,7 @@
                         <group>
                             <field name="start_date"/>
                             <field name="end_date"/>
-                            <field name="finding_count"/>
+                            <field name="previous_run_id"/>
                             <field name="stats_reset_date"/>
                             <field name="stats_reset_source"/>
                             <field name="weak_evidence"/>
@@ -60,7 +109,18 @@
                             </field>
                         </page>
                         <page string="Findings">
-                            <field name="finding_ids"/>
+                            <field name="finding_ids">
+                                <list>
+                                    <field name="comparison_state" widget="badge"
+                                           decoration-success="comparison_state == 'fixed'"
+                                           decoration-danger="comparison_state == 'regressed'"
+                                           decoration-info="comparison_state == 'new'"/>
+                                    <field name="code"/>
+                                    <field name="severity"/>
+                                    <field name="message"/>
+                                    <field name="table_name"/>
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>

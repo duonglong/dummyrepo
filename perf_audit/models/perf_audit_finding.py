@@ -81,7 +81,7 @@ class PerfAuditFinding(models.Model):
     can_apply = fields.Boolean(compute='_compute_can_apply')
 
     _identity_unique = models.Constraint(
-        'UNIQUE(run_id, identity_key)', 'A finding is identified once per run.')
+        'UNIQUE(run_id, check_id, identity_key)', 'A finding is identified once per run and check.')
     _query_text_limit = models.Constraint(
         'CHECK(char_length(query_text) <= %s)' % QUERY_TEXT_LIMIT,
         'A stored query text has at most %s characters.' % QUERY_TEXT_LIMIT)
@@ -135,7 +135,7 @@ class PerfAuditFinding(models.Model):
             AUTOVACUUM_SETTING.fullmatch(key) and isinstance(value, (int, float))
             for key, value in settings.items())
 
-    @api.depends('fix_statement', 'apply_state', 'run_id.is_latest')
+    @api.depends('fix_statement', 'apply_state', 'comparison_state', 'run_id.is_latest')
     def _compute_can_apply(self):
         """A finding offers Apply when its run is the latest, it has a statement and it was not applied.
 
@@ -145,6 +145,7 @@ class PerfAuditFinding(models.Model):
             finding.can_apply = (
                 bool(finding.fix_statement)
                 and finding.apply_state != 'applied'
+                and finding.comparison_state != 'fixed'
                 and finding.run_id.is_latest)
 
     def action_apply(self):

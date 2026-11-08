@@ -69,7 +69,7 @@ class PerfAuditRun(models.Model):
         """
         for run in self:
             lines = ['-- Fix script of %s' % run.name]
-            for finding in run.finding_ids:
+            for finding in run.finding_ids.filtered(lambda f: f.comparison_state != 'fixed'):
                 lines.append('-- [%s] %s' % (finding.code, ' '.join(finding.message.split())))
                 lines.append(self._evidence_comment(finding))
                 if finding.code_suggestion:
@@ -203,10 +203,58 @@ class PerfAuditRun(models.Model):
         for check in self.env['perf.audit.check'].sudo().search([]):  # the background action runs without the user
             self._execute_check(check, registry.get(check.code), global_thresholds)
         self.env.flush_all()
+        self._compare_with_earlier_runs()
+        self.write({'state': 'done', 'end_date': fields.Datetime.now()})
+
+    def _compare_with_earlier_runs(self):
+        """Mark each finding new, open or regressed, list the gone ones as fixed and store the counts.
+
+        A finding is matched by its check and identity key (BR-OPA-0003). Open means it is also in the
+        previous done run (not marked fixed there); regressed means it is only in an earlier done run.
+        A finding of the previous run whose check did not finish in this run is not listed as fixed.
+        Calling it twice gives the same result: the fixed rows of an earlier call are rebuilt.
+
+        Requirements: FR-OPA-0030, BR-OPA-0003
+        """
+        self.ensure_one()
+        Finding = self.env['perf.audit.finding']
+        self.finding_ids.filtered(lambda f: f.comparison_state == 'fixed').unlink()
+        earlier_runs = self.search([
+            ('state', '=', 'done'), ('id', '!=', self.id), ('start_date', '<=', self.start_date),
+        ], order='start_date desc, id desc')
+        previous = earlier_runs[:1]
+        self.previous_run_id = previous
+        in_previous = previous.finding_ids.filtered(lambda f: f.comparison_state != 'fixed')
+        previous_marks = {(f.check_id.id, f.identity_key): f for f in in_previous}
+        seen_before = {
+            (f.check_id.id, f.identity_key)
+            for f in earlier_runs[1:].finding_ids if f.comparison_state != 'fixed'}
+        for finding in self.finding_ids:
+            mark = (finding.check_id.id, finding.identity_key)
+            if mark in previous_marks:
+                finding.comparison_state = 'open'
+            elif mark in seen_before:
+                finding.comparison_state = 'regressed'
+            else:
+                finding.comparison_state = 'new'
+        checked = self.check_result_ids.filtered(lambda r: r.state == 'done').check_id
+        current = {(f.check_id.id, f.identity_key) for f in self.finding_ids}
+        gone = in_previous.filtered(lambda f: f.check_id in checked and (f.check_id.id, f.identity_key) not in current)
+        for finding in gone:
+            finding.copy({'run_id': self.id, 'comparison_state': 'fixed'})
+        self._store_comparison_counts()
+
+    def _store_comparison_counts(self):
+        """Store the finding, new, fixed and regressed counts of the run.
+
+        Requirements: FR-OPA-0030
+        """
+        states = self.finding_ids.mapped('comparison_state')
         self.write({
-            'state': 'done',
-            'end_date': fields.Datetime.now(),
-            'finding_count': len(self.finding_ids),
+            'finding_count': len(states) - states.count('fixed'),
+            'new_count': states.count('new'),
+            'fixed_count': states.count('fixed'),
+            'regressed_count': states.count('regressed'),
         })
 
     def _record_stats_reset(self, weak_evidence_days):
