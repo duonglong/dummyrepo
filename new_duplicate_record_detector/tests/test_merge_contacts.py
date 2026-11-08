@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
@@ -198,6 +198,12 @@ class TestMergeKeptRecordScope(TransactionCase):
         return self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
             active_model=records._name, active_ids=records.ids).create({})
 
+    def _schedule_note(self, record):
+        return self.env['mail.scheduled.message'].create({
+            'model': record._name, 'res_id': record.id, 'body': 'Later',
+            'scheduled_date': fields.Datetime.add(fields.Datetime.now(), days=3),
+            'author_id': self.env.user.partner_id.id, 'is_note': True})
+
     def test_bug_b_0142_shared_contact_does_not_take_a_company(self):
         """Regression test for B-0142: a contact shared by all companies stays shared, and the
         preview shows no company line.
@@ -221,3 +227,27 @@ class TestMergeKeptRecordScope(TransactionCase):
         names = [field.name for field in wizard.sudo()._preview_fields()]
         self.assertFalse([name for name in names if name.startswith(
             ('message_', 'activity_', 'website_message_', 'access_'))])
+
+    def test_bug_b_0143_scheduled_message_of_a_contact_moves(self):
+        """Regression test for B-0143: a message scheduled on the merged-away contact follows the merge.
+
+        Requirements: FR-DRD-0011, FR-DRD-0009
+        """
+        kept = self.env['res.partner'].create({'name': 'Scope Sched'})
+        gone = self.env['res.partner'].create({'name': 'Scope Sched '})
+        scheduled = self._schedule_note(gone)
+        self._wizard(kept | gone).action_merge()
+        self.env.invalidate_all()
+        self.assertEqual(scheduled.res_id, kept.id)
+
+    def test_bug_b_0143_scheduled_message_of_a_product_moves(self):
+        """Regression test for B-0143: the same for a product template.
+
+        Requirements: FR-DRD-0011, FR-DRD-0009
+        """
+        kept = self.env['product.template'].create({'name': 'Scope Desk'})
+        gone = self.env['product.template'].create({'name': 'Scope Desk '})
+        scheduled = self._schedule_note(gone)
+        self._wizard(kept | gone).action_merge()
+        self.env.invalidate_all()
+        self.assertEqual(scheduled.res_id, kept.id)

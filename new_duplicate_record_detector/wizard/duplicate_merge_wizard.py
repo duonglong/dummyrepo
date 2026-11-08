@@ -415,6 +415,7 @@ class DuplicateMergeWizard(models.TransientModel):
         native._merge_bank_accounts(merged_away, kept)
         native._update_foreign_keys(merged_away, kept)
         native._update_reference_fields(merged_away, kept)
+        self._repoint_document_references(merged_away, kept)
 
     def _check_product_safety(self, templates: models.BaseModel) -> None:
         """Requirements: FR-DRD-0016.
@@ -444,6 +445,33 @@ class DuplicateMergeWizard(models.TransientModel):
                 (merged_away, kept, VARIANT_STRUCTURE_TABLES), (gone_variants, kept_variant, VARIANT_COMBINATION_TABLES)):
             self._repoint_foreign_keys(src_records, dst_record, skip)
             native._update_reference_fields_generic(src_records._name, src_records, dst_record)
+            self._repoint_document_references(src_records, dst_record)
+        self.env.invalidate_all()
+
+    @api.model
+    @tools.ormcache()
+    def _document_reference_fields(self) -> list[tuple[str, str, str]]:
+        """Return (table, document id column, model column) of every stored model/id reference field."""
+        return [
+            (model._table, field.name, field.model_field)
+            for model_name in self.env.registry
+            for model in [self.env[model_name]]
+            if not (model._abstract or model._transient or not model._auto or model_name.startswith('duplicate.'))
+            for field in model._fields.values()
+            if field.type == 'many2one_reference' and field.store and model._fields[field.model_field].store]
+
+    def _repoint_document_references(self, src_records: models.BaseModel, dst_record: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011, FR-DRD-0009.
+
+        Point the model/id references the native steps leave behind (a scheduled message) to the
+        destination record: the preview counts every such reference, so the merge moves them all.
+        """
+        self.env.flush_all()
+        for table, id_column, model_column in self._document_reference_fields():
+            self.env.cr.execute(SQL(
+                "UPDATE %s SET %s = %s WHERE %s = %s AND %s = ANY(%s)",
+                SQL.identifier(table), SQL.identifier(id_column), dst_record.id,
+                SQL.identifier(model_column), src_records._name, SQL.identifier(id_column), src_records.ids))
         self.env.invalidate_all()
 
     def _release_barcode(self, merged_away: models.BaseModel, barcode: str) -> None:
