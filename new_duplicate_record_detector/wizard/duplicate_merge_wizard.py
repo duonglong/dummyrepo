@@ -1,6 +1,7 @@
 import logging
 
 from markupsafe import escape
+from psycopg2 import OperationalError
 
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -109,7 +110,7 @@ class DuplicateMergeWizard(models.TransientModel):
         """Requirements: FR-DRD-0017 (a user outside the manager groups cannot start a merge)."""
         self._check_merge_rights()
         wizards = super().create(vals_list)
-        wizards.mapped('value_line_ids')  # compute the preview now, not at some later flush
+        wizards.flush_recordset(['value_line_ids', 'link_line_ids'])  # compute the preview now
         return wizards
 
     def write(self, vals: dict) -> bool:
@@ -291,25 +292,43 @@ class DuplicateMergeWizard(models.TransientModel):
         self._check_selection()
         if self.res_model != 'res.partner':
             raise UserError(_("Only contacts can be merged here."))
+        filled_values = self._checked_filled_values()
         try:
             with self.env.cr.savepoint():
-                self.sudo()._merge_contacts()  # sudo: the manager group is checked above; the merge edits records the manager may not
-        except UserError:
+                # sudo: the manager group and the read access to every record are checked above;
+                # the merge edits records the manager may not edit
+                self.sudo()._merge_contacts(filled_values)
+        except (UserError, OperationalError):
             raise
         except Exception as error:
             _logger.exception("Merge of %s %s failed", self.res_model, self.record_line_ids.mapped('res_id'))
             raise UserError(_("The merge failed and nothing was changed: %(reason)s", reason=error)) from error
         return {'type': 'ir.actions.act_window_close'}
 
-    def _merge_contacts(self) -> None:
-        """Run the steps of a contact merge; the caller holds the savepoint and the rights check."""
+    def _checked_filled_values(self) -> dict:
+        """Requirements: FR-DRD-0012, FR-DRD-0017.
+
+        With the user's own access, refuse records the user cannot read and rebuild the values that
+        fill empty fields from the records themselves, never from the stored preview lines (a
+        manager can write those lines directly).
+        """
+        ids = self.record_line_ids.filtered('include').mapped('res_id')
+        records = self.env[self.res_model].browse(ids).exists()
+        if records._filtered_access('read') != records:
+            raise UserError(_("You cannot merge records you are not allowed to read."))
+        wizard = self.sudo()  # sudo: only reads records the user was just checked to read, with every field
+        kept, others = wizard._kept_and_others()
+        return {vals['field_name']: vals['write_value']
+                for vals in wizard._value_vals(kept, others) if vals['is_filled']}
+
+    def _merge_contacts(self, filled_values: dict) -> None:
+        """Run the steps of a contact merge; the caller holds the savepoint and the checks."""
         included_ids = self.record_line_ids.filtered('include').mapped('res_id')
         self._lock_and_recheck(included_ids)
         partners = self.env['res.partner'].with_context(active_test=False).browse(included_ids)
         kept = partners.filtered(lambda partner: partner.id == self.kept_res_id)
         merged_away = partners - kept
         self._check_contact_safety(partners)
-        filled_values = {line.field_name: line.write_value for line in self.value_line_ids.filtered('is_filled')}
         merged_names = merged_away.mapped('display_name')
         self._move_contact_links(merged_away, kept)
         merged_away.write({'active': False})

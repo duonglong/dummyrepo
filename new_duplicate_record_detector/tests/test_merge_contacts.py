@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
@@ -54,17 +56,39 @@ class TestMergeContacts(TransactionCase):
         """Requirements: FR-DRD-0014. A step that raises undoes the archive and the fill."""
         wizard = self._wizard(self.acme | self.ltd)
         native = type(self.env['base.partner.merge.automatic.wizard'])
-
-        def failing(*_args, **_kwargs):
-            raise ValueError('step-broke')
-
-        original = native._update_reference_fields
-        native._update_reference_fields = failing
-        try:
+        with patch.object(native, '_update_reference_fields', side_effect=ValueError('step-broke')):
             with self.assertRaisesRegex(UserError, 'step-broke'):
                 wizard.action_merge()
-        finally:
-            native._update_reference_fields = original
         self.env.invalidate_all()
         self.assertTrue(self.ltd.active)
         self.assertEqual(self.acme.phone, '111')
+
+    def test_forged_value_line_is_ignored(self):
+        """Requirements: FR-DRD-0012, FR-DRD-0017. A value line written by hand never reaches the
+        kept contact: the values are rebuilt from the records."""
+        other_company = self.env['res.company'].create({'name': 'Forged Co'})
+        wizard = self._wizard(self.acme | self.ltd)
+        self.env['duplicate.merge.value.line'].with_user(self.manager).create({
+            'wizard_id': wizard.id, 'field_name': 'company_id', 'is_filled': True,
+            'write_value': other_company.id})
+        wizard.action_merge()
+        self.env.invalidate_all()
+        self.assertNotEqual(self.acme.company_id, other_company)
+
+    def test_unreadable_record_is_refused(self):
+        """Requirements: FR-DRD-0017. A record line for a contact the manager cannot read is refused."""
+        wizard = self._wizard(self.acme | self.ltd)
+        hidden = self.env['res.partner'].create({
+            'name': 'Hidden', 'company_id': self.env['res.company'].create({'name': 'Hidden Co'}).id})
+        self.env['duplicate.merge.record.line'].with_user(self.manager).create({
+            'wizard_id': wizard.id, 'res_id': hidden.id, 'name': 'Hidden'})
+        with self.assertRaises(UserError):
+            wizard.action_merge()
+        self.assertTrue(hidden.active and self.ltd.active)
+
+    def test_activities_move_to_the_kept_contact(self):
+        """Requirements: FR-DRD-0011. An activity of the merged-away contact follows the merge."""
+        activity = self.ltd.activity_schedule(act_type_xmlid='mail.mail_activity_data_todo', summary='Call')
+        self._wizard(self.acme | self.ltd).action_merge()
+        self.env.invalidate_all()
+        self.assertEqual(activity.res_id, self.acme.id)
