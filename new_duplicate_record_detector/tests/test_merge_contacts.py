@@ -251,3 +251,30 @@ class TestMergeKeptRecordScope(TransactionCase):
         self._wizard(kept | gone).action_merge()
         self.env.invalidate_all()
         self.assertEqual(scheduled.res_id, kept.id)
+
+
+class TestMergeContactFollowers(TransactionCase):
+    """Regression test for B-0146: a unique conflict in one link table drops only the conflicting row.
+
+    Requirements: FR-DRD-0011, FR-DRD-0014.
+    """
+
+    def test_bug_b_0146_followers_without_conflict_survive_a_conflicting_one(self):
+        """Regression test for B-0146: the merged-away contact's follows on documents the kept
+        contact does not follow still move when one follow is held by both.
+
+        Requirements: FR-DRD-0011
+        """
+        manager = self.env['res.users'].create({
+            'name': 'Follow Mgr', 'login': 'follow_mgr_b0146', 'group_ids': [Command.set((
+                self.env.ref('base.group_user') | self.env.ref('base.group_partner_manager')
+                | self.env.ref('new_duplicate_record_detector.group_duplicate_manager')).ids)]})
+        kept, gone = self.env['res.partner'].create([{'name': 'Follow Kept'}, {'name': 'Follow Kept '}])
+        docs = self.env['res.partner'].create([{'name': f'Follow Doc {number}'} for number in range(3)])
+        docs[0].message_subscribe(partner_ids=(kept | gone).ids)
+        docs[1:].message_subscribe(partner_ids=gone.ids)
+        self.env['duplicate.merge.wizard'].with_user(manager).with_context(
+            active_model='res.partner', active_ids=(kept | gone).ids).create({}).action_merge()
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.env['mail.followers'].search_count([('partner_id', '=', kept.id), ('res_id', 'in', docs.ids)]), 3)

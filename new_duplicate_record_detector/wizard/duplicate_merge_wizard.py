@@ -408,12 +408,14 @@ class DuplicateMergeWizard(models.TransientModel):
     def _move_contact_links(self, merged_away: models.BaseModel, kept: models.BaseModel) -> None:
         """Requirements: FR-DRD-0011.
 
-        Move every link to the kept contact with the native contact merge steps; a link the kept
-        contact already has (a shared tag) stays once.
+        Move every link to the kept contact; a link the kept contact already has (a shared tag, a
+        followed document) stays once and the other links of the same table still move. The native
+        foreign key step is not used: on one unique conflict it deletes every row of the table.
         """
         native = self.env['base.partner.merge.automatic.wizard']
         native._merge_bank_accounts(merged_away, kept)
-        native._update_foreign_keys(merged_away, kept)
+        self.env.flush_all()  # the moves below run on the database
+        self._repoint_foreign_keys(merged_away, kept, ())
         native._update_reference_fields(merged_away, kept)
         self._repoint_document_references(merged_away, kept)
 
