@@ -24,8 +24,9 @@ class PerfAuditCheck(models.Model):
     sequence = fields.Integer(default=10)
     active_check = fields.Boolean(string='Enabled', default=True)
     threshold_ids = fields.One2many('perf.audit.threshold', 'check_id', string='Thresholds')
+    # readonly=False: a computed field without inverse is read-only, so the web client would drop the edits
     shared_threshold_ids = fields.Many2many(
-        'perf.audit.threshold', string='Shared thresholds', compute='_compute_shared_threshold_ids')
+        'perf.audit.threshold', string='Shared thresholds', compute='_compute_shared_threshold_ids', readonly=False)
 
     _SHARED_THRESHOLD_CHECKS = {
         'big_table': {'A1', 'A2', 'B1', 'B2', 'B3', 'B4', 'B5'},

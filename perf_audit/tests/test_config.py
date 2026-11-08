@@ -132,3 +132,15 @@ class TestSharedThresholdsOnChecks(TransactionCase):
         view = self.env.ref('perf_audit.perf_audit_check_view_form')
         arch = etree.fromstring(self.env['perf.audit.check'].get_view(view.id)['arch'])
         self.assertTrue(arch.xpath("//field[@name='shared_threshold_ids']"))
+
+    def test_bug_b_0135_shared_limits_are_editable_in_the_check_form(self):
+        """Regression test for B-0135: the shared limits list is not read-only, so the web client saves it.
+
+        Requirements: FR-OPA-0031
+        """
+        fields_info = self.env['perf.audit.check'].fields_get(['shared_threshold_ids'])
+        self.assertFalse(fields_info['shared_threshold_ids'].get('readonly'))
+        check = self.env['perf.audit.check'].search([('code', '=', 'A1')])
+        big_table = check.shared_threshold_ids.filtered(lambda threshold: threshold.key == 'big_table')
+        check.web_save({'shared_threshold_ids': [(1, big_table.id, {'value': 50000})]}, {'shared_threshold_ids': {}})
+        self.assertEqual(self.env['perf.audit.run']._global_thresholds()['big_table'], 50000)
