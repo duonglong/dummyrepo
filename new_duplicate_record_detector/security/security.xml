@@ -12,4 +12,8 @@
         <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
         <field name="user_ids" eval="[Command.link(ref('base.user_root')), Command.link(ref('base.user_admin'))]"/>
     </record>
+
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('group_duplicate_manager'))]"/>
+    </record>
 </odoo>

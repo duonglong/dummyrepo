@@ -24,7 +24,7 @@ class DuplicateRuleCondition(models.Model):
              "contains the other (text fields only).")
 
     @api.constrains('field_id', 'match_type')
-    def _check_field_is_matchable(self):
+    def _check_field_is_matchable(self) -> None:
         """Requirements: FR-DRD-0002 (refuse conditions that cannot work)."""
         for condition in self:
             field = condition.field_id
@@ -39,8 +39,15 @@ class DuplicateRuleCondition(models.Model):
                     "Partial matching works on text fields only; \"%s\" is not a text field.",
                     field.field_description))
 
+    def unlink(self):
+        """Requirements: FR-DRD-0002 (deleting the last condition of a rule is refused)."""
+        rules = self.rule_id
+        result = super().unlink()
+        rules.exists()._check_has_condition()
+        return result
+
     @api.model
-    def _is_matchable(self, field):
+    def _is_matchable(self, field: models.BaseModel) -> bool:
         """Tell whether an ir.model.fields record may be a matching field."""
         return (
             field.store
