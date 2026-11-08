@@ -43,7 +43,8 @@ class DuplicateRuleCondition(models.Model):
         """Requirements: FR-DRD-0002 (deleting the last condition of a rule is refused)."""
         rules = self.rule_id
         result = super().unlink()
-        rules.exists()._check_has_condition()
+        if not self.env.context.get('drd_rule_write'):
+            rules.exists()._check_has_condition()
         return result
 
     @api.model

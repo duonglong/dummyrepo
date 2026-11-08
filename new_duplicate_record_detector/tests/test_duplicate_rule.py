@@ -70,3 +70,37 @@ class TestDuplicateRule(TransactionCase):
             'name': 'Admin2', 'login': 'admin2_drd',
             'group_ids': [Command.link(self.env.ref('base.group_system').id)]})
         self.assertTrue(user.has_group('new_duplicate_record_detector.group_duplicate_manager'))
+
+    def test_replace_only_condition_in_one_save(self):
+        """Requirements: FR-DRD-0001, FR-DRD-0002. Delete and create in one write is valid."""
+        rule = self._rule('email')
+        rule.write({'condition_ids': [
+            Command.delete(rule.condition_ids.id),
+            Command.create({'field_id': self._field('res.partner', 'city')})]})
+        self.assertEqual(rule.condition_ids.field_id.name, 'city')
+
+    def test_change_record_type_with_conditions_replaced(self):
+        """Requirements: FR-DRD-0001, FR-DRD-0002. Contacts rule becomes a products rule."""
+        rule = self._rule('email')
+        rule.write({
+            'model_id': self.env['ir.model']._get('product.template').id,
+            'condition_ids': [
+                Command.delete(rule.condition_ids.id),
+                Command.create({'field_id': self._field('product.template', 'default_code')})],
+        })
+        self.assertEqual(rule.condition_ids.field_id.model, 'product.template')
+
+    def test_write_removing_all_conditions_refused(self):
+        """Requirements: FR-DRD-0002. The final state is still checked after a write."""
+        rule = self._rule('email')
+        with self.assertRaisesRegex(ValidationError, r'(?i)at least one condition'):
+            rule.write({'condition_ids': [Command.delete(rule.condition_ids.id)]})
+
+    def test_matchable_fields_per_rule(self):
+        """Requirements: FR-DRD-0002. Rules of different types get their own fields."""
+        partner_rule = self._rule('email')
+        product_rule = self._rule('default_code', 'product.template')
+        both = partner_rule | product_rule
+        self.assertIn('email', both[0].matchable_field_ids.mapped('name'))
+        self.assertNotIn('default_code', partner_rule.matchable_field_ids.mapped('name'))
+        self.assertIn('default_code', product_rule.matchable_field_ids.mapped('name'))

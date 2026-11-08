@@ -27,11 +27,12 @@ class DuplicateRule(models.Model):
     @api.depends('model_id')
     def _compute_matchable_field_ids(self) -> None:
         """Requirements: FR-DRD-0002 (offer only fields a condition may use)."""
-        Field = self.env['ir.model.fields']
-        for rule in self:
-            candidates = Field.search([('model_id', '=', rule.model_id.id)])
-            rule.matchable_field_ids = candidates.filtered(
+        candidates = self.env['ir.model.fields'].search(
+            [('model_id', 'in', self.model_id.ids)]).filtered(
                 self.env['duplicate.rule.condition']._is_matchable)
+        for rule in self:
+            rule.matchable_field_ids = candidates.filtered(
+                lambda f: f.model_id == rule.model_id)
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]):
@@ -43,6 +44,14 @@ class DuplicateRule(models.Model):
         rules = super().create(vals_list)
         rules._check_has_condition()
         return rules
+
+    def write(self, vals: dict):
+        """Requirements: FR-DRD-0002 (check the conditions once, on the final state of a save).
+
+        The one2many write deletes conditions before it creates the new ones; the context key
+        tells the condition's unlink not to judge that intermediate state.
+        """
+        return super(DuplicateRule, self.with_context(drd_rule_write=True)).write(vals)
 
     @api.constrains('model_id')
     def _check_model(self) -> None:
