@@ -1,4 +1,10 @@
+import logging
+
+from psycopg2 import Error
+
 from odoo import api, models
+
+_logger = logging.getLogger(__name__)
 
 # Listed common values covering at least this share of the rows are every value of the column
 ALL_VALUES_LISTED_SHARE = 0.999
@@ -95,6 +101,85 @@ class PerfAuditProbe(models.AbstractModel):
         keys = ('name', 'table', 'columns', 'unique', 'primary', 'constraint',
                 'predicate', 'method', 'size', 'idx_scan')
         return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
+
+    @api.private
+    def vacuum_statistics(self):
+        """Live and dead rows and the last vacuum times, per table of the public schema.
+
+        Requirements: FR-OPA-0009, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT relname, n_live_tup, n_dead_tup, last_vacuum::text, last_autovacuum::text
+              FROM pg_stat_user_tables
+             WHERE schemaname = current_schema()
+        """)
+        keys = ('live_rows', 'dead_rows', 'last_vacuum', 'last_autovacuum')
+        return {table: dict(zip(keys, values)) for table, *values in self.env.cr.fetchall()}
+
+    @api.private
+    def analyze_statistics(self):
+        """Live rows, rows modified since the latest analyze and its age in days, per table.
+
+        `analyze_age` is None for a table never analyzed.
+
+        Requirements: FR-OPA-0011, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT relname, n_live_tup, n_mod_since_analyze,
+                   GREATEST(last_analyze, last_autoanalyze)::text,
+                   extract(epoch FROM now() - GREATEST(last_analyze, last_autoanalyze)) / 86400
+              FROM pg_stat_user_tables
+             WHERE schemaname = current_schema()
+        """)
+        keys = ('live_rows', 'modified_rows', 'last_analyze', 'analyze_age')
+        return {table: dict(zip(keys, values)) for table, *values in self.env.cr.fetchall()}
+
+    @api.private
+    def approximate_dead_space(self, tables):
+        """Dead space in bytes of each table, from the approximate row-level measure, or None when unreadable.
+
+        The measure reads the visibility map and only the pages it does not cover, never the whole table.
+
+        Requirements: FR-OPA-0010, NFR-OPA-0001
+        """
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute("""
+                    SELECT t.name, a.dead_tuple_len::bigint
+                      FROM unnest(%s::text[]) AS t(name)
+                     CROSS JOIN LATERAL pgstattuple_approx(t.name::regclass) a
+                """, [list(tables)])
+                return dict(self.env.cr.fetchall())
+        except Error:
+            _logger.info('The approximate dead space of the tables could not be read', exc_info=True)
+            return None
+
+    @api.private
+    def table_sizes(self, tables):
+        """Total size in bytes, indexes and toast included, of each listed table that exists.
+
+        Requirements: FR-OPA-0013, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT t.name, pg_total_relation_size(to_regclass(quote_ident(t.name)))
+              FROM unnest(%s::text[]) AS t(name)
+             WHERE to_regclass(quote_ident(t.name)) IS NOT NULL
+        """, [list(tables)])
+        return dict(self.env.cr.fetchall())
+
+    @api.private
+    def attachments_in_database(self):
+        """True when some attachment keeps its file in the database, False when none does, None when unknown.
+
+        Read from the planner statistics of the file column, never from the rows (NFR-OPA-0001).
+
+        Requirements: FR-OPA-0013, NFR-OPA-0001
+        """
+        self.env.cr.execute(
+            """SELECT null_frac < 1 FROM pg_stats
+                WHERE schemaname = current_schema() AND tablename = 'ir_attachment' AND attname = 'db_datas'""")
+        row = self.env.cr.fetchone()
+        return row[0] if row else None
 
     def distinct_values(self, table, column):
         """Estimated number of distinct values of a column, from the planner statistics, or None.

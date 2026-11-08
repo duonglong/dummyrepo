@@ -2,17 +2,7 @@
 
 Requirements: FR-OPA-0005
 """
-from .base import Check, register
-
-
-def table_models(env):
-    """Name of the model that owns each table, by table name (the first by name when several share one)."""
-    owners = {}
-    for model_name in sorted(env.registry):
-        model = env[model_name]
-        if not model._abstract and model._auto:
-            owners.setdefault(model._table, model_name)
-    return owners
+from .base import Check, register, table_models
 
 
 @register

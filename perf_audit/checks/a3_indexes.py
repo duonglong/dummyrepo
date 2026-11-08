@@ -2,9 +2,7 @@
 
 Requirements: FR-OPA-0007, FR-OPA-0008
 """
-from .base import Check, register
-
-BYTES_PER_MEGABYTE = 1024 * 1024
+from .base import BYTES_PER_MEGABYTE, Check, register
 
 
 def _guards_data(index):

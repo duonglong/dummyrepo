@@ -28,3 +28,6 @@ from . import test_check_a2
 from . import test_check_a3
 from . import test_fix_script
 from . import test_apply
+from . import test_check_a4
+from . import test_check_a5
+from . import test_check_a7
