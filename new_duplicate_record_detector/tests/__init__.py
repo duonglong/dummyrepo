@@ -1,2 +1,4 @@
 from . import test_duplicate_rule_acceptance
 from . import test_duplicate_rule
+from . import test_on_save_acceptance
+from . import test_full_check_acceptance
