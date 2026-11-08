@@ -13,6 +13,11 @@
                 <filter name="regressed" string="Regressed"
                         domain="[('comparison_state', '=', 'regressed')]"/>
                 <filter name="fixed" string="Fixed" domain="[('comparison_state', '=', 'fixed')]"/>
+                <filter name="not_fixed" string="Not fixed"
+                        domain="[('comparison_state', '!=', 'fixed')]"/>
+                <group>
+                    <filter name="group_code" string="Check" context="{'group_by': 'code'}"/>
+                </group>
             </search>
         </field>
     </record>

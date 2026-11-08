@@ -116,3 +116,42 @@ class TestRunsListAndFindingsTab(TransactionCase):
         arch = self._arch('perf_audit_run_view_form')
         button = arch.xpath("//div[@name='button_box']/button[.//field[@name='finding_count']]")[0]
         self.assertIn('search_default_not_fixed', button.get('context'))
+
+
+class TestFindingSearchFiltersBehindTheButtons(TransactionCase):
+    """Requirements: FR-OPA-0030 (B-0133).
+
+    The facets a run's stat buttons switch on exist in the findings search view, so the list is grouped.
+    """
+
+    def _search_arch(self):
+        view = self.env.ref('perf_audit.perf_audit_finding_view_search')
+        return etree.fromstring(self.env['perf.audit.finding'].get_view(view.id)['arch'])
+
+    def test_bug_b_0133_search_view_groups_findings_by_check(self):
+        """FR-OPA-0030: group_code is a group-by on the check code, so the buttons open grouped lists."""
+        arch = self._search_arch()
+        self.assertTrue(arch.xpath("//filter[@name='group_code'][contains(@context, 'code')]"))
+
+    def test_bug_b_0133_search_view_has_the_not_fixed_filter(self):
+        """FR-OPA-0030: not_fixed leaves out the rows marked fixed, as the Findings figure does."""
+        arch = self._search_arch()
+        self.assertTrue(arch.xpath("//filter[@name='not_fixed']"))
+
+    def test_bug_b_0133_findings_search_default_filters_exclude_fixed_rows(self):
+        """FR-OPA-0030: the not_fixed domain keeps new, open and regressed rows and drops fixed ones."""
+        arch = self._search_arch()
+        domain = arch.xpath("//filter[@name='not_fixed']")[0].get('domain')
+        self.assertIn('fixed', domain)
+        self.assertIn('!=', domain)
+
+
+class TestFindingFormShowsCodeAndComparison(TransactionCase):
+    """Requirements: FR-OPA-0030, FR-OPA-0026 (B-0134)."""
+
+    def test_bug_b_0134_finding_form_shows_check_code_and_comparison_mark(self):
+        """FR-OPA-0030: the finding form shows the check code and the comparison mark as a badge."""
+        view = self.env.ref('perf_audit.perf_audit_finding_view_form')
+        arch = etree.fromstring(self.env['perf.audit.finding'].get_view(view.id)['arch'])
+        self.assertTrue(arch.xpath("//sheet//field[@name='code']"))
+        self.assertTrue(arch.xpath("//field[@name='comparison_state'][@widget='badge']"))
