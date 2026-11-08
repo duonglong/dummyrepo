@@ -1,3 +1,5 @@
+from lxml import etree
+
 from psycopg2 import IntegrityError
 
 from odoo.exceptions import ValidationError
@@ -100,3 +102,33 @@ class TestConfig(TransactionCase):
         for empty in (False, None):
             with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.env.cr.savepoint():
                 self.env['perf.audit.threshold'].create({**base, 'default_value': 1, 'value': empty})
+
+
+@tagged('post_install', '-at_install')
+class TestSharedThresholdsOnChecks(TransactionCase):
+    """Requirements: FR-OPA-0031, BR-OPA-0006 (finding 127)."""
+
+    def _shared_keys(self, code):
+        check = self.env['perf.audit.check'].search([('code', '=', code)])
+        return set(check.shared_threshold_ids.mapped('key'))
+
+    def test_finding_127_each_check_shows_the_shared_limits_it_uses(self):
+        """FR-OPA-0031: A1 shows big table, weak evidence and query limit; A5 only the query limit."""
+        self.assertEqual(self._shared_keys('A1'), {'big_table', 'weak_evidence', 'query_time_limit'})
+        self.assertEqual(self._shared_keys('A3'), {'weak_evidence', 'query_time_limit'})
+        self.assertEqual(self._shared_keys('A5'), {'query_time_limit'})
+        for code in ('A2', 'B1', 'B2', 'B3', 'B4', 'B5'):
+            self.assertIn('big_table', self._shared_keys(code), code)
+
+    def test_finding_127_editing_a_shared_limit_on_a_check_changes_the_global_one(self):
+        """SC-OPA-0031-1: the big-table limit edited on the A1 form is the one the next run uses."""
+        check = self.env['perf.audit.check'].search([('code', '=', 'A1')])
+        big_table = check.shared_threshold_ids.filtered(lambda threshold: threshold.key == 'big_table')
+        check.write({'shared_threshold_ids': [(1, big_table.id, {'value': 50000})]})
+        self.assertEqual(self.env['perf.audit.run']._global_thresholds()['big_table'], 50000)
+
+    def test_finding_127_check_form_shows_the_shared_limits(self):
+        """FR-OPA-0031: the check form has the shared limits list."""
+        view = self.env.ref('perf_audit.perf_audit_check_view_form')
+        arch = etree.fromstring(self.env['perf.audit.check'].get_view(view.id)['arch'])
+        self.assertTrue(arch.xpath("//field[@name='shared_threshold_ids']"))

@@ -37,6 +37,15 @@
                             <field name="default_value"/>
                         </list>
                     </field>
+                    <separator string="Shared thresholds"/>
+                    <field name="shared_threshold_ids">
+                        <list editable="bottom" create="false" delete="false">
+                            <field name="name" readonly="1"/>
+                            <field name="unit" readonly="1"/>
+                            <field name="value"/>
+                            <field name="default_value"/>
+                        </list>
+                    </field>
                 </sheet>
             </form>
         </field>
