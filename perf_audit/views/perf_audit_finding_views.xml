@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="perf_audit_finding_view_list" model="ir.ui.view">
+        <field name="name">perf.audit.finding.list</field>
+        <field name="model">perf.audit.finding</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="code"/>
+                <field name="comparison_state" widget="badge"
+                       decoration-success="comparison_state == 'fixed'"
+                       decoration-danger="comparison_state == 'regressed'"
+                       decoration-info="comparison_state == 'new'"/>
+                <field name="severity"/>
+                <field name="message"/>
+                <field name="table_name"/>
+                <field name="row_estimate" string="Rows (estimate)"/>
+                <field name="model_id"/>
+                <field name="field_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="perf_audit_finding_view_form" model="ir.ui.view">
+        <field name="name">perf.audit.finding.form</field>
+        <field name="model">perf.audit.finding</field>
+        <field name="arch" type="xml">
+            <form edit="0" create="0">
+                <header>
+                    <button name="action_apply" type="object" string="Apply"
+                            class="btn-primary" invisible="not can_apply"/>
+                </header>
+                <sheet>
+                    <field name="can_apply" invisible="1"/>
+                    <group>
+                        <group string="Finding">
+                            <field name="run_id"/>
+                            <field name="code"/>
+                            <field name="check_id"/>
+                            <field name="comparison_state" widget="badge"
+                                   decoration-success="comparison_state == 'fixed'"
+                                   decoration-danger="comparison_state == 'regressed'"
+                                   decoration-info="comparison_state == 'new'"/>
+                            <field name="severity"/>
+                            <field name="message"/>
+                        </group>
+                        <group string="Evidence">
+                            <field name="table_name"/>
+                            <field name="row_estimate" string="Rows (estimate)"/>
+                            <field name="threshold_label"/>
+                            <field name="threshold_value"/>
+                            <field name="found_value"/>
+                            <field name="stats_reset_date"/>
+                        </group>
+                    </group>
+                    <group string="Odoo reference">
+                        <field name="model_id"/>
+                        <field name="field_id"/>
+                        <field name="index_name"/>
+                        <field name="view_id"/>
+                        <field name="rule_id"/>
+                        <field name="cron_id"/>
+                        <field name="query_id"/>
+                        <field name="query_text"/>
+                    </group>
+                    <group string="Statistics read">
+                        <field name="evidence_text" nolabel="1" colspan="2"/>
+                        <field name="references_text" nolabel="1" colspan="2"
+                               invisible="not references_text"/>
+                    </group>
+                    <group string="Proposed fix">
+                        <field name="fix_statement"/>
+                        <field name="code_suggestion"/>
+                    </group>
+                    <group string="Applied" invisible="apply_state == 'none'">
+                        <field name="apply_state"/>
+                        <field name="applied_by"/>
+                        <field name="applied_date"/>
+                        <field name="apply_error" invisible="not apply_error"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>
