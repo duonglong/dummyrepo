@@ -63,19 +63,26 @@ class DuplicateFullCheck(models.AbstractModel):
         values = {
             res_id: wanted for res_id, wanted in values.items()
             if self._is_comparable(conditions, wanted)}
-        indexes = {c: self._index(c, values) for c in conditions}
-        edges = []
+        lead = self._lead_condition(conditions)
+        index = self._index(lead, values)
+        edges = set()
         for res_id, wanted in values.items():
-            candidates = min(
-                (self._candidate_ids(c, wanted[c], indexes[c]) for c in conditions), key=len)
-            for other in candidates:
-                if other <= res_id or apart[res_id] & apart[other]:
+            for other in self._candidate_ids(lead, wanted[lead], index):
+                if other == res_id or apart[res_id] & apart[other]:
                     continue
                 if company[res_id] and company[other] and company[res_id] != company[other]:
                     continue
                 if all(matcher._values_match(c, wanted[c], values[other][c]) for c in conditions):
-                    edges.append((res_id, other))
-        return edges
+                    edges.add((min(res_id, other), max(res_id, other)))
+        return list(edges)
+
+    @staticmethod
+    def _lead_condition(conditions: models.BaseModel) -> models.BaseModel:
+        """Return the condition whose index finds the pairs: an exact one if any, else the first.
+
+        Every matching pair satisfies the lead condition, so one index finds all of them.
+        """
+        return next((c for c in conditions if c.match_type == 'exact'), conditions[0])
 
     @staticmethod
     def _is_comparable(conditions: models.BaseModel, wanted: dict) -> bool:
@@ -100,10 +107,14 @@ class DuplicateFullCheck(models.AbstractModel):
         return index
 
     def _candidate_ids(self, condition: models.BaseModel, value, index: dict) -> Iterable[int]:
-        """Return the ids that could match a value on a condition: a superset of the real matches."""
+        """Return the ids that could match a value on a condition: a superset of the real matches.
+
+        For a partial condition these are the records holding the value (sharing all its pieces),
+        so a pair is found from the side of the contained value.
+        """
         if condition.match_type == 'exact':
             return index.get(value, ())
-        return set().union(*(index.get(piece, ()) for piece in self._trigrams(value)))
+        return set.intersection(*(index.get(piece, set()) for piece in self._trigrams(value)))
 
     def _clusters(self, edges: list, company_of: dict) -> list:
         """Requirements: BR-DRD-0004, BR-DRD-0005.

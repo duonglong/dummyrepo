@@ -91,3 +91,41 @@ class TestFullCheck(TransactionCase):
         count = self.check.replace_open_sets(rule)
         self.assertGreaterEqual(count, 1000)
         self.assertLess(time.monotonic() - start, PERFORMANCE_BOUND_SECONDS)
+
+    def test_bug_b_0144_partial_check_compares_only_containers(self):
+        """Regression test for B-0144: common 3-character pieces must not make every record a candidate.
+
+        Requirements: NFR-DRD-0002, BR-DRD-0002
+        """
+        count = 1500
+        self.P.create([{'name': f'Company {i} Ltd'} for i in range(count)])
+        rule = self._rule([('name', 'partial')])
+        start = time.monotonic()
+        with patch.object(
+                DuplicateMatcher, '_values_match', autospec=True,
+                side_effect=DuplicateMatcher._values_match) as compared:
+            found = self.check.replace_open_sets(rule)
+        self.assertLess(time.monotonic() - start, PERFORMANCE_BOUND_SECONDS)
+        self.assertEqual(found, 0)
+        self.assertLess(compared.call_count, 10 * count)
+
+    def test_bug_b_0144_partial_pairs_found_from_either_side(self):
+        """Regression test for B-0144: with two partial conditions each side may be the container.
+
+        Requirements: FR-DRD-0005, BR-DRD-0002, BR-DRD-0003
+        """
+        a = self.P.create({'name': 'Acme', 'city': 'Lyon Centre'})
+        b = self.P.create({'name': 'Acme Trading', 'city': 'Lyon'})
+        rule = self._rule([('name', 'partial'), ('city', 'partial')])
+        self.assertEqual(self.check.replace_open_sets(rule), 1)
+        self.assertEqual(set(self._sets(rule).line_ids.mapped('res_id')), {a.id, b.id})
+
+    def test_bug_b_0144_equal_partial_values_form_one_pair(self):
+        """Regression test for B-0144: equal values contain each other and still give one set.
+
+        Requirements: FR-DRD-0005, BR-DRD-0005
+        """
+        a, b = self.P.create([{'name': 'Twin Partial'}, {'name': 'twin partial '}])
+        rule = self._rule([('name', 'partial')])
+        self.assertEqual(self.check.replace_open_sets(rule), 1)
+        self.assertEqual(set(self._sets(rule).line_ids.mapped('res_id')), {a.id, b.id})
