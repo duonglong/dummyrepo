@@ -1,3 +1,5 @@
 id,name,model_id,group_id/id,operation,domain
 access_duplicate_rule_manager,duplicate.rule manager,duplicate.rule,group_duplicate_manager,crud,
 access_duplicate_rule_condition_manager,duplicate.rule.condition manager,duplicate.rule.condition,group_duplicate_manager,crud,
+access_duplicate_group_manager,duplicate.group manager,duplicate.group,group_duplicate_manager,crud,
+access_duplicate_group_line_manager,duplicate.group.line manager,duplicate.group.line,group_duplicate_manager,crud,
