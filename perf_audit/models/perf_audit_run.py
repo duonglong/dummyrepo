@@ -94,9 +94,10 @@ class PerfAuditRun(models.Model):
 
     # -- start ------------------------------------------------------------
 
-    @api.model
     def action_start_audit(self):
         """Start an audit run by hand, refusing while another one runs.
+
+        A recordset method, not an api.model one: the Start audit list button sends the selected ids.
 
         A run left running for more than an hour is closed as failed first.
         The request commits the run in state running, then a background action executes it.

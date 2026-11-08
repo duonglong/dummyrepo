@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from odoo import fields
 from odoo.exceptions import UserError
+from odoo.service.model import call_kw
 from odoo.tests.common import tagged
 
 from .common import PerfAuditCase
@@ -50,3 +51,15 @@ class TestOneRun(PerfAuditCase):
         self.env['perf.audit.run']._execute_pending_runs()
         self.assertEqual(run.state, 'done')
         self.assertEqual(len(run.check_result_ids), 15)
+
+
+@tagged('post_install', '-at_install')
+class TestStartButtonCall(PerfAuditCase):
+    """Requirements: FR-OPA-0001 (B-0124)."""
+
+    def test_bug_b_0124_list_button_passes_the_selected_ids(self):
+        """FR-OPA-0001: the Start audit list button calls the method with a list of ids; it starts a run."""
+        runs = self.env['perf.audit.run'].with_user(self.audit_admin)
+        action = call_kw(runs, 'action_start_audit', [[]], {})
+        self.assertEqual(action['res_model'], 'perf.audit.run')
+        self.assertEqual(runs.browse(action['res_id']).trigger, 'manual')
