@@ -4,6 +4,8 @@ from psycopg2 import Error
 
 from odoo import api, models
 
+from .perf_audit_finding import QUERY_TEXT_LIMIT
+
 _logger = logging.getLogger(__name__)
 
 # Listed common values covering at least this share of the rows are every value of the column
@@ -180,6 +182,91 @@ class PerfAuditProbe(models.AbstractModel):
                 WHERE schemaname = current_schema() AND tablename = 'ir_attachment' AND attname = 'db_datas'""")
         row = self.env.cr.fetchone()
         return row[0] if row else None
+
+    @api.private
+    def statements_readable(self):
+        """True when the query statistics view can be read now.
+
+        Requirements: FR-OPA-0012, FR-OPA-0003
+        """
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute('SELECT 1 FROM pg_stat_statements LIMIT 1')
+            return True
+        except Error:
+            _logger.info('The query statistics could not be read', exc_info=True)
+            return False
+
+    @api.private
+    def top_statements(self, limit):
+        """The most expensive normalised queries of the current database, by total execution time.
+
+        Requirements: FR-OPA-0012, NFR-OPA-0001
+        """
+        self.env.cr.execute("""
+            SELECT s.queryid::text, s.query, s.calls, s.total_exec_time, s.mean_exec_time
+              FROM pg_stat_statements s
+              JOIN pg_database d ON d.oid = s.dbid AND d.datname = current_database()
+             ORDER BY s.total_exec_time DESC, s.queryid
+             LIMIT %s
+        """, [int(limit)])
+        keys = ('query_id', 'query', 'calls', 'total_time', 'mean_time')
+        return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
+
+    def _read_current_activity(self):
+        """Drop the statistics snapshot the transaction may already hold, so sessions are read as they are now."""
+        self.env.cr.execute('SELECT pg_stat_clear_snapshot()')
+
+    @api.private
+    def long_sessions(self, min_age_seconds):
+        """Other client sessions of the current database whose transaction is older than the age given.
+
+        Ages are read against the wall clock, not the start of the audit's own transaction.
+
+        Requirements: FR-OPA-0014, NFR-OPA-0001, NFR-OPA-0005
+        """
+        self._read_current_activity()
+        self.env.cr.execute("""
+            SELECT pid, state, extract(epoch FROM clock_timestamp() - xact_start), application_name,
+                   query_start::text, left(query, %s)
+              FROM pg_stat_activity
+             WHERE datname = current_database() AND pid <> pg_backend_pid()
+               AND backend_type = 'client backend'
+               AND xact_start < clock_timestamp() - make_interval(secs => %s)
+             ORDER BY xact_start, pid
+        """, [QUERY_TEXT_LIMIT, float(min_age_seconds)])
+        keys = ('pid', 'state', 'duration', 'application_name', 'query_start', 'query')
+        return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
+
+    @api.private
+    def lock_waits(self):
+        """Sessions of the current database waiting for a lock, with their blocking sessions and the table locked.
+
+        The table is read from the waiter's own lock: the table lock it waits for (explicit lock or DDL),
+        or else the row (tuple) lock it holds or waits for (two transactions writing the same record).
+
+        Requirements: FR-OPA-0015, NFR-OPA-0001, NFR-OPA-0005
+        """
+        self._read_current_activity()
+        self.env.cr.execute("""
+            SELECT w.pid, w.application_name, left(w.query, %s),
+                   (SELECT l.relation::regclass::text FROM pg_locks l
+                     WHERE l.pid = w.pid
+                       AND (l.locktype = 'tuple' OR (l.locktype = 'relation' AND NOT l.granted))
+                     ORDER BY l.granted LIMIT 1),
+                   (SELECT json_agg(json_build_object(
+                               'pid', b.pid, 'state', b.state,
+                               'duration',
+                               extract(epoch FROM clock_timestamp() - COALESCE(b.xact_start, b.state_change)))
+                            ORDER BY b.pid)
+                      FROM pg_stat_activity b WHERE b.pid = ANY(pg_blocking_pids(w.pid)))
+              FROM pg_stat_activity w
+             WHERE w.datname = current_database() AND w.pid <> pg_backend_pid()
+               AND cardinality(pg_blocking_pids(w.pid)) > 0
+             ORDER BY w.pid
+        """, [QUERY_TEXT_LIMIT])
+        keys = ('pid', 'application_name', 'query', 'table', 'blockers')
+        return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
 
     def distinct_values(self, table, column):
         """Estimated number of distinct values of a column, from the planner statistics, or None.
