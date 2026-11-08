@@ -3,6 +3,8 @@ from odoo.tools import SQL
 
 # Shortest text that may match partly: shorter values would match almost everything.
 MIN_PARTIAL_LENGTH = 3
+# The outer characters ignored by both the Python comparison and the SQL prefilter, so they never disagree.
+OUTER_SPACES = ' \t\n\r\x0b\x0c\xa0'
 
 
 def normalize(value) -> str:
@@ -10,7 +12,7 @@ def normalize(value) -> str:
 
     An empty value gives an empty string, which never matches anything.
     """
-    return value.strip().casefold() if value else ''
+    return value.strip(OUTER_SPACES).lower() if value else ''
 
 
 class DuplicateMatcher(models.AbstractModel):
@@ -71,7 +73,7 @@ class DuplicateMatcher(models.AbstractModel):
 
     def _text_filter(self, query, condition: models.BaseModel, value: str) -> SQL:
         """Requirements: NFR-DRD-0001 (keep every record the Python judgement could accept: a superset)."""
-        column = SQL("lower(btrim(%s))", query.table[condition.field_id.name])
+        column = SQL("lower(btrim(%s, %s))", query.table[condition.field_id.name], OUTER_SPACES)
         if condition.match_type == 'exact':
             return SQL("%s = %s", column, value)
         return SQL("(strpos(%s, %s) > 0 OR (%s <> '' AND strpos(%s, %s) > 0))",

@@ -25,6 +25,21 @@ class TestMatching(TransactionCase):
         self.assertEqual(normalize(False), '')
         self.assertEqual(normalize('   '), '')
 
+    def test_bug_b_0136_identical_values_found_by_prefilter(self):
+        """Regression test for B-0136: the SQL prefilter keeps what the Python comparison accepts.
+
+        Requirements: BR-DRD-0001, FR-DRD-0003, FR-DRD-0004
+        """
+        rule = self._rule([('name', 'exact')])
+        P = self.env['res.partner']
+        for stored, saved in (('Straße GmbH T136', 'Straße GmbH T136'),
+                              ('acme t136\t', 'ACME T136'),
+                              ('acme nbsp t136\u00a0', 'ACME NBSP T136')):
+            with self.subTest(stored=stored):
+                existing = P.create({'name': stored})
+                new = P.create({'name': saved})
+                self.assertEqual(self._matches(rule, new), existing)
+
     def test_partial_length_boundary(self):
         """Requirements: BR-DRD-0002. 2 characters never match partly, 3 do."""
         rule = self._rule([('name', 'partial')])
