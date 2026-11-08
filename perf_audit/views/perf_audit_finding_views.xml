@@ -34,7 +34,12 @@
                     <group>
                         <group string="Finding">
                             <field name="run_id"/>
+                            <field name="code"/>
                             <field name="check_id"/>
+                            <field name="comparison_state" widget="badge"
+                                   decoration-success="comparison_state == 'fixed'"
+                                   decoration-danger="comparison_state == 'regressed'"
+                                   decoration-info="comparison_state == 'new'"/>
                             <field name="severity"/>
                             <field name="message"/>
                         </group>
