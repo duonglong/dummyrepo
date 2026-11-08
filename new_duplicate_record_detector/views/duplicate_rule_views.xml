@@ -8,6 +8,8 @@
                 <field name="name"/>
                 <field name="model_id"/>
                 <field name="active" widget="boolean_toggle"/>
+                <field name="check_state"/>
+                <field name="last_check_group_count"/>
             </list>
         </field>
     </record>
@@ -17,12 +19,23 @@
         <field name="model">duplicate.rule</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_full_check" type="object" string="Run full check"
+                            invisible="check_state in ('queued', 'running')"
+                            groups="new_duplicate_record_detector.group_duplicate_manager"/>
+                    <field name="check_state" widget="statusbar"/>
+                </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <group>
                         <field name="name"/>
                         <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
                         <field name="active"/>
+                    </group>
+                    <group string="Last full check" invisible="not last_check_date and not last_check_error">
+                        <field name="last_check_date"/>
+                        <field name="last_check_group_count"/>
+                        <field name="last_check_error" invisible="not last_check_error"/>
                     </group>
                     <field name="matchable_field_ids" invisible="1"/>
                     <field name="condition_ids">
@@ -44,5 +57,13 @@
         <field name="name">Duplicate Rules</field>
         <field name="res_model">duplicate.rule</field>
         <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="duplicate_rule_server_action_full_check" model="ir.actions.server">
+        <field name="name">Run full check</field>
+        <field name="model_id" ref="model_duplicate_rule"/>
+        <field name="group_ids" eval="[Command.link(ref('group_duplicate_manager'))]"/>
+        <field name="state">code</field>
+        <field name="code">env['duplicate.rule'].search([]).action_full_check()</field>
     </record>
 </odoo>

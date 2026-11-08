@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_full_check" model="ir.cron">
+        <field name="name">Duplicates: run the full checks asked for</field>
+        <field name="model_id" ref="model_duplicate_rule"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_run_full_checks()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+</odoo>

@@ -1,5 +1,10 @@
+import logging
+
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
+from odoo.modules import module as odoo_module
+
+_logger = logging.getLogger(__name__)
 
 WATCHED_MODELS = ('res.partner', 'product.template')
 
@@ -24,6 +29,18 @@ class DuplicateRule(models.Model):
         'duplicate.group', 'rule_id', string='Sets found', copy=False)
     open_group_count = fields.Integer(
         compute='_compute_open_group_count', help="Sets of possible duplicates of this rule still to review.")
+
+    check_state = fields.Selection(
+        [('idle', 'Idle'), ('queued', 'Queued'), ('running', 'Running'),
+         ('done', 'Done'), ('failed', 'Failed')],
+        string='Full check', required=True, default='idle', copy=False)
+    check_user_id = fields.Many2one(
+        'res.users', string='Asked by', copy=False, ondelete='set null',
+        help="Who asked for the last full check: the result is notified to this person.")
+    last_check_date = fields.Datetime(copy=False)
+    last_check_group_count = fields.Integer(
+        string='Sets found', copy=False, help="Sets found by the last full check.")
+    last_check_error = fields.Char(copy=False)
 
     matchable_field_ids = fields.Many2many(
         'ir.model.fields', compute='_compute_matchable_field_ids',
@@ -86,3 +103,55 @@ class DuplicateRule(models.Model):
     def _check_conditions_fit_model(self) -> None:
         """Requirements: FR-DRD-0002 (conditions keep to the fields of the rule's record type)."""
         self.condition_ids._check_field_is_matchable()
+
+    def action_full_check(self) -> bool:
+        """Requirements: FR-DRD-0005, FR-DRD-0018.
+
+        Queue a full check of these rules for the current user and wake the background job that
+        runs it. Only duplicate managers may ask for it.
+        """
+        if not self.env.user.has_group('new_duplicate_record_detector.group_duplicate_manager'):
+            raise AccessError(self.env._("Only duplicate managers can run a full check."))
+        self.write({'check_state': 'queued', 'check_user_id': self.env.user.id,
+                    'last_check_error': False})
+        # sudo: a manager does not own the cron job that is woken
+        self.env.ref('new_duplicate_record_detector.ir_cron_full_check').sudo()._trigger()
+        return True
+
+    @api.model
+    def _cron_run_full_checks(self) -> None:
+        """Requirements: FR-DRD-0005 (run the full checks that were asked for and not yet run)."""
+        rules = self
+        if odoo_module.current_test:
+            # The job runs on its own connection, which cannot see what a running test has not
+            # committed: in a test it works on the test's own transaction instead.
+            rules = odoo_module.current_test.env['duplicate.rule']
+        for rule in rules.search([('check_state', '=', 'queued')], order='id'):
+            rule._run_full_check()
+
+    def _run_full_check(self) -> None:
+        """Requirements: FR-DRD-0005, FR-DRD-0006, NFR-DRD-0002.
+
+        Replace the open sets of the rule with the ones just found, in one transaction, and record
+        the result or the error on the rule.
+        """
+        self.ensure_one()
+        self.check_state = 'running'
+        try:
+            with self.env.cr.savepoint():
+                count = self.env['duplicate.full.check'].replace_open_sets(self)
+        except Exception as error:  # noqa: BLE001 - any failure closes the check as failed
+            _logger.exception("Full check of rule %s failed", self.id)
+            self.write({'check_state': 'failed', 'last_check_error': str(error) or type(error).__name__})
+            return
+        self.write({'check_state': 'done', 'last_check_date': fields.Datetime.now(),
+                    'last_check_group_count': count, 'last_check_error': False})
+        self._notify_check_result(count)
+
+    def _notify_check_result(self, count: int) -> None:
+        """Tell the person who asked for the check how many sets it found."""
+        self.check_user_id._bus_send('simple_notification', {
+            'title': self.env._("Full check finished"),
+            'message': self.env._("%(count)s sets found by the rule %(rule)s", count=count, rule=self.name),
+            'type': 'success',
+        })

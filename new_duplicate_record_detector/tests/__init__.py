@@ -4,3 +4,5 @@ from . import test_on_save_acceptance
 from . import test_full_check_acceptance
 from . import test_matching
 from . import test_on_save
+from . import test_full_check
+from . import test_group_list
