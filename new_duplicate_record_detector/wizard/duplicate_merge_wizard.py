@@ -6,6 +6,7 @@ from psycopg2 import IntegrityError, OperationalError
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import SQL, mute_logger
+from odoo.tools.sql import table_columns
 
 from ..models.duplicate_rule import WATCHED_MODELS
 
@@ -24,6 +25,8 @@ PREVIEW_EXTRA_FIELDS = {'product.template': ('barcode', 'default_code')}
 VARIANT_STRUCTURE_TABLES = (
     'product_product', 'product_template_attribute_line', 'product_template_attribute_value',
     'product_template_attribute_exclusion')
+# Tables that describe the combination of a variant: they stay with the variant.
+VARIANT_COMBINATION_TABLES = ('product_variant_combination',)
 MANAGER_GROUPS = ('new_duplicate_record_detector.group_duplicate_manager', 'base.group_system')
 
 
@@ -347,7 +350,7 @@ class DuplicateMergeWizard(models.TransientModel):
             self._move_product_links(merged_away, kept)
         merged_away.write({'active': False})
         if 'barcode' in filled_values:
-            self._release_barcodes(merged_away)
+            self._release_barcode(merged_away, filled_values['barcode'])
         self._fill_empty_fields(kept, filled_values)
         self._mark_group_merged(kept, set(included_ids))
         self._post_merge_note(kept, merged_names)
@@ -394,7 +397,7 @@ class DuplicateMergeWizard(models.TransientModel):
 
         Refuse a product with several variants and products sold in different units of measure.
         """
-        if any(len(template.product_variant_ids) > 1 for template in templates):
+        if any(len(template.product_variant_ids.filtered('active')) > 1 for template in templates):
             raise UserError(_("A product with several variants cannot be merged."))
         if len(templates.uom_id) > 1:
             raise UserError(_("Products with different units of measure cannot be merged."))
@@ -405,48 +408,91 @@ class DuplicateMergeWizard(models.TransientModel):
         Move the links of the merged-away templates to the kept template and the links of their
         variant to the variant of the kept template; the variants themselves stay where they are.
         """
-        kept_variant = kept.product_variant_ids
+        kept_variant = kept.product_variant_ids.filtered('active')
         if len(kept_variant) != 1:
             raise UserError(_("The kept product must have exactly one variant."))
         gone_variants = merged_away.product_variant_ids
         native = self.env['base.partner.merge.automatic.wizard']
         self.env.flush_all()  # the moves below run on the database
         for src_records, dst_record, skip in (
-                (merged_away, kept, VARIANT_STRUCTURE_TABLES), (gone_variants, kept_variant, ())):
+                (merged_away, kept, VARIANT_STRUCTURE_TABLES), (gone_variants, kept_variant, VARIANT_COMBINATION_TABLES)):
             self._repoint_foreign_keys(src_records, dst_record, skip)
             native._update_reference_fields_generic(src_records._name, src_records, dst_record)
         self.env.invalidate_all()
 
-    def _release_barcodes(self, merged_away: models.BaseModel) -> None:
+    def _release_barcode(self, merged_away: models.BaseModel, barcode: str) -> None:
         """Requirements: FR-DRD-0012.
 
-        Free the barcode of the archived products so the kept product can take it (a barcode is
-        unique); the barcode is not lost, it moves to the kept product.
+        Free the barcode that moves to the kept product (a barcode is unique); the barcodes of
+        the other merged-away products stay as they are.
         """
-        merged_away.product_variant_ids.write({'barcode': False})
+        merged_away.product_variant_ids.filtered(lambda variant: variant.barcode == barcode).write(
+            {'barcode': False})
 
     def _repoint_foreign_keys(self, src_records: models.BaseModel, dst_record: models.BaseModel,
                               skip_tables: tuple) -> None:
-        """Point every link of the source records to the destination record, but in the skipped tables.
+        """Requirements: FR-DRD-0011.
 
-        A link that cannot move because the destination already has it stays on the archived record.
+        Point every link of the source records to the destination record, but in the skipped tables.
+
+        One batched update per table; a link that cannot move because the destination already has
+        it stays on the archived record.
         """
         native = self.env['base.partner.merge.automatic.wizard']
         for table, column in native._get_fk_on(src_records._table):
             if table in skip_tables or table.startswith('base_partner_merge_'):
                 continue
-            self.env.cr.execute(SQL(
-                "SELECT ctid FROM %s WHERE %s IN %s", SQL.identifier(table), SQL.identifier(column),
-                tuple(src_records.ids)))
-            for (row,) in self.env.cr.fetchall():
-                update = SQL(
-                    "UPDATE %s SET %s = %s WHERE ctid = %s::tid",
-                    SQL.identifier(table), SQL.identifier(column), dst_record.id, row)
-                try:
-                    with mute_logger('odoo.sql_db'), self.env.cr.savepoint():
-                        self.env.cr.execute(update)
-                except IntegrityError:
-                    continue  # the destination already has this link
+            other_columns = [name for name in table_columns(self.env.cr, table) if name != column]
+            if len(other_columns) == 1:
+                self._repoint_relation_table(table, column, other_columns[0], src_records, dst_record)
+            else:
+                self._repoint_table(table, column, src_records, dst_record, native)
+
+    def _repoint_relation_table(self, table: str, column: str, other_column: str,
+                                src_records: models.BaseModel, dst_record: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011. Move the rows of a two-column relation the destination does not hold yet."""
+        self.env.cr.execute(SQL(
+            """UPDATE %(table)s AS moved SET %(column)s = %(dst)s
+                WHERE %(column)s = ANY(%(src)s) AND NOT EXISTS (
+                    SELECT 1 FROM %(table)s AS held
+                    WHERE held.%(column)s = %(dst)s AND held.%(other)s = moved.%(other)s)""",
+            table=SQL.identifier(table), column=SQL.identifier(column), other=SQL.identifier(other_column),
+            dst=dst_record.id, src=src_records.ids))
+
+    def _repoint_table(self, table: str, column: str, src_records: models.BaseModel,
+                       dst_record: models.BaseModel, native: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011.
+
+        Move the rows of a table in one update; only when a unique or check constraint refuses it,
+        move the rows one by one and leave the refused ones on the archived record.
+        """
+        update = SQL(
+            "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
+            SQL.identifier(table), SQL.identifier(column), dst_record.id, SQL.identifier(column), src_records.ids)
+        if not native._has_check_or_unique_constraint(table, column):
+            self.env.cr.execute(update)
+            return
+        try:
+            with mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+                self.env.cr.execute(update)
+        except IntegrityError:
+            self._repoint_rows_one_by_one(table, column, src_records, dst_record)
+
+    def _repoint_rows_one_by_one(self, table: str, column: str, src_records: models.BaseModel,
+                                 dst_record: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011. Fallback of the batched update: keep the rows the destination already has."""
+        self.env.cr.execute(SQL(
+            "SELECT ctid FROM %s WHERE %s = ANY(%s)", SQL.identifier(table), SQL.identifier(column),
+            src_records.ids))
+        for (row,) in self.env.cr.fetchall():
+            update = SQL(
+                "UPDATE %s SET %s = %s WHERE ctid = %s::tid",
+                SQL.identifier(table), SQL.identifier(column), dst_record.id, row)
+            try:
+                with mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+                    self.env.cr.execute(update)
+            except IntegrityError:
+                continue  # the destination already has this link
 
     def _fill_empty_fields(self, kept: models.BaseModel, filled_values: dict) -> None:
         """Requirements: FR-DRD-0012.
