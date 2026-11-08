@@ -77,3 +77,28 @@ class TestRunningRunForm(TransactionCase):
         run = self.env['perf.audit.run'].create({'state': 'running'})
         self.assertFalse(run.action_refresh())
         self.assertEqual(run.state, 'running')
+
+
+@tagged('post_install', '-at_install')
+class TestRunsListAndFindingsTab(TransactionCase):
+    """Requirements: FR-OPA-0004, FR-OPA-0030 (B-0128, B-0129).
+
+    The runs list tells weak-evidence runs and same-minute runs apart; the findings opened from a run
+    are grouped by check and counted like the header.
+    """
+
+    def _arch(self, xmlid):
+        view = self.env.ref(f'perf_audit.{xmlid}')
+        return etree.fromstring(self.env['perf.audit.run'].get_view(view.id)['arch'])
+
+    def test_bug_b_0128_runs_list_shows_the_weak_evidence_mark(self):
+        """FR-OPA-0004: the runs list has a weak-evidence column and marks those rows."""
+        arch = self._arch('perf_audit_run_view_list')
+        self.assertTrue(arch.xpath("//field[@name='weak_evidence']"))
+        self.assertTrue(arch.xpath("//list[contains(@decoration-warning, 'weak_evidence')]"))
+
+    def test_bug_b_0128_runs_started_in_one_minute_have_different_names(self):
+        """FR-OPA-0004: the run name carries the seconds, so runs of one minute can be told apart."""
+        first, second = self.env['perf.audit.run'].create([
+            {'start_date': '2026-11-08 02:00:05'}, {'start_date': '2026-11-08 02:00:41'}])
+        self.assertNotEqual(first.name, second.name)

@@ -28,7 +28,7 @@
         <field name="name">perf.audit.run.list</field>
         <field name="model">perf.audit.run</field>
         <field name="arch" type="xml">
-            <list create="0">
+            <list create="0" decoration-warning="weak_evidence">
                 <header>
                     <button name="action_start_audit" type="object" string="Start audit"
                             class="btn-primary" display="always"/>
@@ -38,6 +38,7 @@
                 <field name="end_date"/>
                 <field name="user_id"/>
                 <field name="state"/>
+                <field name="weak_evidence"/>
                 <field name="finding_count"/>
                 <field name="new_count"/>
                 <field name="fixed_count"/>

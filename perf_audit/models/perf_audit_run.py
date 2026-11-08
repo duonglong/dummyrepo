@@ -54,7 +54,7 @@ class PerfAuditRun(models.Model):
     @api.depends('start_date')
     def _compute_name(self):
         for run in self:
-            run.name = _('Audit %s', fields.Datetime.to_string(run.start_date)[:16]) if run.start_date else _('Audit')
+            run.name = _('Audit %s', fields.Datetime.to_string(run.start_date)) if run.start_date else _('Audit')
 
     def _compute_is_latest(self):
         latest = self.search([('state', '=', 'done')], order='start_date desc, id desc', limit=1)
