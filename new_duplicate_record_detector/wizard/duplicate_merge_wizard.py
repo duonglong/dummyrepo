@@ -1,8 +1,14 @@
+import logging
+
+from markupsafe import escape
+
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import SQL
 
 from ..models.duplicate_rule import WATCHED_MODELS
+
+_logger = logging.getLogger(__name__)
 
 MERGE_MIN_RECORDS = 2
 MERGE_MAX_RECORDS = 10
@@ -102,7 +108,9 @@ class DuplicateMergeWizard(models.TransientModel):
     def create(self, vals_list: list[dict]) -> models.BaseModel:
         """Requirements: FR-DRD-0017 (a user outside the manager groups cannot start a merge)."""
         self._check_merge_rights()
-        return super().create(vals_list)
+        wizards = super().create(vals_list)
+        wizards.mapped('value_line_ids')  # compute the preview now, not at some later flush
+        return wizards
 
     def write(self, vals: dict) -> bool:
         """Requirements: FR-DRD-0017 (every change of the dialog is checked)."""
@@ -223,6 +231,7 @@ class DuplicateMergeWizard(models.TransientModel):
         linked: dict[str, set[int]] = {}
         if not res_ids:
             return linked
+        self.env.flush_all()  # the queries below read the database, not the cache
         for model_name, query in self._link_queries(res_model):
             self.env.cr.execute(query(tuple(res_ids)))
             ids = {row[0] for row in self.env.cr.fetchall()}
@@ -266,3 +275,123 @@ class DuplicateMergeWizard(models.TransientModel):
                 "SELECT id FROM %s WHERE %s = %s AND %s IN %s", table,
                 SQL.identifier(field.model_field), res_model, SQL.identifier(field.name), ids)
         return None
+
+    # ------------------------------------------------------------------
+    # confirm
+    # ------------------------------------------------------------------
+
+    def action_merge(self) -> dict:
+        """Requirements: FR-DRD-0010, FR-DRD-0011, FR-DRD-0012, FR-DRD-0013, FR-DRD-0014, BR-DRD-0007.
+
+        Merge the included records into the kept one in a single savepoint: any failure undoes
+        every step and the reason is shown to the manager.
+        """
+        self.ensure_one()
+        self._check_merge_rights()
+        self._check_selection()
+        if self.res_model != 'res.partner':
+            raise UserError(_("Only contacts can be merged here."))
+        try:
+            with self.env.cr.savepoint():
+                self.sudo()._merge_contacts()  # sudo: the manager group is checked above; the merge edits records the manager may not
+        except UserError:
+            raise
+        except Exception as error:
+            _logger.exception("Merge of %s %s failed", self.res_model, self.record_line_ids.mapped('res_id'))
+            raise UserError(_("The merge failed and nothing was changed: %(reason)s", reason=error)) from error
+        return {'type': 'ir.actions.act_window_close'}
+
+    def _merge_contacts(self) -> None:
+        """Run the steps of a contact merge; the caller holds the savepoint and the rights check."""
+        included_ids = self.record_line_ids.filtered('include').mapped('res_id')
+        self._lock_and_recheck(included_ids)
+        partners = self.env['res.partner'].with_context(active_test=False).browse(included_ids)
+        kept = partners.filtered(lambda partner: partner.id == self.kept_res_id)
+        merged_away = partners - kept
+        self._check_contact_safety(partners)
+        filled_values = {line.field_name: line.write_value for line in self.value_line_ids.filtered('is_filled')}
+        merged_names = merged_away.mapped('display_name')
+        self._move_contact_links(merged_away, kept)
+        merged_away.write({'active': False})
+        self._fill_empty_fields(kept, filled_values)
+        self._mark_group_merged(kept, set(included_ids))
+        self._post_merge_note(kept, merged_names)
+        self.env.flush_all()
+
+    def _lock_and_recheck(self, res_ids: list[int]) -> None:
+        """Requirements: FR-DRD-0010.
+
+        Lock the records and refuse the merge when one is gone or archived since the preview.
+        """
+        self.env.flush_all()
+        self.env.cr.execute(SQL(
+            "SELECT id FROM %s WHERE id IN %s AND active FOR UPDATE",
+            SQL.identifier(self.env[self.res_model]._table), tuple(res_ids)))
+        if len(self.env.cr.fetchall()) != len(res_ids):
+            raise UserError(_("A record of this merge was archived, deleted or merged by someone else: "
+                              "open the preview again."))
+
+    def _check_contact_safety(self, partners: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0015.
+
+        Refuse a company merged with its own contact and contacts of more than one user.
+        """
+        for partner in partners:
+            descendants = partner.search([('id', 'child_of', partner.id)]) - partner
+            if partners & descendants:
+                raise UserError(_("A company cannot be merged with its own contact."))
+        if len(partners.user_ids) > 1:
+            raise UserError(_("Contacts of more than one user cannot be merged, even if only one is active."))
+
+    def _move_contact_links(self, merged_away: models.BaseModel, kept: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011.
+
+        Move every link to the kept contact with the native contact merge steps; a link the kept
+        contact already has (a shared tag) stays once.
+        """
+        native = self.env['base.partner.merge.automatic.wizard']
+        native._merge_bank_accounts(merged_away, kept)
+        native._update_foreign_keys(merged_away, kept)
+        native._update_reference_fields(merged_away, kept)
+
+    def _fill_empty_fields(self, kept: models.BaseModel, filled_values: dict) -> None:
+        """Requirements: FR-DRD-0012.
+
+        Write the preview's values on the fields of the kept record that are still empty.
+        """
+        kept.invalidate_recordset()
+        values = {name: value for name, value in filled_values.items() if not kept[name]}
+        if values:
+            kept.write(values)
+
+    def _mark_group_merged(self, kept: models.BaseModel, included_ids: set[int]) -> None:
+        """Requirements: FR-DRD-0013.
+
+        Mark the set merged; the records left out of the merge stay listed, with the kept record,
+        in a new open set.
+        """
+        group = self.group_id
+        if not group:
+            return
+        left_out = group.line_ids.filtered(lambda line: line.res_id not in included_ids)
+        group.write({
+            'state': 'merged', 'kept_res_id': kept.id, 'kept_name': kept.display_name,
+            'merge_date': fields.Datetime.now(), 'merge_user_id': self.env.uid})
+        left_out_records = self.env[self.res_model].browse(left_out.mapped('res_id')).exists()
+        if left_out_records:
+            records = kept | left_out_records
+            self.env['duplicate.group'].create({
+                'rule_id': group.rule_id.id, 'model_name': group.model_name,
+                'company_id': group.company_id.id,
+                'line_ids': [Command.create({
+                    'res_model': record._name, 'res_id': record.id,
+                    'name': record.display_name, 'company_id': record.company_id.id,
+                }) for record in records],
+            })
+
+    def _post_merge_note(self, kept: models.BaseModel, merged_names: list[str]) -> None:
+        """Requirements: FR-DRD-0013 (a note on the kept record names the merged-away records)."""
+        kept.message_post(body=escape(_(
+            "Merged with %(names)s by %(user)s on %(date)s. The merged-away records are archived.",
+            names=', '.join(merged_names), user=self.env.user.name,
+            date=fields.Date.context_today(self))))
