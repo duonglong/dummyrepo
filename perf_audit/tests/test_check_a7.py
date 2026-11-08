@@ -61,3 +61,32 @@ class TestA7Own(AuditAcceptanceCase):
         by_table = {finding.table_name: finding for finding in found}
         self.assertTrue(by_table['ir_attachment'].evidence['files_stored_in_database'])
         self.assertNotIn('files_stored_in_database', by_table['bus_bus'].evidence)
+
+    def test_finding_names_the_model_of_its_table(self):
+        """US-OPA-002 / FR-OPA-0026: the finding of ir_logging names the ir.logging model."""
+        _run, found = self._run_a7({'ir_logging': 2000 * MEGABYTE})
+        self.assertEqual(found.model_id.model, 'ir.logging')
+
+    def test_attachment_storage_is_not_read_without_an_attachment_finding(self):
+        """NFR-OPA-0001: the probe is asked only when ir_attachment has a finding."""
+        probe = type(self.env['perf.audit.probe'])
+        with patch.object(probe, 'table_sizes', return_value={'ir_attachment': MEGABYTE}), \
+                patch.object(probe, 'attachments_in_database') as read:
+            self.start_run()
+        read.assert_not_called()
+
+    def test_attachment_storage_is_read_from_statistics_not_rows(self):
+        """NFR-OPA-0001: the probe query reads pg_stats and never selects from ir_attachment."""
+        cr = self.env.cr
+        queries = []
+        real_execute = cr.execute
+
+        def spy(query, *args, **kwargs):
+            queries.append(str(query))
+            return real_execute(query, *args, **kwargs)
+
+        with patch.object(type(cr), 'execute', lambda self_, q, *a, **k: spy(q, *a, **k)):
+            self.env['perf.audit.probe'].attachments_in_database()
+        self.assertEqual(len(queries), 1)
+        self.assertIn('pg_stats', queries[0])
+        self.assertNotIn('FROM ir_attachment', queries[0])

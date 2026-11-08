@@ -2,7 +2,7 @@
 
 Requirements: FR-OPA-0009, FR-OPA-0010
 """
-from .base import Check, register
+from .base import Check, register, table_models
 
 BLOAT_EXTENSION = 'pgstattuple'
 # Share of the rows kept free of dead rows by the proposed table setting
@@ -26,8 +26,9 @@ class VacuumCheck(Check):
             if (dead_percent := self._dead_percent(stats)) > ctx.thresholds['dead_percent']
             and stats['dead_rows'] > ctx.thresholds['dead_rows']}
         dead_space = self._dead_space(ctx, flagged)
+        owners = table_models(ctx.env)
         return [
-            self._finding(ctx, table, statistics[table], dead_percent, dead_space.get(table))
+            self._finding(ctx, table, statistics[table], dead_percent, dead_space.get(table), owners.get(table))
             for table, dead_percent in flagged.items()]
 
     @staticmethod
@@ -54,7 +55,7 @@ class VacuumCheck(Check):
             return {}
         return measured
 
-    def _finding(self, ctx, table, stats, dead_percent, dead_space):
+    def _finding(self, ctx, table, stats, dead_percent, dead_space, model_name):
         """The finding of one table with its dead and live rows, vacuum times and a table setting as the fix."""
         dead_percent = round(dead_percent, 1)
         evidence = {
@@ -70,6 +71,7 @@ class VacuumCheck(Check):
             'message': ctx.env._(
                 'Table %(table)s has %(dead)d dead rows, %(percent)s%% of its rows.',
                 table=table, dead=stats['dead_rows'], percent=dead_percent),
+            'model_id': ctx.env['ir.model']._get_id(model_name) if model_name else False,
             'table_name': table,
             'row_estimate': stats['live_rows'],
             'threshold_label': 'dead_percent',

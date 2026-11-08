@@ -142,17 +142,17 @@ class PerfAuditProbe(models.AbstractModel):
 
         Requirements: FR-OPA-0010, NFR-OPA-0001
         """
-        result = {}
         try:
             with self.env.cr.savepoint():
-                for table in tables:
-                    self.env.cr.execute(
-                        'SELECT dead_tuple_len::bigint FROM pgstattuple_approx(%s::regclass)', [table])
-                    result[table] = self.env.cr.fetchone()[0]
+                self.env.cr.execute("""
+                    SELECT t.name, a.dead_tuple_len::bigint
+                      FROM unnest(%s::text[]) AS t(name)
+                     CROSS JOIN LATERAL pgstattuple_approx(t.name::regclass) a
+                """, [list(tables)])
+                return dict(self.env.cr.fetchall())
         except Error:
             _logger.info('The approximate dead space of the tables could not be read', exc_info=True)
             return None
-        return result
 
     @api.private
     def table_sizes(self, tables):
@@ -169,12 +169,17 @@ class PerfAuditProbe(models.AbstractModel):
 
     @api.private
     def attachments_in_database(self):
-        """True when some attachment keeps its file in the database rather than the filestore.
+        """True when some attachment keeps its file in the database, False when none does, None when unknown.
 
-        Requirements: FR-OPA-0013
+        Read from the planner statistics of the file column, never from the rows (NFR-OPA-0001).
+
+        Requirements: FR-OPA-0013, NFR-OPA-0001
         """
-        self.env.cr.execute('SELECT EXISTS (SELECT 1 FROM ir_attachment WHERE db_datas IS NOT NULL)')
-        return self.env.cr.fetchone()[0]
+        self.env.cr.execute(
+            """SELECT null_frac < 1 FROM pg_stats
+                WHERE schemaname = current_schema() AND tablename = 'ir_attachment' AND attname = 'db_datas'""")
+        row = self.env.cr.fetchone()
+        return row[0] if row else None
 
     def distinct_values(self, table, column):
         """Estimated number of distinct values of a column, from the planner statistics, or None.

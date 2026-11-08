@@ -2,7 +2,7 @@
 
 Requirements: FR-OPA-0013
 """
-from .base import BYTES_PER_MEGABYTE, Check, register
+from .base import BYTES_PER_MEGABYTE, Check, register, table_models
 
 # Tables that grow with use and are rarely cleaned: messages, tracking values, bus
 # notifications, server logs, outgoing mails and attachments
@@ -25,7 +25,7 @@ class GrowthCheck(Check):
         sizes = ctx.probe.table_sizes(GROWING_TABLES)
         ctx.outcome['measures'] = sizes
         previous = self._previous_sizes(ctx)
-        in_database = ATTACHMENT_TABLE in sizes and ctx.probe.attachments_in_database()
+        owners = table_models(ctx.env)
         findings = []
         for table in GROWING_TABLES:
             if table not in sizes:
@@ -37,9 +37,14 @@ class GrowthCheck(Check):
                 label, found = 'growth', growth
             else:
                 continue
-            findings.append(self._finding(
-                ctx, table, label, found, sizes[table], previous.get(table), growth,
-                in_database and table == ATTACHMENT_TABLE))
+            evidence = {
+                'size_bytes': sizes[table], 'previous_size_bytes': previous.get(table),
+                'growth_pct': None if growth is None else round(growth, 1),
+                'size_mb': round(sizes[table] / BYTES_PER_MEGABYTE, 1),
+            }
+            if table == ATTACHMENT_TABLE and ctx.probe.attachments_in_database():
+                evidence['files_stored_in_database'] = True
+            findings.append(self._finding(ctx, table, (label, found), evidence, owners.get(table)))
         return findings
 
     @staticmethod
@@ -58,26 +63,21 @@ class GrowthCheck(Check):
         ], order='run_id desc', limit=1)
         return previous.measures or {}
 
-    def _finding(self, ctx, table, label, found, size, previous_size, growth, files_in_database):
-        """The finding of one table: its size now and before, the growth and a purge or archive suggestion."""
-        growth_percent = None if growth is None else round(growth, 1)
-        suggestion = ctx.env._('Purge or archive old rows of %s.', table)
-        evidence = {
-            'size_bytes': size, 'previous_size_bytes': previous_size, 'growth_pct': growth_percent,
-            'size_mb': round(size / BYTES_PER_MEGABYTE, 1),
-        }
-        if files_in_database:
-            evidence['files_stored_in_database'] = True
+    def _finding(self, ctx, table, crossed, evidence, model_name):
+        """The finding of one table: its sizes, the threshold crossed as (label, value found) and a purge suggestion."""
+        label, found = crossed
+        growth = evidence['growth_pct']
         return {
             'identity_key': f'A7:{table}',
             'message': ctx.env._(
                 'Table %(table)s is %(size)s MB, growth since the previous run: %(growth)s.',
                 table=table, size=evidence['size_mb'],
-                growth='%s%%' % growth_percent if growth is not None else ctx.env._('unknown')),
+                growth='%s%%' % growth if growth is not None else ctx.env._('unknown')),
+            'model_id': ctx.env['ir.model']._get_id(model_name) if model_name else False,
             'table_name': table,
             'threshold_label': label,
             'threshold_value': ctx.thresholds[label],
             'found_value': found,
             'evidence': evidence,
-            'code_suggestion': suggestion,
+            'code_suggestion': ctx.env._('Purge or archive old rows of %s.', table),
         }

@@ -34,6 +34,16 @@ BYTES_PER_MEGABYTE = 1024 * 1024
 _REGISTRY = {}
 
 
+def table_models(env):
+    """Name of the model that owns each table, by table name (the first by name when several share one)."""
+    owners = {}
+    for model_name in sorted(env.registry):
+        model = env[model_name]
+        if not model._abstract and model._auto:
+            owners.setdefault(model._table, model_name)
+    return owners
+
+
 def severity_for(code, kind=None):
     """Severity BR-OPA-0005 gives to a finding of this check and kind, or None when the check decides.
 

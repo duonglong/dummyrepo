@@ -34,6 +34,11 @@ class TestA4Own(AuditAcceptanceCase):
         self.assertEqual(found.fix_kind, 'autovacuum')
         self.assertIn('autovacuum_vacuum_scale_factor = 0.01', found.fix_statement)
 
+    def test_finding_names_the_model_of_its_table(self):
+        """US-OPA-002 / FR-OPA-0026: the finding of res_partner names the res.partner model."""
+        _run, found = self._run_a4({'res_partner': _stats(40000, 20000)})
+        self.assertEqual(found.model_id.model, 'res.partner')
+
     def test_low_share_is_not_reported(self):
         """FR-OPA-0009 / SC-OPA-0009-2: 20,000 dead of 1,020,000 rows is 2 percent."""
         run, found = self._run_a4({'x_line': _stats(1000000, 20000)})

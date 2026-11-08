@@ -43,3 +43,18 @@ class TestA5Own(AuditAcceptanceCase):
             'at_percent': _stats(50000, 10000, 1), 'small': _stats(9999, 9000, 40)}))
         found = self._run_a5({'at_min_rows': _stats(10000, 2001, 1)})
         self.assertEqual(found.table_name, 'at_min_rows')
+
+    def test_finding_names_the_rule_that_fired(self):
+        """FR-OPA-0026: an old analyze is labelled with its age threshold and days; a percent one with the percent."""
+        found = self._run_a5({
+            'res_partner': _stats(50000, 1, 31), 'x_changed': _stats(50000, 15000, 1),
+            'x_never': _stats(50000, 5, None)})
+        by_table = {finding.table_name: finding for finding in found}
+        old = by_table['res_partner']
+        self.assertEqual((old.threshold_label, old.threshold_value, old.found_value), ('analyze_age', 30, 31))
+        changed = by_table['x_changed']
+        self.assertEqual((changed.threshold_label, changed.threshold_value, changed.found_value),
+                         ('modified_percent', 20, 30))
+        self.assertEqual(by_table['x_never'].threshold_label, 'analyze_age')
+        self.assertIn('never analyzed', by_table['x_never'].message)
+        self.assertEqual(old.model_id.model, 'res.partner')
