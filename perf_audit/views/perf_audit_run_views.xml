@@ -52,9 +52,14 @@
         <field name="arch" type="xml">
             <form edit="0" create="0">
                 <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            invisible="state != 'running'"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-info" role="alert" invisible="state != 'running'">
+                        The audit is still running. Click Refresh to see its results.
+                    </div>
                     <div class="oe_button_box" name="button_box">
                         <button name="%(perf_audit_finding_compare_action)d" type="action"
                                 class="oe_stat_button" icon="fa-list"

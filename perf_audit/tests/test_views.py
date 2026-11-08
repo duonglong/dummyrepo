@@ -56,3 +56,24 @@ class TestOpeningTheAppStartsNoRun(TransactionCase):
         view = self.env.ref('perf_audit.perf_audit_run_view_list')
         arch = etree.fromstring(self.env['perf.audit.run'].get_view(view.id)['arch'])
         self.assertTrue(arch.xpath("//header/button[@name='action_start_audit'][@type='object']"))
+
+
+@tagged('post_install', '-at_install')
+class TestRunningRunForm(TransactionCase):
+    """Requirements: FR-OPA-0001 (B-0126)."""
+
+    def _arch(self):
+        view = self.env.ref('perf_audit.perf_audit_run_view_form')
+        return etree.fromstring(self.env['perf.audit.run'].get_view(view.id)['arch'])
+
+    def test_bug_b_0126_running_run_form_says_so_and_offers_a_refresh(self):
+        """FR-OPA-0001: a run form opened before the run ends tells so and has a Refresh button."""
+        arch = self._arch()
+        self.assertTrue(arch.xpath("//div[contains(@class, 'alert')][contains(@invisible, 'running')]"))
+        self.assertTrue(arch.xpath("//header/button[@name='action_refresh'][@type='object']"))
+
+    def test_bug_b_0126_refresh_changes_nothing_on_the_run(self):
+        """FR-OPA-0001: Refresh only makes the client reload the record."""
+        run = self.env['perf.audit.run'].create({'state': 'running'})
+        self.assertFalse(run.action_refresh())
+        self.assertEqual(run.state, 'running')

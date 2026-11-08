@@ -116,6 +116,16 @@ class PerfAuditRun(models.Model):
             'view_mode': 'form',
         }
 
+    def action_refresh(self):
+        """Do nothing: the web client reloads the record after a button call, showing the run's progress.
+
+        A run is executed by a background action after the start request ends, so the form opened
+        by the start shows it running until it is reloaded.
+
+        Requirements: FR-OPA-0001
+        """
+        return False
+
     @api.model
     def _cron_start_scheduled_audit(self):
         """Start a run for the scheduled audit; skipped silently while another one runs.
