@@ -30,3 +30,5 @@ from . import test_apply
 from . import test_check_a4
 from . import test_check_a5
 from . import test_check_a7
+from . import test_check_a6
+from . import test_check_a8
