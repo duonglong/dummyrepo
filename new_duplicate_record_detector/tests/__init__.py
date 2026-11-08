@@ -10,3 +10,4 @@ from . import test_on_save
 from . import test_full_check
 from . import test_group_list
 from . import test_merge_preview
+from . import test_merge_contacts
