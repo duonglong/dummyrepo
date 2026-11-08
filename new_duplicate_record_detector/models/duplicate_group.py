@@ -11,6 +11,9 @@ class DuplicateGroup(models.Model):
     model_name = fields.Char(
         string='Record type', required=True, index=True,
         help="Contacts or product templates: the kind of records in this set.")
+    record_type = fields.Char(
+        related='rule_id.model_id.name', string='Record type',
+        help="Readable name of the kind of records in this set.")
     state = fields.Selection(
         [('open', 'Open'), ('merged', 'Merged'), ('not_duplicate', 'Not a duplicate')],
         required=True, default='open', index=True)

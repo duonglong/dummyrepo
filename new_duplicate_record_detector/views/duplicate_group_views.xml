@@ -5,9 +5,9 @@
         <field name="model">duplicate.group</field>
         <field name="arch" type="xml">
             <list create="0" edit="0">
-                <field name="rule_id"/>
-                <field name="model_name"/>
-                <field name="record_count"/>
+                <field name="rule_id" width="260px"/>
+                <field name="record_type" width="110px"/>
+                <field name="record_count" string="Records" width="90px"/>
                 <field name="record_names"/>
                 <field name="state" widget="badge"/>
             </list>

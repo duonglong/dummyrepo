@@ -53,3 +53,16 @@ class TestGroupList(TransactionCase):
         arch = self.env['duplicate.group'].with_user(self.manager).get_view(view_type='search')['arch']
         for name in ('open', 'merged', 'not_duplicate', 'contacts', 'products'):
             self.assertIn(f'name="{name}"', arch)
+
+    def test_bug_b_0156_list_shows_readable_type_and_sized_columns(self):
+        """Regression test for B-0156: the list names the record type, not the model.
+
+        Requirements: FR-DRD-0007
+        """
+        self.assertEqual(self.group.record_type, 'Contact')
+        arch = self.env['duplicate.group'].with_user(self.manager).get_view(view_type='list')['arch']
+        self.assertIn('name="record_type"', arch)
+        self.assertNotIn('name="model_name"', arch)
+        self.assertIn('string="Records"', arch)
+        for name in ('rule_id', 'record_type', 'record_count'):
+            self.assertRegex(arch, rf'<field name="{name}"[^>]*width=')
