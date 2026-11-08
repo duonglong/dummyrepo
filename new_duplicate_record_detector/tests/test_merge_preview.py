@@ -1,5 +1,6 @@
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
+from odoo.tests import Form
 from odoo.tests.common import TransactionCase
 
 
@@ -89,3 +90,43 @@ class TestMergePreview(TransactionCase):
             self.assertEqual(action.group_ids, manager_group)
         form = self.env['duplicate.group'].with_user(self.manager).get_view(view_type='form')['arch']
         self.assertIn('action_merge_preview', form)
+
+
+class TestMergePreviewForm(TransactionCase):
+    """The merge preview dialog as the browser form saves it.
+
+    Requirements: FR-DRD-0009, FR-DRD-0011
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        manager_group = cls.env.ref('new_duplicate_record_detector.group_duplicate_manager')
+        cls.manager = cls.env['res.users'].create({
+            'name': 'MPF Mgr', 'login': 'mpf_mgr',
+            'group_ids': [Command.set((cls.env.ref('base.group_user') | manager_group).ids)]})
+        cls.a, cls.b = cls.env['res.partner'].create([{'name': 'MPF Acme'}, {'name': 'MPF Acme Ltd'}])
+
+    def _form(self):
+        wizard = self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model='res.partner', active_ids=(self.a | self.b).ids)
+        return Form(wizard)
+
+    def test_bug_b_0151_preview_saves_from_the_form_and_confirms(self):
+        """Regression test for B-0151, B-0152: Confirm merge failed with a missing 'Res' (res_id).
+
+        Requirements: FR-DRD-0009, FR-DRD-0011
+        """
+        wizard = self._form().save()
+        self.assertEqual(len(wizard.record_line_ids), 2)
+        wizard.action_merge()
+        self.assertFalse(self.b.active)
+
+    def test_bug_b_0150_keep_this_one_works_on_the_saved_preview(self):
+        """Regression test for B-0150: Keep this one did not change the kept record.
+
+        Requirements: FR-DRD-0009
+        """
+        wizard = self._form().save()
+        wizard.record_line_ids.filtered(lambda line: line.res_id == self.b.id).action_keep_this()
+        self.assertEqual(wizard.kept_res_id, self.b.id)
