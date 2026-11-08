@@ -186,7 +186,9 @@ class TestA3Acceptance(ChecksAcceptanceBase):
         self.set_threshold('min_index_size', self.PAGE_MB, check='A3')
         self.assertEqual(len(self._unused(self.start_run(), 'x_line_size_idx')), 1)
         self.set_threshold('min_index_size', self.PAGE_MB * 1.01, check='A3')
-        self.assertFalse(self._unused(self.start_run(), 'x_line_size_idx'))
+        # FR-OPA-0030: a finding that is gone from this run is listed as 'fixed'; it is not a finding of this run.
+        self.assertFalse(self._unused(self.start_run(), 'x_line_size_idx').filtered(
+            lambda f: f.comparison_state != 'fixed'))
 
     def test_duplicate_leading_columns(self):
         """FR-OPA-0008 / SC-OPA-0008-1: (partner_id) next to (partner_id, date): one duplicate finding names both."""

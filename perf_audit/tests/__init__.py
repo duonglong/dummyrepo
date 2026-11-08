@@ -14,6 +14,9 @@ from . import test_check_a6_acceptance
 from . import test_run_engine
 from . import test_finding
 from . import test_one_run
+from . import test_check_b1
+from . import test_check_b3
+from . import test_check_b5
 from . import test_check_b7
 from . import test_stats_reset
 from . import test_scheduled
@@ -25,3 +28,8 @@ from . import test_check_b6
 from . import test_check_a1
 from . import test_check_a2
 from . import test_check_a3
+from . import test_fix_script
+from . import test_apply
+from . import test_check_a4
+from . import test_check_a5
+from . import test_check_a7
