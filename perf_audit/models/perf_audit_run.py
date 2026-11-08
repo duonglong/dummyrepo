@@ -306,7 +306,8 @@ class PerfAuditRun(models.Model):
                 previous_limit = probe.set_statement_timeout(milliseconds)
                 findings = check_impl.run(ctx)
                 created = self.env['perf.audit.finding'].create(
-                    [self._finding_values(check, finding) for finding in findings])
+                    [self._finding_values(check, finding, rank)
+                     for rank, finding in enumerate(findings, 1)])
                 probe.restore_statement_timeout(previous_limit)
         except QueryCanceled:
             outcome = {'state': 'failed', 'reason': _('Time limit reached')}
@@ -318,9 +319,12 @@ class PerfAuditRun(models.Model):
         outcome['duration'] = time.monotonic() - started
         return outcome
 
-    def _finding_values(self, check, finding):
-        """Values of one finding of `check`, with the severity BR-OPA-0005 gives when it is not set."""
-        values = dict(finding, run_id=self.id, check_id=check.id)
+    def _finding_values(self, check, finding, rank):
+        """Values of one finding of `check`, with its rank and the severity BR-OPA-0005 gives when it is not set.
+
+        Requirements: FR-OPA-0005, FR-OPA-0012, BR-OPA-0002
+        """
+        values = dict(finding, run_id=self.id, check_id=check.id, check_rank=rank)
         if not values.get('severity'):
             values['severity'] = checks_base.severity_for(check.code, values.get('kind'))
         return values

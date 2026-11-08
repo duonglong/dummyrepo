@@ -31,7 +31,7 @@ class PerfAuditFinding(models.Model):
 
     _name = 'perf.audit.finding'
     _description = 'Performance audit finding'
-    _order = 'code, severity_rank, identity_key'
+    _order = 'code, severity_rank, check_rank, identity_key'
 
     run_id = fields.Many2one('perf.audit.run', required=True, index=True, ondelete='cascade')
     check_id = fields.Many2one('perf.audit.check', required=True, ondelete='restrict')
@@ -41,6 +41,7 @@ class PerfAuditFinding(models.Model):
     severity = fields.Selection(
         [('high', 'High'), ('medium', 'Medium'), ('low', 'Low')], required=True)
     severity_rank = fields.Integer(compute='_compute_severity_rank', store=True)
+    check_rank = fields.Integer(help='Position in the list the check returned.')
     message = fields.Char(required=True)
     # evidence
     table_name = fields.Char()

@@ -124,3 +124,21 @@ class TestRunEngine(PerfAuditCase):
         self.env.flush_all()
         self.env.cr.execute("UPDATE pg_class SET reltuples = 123456 WHERE oid = to_regclass('perf_audit_check')")
         self.assertEqual(self.env['perf.audit.probe'].estimated_rows()['perf_audit_check'], 123456)
+
+    def test_bug_b_0117_check_order_survives_storage(self):
+        """Regression test for B-0117: A1 and A6 findings keep the rank their check gave them.
+
+        Requirements: FR-OPA-0005, FR-OPA-0012, BR-OPA-0002
+        """
+        def finding(key):
+            return {'identity_key': key, 'message': key, 'severity': 'medium'}
+
+        # Ranked order differs from the identity order on purpose.
+        ranked = ['t_zulu', 't_alpha', 't_mike']
+        run = self._execute([
+            StubCheck('A1', [finding(key) for key in ranked]),
+            StubCheck('A6', [finding(key) for key in reversed(ranked)]),
+        ])
+        for code, expected in (('A1', ranked), ('A6', ranked[::-1])):
+            stored = self.env['perf.audit.finding'].search([('run_id', '=', run.id), ('code', '=', code)])
+            self.assertEqual(stored.mapped('identity_key'), expected)
