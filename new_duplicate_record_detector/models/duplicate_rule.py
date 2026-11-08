@@ -20,6 +20,11 @@ class DuplicateRule(models.Model):
         'duplicate.rule.condition', 'rule_id', string='Conditions', copy=True,
         help="Every condition must match for two records to be possible duplicates.")
 
+    group_ids = fields.One2many(
+        'duplicate.group', 'rule_id', string='Sets found', copy=False)
+    open_group_count = fields.Integer(
+        compute='_compute_open_group_count', help="Sets of possible duplicates of this rule still to review.")
+
     matchable_field_ids = fields.Many2many(
         'ir.model.fields', compute='_compute_matchable_field_ids',
         help="Fields of the record type that a condition may use.")
@@ -33,6 +38,14 @@ class DuplicateRule(models.Model):
         for rule in self:
             rule.matchable_field_ids = candidates.filtered(
                 lambda f: f.model_id == rule.model_id)
+
+    @api.depends('group_ids.state')
+    def _compute_open_group_count(self) -> None:
+        """Requirements: FR-DRD-0004 (count the open sets of each rule)."""
+        counts = dict(self.env['duplicate.group']._read_group(
+            [('rule_id', 'in', self.ids), ('state', '=', 'open')], ['rule_id'], ['__count']))
+        for rule in self:
+            rule.open_group_count = counts.get(rule, 0)
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]):
