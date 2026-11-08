@@ -59,6 +59,10 @@ class FanOutCheck(Check):
                 'many2one': link, 'rows_estimate': rows, 'fan_out': fan_out,
                 'depends': depends,
             },
+            'code_suggestion': ctx.env._(
+                'Narrow the dependency of %(model)s.%(field)s on %(link)s, make it non-stored '
+                'or refresh it by a scheduled action.',
+                model=model._name, field=field.name, link=link),
         }
 
     def _fan_outs(self, ctx, model, depends, rows):

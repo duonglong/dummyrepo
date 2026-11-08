@@ -67,4 +67,7 @@ class ExpensiveQueriesCheck(Check):
                 'tables': tables, 'models': models,
             },
             'references': {'models': models},
+            'code_suggestion': ctx.env._(
+                'Look in checks A1, A2 and B3 for the filter columns of %(models)s that this query reads.',
+                models=', '.join(models) or ', '.join(tables) or statement['query_id']),
         }

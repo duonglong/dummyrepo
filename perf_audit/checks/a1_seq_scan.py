@@ -45,6 +45,8 @@ class SeqScanCheck(Check):
                 'seq_scan': stats['seq_scan'], 'idx_scan': stats['idx_scan'],
                 'seq_tup_read': stats['seq_tup_read'], 'avg_rows_per_seq_scan': average_rows,
                 'rows_estimate': stats['live_rows'], 'total_size_bytes': stats['total_size'],
-                'next_step': 'Find the column to index with A2, B3 or A6.',
             },
+            'code_suggestion': ctx.env._(
+                'Find the column that %(table)s is filtered on with checks A2, B3 or A6, then create an index on it.',
+                table=table),
         }

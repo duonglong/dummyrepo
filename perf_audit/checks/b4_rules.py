@@ -109,4 +109,7 @@ class ComplexRulesCheck(Check):
             'table_name': table,
             'row_estimate': rows_by_table.get(table),
             'evidence': {'domain': rule.domain, 'matched': parts, 'rows_estimate': rows_by_table.get(table)},
+            'code_suggestion': ctx.env._(
+                'Store %(path)s on %(model)s as an indexed stored related field and use it in rule %(rule)s.',
+                path='; '.join(parts), model=model_name, rule=rule.name),
         }

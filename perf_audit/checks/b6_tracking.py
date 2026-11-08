@@ -59,5 +59,8 @@ class TrackingCheck(Check):
                     'evidence': {
                         'tracked_fields': tracked, 'updates': updates, 'updates_threshold': max_updates,
                     },
+                    'code_suggestion': ctx.env._(
+                        'Trim the tracked fields of %(model)s to the ones people need to see in the history.',
+                        model=model_name),
                 })
         return findings
