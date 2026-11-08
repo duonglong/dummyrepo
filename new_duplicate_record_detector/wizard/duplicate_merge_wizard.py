@@ -1,11 +1,11 @@
 import logging
 
 from markupsafe import escape
-from psycopg2 import OperationalError
+from psycopg2 import IntegrityError, OperationalError
 
 from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tools import SQL
+from odoo.tools import SQL, mute_logger
 
 from ..models.duplicate_rule import WATCHED_MODELS
 
@@ -17,6 +17,13 @@ MERGE_MAX_RECORDS = 10
 PREVIEW_FIELD_TYPES = (
     'char', 'text', 'html', 'selection', 'many2one', 'date', 'datetime', 'integer', 'float', 'monetary')
 BOOKKEEPING_FIELDS = ('id', 'display_name', 'active', 'create_uid', 'create_date', 'write_uid', 'write_date')
+# Fields of a record type that are computed from its variant (so skipped by the generic rule) but
+# that a person fills in on the form: they take part in the preview and the fill.
+PREVIEW_EXTRA_FIELDS = {'product.template': ('barcode', 'default_code')}
+# Tables that describe the variants of a template: they stay with the template they belong to.
+VARIANT_STRUCTURE_TABLES = (
+    'product_product', 'product_template_attribute_line', 'product_template_attribute_value',
+    'product_template_attribute_exclusion')
 MANAGER_GROUPS = ('new_duplicate_record_detector.group_duplicate_manager', 'base.group_system')
 
 
@@ -194,10 +201,13 @@ class DuplicateMergeWizard(models.TransientModel):
 
     def _preview_fields(self) -> list:
         """Return the stored, editable fields of the record type that the preview compares."""
+        model = self.env[self.res_model]
+        extra = PREVIEW_EXTRA_FIELDS.get(self.res_model, ())
         return [
-            field for field in self.env[self.res_model]._fields.values()
-            if field.store and not field.compute and not field.readonly
-            and field.type in PREVIEW_FIELD_TYPES and field.name not in BOOKKEEPING_FIELDS]
+            field for field in model._fields.values()
+            if field.name in extra or (
+                field.store and not field.compute and not field.readonly
+                and field.type in PREVIEW_FIELD_TYPES and field.name not in BOOKKEEPING_FIELDS)]
 
     @api.model
     def _readable_value(self, field, record: models.BaseModel) -> str:
@@ -290,14 +300,12 @@ class DuplicateMergeWizard(models.TransientModel):
         self.ensure_one()
         self._check_merge_rights()
         self._check_selection()
-        if self.res_model != 'res.partner':
-            raise UserError(_("Only contacts can be merged here."))
         filled_values = self._checked_filled_values()
         try:
             with self.env.cr.savepoint():
                 # sudo: the manager group and the read access to every record are checked above;
                 # the merge edits records the manager may not edit
-                self.sudo()._merge_contacts(filled_values)
+                self.sudo()._merge_records(filled_values)
         except (UserError, OperationalError):
             raise
         except Exception as error:
@@ -321,17 +329,25 @@ class DuplicateMergeWizard(models.TransientModel):
         return {vals['field_name']: vals['write_value']
                 for vals in wizard._value_vals(kept, others) if vals['is_filled']}
 
-    def _merge_contacts(self, filled_values: dict) -> None:
-        """Run the steps of a contact merge; the caller holds the savepoint and the checks."""
+    def _merge_records(self, filled_values: dict) -> None:
+        """Run the steps of a merge of contacts or product templates; the caller holds the savepoint and the checks."""
         included_ids = self.record_line_ids.filtered('include').mapped('res_id')
         self._lock_and_recheck(included_ids)
-        partners = self.env['res.partner'].with_context(active_test=False).browse(included_ids)
-        kept = partners.filtered(lambda partner: partner.id == self.kept_res_id)
-        merged_away = partners - kept
-        self._check_contact_safety(partners)
+        records = self.env[self.res_model].with_context(active_test=False).browse(included_ids)
+        kept = records.filtered(lambda record: record.id == self.kept_res_id)
+        merged_away = records - kept
+        if self.res_model == 'res.partner':
+            self._check_contact_safety(records)
+        else:
+            self._check_product_safety(records)
         merged_names = merged_away.mapped('display_name')
-        self._move_contact_links(merged_away, kept)
+        if self.res_model == 'res.partner':
+            self._move_contact_links(merged_away, kept)
+        else:
+            self._move_product_links(merged_away, kept)
         merged_away.write({'active': False})
+        if 'barcode' in filled_values:
+            self._release_barcodes(merged_away)
         self._fill_empty_fields(kept, filled_values)
         self._mark_group_merged(kept, set(included_ids))
         self._post_merge_note(kept, merged_names)
@@ -372,6 +388,65 @@ class DuplicateMergeWizard(models.TransientModel):
         native._merge_bank_accounts(merged_away, kept)
         native._update_foreign_keys(merged_away, kept)
         native._update_reference_fields(merged_away, kept)
+
+    def _check_product_safety(self, templates: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0016.
+
+        Refuse a product with several variants and products sold in different units of measure.
+        """
+        if any(len(template.product_variant_ids) > 1 for template in templates):
+            raise UserError(_("A product with several variants cannot be merged."))
+        if len(templates.uom_id) > 1:
+            raise UserError(_("Products with different units of measure cannot be merged."))
+
+    def _move_product_links(self, merged_away: models.BaseModel, kept: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0011.
+
+        Move the links of the merged-away templates to the kept template and the links of their
+        variant to the variant of the kept template; the variants themselves stay where they are.
+        """
+        kept_variant = kept.product_variant_ids
+        if len(kept_variant) != 1:
+            raise UserError(_("The kept product must have exactly one variant."))
+        gone_variants = merged_away.product_variant_ids
+        native = self.env['base.partner.merge.automatic.wizard']
+        self.env.flush_all()  # the moves below run on the database
+        for src_records, dst_record, skip in (
+                (merged_away, kept, VARIANT_STRUCTURE_TABLES), (gone_variants, kept_variant, ())):
+            self._repoint_foreign_keys(src_records, dst_record, skip)
+            native._update_reference_fields_generic(src_records._name, src_records, dst_record)
+        self.env.invalidate_all()
+
+    def _release_barcodes(self, merged_away: models.BaseModel) -> None:
+        """Requirements: FR-DRD-0012.
+
+        Free the barcode of the archived products so the kept product can take it (a barcode is
+        unique); the barcode is not lost, it moves to the kept product.
+        """
+        merged_away.product_variant_ids.write({'barcode': False})
+
+    def _repoint_foreign_keys(self, src_records: models.BaseModel, dst_record: models.BaseModel,
+                              skip_tables: tuple) -> None:
+        """Point every link of the source records to the destination record, but in the skipped tables.
+
+        A link that cannot move because the destination already has it stays on the archived record.
+        """
+        native = self.env['base.partner.merge.automatic.wizard']
+        for table, column in native._get_fk_on(src_records._table):
+            if table in skip_tables or table.startswith('base_partner_merge_'):
+                continue
+            self.env.cr.execute(SQL(
+                "SELECT ctid FROM %s WHERE %s IN %s", SQL.identifier(table), SQL.identifier(column),
+                tuple(src_records.ids)))
+            for (row,) in self.env.cr.fetchall():
+                update = SQL(
+                    "UPDATE %s SET %s = %s WHERE ctid = %s::tid",
+                    SQL.identifier(table), SQL.identifier(column), dst_record.id, row)
+                try:
+                    with mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+                        self.env.cr.execute(update)
+                except IntegrityError:
+                    continue  # the destination already has this link
 
     def _fill_empty_fields(self, kept: models.BaseModel, filled_values: dict) -> None:
         """Requirements: FR-DRD-0012.
