@@ -130,3 +130,18 @@ class TestMergePreviewForm(TransactionCase):
         wizard = self._form().save()
         wizard.record_line_ids.filtered(lambda line: line.res_id == self.b.id).action_keep_this()
         self.assertEqual(wizard.kept_res_id, self.b.id)
+
+    def test_bug_b_0155_unticking_include_recomputes_the_preview(self):
+        """Regression test for B-0155: unticking Include crashed the preview's onchange.
+
+        Requirements: FR-DRD-0009, BR-DRD-0006
+        """
+        c = self.env['res.partner'].create({'name': 'MPF Acme Inc'})
+        wizard = self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model='res.partner', active_ids=(self.a | self.b | c).ids)
+        form = Form(wizard)
+        with form.record_line_ids.edit(2) as line:
+            line.include = False
+        saved = form.save()
+        self.assertEqual(saved.record_line_ids.filtered('include').mapped('res_id'), [self.a.id, self.b.id])
+        self.assertNotIn('MPF Acme Inc', saved.archive_names)
