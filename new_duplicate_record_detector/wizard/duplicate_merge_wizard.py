@@ -229,11 +229,31 @@ class DuplicateMergeWizard(models.TransientModel):
         return value.id if field.type == 'many2one' else value
 
     def _link_vals(self, others: models.BaseModel) -> list[dict]:
-        """One line per kind of linked document: how many move off the records to be archived."""
-        linked = self._linked_ids(self.res_model, others.ids)
+        """Requirements: FR-DRD-0009.
+
+        One line per kind of linked document: how many move off the records to be archived.
+        """
+        linked = self._moving_links(others)
         labels = {name: self.env['ir.model']._get(name).name for name in linked}
         return [{'model_label': labels[name], 'count': len(ids)}
                 for name, ids in sorted(linked.items(), key=lambda item: labels[item[0]]) if ids]
+
+    def _moving_links(self, others: models.BaseModel) -> dict[str, set[int]]:
+        """Return, per model, the documents the merge moves off the records, as `_merge_records` moves them.
+
+        A template keeps its variant structure, and the links of its variants (archived ones too)
+        move to the kept variant.
+        """
+        if self.res_model != 'product.template':
+            return self._linked_ids(self.res_model, others.ids)
+        variants = others.with_context(active_test=False).product_variant_ids
+        linked = {
+            name: ids for name, ids in self._linked_ids(self.res_model, others.ids).items()
+            if self.env[name]._table not in VARIANT_STRUCTURE_TABLES}
+        for name, ids in self._linked_ids('product.product', variants.ids).items():
+            if self.env[name]._table not in VARIANT_COMBINATION_TABLES:
+                linked.setdefault(name, set()).update(ids)
+        return linked
 
     @api.model
     def _linked_ids(self, res_model: str, res_ids: list[int]) -> dict[str, set[int]]:

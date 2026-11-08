@@ -108,3 +108,27 @@ class TestMergeProducts(TransactionCase):
         moved_from, stays = (first, second) if kept.barcode == 'T006-A' else (second, first)
         self.assertFalse(moved_from.barcode)
         self.assertEqual(stays.barcode, 'T006-B' if kept.barcode == 'T006-A' else 'T006-A')
+
+
+class TestMergeProductPreview(TransactionCase):
+    """Regression tests for B-0141: the product merge preview counts the links the merge moves.
+
+    Requirements: FR-DRD-0009, FR-DRD-0011.
+    """
+
+    def test_bug_b_0141_preview_counts_links_of_the_merged_away_variant(self):
+        """Regression test for B-0141: a combo item on the merged-away variant is counted and the
+        variant itself, which does not move, is not listed.
+
+        Requirements: FR-DRD-0009, FR-DRD-0011
+        """
+        kept, gone = self.env['product.template'].create([{'name': 'Desk'}, {'name': 'Desk '}])
+        combo = self.env['product.combo'].create({
+            'name': 'B0141 combo',
+            'combo_item_ids': [Command.create({'product_id': gone.product_variant_id.id})]})
+        wizard = self.env['duplicate.merge.wizard'].with_context(
+            active_model='product.template', active_ids=(kept | gone).ids).create({})
+        wizard.kept_res_id = kept.id
+        counts = {line.model_label: line.count for line in wizard.link_line_ids}
+        self.assertEqual(counts.get('Product Combo Item'), len(combo.combo_item_ids))
+        self.assertNotIn('Product Variant', counts)
