@@ -51,3 +51,20 @@ class TestOnSave(TransactionCase):
         with self.assertQueryCount(__system__=25):
             self.env['res.partner'].create({
                 'name': 'Cost2', 'email': 'd@cost-t002.com', 'city': 'Nice2', 'street': 'Rue 2'})
+
+    def test_warning_names_only_records_the_saver_can_read(self):
+        """Requirements: FR-DRD-0003, BR-DRD-0004. A shared record's warning hides other companies' records."""
+        company_a = self.env.company
+        company_b = self.env['res.company'].create({'name': 'T002 Company B'})
+        saver = self.env['res.users'].create({
+            'name': 'T002 saver', 'login': 't002-saver',
+            'company_id': company_a.id, 'company_ids': [Command.set(company_a.ids)],
+            'group_ids': [Command.set([
+                self.env.ref('base.group_user').id, self.env.ref('base.group_partner_manager').id])],
+        })
+        self.env['res.partner'].create({
+            'name': 'Hidden Of B', 'email': 'x@scope-t002.com', 'company_id': company_b.id})
+        mark = self.env['bus.bus'].sudo().search([], order='id desc', limit=1).id or 0
+        self.env['res.partner'].with_user(saver).create({'name': 'Shared', 'email': 'x@scope-t002.com'})
+        messages = self.env['bus.bus'].sudo().search([('id', '>', mark)]).mapped('message')
+        self.assertFalse([m for m in messages if 'Hidden Of B' in m])

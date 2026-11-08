@@ -24,9 +24,18 @@ class DuplicateGroupLine(models.Model):
         for line in self:
             # sudo: a manager may review sets of records of a company they cannot open
             record = line.env[line.res_model].sudo().with_context(active_test=False).browse(line.res_id)
+            if not record.exists():
+                line.matched_values = ''
+                continue
             line.matched_values = ' · '.join(
-                f"{c.field_id.field_description}: {record[c.field_id.name].display_name if c.field_type == 'many2one' else record[c.field_id.name] or ''}"
-                for c in line.group_id.rule_id.condition_ids) if record.exists() else ''
+                f"{c.field_id.field_description}: {self._display_value(record, c)}"
+                for c in line.group_id.rule_id.condition_ids)
+
+    @staticmethod
+    def _display_value(record: models.BaseModel, condition: models.BaseModel) -> str:
+        """Return the readable value of a rule's field on a record."""
+        value = record[condition.field_id.name]
+        return value.display_name if condition.field_type == 'many2one' else value or ''
 
     @api.depends('res_model', 'res_id')
     def _compute_record_state(self) -> None:

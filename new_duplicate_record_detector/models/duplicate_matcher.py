@@ -53,7 +53,10 @@ class DuplicateMatcher(models.AbstractModel):
         return len(shorter) >= MIN_PARTIAL_LENGTH and shorter in longer
 
     def _candidates(self, Model: models.BaseModel, record: models.BaseModel, wanted: dict) -> models.BaseModel:
-        """Search the records that could match: same company or shared, and the SQL prefilter."""
+        """Requirements: NFR-DRD-0001, BR-DRD-0004.
+
+        Search the records that could match: same company or shared, and the SQL prefilter.
+        """
         domain = [('id', '!=', record.id)]
         if record.company_id:
             domain.append(('company_id', 'in', [False, record.company_id.id]))
@@ -67,7 +70,7 @@ class DuplicateMatcher(models.AbstractModel):
         return Model.browse(query.get_result_ids())
 
     def _text_filter(self, query, condition: models.BaseModel, value: str) -> SQL:
-        """Return the SQL that keeps every record the Python judgement could accept (a superset)."""
+        """Requirements: NFR-DRD-0001 (keep every record the Python judgement could accept: a superset)."""
         column = SQL("lower(btrim(%s))", query.table[condition.field_id.name])
         if condition.match_type == 'exact':
             return SQL("%s = %s", column, value)

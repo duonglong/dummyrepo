@@ -78,7 +78,8 @@ class DuplicateGroup(models.Model):
         for other in groups[1:].filtered(lambda g: not (g.company_id and target.company_id)
                                          or g.company_id == target.company_id):
             target._absorb(other)
-        target.company_id = target.company_id or company
+        if company and not target.company_id:
+            target.company_id = company
         present = target.line_ids.mapped('res_id')
         self.env['duplicate.group.line'].create([{
             'group_id': target.id, 'res_model': record._name, 'res_id': record.id,
