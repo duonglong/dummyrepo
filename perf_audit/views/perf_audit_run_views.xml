@@ -93,6 +93,7 @@
                             <field name="stats_reset_date"/>
                             <field name="stats_reset_source"/>
                             <field name="weak_evidence"/>
+                            <field name="thresholds_used"/>
                         </group>
                     </group>
                     <notebook>
@@ -103,6 +104,8 @@
                                     <field name="check_id"/>
                                     <field name="state"/>
                                     <field name="reason"/>
+                                    <field name="part_skip_reason"/>
+                                    <field name="thresholds_used"/>
                                     <field name="finding_count"/>
                                     <field name="duration"/>
                                 </list>

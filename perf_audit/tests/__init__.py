@@ -38,3 +38,4 @@ from . import test_check_a6
 from . import test_check_a8
 from . import test_end_to_end
 from . import test_finding_suggestions
+from . import test_views

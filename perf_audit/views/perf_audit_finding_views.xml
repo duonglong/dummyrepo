@@ -6,6 +6,10 @@
         <field name="arch" type="xml">
             <list>
                 <field name="code"/>
+                <field name="comparison_state" widget="badge"
+                       decoration-success="comparison_state == 'fixed'"
+                       decoration-danger="comparison_state == 'regressed'"
+                       decoration-info="comparison_state == 'new'"/>
                 <field name="severity"/>
                 <field name="message"/>
                 <field name="table_name"/>
@@ -60,6 +64,12 @@
                     <group string="Proposed fix">
                         <field name="fix_statement"/>
                         <field name="code_suggestion"/>
+                    </group>
+                    <group string="Applied" invisible="apply_state == 'none'">
+                        <field name="apply_state"/>
+                        <field name="applied_by"/>
+                        <field name="applied_date"/>
+                        <field name="apply_error" invisible="not apply_error"/>
                     </group>
                 </sheet>
             </form>
