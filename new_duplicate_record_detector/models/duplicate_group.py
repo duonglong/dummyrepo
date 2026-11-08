@@ -102,3 +102,19 @@ class DuplicateGroup(models.Model):
         """
         self.filtered(lambda g: g.state == 'open').write({'state': 'not_duplicate'})
         return True
+
+    def action_merge_preview(self) -> dict:
+        """Requirements: FR-DRD-0009, FR-DRD-0017.
+
+        Open the merge preview of this set. The preview itself refuses anyone who is not a
+        duplicate manager or administrator.
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Merge preview"),
+            'res_model': 'duplicate.merge.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'active_model': self._name, 'active_id': self.id, 'active_ids': self.ids},
+        }

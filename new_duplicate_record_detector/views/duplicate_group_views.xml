@@ -23,6 +23,9 @@
                     <button name="action_not_duplicate" type="object" string="Not a duplicate"
                             invisible="state != 'open'"
                             groups="new_duplicate_record_detector.group_duplicate_manager"/>
+                    <button name="action_merge_preview" type="object" string="Merge"
+                            class="btn-primary" invisible="state != 'open'"
+                            groups="new_duplicate_record_detector.group_duplicate_manager"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
