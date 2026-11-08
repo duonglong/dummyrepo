@@ -46,10 +46,17 @@ class TestA4Own(AuditAcceptanceCase):
         self.assertEqual(self.result(run, 'A4').state, 'done')
 
     def test_thresholds_are_strict(self):
-        """FR-OPA-0009: exactly 10,000 dead rows, or exactly 20 percent, is not reported."""
+        """FR-OPA-0009: exactly 10,000 dead rows is not reported, just above the share is."""
         _run, found = self._run_a4({'at_rows': _stats(10000, 10000), 'at_share': _stats(40000, 10001)})
         self.assertFalse(found.filtered(lambda f: f.table_name == 'at_rows'))
         self.assertEqual(found.table_name, 'at_share')
+
+    def test_exact_dead_share_threshold_is_not_reported(self):
+        """Regression test for B-0121: exactly 20 percent dead is not reported.
+
+        Requirements: FR-OPA-0009, NFR-OPA-0004
+        Own run, so no earlier run adds a fixed row to it (FR-OPA-0030).
+        """
         _run, found = self._run_a4({'exact_share': _stats(40000, 10000)})
         self.assertFalse(found)
 
