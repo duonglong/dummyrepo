@@ -5,6 +5,7 @@ from odoo.service.model import get_public_method
 
 from ..checks.a1_seq_scan import SeqScanCheck
 from ..checks.base import AuditContext
+from ..models.perf_audit_probe import PerfAuditProbe
 from .acceptance_base import AuditAcceptanceCase
 
 
@@ -68,4 +69,18 @@ class TestA1Own(AuditAcceptanceCase):
         probe = self.env['perf.audit.probe']
         for name in ('scan_statistics', 'index_definitions'):
             with self.assertRaises(AccessError):
+                get_public_method(probe, name)
+
+    def test_bug_b_0119_every_probe_method_is_not_callable_remotely(self):
+        """Regression test for B-0119: no public method of the probe can be called through call_kw.
+
+        Requirements: FR-OPA-0033, NFR-OPA-0005
+        """
+        probe = self.env['perf.audit.probe']
+        public_names = [
+            name for name, member in vars(PerfAuditProbe).items()
+            if not name.startswith('_') and callable(member)]
+        self.assertIn('estimated_rows', public_names)
+        for name in public_names:
+            with self.subTest(method=name), self.assertRaises(AccessError):
                 get_public_method(probe, name)

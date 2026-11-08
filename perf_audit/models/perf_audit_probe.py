@@ -24,6 +24,7 @@ class PerfAuditProbe(models.AbstractModel):
     _name = 'perf.audit.probe'
     _description = 'Performance audit database probe'
 
+    @api.private
     def set_statement_timeout(self, milliseconds):
         """Limit every statement of the current transaction; return the previous limit.
 
@@ -34,10 +35,12 @@ class PerfAuditProbe(models.AbstractModel):
         self.env.cr.execute("SELECT set_config('statement_timeout', %s, true)", [str(int(milliseconds))])
         return previous
 
+    @api.private
     def restore_statement_timeout(self, previous):
         """Put back the limit `set_statement_timeout` returned."""
         self.env.cr.execute("SELECT set_config('statement_timeout', %s, true)", [previous])
 
+    @api.private
     def estimated_rows(self):
         """Estimated live rows per table of the public schema, from the catalog statistics.
 
@@ -268,6 +271,7 @@ class PerfAuditProbe(models.AbstractModel):
         keys = ('pid', 'application_name', 'query', 'table', 'blockers')
         return [dict(zip(keys, row)) for row in self.env.cr.fetchall()]
 
+    @api.private
     def distinct_values(self, table, column):
         """Estimated number of distinct values of a column, from the planner statistics, or None.
 
@@ -294,6 +298,7 @@ class PerfAuditProbe(models.AbstractModel):
             return listed_values
         return -n_distinct * self.estimated_rows().get(table, 0)
 
+    @api.private
     def table_updates(self):
         """Row updates per table since the statistics were reset.
 
@@ -302,11 +307,13 @@ class PerfAuditProbe(models.AbstractModel):
         self.env.cr.execute("SELECT relname, n_tup_upd FROM pg_stat_user_tables WHERE schemaname = current_schema()")
         return dict(self.env.cr.fetchall())
 
+    @api.private
     def installed_extensions(self):
         """Names of the extensions installed in the database."""
         self.env.cr.execute('SELECT extname FROM pg_extension')
         return {name for (name,) in self.env.cr.fetchall()}
 
+    @api.private
     def indexed_leading_columns(self):
         """The (table, column) pairs that are the first column of at least one index.
 
