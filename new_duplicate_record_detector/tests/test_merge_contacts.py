@@ -159,3 +159,22 @@ class TestMergeOtherOpenSets(TransactionCase):
         self.assertCountEqual(by_name.line_ids.mapped('res_id'), [self.x.id, self.z.id])
         self.assertEqual(by_name.record_count, 2)
         self.assertNotIn('Xavier Co ,', by_name.record_names)
+
+    def test_bug_b_0140_left_out_record_is_reported_again_by_the_next_full_check(self):
+        """Regression test for B-0140: a record left out of a merge is not part of the merged set,
+        so the next full check still pairs it with the kept record.
+
+        Requirements: FR-DRD-0005, FR-DRD-0006, FR-DRD-0013
+        """
+        group = self._open_set(self.rule_name, self.x | self.y | self.z)
+        wizard = self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model='duplicate.group', active_id=group.id, active_ids=group.ids).create({})
+        wizard.record_line_ids.filtered(lambda line: line.res_id == self.z.id).include = False
+        wizard.action_merge()
+        self.env.invalidate_all()
+        self.assertNotIn(self.z.id, group.line_ids.mapped('res_id'))
+        self.env['duplicate.full.check'].replace_open_sets(self.rule_name)
+        open_sets = self.env['duplicate.group'].sudo().search([
+            ('rule_id', '=', self.rule_name.id), ('state', '=', 'open')])
+        self.assertEqual(len(open_sets), 1)
+        self.assertEqual(set(open_sets.line_ids.mapped('res_id')), {self.x.id, self.z.id})

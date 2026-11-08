@@ -517,18 +517,20 @@ class DuplicateMergeWizard(models.TransientModel):
     def _mark_group_merged(self, kept: models.BaseModel, included_ids: set[int]) -> None:
         """Requirements: FR-DRD-0013, BR-DRD-0004.
 
-        Mark the set merged; the records left out of the merge stay listed, with the kept record,
-        in a new open set. Every other open set, of any rule, that holds a merged-away record
+        Mark the set merged, holding only the records merged; the records left out of the merge
+        move, with the kept record, to a new open set so a full check can report them again. Every other open set, of any rule, that holds a merged-away record
         gets the kept record in its place.
         """
         group = self.group_id
         left_out = group.line_ids.filtered(lambda line: line.res_id not in included_ids)
+        left_out_ids = left_out.mapped('res_id')
+        left_out.unlink()
         if group:
             self._close_group(group, kept)
         self._replace_in_open_sets(kept, included_ids - {kept.id})
         if not group:
             return
-        left_out_records = self.env[self.res_model].browse(left_out.mapped('res_id')).exists()
+        left_out_records = self.env[self.res_model].browse(left_out_ids).exists()
         if left_out_records:
             records = kept | left_out_records
             self.env['duplicate.group'].create({
