@@ -69,3 +69,8 @@ class TestFinding(PerfAuditCase):
         finding.query_text = 'w' * 700
         self.assertEqual(finding.query_text, 'w' * 500)
         self.assertEqual(self._finding(identity_key='e', query_text='e' * 500).query_text, 'e' * 500)
+
+    def test_bug_b_0131_finding_is_named_by_its_message(self):
+        """FR-OPA-0029: the confirmation names the finding by its message, not by a record reference."""
+        finding = self._finding(message='Index x_line_p_idx is never used')
+        self.assertEqual(finding.display_name, 'Index x_line_p_idx is never used')

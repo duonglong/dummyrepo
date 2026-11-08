@@ -31,6 +31,7 @@ class PerfAuditFinding(models.Model):
 
     _name = 'perf.audit.finding'
     _description = 'Performance audit finding'
+    _rec_name = 'message'
     _order = 'code, severity_rank, check_rank, identity_key'
 
     run_id = fields.Many2one('perf.audit.run', required=True, index=True, ondelete='cascade')
