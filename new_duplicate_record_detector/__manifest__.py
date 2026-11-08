@@ -9,6 +9,7 @@
         'security/ir.access.csv',
         'data/ir_cron.xml',
         'views/duplicate_group_views.xml',
+        'wizard/duplicate_merge_wizard_views.xml',
         'views/duplicate_rule_views.xml',
         'views/menus.xml',
     ],
