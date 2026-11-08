@@ -102,3 +102,17 @@ class TestRunsListAndFindingsTab(TransactionCase):
         first, second = self.env['perf.audit.run'].create([
             {'start_date': '2026-11-08 02:00:05'}, {'start_date': '2026-11-08 02:00:41'}])
         self.assertNotEqual(first.name, second.name)
+
+    def test_bug_b_0129_findings_of_a_run_open_grouped_by_check(self):
+        """FR-OPA-0030: every stat button of the run form opens the findings grouped by check."""
+        arch = self._arch('perf_audit_run_view_form')
+        buttons = arch.xpath("//div[@name='button_box']/button")
+        self.assertTrue(buttons)
+        for button in buttons:
+            self.assertIn('search_default_group_code', button.get('context'))
+
+    def test_bug_b_0129_findings_count_button_leaves_out_fixed_rows_like_its_figure(self):
+        """FR-OPA-0030: the Findings button opens the rows its count holds, the ones not marked fixed."""
+        arch = self._arch('perf_audit_run_view_form')
+        button = arch.xpath("//div[@name='button_box']/button[.//field[@name='finding_count']]")[0]
+        self.assertIn('search_default_not_fixed', button.get('context'))

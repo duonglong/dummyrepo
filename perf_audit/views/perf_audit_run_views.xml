@@ -64,22 +64,22 @@
                     <div class="oe_button_box" name="button_box">
                         <button name="%(perf_audit_finding_compare_action)d" type="action"
                                 class="oe_stat_button" icon="fa-list"
-                                context="{'search_default_run_id': id}">
+                                context="{'search_default_run_id': id, 'search_default_group_code': 1, 'search_default_not_fixed': 1}">
                             <field name="finding_count" string="Findings" widget="statinfo"/>
                         </button>
                         <button name="%(perf_audit_finding_compare_action)d" type="action"
                                 class="oe_stat_button" icon="fa-plus"
-                                context="{'search_default_run_id': id, 'search_default_new': 1}">
+                                context="{'search_default_run_id': id, 'search_default_group_code': 1, 'search_default_new': 1}">
                             <field name="new_count" string="New" widget="statinfo"/>
                         </button>
                         <button name="%(perf_audit_finding_compare_action)d" type="action"
                                 class="oe_stat_button" icon="fa-check"
-                                context="{'search_default_run_id': id, 'search_default_fixed': 1}">
+                                context="{'search_default_run_id': id, 'search_default_group_code': 1, 'search_default_fixed': 1}">
                             <field name="fixed_count" string="Fixed" widget="statinfo"/>
                         </button>
                         <button name="%(perf_audit_finding_compare_action)d" type="action"
                                 class="oe_stat_button" icon="fa-undo"
-                                context="{'search_default_run_id': id, 'search_default_regressed': 1}">
+                                context="{'search_default_run_id': id, 'search_default_group_code': 1, 'search_default_regressed': 1}">
                             <field name="regressed_count" string="Regressed" widget="statinfo"/>
                         </button>
                     </div>
