@@ -1,5 +1,7 @@
 import logging
 
+from datetime import timedelta
+
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.modules import module as odoo_module
@@ -7,6 +9,7 @@ from odoo.modules import module as odoo_module
 _logger = logging.getLogger(__name__)
 
 WATCHED_MODELS = ('res.partner', 'product.template')
+STALE_CHECK_HOURS = 1
 
 
 class DuplicateRule(models.Model):
@@ -120,14 +123,49 @@ class DuplicateRule(models.Model):
 
     @api.model
     def _cron_run_full_checks(self) -> None:
-        """Requirements: FR-DRD-0005 (run the full checks that were asked for and not yet run)."""
-        rules = self
+        """Requirements: FR-DRD-0005, NFR-DRD-0002.
+
+        Fail the rules a dead worker left running, then run the queued rules one by one, each
+        committed as running before it starts and again with its result, so a job killed by its
+        time limit loses only the rule it was on.
+        """
+        jobs = self
         if odoo_module.current_test:
             # The job runs on its own connection, which cannot see what a running test has not
             # committed: in a test it works on the test's own transaction instead.
-            rules = odoo_module.current_test.env['duplicate.rule']
-        for rule in rules.search([('check_state', '=', 'queued')], order='id'):
+            jobs = odoo_module.current_test.env['duplicate.rule']
+        jobs._fail_stale_checks()
+        while rule := jobs._claim_queued_check():
             rule._run_full_check()
+            jobs._commit_check_progress()
+
+    @api.model
+    def _fail_stale_checks(self) -> None:
+        """Requirements: NFR-DRD-0002 (a rule running longer than STALE_CHECK_HOURS is failed)."""
+        limit = fields.Datetime.now() - timedelta(hours=STALE_CHECK_HOURS)
+        stale = self.with_context(active_test=False).search(
+            [('check_state', '=', 'running'), ('write_date', '<', limit)])
+        for rule in stale:
+            rule._fail_check(self.env._("The check did not finish within %s hour(s).", STALE_CHECK_HOURS))
+
+    @api.model
+    def _claim_queued_check(self) -> 'DuplicateRule':
+        """Requirements: FR-DRD-0005. Take the next queued rule no other worker holds and mark it running."""
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT id FROM duplicate_rule WHERE check_state = 'queued' "
+            "ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED")
+        rule = self.browse([row[0] for row in self.env.cr.fetchall()])
+        if rule:
+            rule.check_state = 'running'
+            self._commit_check_progress()
+        return rule
+
+    @api.model
+    def _commit_check_progress(self) -> None:
+        """Commit so the state of a rule survives a job killed by its time limit (a test keeps its transaction)."""
+        if not odoo_module.current_test:
+            self.env.cr.commit()
 
     def _run_full_check(self) -> None:
         """Requirements: FR-DRD-0005, FR-DRD-0006, NFR-DRD-0002.
@@ -142,11 +180,20 @@ class DuplicateRule(models.Model):
                 count = self.env['duplicate.full.check'].replace_open_sets(self)
         except Exception as error:  # noqa: BLE001 - any failure closes the check as failed
             _logger.exception("Full check of rule %s failed", self.id)
-            self.write({'check_state': 'failed', 'last_check_error': str(error) or type(error).__name__})
+            self._fail_check(str(error) or type(error).__name__)
             return
         self.write({'check_state': 'done', 'last_check_date': fields.Datetime.now(),
                     'last_check_group_count': count, 'last_check_error': False})
         self._notify_check_result(count)
+
+    def _fail_check(self, reason: str) -> None:
+        """Requirements: FR-DRD-0005. Close the check as failed and tell the person who asked."""
+        self.write({'check_state': 'failed', 'last_check_error': reason})
+        self.check_user_id._bus_send('simple_notification', {
+            'title': self.env._("Full check failed"),
+            'message': self.env._("The rule %(rule)s failed: %(reason)s", rule=self.name, reason=reason),
+            'type': 'danger',
+        })
 
     def _notify_check_result(self, count: int) -> None:
         """Tell the person who asked for the check how many sets it found."""

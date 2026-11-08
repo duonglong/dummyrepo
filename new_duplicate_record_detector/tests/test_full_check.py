@@ -1,9 +1,11 @@
 import time
+from datetime import timedelta
 from unittest.mock import patch
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.new_duplicate_record_detector.models import duplicate_rule as duplicate_rule_module
 from odoo.addons.new_duplicate_record_detector.models.duplicate_matcher import DuplicateMatcher
 
 PERFORMANCE_BOUND_SECONDS = 120
@@ -129,3 +131,91 @@ class TestFullCheck(TransactionCase):
         rule = self._rule([('name', 'partial')])
         self.assertEqual(self.check.replace_open_sets(rule), 1)
         self.assertEqual(set(self._sets(rule).line_ids.mapped('res_id')), {a.id, b.id})
+
+
+class TestFullCheckJob(TransactionCase):
+    """The background job runs one rule at a time and tells the asker how it ended.
+
+    Requirements: FR-DRD-0005, NFR-DRD-0002
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Rule = cls.env['duplicate.rule']
+
+    def _queued_rule(self, name):
+        rule = self.Rule.create({
+            'name': name, 'model_id': self.env['ir.model']._get('res.partner').id,
+            'condition_ids': [Command.create({
+                'field_id': self.env['ir.model.fields']._get('res.partner', 'email').id,
+                'match_type': 'exact'})]})
+        rule.write({'check_state': 'queued', 'check_user_id': self.env.user.id})
+        return rule
+
+    def _messages_since(self, mark):
+        self.env.cr.precommit.run()
+        return self.env['bus.bus'].sudo().search([('id', '>', mark)]).mapped('message')
+
+    def _last_bus_id(self):
+        return self.env['bus.bus'].sudo().search([], order='id desc', limit=1).id or 0
+
+    def test_bug_b_0145_each_rule_is_committed_running_then_with_its_result(self):
+        """Regression test for B-0145: a rule is committed as running before it runs, then with its result.
+
+        Requirements: FR-DRD-0005, NFR-DRD-0002
+        """
+        first, second = self._queued_rule('Job one'), self._queued_rule('Job two')
+        self.env.flush_all()
+        committed = []
+
+        def record_states():
+            self.env.flush_all()
+            self.env.cr.execute(
+                "SELECT check_state FROM duplicate_rule WHERE id IN %s ORDER BY id",
+                [(first.id, second.id)])
+            committed.append(tuple(state for (state,) in self.env.cr.fetchall()))
+
+        with patch.object(self.env.cr, 'commit', side_effect=record_states), \
+                patch.object(duplicate_rule_module.odoo_module, 'current_test', None):
+            self.Rule._cron_run_full_checks()
+        self.assertEqual(committed, [
+            ('running', 'queued'), ('done', 'queued'), ('done', 'running'), ('done', 'done')])
+
+    def test_bug_b_0145_rule_running_for_over_an_hour_is_reset_to_failed(self):
+        """Regression test for B-0145: a rule left running by a dead worker is failed, not stuck.
+
+        Requirements: FR-DRD-0005, NFR-DRD-0002
+        """
+        stuck, busy = self._queued_rule('Stuck'), self._queued_rule('Busy')
+        (stuck | busy).write({'check_state': 'running'})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE duplicate_rule SET write_date = %s WHERE id = %s",
+            [fields.Datetime.now() - timedelta(hours=2), stuck.id])
+        self.env.cr.execute(
+            "UPDATE duplicate_rule SET write_date = %s WHERE id = %s",
+            [fields.Datetime.now() - timedelta(minutes=30), busy.id])
+        self.env.invalidate_all()
+        mark = self._last_bus_id()
+        self.Rule._cron_run_full_checks()
+        self.assertEqual(stuck.check_state, 'failed')
+        self.assertTrue(stuck.last_check_error)
+        self.assertEqual(busy.check_state, 'running')
+        self.assertTrue(any('danger' in m and 'Stuck' in m for m in self._messages_since(mark)))
+
+    def test_bug_b_0145_failed_check_notifies_the_asker_with_the_reason(self):
+        """Regression test for B-0145: a failing check sends a danger notice naming the reason.
+
+        Requirements: FR-DRD-0005
+        """
+        rule = self._queued_rule('Failing job')
+        mark = self._last_bus_id()
+        with patch.object(
+                type(self.env['duplicate.full.check']), 'replace_open_sets',
+                side_effect=ValueError('matcher broke')):
+            self.Rule._cron_run_full_checks()
+        self.assertEqual(rule.check_state, 'failed')
+        self.assertTrue(any(
+            'danger' in m and 'matcher broke' in m and 'Failing job' in m
+            for m in self._messages_since(mark)))
