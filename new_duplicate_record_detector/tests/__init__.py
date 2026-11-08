@@ -2,5 +2,8 @@ from . import test_duplicate_rule_acceptance
 from . import test_duplicate_rule
 from . import test_on_save_acceptance
 from . import test_full_check_acceptance
+from . import test_merge_preview_acceptance
+from . import test_merge_contacts_acceptance
+from . import test_merge_products_acceptance
 from . import test_matching
 from . import test_on_save
