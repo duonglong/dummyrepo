@@ -92,3 +92,70 @@ class TestMergeContacts(TransactionCase):
         self._wizard(self.acme | self.ltd).action_merge()
         self.env.invalidate_all()
         self.assertEqual(activity.res_id, self.acme.id)
+
+
+class TestMergeOtherOpenSets(TransactionCase):
+    """Regression tests for B-0137: a merge cleans every open set holding a merged-away record.
+
+    Requirements: FR-DRD-0007, FR-DRD-0013, BR-DRD-0004.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        groups = cls.env.ref('base.group_user') | cls.env.ref('base.group_partner_manager') | cls.env.ref(
+            'new_duplicate_record_detector.group_duplicate_manager')
+        cls.manager = cls.env['res.users'].create({
+            'name': 'Sets Mgr', 'login': 'sets_mgr_b0137', 'group_ids': [Command.set(groups.ids)]})
+        cls.x = cls.env['res.partner'].create({'name': 'Xavier Co'})
+        cls.y = cls.env['res.partner'].create({'name': 'Xavier Co '})
+        cls.z = cls.env['res.partner'].create({'name': 'Xavier Co  '})
+        cls.rule_email = cls._rule('Same e-mail', 'email')
+        cls.rule_name = cls._rule('Same name', 'name')
+
+    @classmethod
+    def _rule(cls, name, field_name):
+        return cls.env['duplicate.rule'].create({
+            'name': name, 'model_id': cls.env['ir.model']._get('res.partner').id,
+            'condition_ids': [Command.create({
+                'field_id': cls.env['ir.model.fields']._get('res.partner', field_name).id,
+                'match_type': 'exact'})]})
+
+    def _open_set(self, rule, partners):
+        return self.env['duplicate.group'].create({
+            'rule_id': rule.id, 'model_name': 'res.partner',
+            'line_ids': [Command.create({
+                'res_model': 'res.partner', 'res_id': p.id, 'name': p.display_name})
+                for p in partners]})
+
+    def _merge(self, partners, group=None):
+        context = {'active_model': 'res.partner', 'active_ids': partners.ids}
+        if group:
+            context = {'active_model': 'duplicate.group', 'active_id': group.id, 'active_ids': group.ids}
+        self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(**context).create({}).action_merge()
+        self.env.invalidate_all()
+
+    def test_bug_b_0137_merge_from_a_set_cleans_the_sets_of_other_rules(self):
+        """Regression test for B-0137: the other rule's set {X, Y} drops Y and closes as merged.
+
+        Requirements: FR-DRD-0013, BR-DRD-0004
+        """
+        by_email = self._open_set(self.rule_email, self.x | self.y)
+        by_name = self._open_set(self.rule_name, self.x | self.y)
+        self._merge(self.x | self.y, by_email)
+        self.assertEqual(by_email.state, 'merged')
+        self.assertEqual(by_name.state, 'merged')
+        self.assertNotIn(self.y.id, by_name.line_ids.mapped('res_id'))
+
+    def test_bug_b_0137_merge_from_a_list_repoints_open_sets(self):
+        """Regression test for B-0137: a merge from a list selection re-points the merged-away
+        record to the kept one in an open set that also holds a third record.
+
+        Requirements: FR-DRD-0013, BR-DRD-0004
+        """
+        by_name = self._open_set(self.rule_name, self.y | self.z)
+        self._merge(self.x | self.y)
+        self.assertEqual(by_name.state, 'open')
+        self.assertCountEqual(by_name.line_ids.mapped('res_id'), [self.x.id, self.z.id])
+        self.assertEqual(by_name.record_count, 2)
+        self.assertNotIn('Xavier Co ,', by_name.record_names)

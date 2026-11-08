@@ -515,18 +515,19 @@ class DuplicateMergeWizard(models.TransientModel):
             kept.write(values)
 
     def _mark_group_merged(self, kept: models.BaseModel, included_ids: set[int]) -> None:
-        """Requirements: FR-DRD-0013.
+        """Requirements: FR-DRD-0013, BR-DRD-0004.
 
         Mark the set merged; the records left out of the merge stay listed, with the kept record,
-        in a new open set.
+        in a new open set. Every other open set, of any rule, that holds a merged-away record
+        gets the kept record in its place.
         """
         group = self.group_id
+        left_out = group.line_ids.filtered(lambda line: line.res_id not in included_ids)
+        if group:
+            self._close_group(group, kept)
+        self._replace_in_open_sets(kept, included_ids - {kept.id})
         if not group:
             return
-        left_out = group.line_ids.filtered(lambda line: line.res_id not in included_ids)
-        group.write({
-            'state': 'merged', 'kept_res_id': kept.id, 'kept_name': kept.display_name,
-            'merge_date': fields.Datetime.now(), 'merge_user_id': self.env.uid})
         left_out_records = self.env[self.res_model].browse(left_out.mapped('res_id')).exists()
         if left_out_records:
             records = kept | left_out_records
@@ -538,6 +539,33 @@ class DuplicateMergeWizard(models.TransientModel):
                     'name': record.display_name, 'company_id': record.company_id.id,
                 }) for record in records],
             })
+
+    def _close_group(self, group: models.BaseModel, kept: models.BaseModel) -> None:
+        """Mark a set merged into the kept record."""
+        group.write({
+            'state': 'merged', 'kept_res_id': kept.id, 'kept_name': kept.display_name,
+            'merge_date': fields.Datetime.now(), 'merge_user_id': self.env.uid})
+
+    def _replace_in_open_sets(self, kept: models.BaseModel, merged_away_ids: set[int]) -> None:
+        """Requirements: FR-DRD-0013, BR-DRD-0004.
+
+        Put the kept record in the place of the merged-away records in every open set, drop the
+        duplicate lines, and close as merged a set left with fewer than 2 records.
+        """
+        lines = self.env['duplicate.group.line'].search([
+            ('group_id.state', '=', 'open'), ('res_model', '=', kept._name),
+            ('res_id', 'in', list(merged_away_ids))])
+        groups = lines.group_id
+        for group in groups:
+            group_lines = lines.filtered(lambda line: line.group_id == group)
+            if kept.id in group.line_ids.mapped('res_id'):
+                group_lines.unlink()
+            else:
+                group_lines[1:].unlink()
+                group_lines[:1].write({
+                    'res_id': kept.id, 'name': kept.display_name, 'company_id': kept.company_id.id})
+        for group in groups.filtered(lambda g: len(g.line_ids) < 2):
+            self._close_group(group, kept)
 
     def _post_merge_note(self, kept: models.BaseModel, merged_names: list[str]) -> None:
         """Requirements: FR-DRD-0013 (a note on the kept record names the merged-away records)."""
