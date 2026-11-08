@@ -266,7 +266,7 @@ class PerfAuditRun(models.Model):
             _logger.warning('Audit check %s failed', check.code, exc_info=True)
             outcome = {'state': 'failed', 'reason': str(error) or type(error).__name__}
         else:
-            outcome = {'state': 'done', 'finding_count': len(created)}
+            outcome = {'state': 'done', 'finding_count': len(created), **ctx.outcome}
         outcome['duration'] = time.monotonic() - started
         return outcome
 

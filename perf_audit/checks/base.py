@@ -29,7 +29,19 @@ SEVERITY = {
     ('B7', 'shared'): 'low',
 }
 
+BYTES_PER_MEGABYTE = 1024 * 1024
+
 _REGISTRY = {}
+
+
+def table_models(env):
+    """Name of the model that owns each table, by table name (the first by name when several share one)."""
+    owners = {}
+    for model_name in sorted(env.registry):
+        model = env[model_name]
+        if not model._abstract and model._auto:
+            owners.setdefault(model._table, model_name)
+    return owners
 
 
 def severity_for(code, kind=None):
@@ -48,6 +60,8 @@ class AuditContext:
     probe: object
     thresholds: dict = field(default_factory=dict)
     run: object = None
+    # values a check adds to its result line: part_skip_reason, measures
+    outcome: dict = field(default_factory=dict)
 
 
 class Check(ABC):
