@@ -58,8 +58,9 @@
                         <field name="query_text"/>
                     </group>
                     <group string="Statistics read">
-                        <field name="evidence" nolabel="1"/>
-                        <field name="references" nolabel="1"/>
+                        <field name="evidence_text" nolabel="1" colspan="2"/>
+                        <field name="references_text" nolabel="1" colspan="2"
+                               invisible="not references_text"/>
                     </group>
                     <group string="Proposed fix">
                         <field name="fix_statement"/>

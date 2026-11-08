@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.tests.common import tagged
 
 from .common import PerfAuditCase
@@ -74,3 +76,25 @@ class TestFinding(PerfAuditCase):
         """FR-OPA-0029: the confirmation names the finding by its message, not by a record reference."""
         finding = self._finding(message='Index x_line_p_idx is never used')
         self.assertEqual(finding.display_name, 'Index x_line_p_idx is never used')
+
+    def test_bug_b_0130_evidence_is_shown_as_labelled_lines(self):
+        """FR-OPA-0026: the evidence reads as one labelled value per line, not as raw JSON."""
+        finding = self._finding(evidence={'seq_scan': 900, 'idx_scan': 100, 'models': ['sale.order']})
+        self.assertEqual(finding.evidence_text, 'Seq scan: 900\nIdx scan: 100\nModels: sale.order')
+
+    def test_bug_b_0130_no_evidence_gives_no_text(self):
+        """FR-OPA-0026: a finding without evidence shows an empty block."""
+        self.assertFalse(self._finding().evidence_text)
+
+    def test_bug_b_0130_references_are_shown_as_labelled_lines(self):
+        """FR-OPA-0026: the other places of a finding read as labelled lines, not as raw JSON."""
+        finding = self._finding(references={'indexes': ['a_idx', 'b_idx']})
+        self.assertEqual(finding.references_text, 'Indexes: a_idx, b_idx')
+
+    def test_bug_b_0130_finding_form_shows_the_readable_evidence_not_the_json(self):
+        """FR-OPA-0026: the finding form holds the readable fields and not the raw JSON fields."""
+        view = self.env.ref('perf_audit.perf_audit_finding_view_form')
+        arch = etree.fromstring(self.env['perf.audit.finding'].get_view(view.id)['arch'])
+        names = {node.get('name') for node in arch.xpath('//field')}
+        self.assertLessEqual({'evidence_text', 'references_text'}, names)
+        self.assertFalse({'evidence', 'references'} & names)

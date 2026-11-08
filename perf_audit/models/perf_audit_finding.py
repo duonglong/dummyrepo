@@ -20,6 +20,26 @@ def _quote(name):
     return '"%s"' % str(name).replace('"', '""')
 
 
+def _readable(value):
+    """One value as plain text: a list joins its items, a mapping reads as key=value pairs."""
+    if isinstance(value, dict):
+        return ', '.join('%s=%s' % (key, _readable(item)) for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return '; '.join(_readable(item) for item in value) if any(
+            isinstance(item, (dict, list, tuple)) for item in value) else ', '.join(map(str, value))
+    return str(value)
+
+
+def _labelled_lines(value):
+    """A JSON value as one labelled line per key; a bare list gives one line per item."""
+    if not value:
+        return False
+    if not isinstance(value, dict):
+        return '\n'.join(_readable(item) for item in value) if isinstance(value, (list, tuple)) else _readable(value)
+    return '\n'.join(
+        '%s: %s' % (key.replace('_', ' ').capitalize(), _readable(item)) for key, item in value.items())
+
+
 class PerfAuditFinding(models.Model):
     """One problem a check found in a run, with its evidence and its proposed fix.
 
@@ -62,6 +82,8 @@ class PerfAuditFinding(models.Model):
     rule_id = fields.Many2one('ir.access', ondelete='set null')
     cron_id = fields.Many2one('ir.cron', ondelete='set null')
     references = fields.Json()
+    evidence_text = fields.Text(compute='_compute_evidence_text')
+    references_text = fields.Text(compute='_compute_evidence_text')
     # fix
     fix_kind = fields.Selection([
         ('create_index', 'Create index'), ('drop_index', 'Drop index'),
@@ -96,6 +118,16 @@ class PerfAuditFinding(models.Model):
         """
         for finding in self:
             finding.severity_rank = SEVERITY_RANK.get(finding.severity, len(SEVERITY_RANK) + 1)
+
+    @api.depends('evidence', 'references')
+    def _compute_evidence_text(self):
+        """Show the evidence and the other places as labelled lines instead of raw JSON.
+
+        Requirements: FR-OPA-0026
+        """
+        for finding in self:
+            finding.evidence_text = _labelled_lines(finding.evidence)
+            finding.references_text = _labelled_lines(finding.references)
 
     @api.depends('fix_kind', 'fix_params')
     def _compute_fix_statement(self):
