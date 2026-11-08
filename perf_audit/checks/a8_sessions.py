@@ -2,9 +2,9 @@
 
 Requirements: FR-OPA-0014, FR-OPA-0015
 """
-from .base import Check, register, table_models
+from datetime import timedelta
 
-SECONDS_PER_MINUTE = 60
+from .base import Check, register, table_models
 
 
 @register
@@ -26,29 +26,34 @@ class SessionCheck(Check):
         Requirements: FR-OPA-0014
         """
         age = ctx.thresholds['session_age']
-        return [
-            {
-                'kind': 'long',
-                'identity_key': f"A8:long:{session['pid']}",
-                'message': ctx.env._(
-                    'Session %(pid)s (%(app)s) has had a transaction open for %(minutes).1f minutes (%(state)s).',
-                    pid=session['pid'], app=session['application_name'] or ctx.env._('unnamed'),
-                    minutes=session['duration'] / SECONDS_PER_MINUTE, state=session['state']),
-                'query_text': session['query'],
-                'threshold_label': 'session_age',
-                'threshold_value': age,
-                'found_value': session['duration'] / SECONDS_PER_MINUTE,
-                'evidence': {
-                    'pid': session['pid'], 'state': session['state'],
-                    'duration_seconds': session['duration'],
-                    'application_name': session['application_name'],
-                    'query_start': session['query_start'],
-                },
-                'code_suggestion': ctx.env._(
-                    'Find the scheduled action or request behind application %s and make it commit or roll back.',
-                    session['application_name'] or ctx.env._('unnamed')),
-            }
-            for session in ctx.probe.long_sessions(age * SECONDS_PER_MINUTE)]
+        sessions = ctx.probe.long_sessions(timedelta(minutes=age).total_seconds())
+        return [self._long_finding(ctx, session, age) for session in sessions]
+
+    @staticmethod
+    def _long_finding(ctx, session, age):
+        """The finding of one long session: its state, age, application and the start of its query."""
+        minutes = timedelta(seconds=session['duration']) / timedelta(minutes=1)
+        application = session['application_name'] or ctx.env._('unnamed')
+        return {
+            'kind': 'long',
+            'identity_key': f"A8:long:{session['pid']}",
+            'message': ctx.env._(
+                'Session %(pid)s (%(app)s) has had a transaction open for %(minutes).1f minutes (%(state)s).',
+                pid=session['pid'], app=application, minutes=minutes, state=session['state']),
+            'query_text': session['query'],
+            'threshold_label': 'session_age',
+            'threshold_value': age,
+            'found_value': minutes,
+            'evidence': {
+                'pid': session['pid'], 'state': session['state'],
+                'duration_seconds': session['duration'],
+                'application_name': session['application_name'],
+                'query_start': session['query_start'],
+            },
+            'code_suggestion': ctx.env._(
+                'Find the scheduled action or request behind application %s and make it commit or roll back.',
+                application),
+        }
 
     def _lock_chains(self, ctx):
         """One finding per session waiting for a lock, naming its blocking sessions and the table.

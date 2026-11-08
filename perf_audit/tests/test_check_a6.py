@@ -14,7 +14,7 @@ class TestA6Own(AuditAcceptanceCase):
         probe = type(self.env['perf.audit.probe'])
         with patch.object(probe, 'installed_extensions', return_value=set(extensions)), \
                 patch.object(probe, 'statements_readable', return_value=readable), \
-                patch.object(probe, 'top_statements', return_value=statements) as top:
+                patch.object(probe, 'top_statements', side_effect=lambda limit: statements[:limit]) as top:
             run = self.start_run()
         return run, top
 
@@ -29,7 +29,7 @@ class TestA6Own(AuditAcceptanceCase):
         self.assertEqual(found.evidence['models'], ['res.partner', 'res.users'])
 
     def test_limit_is_the_top_threshold(self):
-        """FR-OPA-0012 / SC-OPA-0012-2: the probe is asked for 20 and no more are listed."""
+        """FR-OPA-0012 / SC-OPA-0012-2: the probe is asked for the top 20 and all of them are listed."""
         statements = [_statement(n) for n in range(1, 31)]
         run, top = self._run(statements)
         top.assert_called_once_with(20)

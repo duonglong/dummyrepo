@@ -242,13 +242,18 @@ class PerfAuditProbe(models.AbstractModel):
     def lock_waits(self):
         """Sessions of the current database waiting for a lock, with their blocking sessions and the table locked.
 
+        The table is read from the waiter's own lock: the table lock it waits for (explicit lock or DDL),
+        or else the row (tuple) lock it holds or waits for (two transactions writing the same record).
+
         Requirements: FR-OPA-0015, NFR-OPA-0001, NFR-OPA-0005
         """
         self._read_current_activity()
         self.env.cr.execute("""
             SELECT w.pid, w.application_name, left(w.query, %s),
                    (SELECT l.relation::regclass::text FROM pg_locks l
-                     WHERE l.pid = w.pid AND NOT l.granted AND l.locktype = 'relation' LIMIT 1),
+                     WHERE l.pid = w.pid
+                       AND (l.locktype = 'tuple' OR (l.locktype = 'relation' AND NOT l.granted))
+                     ORDER BY l.granted LIMIT 1),
                    (SELECT json_agg(json_build_object(
                                'pid', b.pid, 'state', b.state,
                                'duration',

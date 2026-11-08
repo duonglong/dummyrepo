@@ -38,7 +38,7 @@ class ExpensiveQueriesCheck(Check):
         statements = ctx.probe.top_statements(top)
         return [
             self._finding(ctx, rank, statement, self._tables_of(statement['query'], owners), owners)
-            for rank, statement in enumerate(statements[:top], start=1)]
+            for rank, statement in enumerate(statements, start=1)]
 
     @staticmethod
     def _tables_of(query, owners):
