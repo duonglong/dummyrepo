@@ -102,3 +102,28 @@ class TestOnSave(TransactionCase):
         for members in sets:
             self.assertFalse({company.id, contact.id} <= members)
             self.assertIn(outside.id, members)
+
+    def test_bug_b_0149_save_linking_two_open_sets_keeps_company_and_contact_apart(self):
+        """Regression test for B-0149: a saved record that matches a member of the set of a company
+        and a member of the set of that company's own contact never joins the two sets.
+
+        Requirements: FR-DRD-0004, BR-DRD-0004, BR-DRD-0005
+        """
+        rule = self.env['duplicate.rule'].create({
+            'name': 'B0149 partial name',
+            'model_id': self.env['ir.model']._get('res.partner').id,
+            'condition_ids': [Command.create({
+                'field_id': self.env['ir.model.fields']._get('res.partner', 'name').id,
+                'match_type': 'partial'})],
+        })
+        partner = self.env['res.partner']
+        company = partner.create({'name': 'Acmeq', 'is_company': True})
+        outside_company = partner.create({'name': 'Acmeq Tradingz', 'is_company': True})
+        contact = partner.create({'name': 'Jonq Smithq', 'parent_id': company.id})
+        outside_contact = partner.create({'name': 'Jonq Smithq Tradingz', 'is_company': True})
+        partner.create({'name': 'Tradingz'})
+        self.env.flush_all()
+        sets = [set(g.line_ids.mapped('res_id')) for g in
+                self.env['duplicate.group'].search([('rule_id', '=', rule.id), ('state', '=', 'open')])]
+        self.assertTrue(any({outside_company.id, outside_contact.id} <= s for s in sets))
+        self.assertFalse(any({company.id, contact.id} <= s for s in sets))

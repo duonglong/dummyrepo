@@ -90,7 +90,8 @@ class DuplicateGroup(models.Model):
             'rule_id': rule.id, 'model_name': rule.model_name, 'company_id': company.id})
         for other in groups[1:].filtered(lambda g: not (g.company_id and target.company_id)
                                          or g.company_id == target.company_id):
-            target._absorb(other)
+            if not self._hierarchy_conflict(target, records.browse(other.line_ids.mapped('res_id'))):
+                target._absorb(other)
         if company and not target.company_id:
             target.company_id = company
         present = target.line_ids.mapped('res_id')
