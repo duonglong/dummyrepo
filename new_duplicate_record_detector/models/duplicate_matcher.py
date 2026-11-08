@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import api, models
 from odoo.tools import SQL
 
 # Shortest text that may match partly: shorter values would match almost everything.
@@ -83,6 +83,13 @@ class DuplicateMatcher(models.AbstractModel):
             ids.append(parent.id)
             parent = parent.parent_id
         return ids
+
+    @api.model
+    def ancestor_map(self, records: models.BaseModel) -> dict:
+        """Requirements: BR-DRD-0004. Return, for each record id, the set of ids above it in its hierarchy."""
+        if 'parent_id' not in records._fields:
+            return {}
+        return {record.id: set(self.ancestor_ids(record)) for record in records}
 
     def _text_filter(self, query, condition: models.BaseModel, value: str) -> SQL:
         """Requirements: NFR-DRD-0001 (keep every record the Python judgement could accept: a superset)."""

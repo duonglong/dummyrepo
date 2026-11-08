@@ -82,3 +82,23 @@ class TestOnSave(TransactionCase):
         self.assertFalse(matches)
         self.assertFalse(self.env['duplicate.group'].search([('rule_id', '=', self.rule.id)]))
         self.assertFalse(self.env['duplicate.matcher'].find_matches(company, self.rule))
+
+    def test_bug_b_0148_outside_company_does_not_bring_a_company_and_its_contact_together(self):
+        """Regression test for B-0148: saving an outside company with the e-mail of a company and
+        of its contact never puts the company and that contact in one set.
+
+        Requirements: FR-DRD-0004, BR-DRD-0004
+        """
+        company = self.env['res.partner'].create({
+            'name': 'Acme B0148', 'is_company': True, 'email': 'info@b0148.com'})
+        contact = self.env['res.partner'].create({
+            'name': 'John B0148', 'parent_id': company.id, 'email': 'info@b0148.com'})
+        outside = self.env['res.partner'].create({
+            'name': 'ACME Ltd B0148', 'is_company': True, 'email': 'info@b0148.com'})
+        self.env.flush_all()
+        sets = [set(g.line_ids.mapped('res_id')) for g in
+                self.env['duplicate.group'].search([('rule_id', '=', self.rule.id)])]
+        self.assertTrue(sets)
+        for members in sets:
+            self.assertFalse({company.id, contact.id} <= members)
+            self.assertIn(outside.id, members)

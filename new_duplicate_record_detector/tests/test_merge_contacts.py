@@ -179,6 +179,39 @@ class TestMergeOtherOpenSets(TransactionCase):
         self.assertEqual(len(open_sets), 1)
         self.assertEqual(set(open_sets.line_ids.mapped('res_id')), {self.x.id, self.z.id})
 
+    def test_bug_b_0148_left_out_contact_is_not_put_beside_its_own_company(self):
+        """Regression test for B-0148: a contact left out of a merge stays out of the new open set
+        when the kept record is its own company.
+
+        Requirements: FR-DRD-0013, BR-DRD-0004
+        """
+        company = self.env['res.partner'].create({'name': 'Acme B0148', 'is_company': True})
+        outside = self.env['res.partner'].create({'name': 'ACME Ltd B0148', 'is_company': True})
+        contact = self.env['res.partner'].create({'name': 'John B0148', 'parent_id': company.id})
+        group = self._open_set(self.rule_name, company | outside | contact)
+        wizard = self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model='duplicate.group', active_id=group.id, active_ids=group.ids).create({})
+        wizard.record_line_ids.filtered(lambda line: line.res_id == contact.id).include = False
+        wizard.action_merge()
+        self.env.invalidate_all()
+        open_sets = self.env['duplicate.group'].sudo().search([
+            ('rule_id', '=', self.rule_name.id), ('state', '=', 'open')])
+        for members in open_sets.mapped(lambda g: set(g.line_ids.mapped('res_id'))):
+            self.assertFalse({company.id, contact.id} <= members)
+
+    def test_bug_b_0148_kept_company_does_not_replace_a_record_beside_its_own_contact(self):
+        """Regression test for B-0148: in another open set, the kept company does not take the
+        place of a merged-away record when the set holds one of its own contacts.
+
+        Requirements: FR-DRD-0013, BR-DRD-0004
+        """
+        company = self.env['res.partner'].create({'name': 'Acme B0148', 'is_company': True})
+        outside = self.env['res.partner'].create({'name': 'ACME Ltd B0148', 'is_company': True})
+        contact = self.env['res.partner'].create({'name': 'John B0148', 'parent_id': company.id})
+        by_name = self._open_set(self.rule_name, outside | contact)
+        self._merge(company | outside)
+        self.assertNotIn(company.id, by_name.line_ids.mapped('res_id'))
+
 
 class TestMergeKeptRecordScope(TransactionCase):
     """Regression tests for B-0142 and B-0143: what the merge fills and what it moves.

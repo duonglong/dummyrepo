@@ -39,12 +39,23 @@ class DuplicateGroup(models.Model):
 
         Put ``record`` and its matches in open sets of ``rule`` and return the matches that were
         recorded. Records already marked as not duplicates of ``record`` are left out. A shared
-        record that matches records of several companies joins one set per company.
+        record that matches records of several companies joins one set per company. A set never
+        holds a record and one of its ancestors: the matches below another match are left out.
         """
         matches -= self._known_apart(rule, record)
         for company, members in self._company_clusters(record, matches):
-            self._add_cluster(rule, company, record | members)
+            for cluster in self._hierarchy_clusters(record, members):
+                self._add_cluster(rule, company, cluster)
         return matches
+
+    @api.model
+    def _hierarchy_clusters(self, record: models.BaseModel, matches: models.BaseModel) -> list:
+        """Return the parts of ``record`` and its matches that hold no record and one of its ancestors."""
+        records = record | matches
+        parts = self.env['duplicate.full.check'].split_by_hierarchy(
+            set(records.ids), [(record.id, match.id) for match in matches],
+            self.env['duplicate.matcher'].ancestor_map(records))
+        return [records.filtered(lambda r: r.id in part) for part in parts]
 
     @api.model
     def _known_apart(self, rule: models.BaseModel, record: models.BaseModel) -> models.BaseModel:
@@ -72,7 +83,9 @@ class DuplicateGroup(models.Model):
         lines = self.env['duplicate.group.line'].search([
             ('group_id.state', '=', 'open'), ('group_id.rule_id', '=', rule.id),
             ('res_model', '=', records._name), ('res_id', 'in', records.ids)])
-        groups = lines.group_id.filtered(lambda g: not (g.company_id and company) or g.company_id == company)
+        groups = lines.group_id.filtered(
+            lambda g: (not (g.company_id and company) or g.company_id == company)
+            and not self._hierarchy_conflict(g, records))
         target = groups[:1] or self.create({
             'rule_id': rule.id, 'model_name': rule.model_name, 'company_id': company.id})
         for other in groups[1:].filtered(lambda g: not (g.company_id and target.company_id)
@@ -85,6 +98,16 @@ class DuplicateGroup(models.Model):
             'group_id': target.id, 'res_model': record._name, 'res_id': record.id,
             'name': record.display_name, 'company_id': record.company_id.id,
         } for record in records.filtered(lambda r: r.id not in present)])
+
+    def _hierarchy_conflict(self, group: models.BaseModel, records: models.BaseModel) -> bool:
+        """Tell whether adding the records to the set would put a record beside its ancestor."""
+        members = set(group.line_ids.mapped('res_id'))
+        # sudo: the hierarchy of every record of the set counts, whoever saves
+        known = records.sudo().browse(members).exists() | records
+        above = self.env['duplicate.matcher'].ancestor_map(known)
+        added = set(records.ids) - members
+        ancestors_of_members = set().union(*(above.get(res_id, set()) for res_id in members))
+        return bool(added & ancestors_of_members) or any(above.get(res_id, set()) & members for res_id in added)
 
     def _absorb(self, other: models.BaseModel) -> None:
         """Move the records of another set into this one and delete that set."""

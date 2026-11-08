@@ -572,8 +572,9 @@ class DuplicateMergeWizard(models.TransientModel):
         """Requirements: FR-DRD-0013, BR-DRD-0004.
 
         Mark the set merged, holding only the records merged; the records left out of the merge
-        move, with the kept record, to a new open set so a full check can report them again. Every other open set, of any rule, that holds a merged-away record
-        gets the kept record in its place.
+        move, with the kept record, to a new open set so a full check can report them again, except
+        those in the kept record's hierarchy. Every other open set, of any rule, that holds a
+        merged-away record gets the kept record in its place.
         """
         group = self.group_id
         left_out = group.line_ids.filtered(lambda line: line.res_id not in included_ids)
@@ -585,6 +586,7 @@ class DuplicateMergeWizard(models.TransientModel):
         if not group:
             return
         left_out_records = self.env[self.res_model].browse(left_out_ids).exists()
+        left_out_records -= self._in_hierarchy(kept, left_out_records)
         if left_out_records:
             records = kept | left_out_records
             self.env['duplicate.group'].create({
@@ -595,6 +597,12 @@ class DuplicateMergeWizard(models.TransientModel):
                     'name': record.display_name, 'company_id': record.company_id.id,
                 }) for record in records],
             })
+
+    def _in_hierarchy(self, kept: models.BaseModel, records: models.BaseModel) -> models.BaseModel:
+        """Return the records that are an ancestor or a descendant of the kept record."""
+        above = self.env['duplicate.matcher'].ancestor_map(kept | records)
+        return records.filtered(
+            lambda r: r.id in above.get(kept.id, set()) or kept.id in above.get(r.id, set()))
 
     def _close_group(self, group: models.BaseModel, kept: models.BaseModel) -> None:
         """Mark a set merged into the kept record."""
@@ -614,7 +622,8 @@ class DuplicateMergeWizard(models.TransientModel):
         groups = lines.group_id
         for group in groups:
             group_lines = lines.filtered(lambda line: line.group_id == group)
-            if kept.id in group.line_ids.mapped('res_id'):
+            members = kept.sudo().browse(group.line_ids.mapped('res_id')).exists()  # sudo: any company's record
+            if kept in members or self._in_hierarchy(kept, members):
                 group_lines.unlink()
             else:
                 group_lines[1:].unlink()

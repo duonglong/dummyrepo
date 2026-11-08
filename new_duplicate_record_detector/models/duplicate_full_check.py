@@ -21,8 +21,9 @@ class DuplicateFullCheck(models.AbstractModel):
         rule = rule.sudo()
         records = self.env[rule.model_name].sudo().search([])  # sudo: every record of the type, any company
         company_of = {record.id: record.company_id.id for record in records}
+        above = self.env['duplicate.matcher'].ancestor_map(records)
         clusters = self._clusters(
-            self._edges(rule, records, self._apart_groups(rule)), company_of)
+            self._edges(rule, records, self._apart_groups(rule), above), company_of, above)
         names = {record.id: record.display_name for record in records}
         Group = self.env['duplicate.group'].sudo()  # sudo: sets are written for a manager without all rights
         Group.search([('rule_id', '=', rule.id), ('state', '=', 'open')]).unlink()
@@ -49,7 +50,7 @@ class DuplicateFullCheck(models.AbstractModel):
             apart[line.res_id].add(line.group_id.id)
         return apart
 
-    def _edges(self, rule: models.BaseModel, records: models.BaseModel, apart: dict) -> list:
+    def _edges(self, rule: models.BaseModel, records: models.BaseModel, apart: dict, above: dict) -> list:
         """Requirements: BR-DRD-0003, BR-DRD-0004.
 
         Return the pairs of records that match under every condition, are of one company or
@@ -61,8 +62,6 @@ class DuplicateFullCheck(models.AbstractModel):
         values = {
             record.id: {c: matcher._value(record, c) for c in conditions} for record in records}
         company = {record.id: record.company_id.id for record in records}
-        above = {record.id: set(matcher.ancestor_ids(record)) for record in records} \
-            if 'parent_id' in records._fields else defaultdict(set)
         values = {
             res_id: wanted for res_id, wanted in values.items()
             if self._is_comparable(conditions, wanted)}
@@ -73,7 +72,7 @@ class DuplicateFullCheck(models.AbstractModel):
             for other in self._candidate_ids(lead, wanted[lead], index):
                 if other == res_id or apart[res_id] & apart[other]:
                     continue
-                if other in above[res_id] or res_id in above[other]:
+                if other in above.get(res_id, ()) or res_id in above.get(other, ()):
                     continue
                 if company[res_id] and company[other] and company[res_id] != company[other]:
                     continue
@@ -121,24 +120,54 @@ class DuplicateFullCheck(models.AbstractModel):
             return index.get(value, ())
         return set.intersection(*(index.get(piece, set()) for piece in self._trigrams(value)))
 
-    def _clusters(self, edges: list, company_of: dict) -> list:
+    def _clusters(self, edges: list, company_of: dict, above: dict) -> list:
         """Requirements: BR-DRD-0004, BR-DRD-0005.
 
         Group the linked records into sets with union-find, one pass per company: a record shared
-        by all companies joins the set of each company, and two companies never share a set.
+        by all companies joins the set of each company, and two companies never share a set. A set
+        never holds a record and one of its ancestors (see ``split_by_hierarchy``).
         Return (company id, member ids) pairs, company id 0 for a set of shared records only.
         """
         clusters = []
         for company in {c for c in company_of.values() if c}:
             allowed = (company, 0)
-            for members in self._components(
-                    e for e in edges if company_of[e[0]] in allowed and company_of[e[1]] in allowed):
+            company_edges = [
+                e for e in edges if company_of[e[0]] in allowed and company_of[e[1]] in allowed]
+            for members in self._hierarchy_free_components(company_edges, above):
                 if any(company_of[res_id] == company for res_id in members):
                     clusters.append((company, members))
-        for members in self._components(e for e in edges if not company_of[e[0]] and not company_of[e[1]]):
+        shared_edges = [e for e in edges if not company_of[e[0]] and not company_of[e[1]]]
+        for members in self._hierarchy_free_components(shared_edges, above):
             if not any(members <= other for _company, other in clusters):
                 clusters.append((0, members))
         return clusters
+
+    def _hierarchy_free_components(self, edges: list, above: dict) -> list:
+        """Return the connected groups of ids of the pairs, none holding a record and its ancestor."""
+        return [
+            part for members in self._components(edges)
+            for part in self.split_by_hierarchy(members, edges, above)]
+
+    def split_by_hierarchy(self, members: set, edges: list, above: dict) -> list:
+        """Requirements: BR-DRD-0004, BR-DRD-0005.
+
+        Split a linked group so that no part holds a record and one of its ancestors: the records
+        that have no ancestor in the group stay together with the records linked to them, and the
+        records below another one of the group are grouped again on their own links.
+        """
+        below = {res_id for res_id in members if above.get(res_id, set()) & members}
+        if not below:
+            return [members]
+        top = members - below
+        parts = self._components(self._edges_within(edges, top))
+        for part in self._components(self._edges_within(edges, below)):
+            parts.extend(self.split_by_hierarchy(part, edges, above))
+        return parts
+
+    @staticmethod
+    def _edges_within(edges: Iterable[tuple], ids: set) -> list:
+        """Return the pairs whose two records are both in ``ids``."""
+        return [(left, right) for left, right in edges if left in ids and right in ids]
 
     @staticmethod
     def _components(edges: Iterable[tuple]) -> list:

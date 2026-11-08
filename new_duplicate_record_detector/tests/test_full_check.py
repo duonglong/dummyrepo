@@ -146,6 +146,21 @@ class TestFullCheck(TransactionCase):
         sets = [set(s.line_ids.mapped('res_id')) for s in self._sets(rule)]
         self.assertEqual(sets, [{contact.id, sibling.id}])
 
+    def test_bug_b_0148_outside_company_does_not_bring_a_company_and_its_contacts_together(self):
+        """Regression test for B-0148: an outside record matching a company and its contacts
+        keeps the company out of any set holding its own contacts.
+
+        Requirements: FR-DRD-0005, BR-DRD-0004, BR-DRD-0005
+        """
+        company = self.P.create({'name': 'Acme B0148', 'is_company': True, 'vat': 'BE0123456749'})
+        john = self.P.create({'name': 'John B0148', 'parent_id': company.id, 'vat': 'BE0123456749'})
+        jane = self.P.create({'name': 'Jane B0148', 'parent_id': company.id, 'vat': 'BE0123456749'})
+        outside = self.P.create({'name': 'ACME Ltd B0148', 'is_company': True, 'vat': 'BE0123456749'})
+        rule = self._rule([('vat', 'exact')])
+        self.check.replace_open_sets(rule)
+        sets = [set(s.line_ids.mapped('res_id')) for s in self._sets(rule)]
+        self.assertCountEqual(sets, [{company.id, outside.id}, {john.id, jane.id}])
+
 
 class TestFullCheckJob(TransactionCase):
     """The background job runs one rule at a time and tells the asker how it ended.
