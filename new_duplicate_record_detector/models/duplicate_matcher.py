@@ -57,9 +57,12 @@ class DuplicateMatcher(models.AbstractModel):
     def _candidates(self, Model: models.BaseModel, record: models.BaseModel, wanted: dict) -> models.BaseModel:
         """Requirements: NFR-DRD-0001, BR-DRD-0004.
 
-        Search the records that could match: same company or shared, and the SQL prefilter.
+        Search the records that could match: same company or shared, not of the record's own
+        company hierarchy, and the SQL prefilter.
         """
         domain = [('id', '!=', record.id)]
+        if 'parent_id' in record._fields:
+            domain += ['!', ('id', 'child_of', record.id), ('id', 'not in', self.ancestor_ids(record))]
         if record.company_id:
             domain.append(('company_id', 'in', [False, record.company_id.id]))
         for condition, value in wanted.items():
@@ -70,6 +73,16 @@ class DuplicateMatcher(models.AbstractModel):
             if condition.field_type != 'many2one':
                 query.add_where(self._text_filter(query, condition, value))
         return Model.browse(query.get_result_ids())
+
+    @staticmethod
+    def ancestor_ids(record: models.BaseModel) -> list[int]:
+        """Requirements: BR-DRD-0004. Return the ids above a record in its hierarchy (its company), not itself."""
+        ids = []
+        parent = record.parent_id if 'parent_id' in record._fields else record.browse()
+        while parent and parent.id not in ids:
+            ids.append(parent.id)
+            parent = parent.parent_id
+        return ids
 
     def _text_filter(self, query, condition: models.BaseModel, value: str) -> SQL:
         """Requirements: NFR-DRD-0001 (keep every record the Python judgement could accept: a superset)."""

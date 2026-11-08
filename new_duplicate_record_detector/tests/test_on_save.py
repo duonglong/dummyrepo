@@ -68,3 +68,17 @@ class TestOnSave(TransactionCase):
         self.env['res.partner'].with_user(saver).create({'name': 'Shared', 'email': 'x@scope-t002.com'})
         messages = self.env['bus.bus'].sudo().search([('id', '>', mark)]).mapped('message')
         self.assertFalse([m for m in messages if 'Hidden Of B' in m])
+
+    def test_bug_b_0147_company_and_its_own_contact_are_not_matches(self):
+        """Regression test for B-0147: saving a contact with its company's e-mail records no set.
+
+        Requirements: FR-DRD-0004, BR-DRD-0004
+        """
+        company = self.env['res.partner'].create({
+            'name': 'Acme B0147', 'is_company': True, 'email': 'info@b0147.com'})
+        contact = self.env['res.partner'].create({
+            'name': 'John B0147', 'parent_id': company.id, 'email': 'info@b0147.com'})
+        matches = self.env['duplicate.matcher'].find_matches(contact, self.rule)
+        self.assertFalse(matches)
+        self.assertFalse(self.env['duplicate.group'].search([('rule_id', '=', self.rule.id)]))
+        self.assertFalse(self.env['duplicate.matcher'].find_matches(company, self.rule))

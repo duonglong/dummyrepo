@@ -53,13 +53,16 @@ class DuplicateFullCheck(models.AbstractModel):
         """Requirements: BR-DRD-0003, BR-DRD-0004.
 
         Return the pairs of records that match under every condition, are of one company or
-        shared, and were not marked as not duplicates of each other.
+        shared, are not one the other's own company, and were not marked as not duplicates of
+        each other.
         """
         matcher = self.env['duplicate.matcher']
         conditions = rule.condition_ids
         values = {
             record.id: {c: matcher._value(record, c) for c in conditions} for record in records}
         company = {record.id: record.company_id.id for record in records}
+        above = {record.id: set(matcher.ancestor_ids(record)) for record in records} \
+            if 'parent_id' in records._fields else defaultdict(set)
         values = {
             res_id: wanted for res_id, wanted in values.items()
             if self._is_comparable(conditions, wanted)}
@@ -69,6 +72,8 @@ class DuplicateFullCheck(models.AbstractModel):
         for res_id, wanted in values.items():
             for other in self._candidate_ids(lead, wanted[lead], index):
                 if other == res_id or apart[res_id] & apart[other]:
+                    continue
+                if other in above[res_id] or res_id in above[other]:
                     continue
                 if company[res_id] and company[other] and company[res_id] != company[other]:
                     continue

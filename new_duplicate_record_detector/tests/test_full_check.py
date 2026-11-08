@@ -133,6 +133,20 @@ class TestFullCheck(TransactionCase):
         self.assertEqual(set(self._sets(rule).line_ids.mapped('res_id')), {a.id, b.id})
 
 
+    def test_bug_b_0147_company_and_its_own_contact_are_not_a_set(self):
+        """Regression test for B-0147: a company and its own contact share a VAT yet make no set.
+
+        Requirements: FR-DRD-0005, BR-DRD-0004
+        """
+        company = self.P.create({'name': 'Acme B0147', 'is_company': True, 'vat': 'BE0123456749'})
+        contact = self.P.create({'name': 'John B0147', 'parent_id': company.id, 'vat': 'BE0123456749'})
+        sibling = self.P.create({'name': 'Jane B0147', 'parent_id': company.id, 'vat': 'BE0123456749'})
+        rule = self._rule([('vat', 'exact')])
+        self.check.replace_open_sets(rule)
+        sets = [set(s.line_ids.mapped('res_id')) for s in self._sets(rule)]
+        self.assertEqual(sets, [{contact.id, sibling.id}])
+
+
 class TestFullCheckJob(TransactionCase):
     """The background job runs one rule at a time and tells the asker how it ended.
 
