@@ -2,7 +2,6 @@
 
 Requirements: BR-OPA-0004, FR-OPA-0028, FR-OPA-0029
 """
-import base64
 from datetime import timedelta
 
 from odoo import sql_db
@@ -61,7 +60,7 @@ class TestFixScriptAcceptance(FixCase):
         run = run.with_user(self.audit_admin)
         data = run.fix_script
         self.assertTrue(data, 'the fix script of a run is a file')
-        return base64.b64decode(data).decode()
+        return bytes(data).decode()
 
     def test_script_holds_comments_and_statement_and_creates_nothing(self):
         """SC-OPA-0028-1: a comment per finding, the create-index statement, no index created."""
@@ -94,7 +93,7 @@ class TestFixScriptAcceptance(FixCase):
     def test_script_of_run_with_no_finding_is_still_a_file(self):
         """FR-OPA-0028: an empty run still downloads a script, with no statement."""
         run = self.make_run().with_user(self.audit_admin)
-        text = base64.b64decode(run.fix_script or b'').decode()
+        text = bytes(run.fix_script or b"").decode()
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         self.assertTrue(all(line.startswith('--') for line in lines))
 

@@ -4,3 +4,4 @@ access_perf_audit_threshold_system,perf.audit.threshold system,perf.audit.thresh
 access_perf_audit_run_system,perf.audit.run system,perf.audit.run,base.group_system,crud,
 access_perf_audit_check_result_system,perf.audit.check.result system,perf.audit.check.result,base.group_system,crud,
 access_perf_audit_finding_system,perf.audit.finding system,perf.audit.finding,base.group_system,crud,
+access_perf_audit_apply_wizard_system,perf.audit.apply.wizard system,perf.audit.apply.wizard,base.group_system,crud,
