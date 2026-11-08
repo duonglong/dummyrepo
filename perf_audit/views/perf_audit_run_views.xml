@@ -29,6 +29,10 @@
         <field name="model">perf.audit.run</field>
         <field name="arch" type="xml">
             <list create="0">
+                <header>
+                    <button name="action_start_audit" type="object" string="Start audit"
+                            class="btn-primary" display="always"/>
+                </header>
                 <field name="name"/>
                 <field name="start_date"/>
                 <field name="end_date"/>

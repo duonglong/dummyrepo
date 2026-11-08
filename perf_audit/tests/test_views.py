@@ -35,3 +35,24 @@ class TestStoredValuesAreShown(TransactionCase):
         """FR-OPA-0030: the stand-alone findings list tells fixed rows from open ones."""
         names = self._field_names('perf.audit.finding', 'perf_audit_finding_view_list')
         self.assertIn('comparison_state', names)
+
+
+@tagged('post_install', '-at_install')
+class TestOpeningTheAppStartsNoRun(TransactionCase):
+    """Requirements: FR-OPA-0001, FR-OPA-0033 (B-0122).
+
+    Opening the app icon shows existing runs; a run starts only from an explicit button.
+    """
+
+    def test_bug_b_0122_app_icon_opens_the_runs_list(self):
+        """FR-OPA-0001: the first menu under the app root is the runs list, not the start action."""
+        root = self.env.ref('perf_audit.menu_perf_audit_root')
+        first = root.child_id.sorted(lambda menu: (menu.sequence, menu.id))[:1]
+        self.assertEqual(first.action._name, 'ir.actions.act_window')
+        self.assertEqual(first.action.res_model, 'perf.audit.run')
+
+    def test_bug_b_0122_runs_list_has_a_start_button(self):
+        """FR-OPA-0001: the runs list offers a Start audit button that calls action_start_audit."""
+        view = self.env.ref('perf_audit.perf_audit_run_view_list')
+        arch = etree.fromstring(self.env['perf.audit.run'].get_view(view.id)['arch'])
+        self.assertTrue(arch.xpath("//header/button[@name='action_start_audit'][@type='object']"))
