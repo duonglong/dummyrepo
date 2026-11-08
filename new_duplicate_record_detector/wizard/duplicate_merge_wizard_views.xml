@@ -43,7 +43,6 @@
                 </sheet>
                 <footer>
                     <button name="action_merge" type="object" string="Confirm merge" class="btn-primary"
-                            invisible="res_model != 'res.partner'"
                             groups="new_duplicate_record_detector.group_duplicate_manager"/>
                     <button string="Close" special="cancel" class="btn-secondary"/>
                 </footer>
