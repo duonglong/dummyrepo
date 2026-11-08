@@ -34,20 +34,24 @@ class ViewFieldsCheck(Check):
         views = env['ir.ui.view'].sudo().search([
             ('type', 'in', ('list', 'kanban')), ('mode', '=', 'primary'), ('model', 'in', list(env.registry))])
         findings = []
+        skipped_views = []
         for view in views:
             Model = env[view.model].sudo()  # same reason: the view is read as the audit, not as the user
-            for name, hidden in self._top_level_fields(Model, view):
+            for name, hidden in self._top_level_fields(Model, view, skipped_views):
                 field = Model._fields.get(name)
                 if field and (field.compute or field.related) and not field.store:
                     findings.append(self._finding(ctx, view, Model, field, hidden, rows.get(Model._table, 0)))
+        if skipped_views:
+            ctx.outcome['part_skip_reason'] = env._('Views whose final arch could not be read: %s', ', '.join(map(str, skipped_views)))
         return findings
 
-    def _top_level_fields(self, Model, view):
+    def _top_level_fields(self, Model, view, skipped_views):
         """(name, hidden by default) once per field, of the final arch that are not in a nested sub-view."""
         try:
             arch = Model.get_views([(view.id, view.type)])['views'][view.type]['arch']
         except (UserError, ValueError, KeyError):
             _logger.warning('B1 could not read the final arch of view %s', view.id, exc_info=True)
+            skipped_views.append(view.id)
             return []
         root = etree.fromstring(arch)
         hidden = {}
