@@ -20,12 +20,13 @@ class DuplicateMergeRecordLine(models.TransientModel):
         for line in self:
             line.is_kept = line.res_id == line.wizard_id.kept_res_id
 
-    def action_keep_this(self) -> bool:
+    def action_keep_this(self) -> dict:
         """Requirements: FR-DRD-0009, FR-DRD-0017.
 
-        Make this record the one that is kept; the preview is recomputed.
+        Make this record the one that is kept and show the recomputed preview again: a button that
+        returns no action closes the dialog.
         """
         self.ensure_one()
         self.wizard_id._check_merge_rights()
         self.wizard_id.kept_res_id = self.res_id
-        return True
+        return self.wizard_id._reopen_action()

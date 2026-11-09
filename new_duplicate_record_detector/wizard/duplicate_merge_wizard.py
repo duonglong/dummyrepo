@@ -107,12 +107,16 @@ class DuplicateMergeWizard(models.TransientModel):
         Create the preview from the context and open it as a saved record: the browser refuses
         a line button (Keep this one) on the lines of an unsaved dialog.
         """
-        wizard = self.create({})
+        return self.create({})._reopen_action()
+
+    def _reopen_action(self) -> dict:
+        """Return the action that shows this saved preview in a dialog."""
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': self.env._("Merge preview"),
             'res_model': self._name,
-            'res_id': wizard.id,
+            'res_id': self.id,
             'view_mode': 'form',
             'target': 'new',
         }

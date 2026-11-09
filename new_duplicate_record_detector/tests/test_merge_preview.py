@@ -151,6 +151,22 @@ class TestMergePreviewForm(TransactionCase):
         wizard.record_line_ids.filtered(lambda line: line.res_id == self.b.id).action_keep_this()
         self.assertEqual(wizard.kept_res_id, self.b.id)
 
+    def test_bug_b_0163_keep_this_one_reopens_the_preview(self):
+        """Regression test for B-0163: Keep this one closed the preview dialog.
+
+        A button that returns no action closes the dialog in the browser; the button must
+        return the action that shows the same preview again, with the new kept record.
+
+        Requirements: FR-DRD-0009
+        """
+        wizard = self._form().save()
+        action = wizard.record_line_ids.filtered(
+            lambda line: line.res_id == self.b.id).action_keep_this()
+        self.assertEqual(action['type'], 'ir.actions.act_window')
+        self.assertEqual(action['res_model'], 'duplicate.merge.wizard')
+        self.assertEqual(action['res_id'], wizard.id)
+        self.assertEqual(action['target'], 'new')
+
     def test_bug_b_0155_unticking_include_recomputes_the_preview(self):
         """Regression test for B-0155: unticking Include crashed the preview's onchange.
 
