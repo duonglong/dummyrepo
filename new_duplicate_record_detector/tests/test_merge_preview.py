@@ -34,6 +34,26 @@ class TestMergePreview(TransactionCase):
         self.assertEqual(wizard.kept_res_id, self.b.id)
         self.assertEqual(wizard.archive_names, 'MP Acme')
 
+    def test_bug_b_0161_archived_record_of_a_set_is_left_out_of_the_preview(self):
+        """Regression test for B-0161: an archived record in an open set blocked Confirm merge.
+
+        Requirements: FR-DRD-0010, BR-DRD-0004
+        """
+        archived = self.env['res.partner'].create({'name': 'MP Acme Old', 'active': False})
+        rule = self.env['duplicate.rule'].create({
+            'name': 'MP rule archived', 'model_id': self.env['ir.model']._get('res.partner').id,
+            'condition_ids': [Command.create({
+                'field_id': self.env['ir.model.fields']._get('res.partner', 'email').id})]})
+        group = self.env['duplicate.group'].create({
+            'rule_id': rule.id, 'model_name': 'res.partner',
+            'line_ids': [Command.create({'res_model': 'res.partner', 'res_id': record.id, 'name': record.name})
+                         for record in self.a | self.b | archived]})
+        wizard = self.env['duplicate.merge.wizard'].with_user(self.manager).with_context(
+            active_model='duplicate.group', active_id=group.id).create({})
+        self.assertEqual(wizard.record_line_ids.mapped('res_id'), [self.a.id, self.b.id])
+        wizard.action_merge()
+        self.assertFalse(self.b.active)
+
     def test_non_manager_cannot_use_the_dialog(self):
         """Requirements: FR-DRD-0017. Starting, changing and the line button are all refused."""
         wizard = self._wizard(self.a | self.b)

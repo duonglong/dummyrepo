@@ -72,7 +72,8 @@ class DuplicateMergeWizard(models.TransientModel):
         """Requirements: FR-DRD-0009, FR-DRD-0017, BR-DRD-0006.
 
         Load the records of the set (``active_model='duplicate.group'``) or of the list selection
-        with the user's own access, and choose the oldest as the kept record.
+        with the user's own access, leave out records already archived (BR-DRD-0004), and choose the
+        oldest as the kept record.
         """
         self._check_merge_rights()
         values = super().default_get(fields_list)
@@ -85,7 +86,8 @@ class DuplicateMergeWizard(models.TransientModel):
             res_model, res_ids = active_model, context.get('active_ids') or []
         if res_model not in WATCHED_MODELS:
             raise UserError(_("A merge works on contacts or product templates only."))
-        records = self._ordered(self.env[res_model].browse(res_ids).exists()._filtered_access('read'))
+        records = self._ordered(
+            self.env[res_model].browse(res_ids).exists().filtered('active')._filtered_access('read'))
         self._check_size(len(records))
         values.update({
             'group_id': group.id if active_model == 'duplicate.group' else False,
