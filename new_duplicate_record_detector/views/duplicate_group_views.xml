@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="duplicate_group_view_list" model="ir.ui.view">
+        <field name="name">duplicate.group.list</field>
+        <field name="model">duplicate.group</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="rule_id" width="260px"/>
+                <field name="record_type" width="110px"/>
+                <field name="record_count" string="Records" width="90px"/>
+                <field name="record_names"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="duplicate_group_view_form" model="ir.ui.view">
+        <field name="name">duplicate.group.form</field>
+        <field name="model">duplicate.group</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <header>
+                    <button name="action_not_duplicate" type="object" string="Not a duplicate"
+                            invisible="state != 'open'"
+                            groups="new_duplicate_record_detector.group_duplicate_manager"/>
+                    <button name="action_merge_preview" type="object" string="Merge"
+                            class="btn-primary" invisible="state != 'open'"
+                            groups="new_duplicate_record_detector.group_duplicate_manager"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="rule_id"/>
+                        <field name="model_name"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="record_count"/>
+                    </group>
+                    <field name="line_ids">
+                        <list>
+                            <field name="name"/>
+                            <field name="matched_values"/>
+                            <field name="record_create_date"/>
+                            <field name="record_active"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="duplicate_group_view_search" model="ir.ui.view">
+        <field name="name">duplicate.group.search</field>
+        <field name="model">duplicate.group</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="rule_id"/>
+                <field name="record_names"/>
+                <filter name="open" string="Open" domain="[('state', '=', 'open')]"/>
+                <filter name="merged" string="Merged" domain="[('state', '=', 'merged')]"/>
+                <filter name="not_duplicate" string="Not a duplicate"
+                        domain="[('state', '=', 'not_duplicate')]"/>
+                <separator/>
+                <filter name="contacts" string="Contacts" domain="[('model_name', '=', 'res.partner')]"/>
+                <filter name="products" string="Products" domain="[('model_name', '=', 'product.template')]"/>
+                <group>
+                    <filter name="group_rule" string="Rule" context="{'group_by': 'rule_id'}"/>
+                    <filter name="group_model" string="Record type" context="{'group_by': 'model_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="duplicate_group_action" model="ir.actions.act_window">
+        <field name="name">Duplicates</field>
+        <field name="res_model">duplicate.group</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+</odoo>

@@ -1,0 +1,11 @@
+id,name,model_id,group_id/id,operation,domain
+access_duplicate_rule_manager,duplicate.rule manager,duplicate.rule,group_duplicate_manager,crud,
+access_duplicate_rule_condition_manager,duplicate.rule.condition manager,duplicate.rule.condition,group_duplicate_manager,crud,
+access_duplicate_group_manager,duplicate.group manager,duplicate.group,group_duplicate_manager,cru,
+access_duplicate_group_line_manager,duplicate.group.line manager,duplicate.group.line,group_duplicate_manager,r,
+access_duplicate_merge_wizard_manager,duplicate.merge.wizard manager,duplicate.merge.wizard,group_duplicate_manager,crud,
+access_duplicate_merge_record_line_manager,duplicate.merge.record.line manager,duplicate.merge.record.line,group_duplicate_manager,crud,
+access_duplicate_merge_value_line_manager,duplicate.merge.value.line manager,duplicate.merge.value.line,group_duplicate_manager,crud,
+access_duplicate_merge_link_line_manager,duplicate.merge.link.line manager,duplicate.merge.link.line,group_duplicate_manager,crud,
+duplicate_group_company_rule,Duplicate set: own companies,duplicate.group,,crud,"['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]"
+duplicate_group_line_company_rule,Duplicate set record: own companies,duplicate.group.line,,crud,"['|', ('group_id.company_id', '=', False), ('group_id.company_id', 'in', company_ids)]"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_duplicate_root" name="Duplicates"
+              sequence="96" groups="group_duplicate_manager"/>
+    <menuitem id="menu_duplicate_group" name="Duplicates"
+              parent="menu_duplicate_root" action="duplicate_group_action"
+              sequence="10" groups="group_duplicate_manager"/>
+    <menuitem id="menu_duplicate_full_check" name="Run full check"
+              parent="menu_duplicate_root" action="duplicate_rule_server_action_full_check"
+              sequence="80" groups="group_duplicate_manager"/>
+    <menuitem id="menu_duplicate_rule" name="Rules"
+              parent="menu_duplicate_root" action="duplicate_rule_action"
+              sequence="90" groups="group_duplicate_manager"/>
+</odoo>
