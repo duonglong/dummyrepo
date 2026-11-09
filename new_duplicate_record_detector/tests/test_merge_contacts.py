@@ -179,6 +179,20 @@ class TestMergeOtherOpenSets(TransactionCase):
         self.assertEqual(len(open_sets), 1)
         self.assertEqual(set(open_sets.line_ids.mapped('res_id')), {self.x.id, self.z.id})
 
+    def test_bug_b_0160_merge_with_records_in_several_open_sets(self):
+        """Regression test for B-0160: Confirm merge works when the records sit in several open sets.
+
+        Requirements: FR-DRD-0011, FR-DRD-0014
+        """
+        rule_phone = self._rule('Same phone', 'phone')
+        by_name = self._open_set(self.rule_name, self.x | self.y)
+        by_email = self._open_set(self.rule_email, self.x | self.y)
+        by_phone = self._open_set(rule_phone, self.x | self.y)
+        self._merge(self.x | self.y, by_name)
+        for group in by_name | by_email | by_phone:
+            self.assertEqual(group.state, 'merged')
+        self.assertFalse(self.y.active)
+
     def test_bug_b_0148_left_out_contact_is_not_put_beside_its_own_company(self):
         """Regression test for B-0148: a contact left out of a merge stays out of the new open set
         when the kept record is its own company.

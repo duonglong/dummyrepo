@@ -638,9 +638,9 @@ class DuplicateMergeWizard(models.TransientModel):
         lines = self.env['duplicate.group.line'].search([
             ('group_id.state', '=', 'open'), ('res_model', '=', kept._name),
             ('res_id', 'in', list(merged_away_ids))])
+        lines_by_group = lines.grouped('group_id')  # before any unlink: a deleted line cannot be read
         groups = lines.group_id
-        for group in groups:
-            group_lines = lines.filtered(lambda line: line.group_id == group)
+        for group, group_lines in lines_by_group.items():
             members = kept.sudo().browse(group.line_ids.mapped('res_id')).exists()  # sudo: any company's record
             if kept in members or self._in_hierarchy(kept, members):
                 group_lines.unlink()
