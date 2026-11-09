@@ -145,3 +145,53 @@ class TestMergePreviewForm(TransactionCase):
         saved = form.save()
         self.assertEqual(saved.record_line_ids.filtered('include').mapped('res_id'), [self.a.id, self.b.id])
         self.assertNotIn('MPF Acme Inc', saved.archive_names)
+
+
+class TestMergePreviewOpensSaved(TransactionCase):
+    """The merge preview opens as a saved record, so the line button of the browser can run.
+
+    Requirements: FR-DRD-0009
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        manager_group = cls.env.ref('new_duplicate_record_detector.group_duplicate_manager')
+        cls.manager = cls.env['res.users'].create({
+            'name': 'MPO Mgr', 'login': 'mpo_mgr',
+            'group_ids': [Command.set((cls.env.ref('base.group_user') | manager_group).ids)]})
+        cls.a, cls.b = cls.env['res.partner'].create([{'name': 'MPO Acme'}, {'name': 'MPO Acme Ltd'}])
+
+    def _assert_opens_saved(self, action):
+        wizard = self.env['duplicate.merge.wizard'].browse(action['res_id']).exists()
+        self.assertEqual(action['res_model'], 'duplicate.merge.wizard')
+        self.assertEqual(action['target'], 'new')
+        self.assertEqual(wizard.record_line_ids.mapped('res_id'), [self.a.id, self.b.id])
+
+    def test_bug_b_0158_list_action_opens_a_saved_preview(self):
+        """Regression test for B-0158: Keep this one showed 'Please save your changes first'.
+
+        The browser refuses a line button on a line of an unsaved dialog; the list action of
+        contacts must open a preview that is already saved.
+
+        Requirements: FR-DRD-0009
+        """
+        action = self.env.ref('new_duplicate_record_detector.action_merge_duplicate_contacts')
+        result = action.with_user(self.manager).with_context(
+            active_model='res.partner', active_ids=(self.a | self.b).ids).run()
+        self._assert_opens_saved(result)
+
+    def test_bug_b_0158_set_button_opens_a_saved_preview(self):
+        """Regression test for B-0158: the Merge button of a set opens a saved preview.
+
+        Requirements: FR-DRD-0009
+        """
+        rule = self.env['duplicate.rule'].create({
+            'name': 'MPO rule', 'model_id': self.env['ir.model']._get('res.partner').id,
+            'condition_ids': [Command.create({
+                'field_id': self.env['ir.model.fields']._get('res.partner', 'email').id})]})
+        group = self.env['duplicate.group'].create({
+            'rule_id': rule.id, 'model_name': 'res.partner',
+            'line_ids': [Command.create({'res_model': 'res.partner', 'res_id': r.id, 'name': r.name})
+                         for r in (self.a, self.b)]})
+        self._assert_opens_saved(group.with_user(self.manager).action_merge_preview())

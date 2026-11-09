@@ -137,11 +137,5 @@ class DuplicateGroup(models.Model):
         duplicate manager or administrator.
         """
         self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': self.env._("Merge preview"),
-            'res_model': 'duplicate.merge.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {'active_model': self._name, 'active_id': self.id, 'active_ids': self.ids},
-        }
+        return self.env['duplicate.merge.wizard'].with_context(
+            active_model=self._name, active_id=self.id, active_ids=self.ids).action_open_preview()

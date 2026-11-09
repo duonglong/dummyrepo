@@ -99,6 +99,23 @@ class DuplicateMergeWizard(models.TransientModel):
         return values
 
     @api.model
+    def action_open_preview(self) -> dict:
+        """Requirements: FR-DRD-0009, FR-DRD-0017.
+
+        Create the preview from the context and open it as a saved record: the browser refuses
+        a line button (Keep this one) on the lines of an unsaved dialog.
+        """
+        wizard = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Merge preview"),
+            'res_model': self._name,
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    @api.model
     def _group_res_ids(self, group: models.BaseModel) -> list[int]:
         """Return the records of a set; a set that mixes record types is refused."""
         if set(group.line_ids.mapped('res_model')) - {group.model_name}:
