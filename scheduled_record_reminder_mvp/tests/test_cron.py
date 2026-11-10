@@ -108,6 +108,21 @@ class TestScheduledRun(TransactionCase):
             self._run_as_scheduler_with_time_left(5.0)
         self.assertEqual(len(rule.execution_ids), 2)
 
+    def test_bug_r2_2_each_email_is_committed_as_soon_as_it_is_sent(self):
+        """Regression test for R2-2: 3 emails under a chunk of 100 are committed one by one, not all at the end.
+
+        Requirements: FR-SRR-0010, NFR-SRR-0001
+        """
+        rule = self._rule('emails', 'SRR-R22MAIL')
+        self.ann.partner_id.email = 'srr_cron_ann@example.com'
+        rule.write({'channel': 'email', 'mail_template_id': self.env['mail.template'].create({
+            'name': 'SRR cron mail', 'model_id': rule.model_id.id, 'subject': 'Reminder', 'body_html': '<p>Hi</p>',
+        }).id})
+        self._partners('SRR-R22MAIL', 3)
+        commit = self._run_as_scheduler_with_time_left(100.0)
+        self.assertEqual(len(rule.execution_ids), 3)
+        self.assertEqual([call.kwargs['remaining'] for call in commit.call_args_list], [2, 1, 0])
+
     def test_a_rule_another_run_holds_is_left_alone(self):
         """Requirements: FR-SRR-0005. Another connection holds the rule's row: this run sends nothing for it.
 

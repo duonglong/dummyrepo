@@ -472,12 +472,13 @@ class RecordReminderRule(models.Model):
         """Send the due reminders of one rule; False when the job must stop (its time is up).
 
         A reminder that failed since ``skip_failed_since`` is not tried again in this pass.
-        Progress is committed every ``COMMIT_EVERY`` reminders and at the end of
-        the rule when ``rules_left`` rules follow it, so a killed worker loses
-        no sent line of an email already out; the job stops when less than
-        ``TIME_MARGIN`` seconds are left.
+        Progress is committed after each email, every ``COMMIT_EVERY`` other reminders
+        and at the end of the rule when ``rules_left`` rules follow it, so a killed
+        worker loses no sent line of an email already out. The time is checked before
+        each reminder: the job stops, with the reminders left reported, when less
+        than ``TIME_MARGIN`` seconds are left.
 
-        Requirements: FR-SRR-0005, FR-SRR-0013, BR-SRR-0004, NFR-SRR-0001.
+        Requirements: FR-SRR-0005, FR-SRR-0010, FR-SRR-0013, BR-SRR-0004, NFR-SRR-0001.
         """
         self.ensure_one()
         started = time.monotonic()
@@ -489,27 +490,52 @@ class RecordReminderRule(models.Model):
         except Exception:  # noqa: BLE001 - a rule that cannot be read must not stop the other rules (design, section 5)
             _logger.error("reminders: rule %s: collecting the due reminders failed", self.id, exc_info=True)
             return True
-        sent = failed = 0
+        sent = failed = pending = 0
         for index, (record, reminder_key, reminder_date) in enumerate(due_reminders, 1):
+            if self._time_left() < TIME_MARGIN:
+                self._commit_unless_testing(pending, remaining=len(due_reminders) - index + 1)
+                return self._stop_for_time(sent, failed, started, index - 1)
             line = self._send_one(record, reminder_key, reminder_date)
             sent += line.state == 'sent'
             failed += line.state == 'failed'
-            if index % COMMIT_EVERY or index == len(due_reminders) or modules.module.current_test:
+            pending += 1
+            # an email is out the moment it is sent: its line is committed at once, so a kill never loses it
+            if (self.channel != 'email' and pending % COMMIT_EVERY) or index == len(due_reminders) \
+                    or modules.module.current_test:
                 continue  # a test runs in one transaction that may not be committed
-            time_left = self.env['ir.cron']._commit_progress(COMMIT_EVERY, remaining=len(due_reminders) - index)
+            time_left = self.env['ir.cron']._commit_progress(pending, remaining=len(due_reminders) - index)
+            pending = 0
             if time_left < TIME_MARGIN:
-                self._log_counts(sent, failed, started)
-                _logger.info("reminders: rule %s: time is up after %s reminders, the job runs again for the rest",
-                             self.id, index)
-                return False
+                return self._stop_for_time(sent, failed, started, index)
             if not self._lock_row():
                 self._log_counts(sent, failed, started)
                 return True
         self._log_counts(sent, failed, started)
         if not due_reminders or not rules_left or modules.module.current_test:
             return True
-        time_left = self.env['ir.cron']._commit_progress(len(due_reminders) % COMMIT_EVERY, remaining=rules_left)
+        time_left = self.env['ir.cron']._commit_progress(pending, remaining=rules_left)
         return time_left >= TIME_MARGIN
+
+    @api.model
+    def _time_left(self) -> float:
+        """Seconds left of the running scheduler job; infinite outside the scheduler.
+
+        Requirements: FR-SRR-0010, NFR-SRR-0001.
+        """
+        end_time = self.env.context.get('cron_end_time')
+        return float('inf') if end_time is None else end_time - time.monotonic()
+
+    def _commit_unless_testing(self, processed: int, remaining: int) -> None:
+        """Commit the progress of the job (a test runs in one transaction that may not be committed)."""
+        if not modules.module.current_test:
+            self.env['ir.cron']._commit_progress(processed, remaining=remaining)
+
+    def _stop_for_time(self, sent: int, failed: int, started: float, reminders_done: int) -> bool:
+        """Log that the job's time is up; False, the value `_send_due` returns to stop the job."""
+        self._log_counts(sent, failed, started)
+        _logger.info("reminders: rule %s: time is up after %s reminders, the job runs again for the rest",
+                     self.id, reminders_done)
+        return False
 
     def action_run_now(self) -> dict:
         """Send this rule's due reminders at once and tell how many were sent and failed.

@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from odoo.tests import TransactionCase, freeze_time
@@ -41,26 +41,52 @@ class TestRunReportsWorkLeft(TransactionCase):
         partners.invalidate_recordset(['create_date'])
         self.cron = self.env.ref('scheduled_record_reminder_mvp.ir_cron_record_reminder_send')
 
-    def _run_as_scheduler(self, seconds_left: float, at='2026-03-10 09:00:00'):
-        """Run the job once, as the scheduler does, with ``seconds_left`` of its time; return its progress."""
+    def _run_as_scheduler(self, seconds_left: float, at='2026-03-10 09:00:00', reminder_seconds=0, commit_every=2):
+        """Run the job once, as the scheduler does, with ``seconds_left`` of its time; return its progress.
+
+        Sending one reminder takes ``reminder_seconds`` of the (frozen) clock.
+        """
         # sudo: progress records belong to the scheduler, as when it runs the job
         progress = self.env['ir.cron.progress'].sudo().create({'cron_id': self.cron.id, 'done': 0, 'remaining': 0})
         # the scheduler commits each chunk; a test transaction may not be committed
-        with patch(RULE_MODULE + '.COMMIT_EVERY', 2), patch('odoo.modules.module.current_test', None), \
-                patch.object(self.env.cr, 'commit'), freeze_time(at):
+        deliver = self.env.registry['record.reminder.rule']._deliver
+        with patch(RULE_MODULE + '.COMMIT_EVERY', commit_every), patch('odoo.modules.module.current_test', None), \
+                patch.object(self.env.cr, 'commit'), freeze_time(at) as clock:
+            def slow_deliver(*args, **kwargs):
+                clock.tick(timedelta(seconds=reminder_seconds))
+                return deliver(*args, **kwargs)
             context = {
                 'cron_id': self.cron.id,
                 'ir_cron_progress_id': progress.id,
                 'cron_end_time': time.monotonic() + seconds_left,  # the frozen clock is the one the job reads
             }
-            self.env['record.reminder.rule'].with_context(context)._cron_send_reminders()
+            with patch.object(self.env.registry['record.reminder.rule'], '_deliver', slow_deliver):
+                self.env['record.reminder.rule'].with_context(context)._cron_send_reminders()
         return progress
 
     def test_a_run_whose_time_is_used_up_reports_the_reminders_left(self):
-        """Requirements: NFR-SRR-0001. 5 due, chunks of 2, no time left: 2 sent, 3 reported left."""
-        progress = self._run_as_scheduler(seconds_left=-1)
+        """Requirements: NFR-SRR-0001. 5 due, a chunk of 2 uses up the time: 2 sent, 3 reported left."""
+        progress = self._run_as_scheduler(seconds_left=100, reminder_seconds=40)
         self.assertEqual(len(self.rule.execution_ids), 2)
         self.assertEqual(progress.done, 2)
+        self.assertEqual(progress.remaining, 3)
+
+    def test_bug_r2_2_a_pass_with_no_time_left_sends_nothing(self):
+        """Regression test for R2-2: a pass that starts with no time left sends nothing and reports all 5 left.
+
+        Requirements: FR-SRR-0010, NFR-SRR-0001
+        """
+        progress = self._run_as_scheduler(seconds_left=-1)
+        self.assertEqual(len(self.rule.execution_ids), 0)
+        self.assertEqual(progress.remaining, 5)
+
+    def test_bug_r2_2_the_time_is_checked_before_each_reminder_not_after_a_chunk(self):
+        """Regression test for R2-2: with a chunk of 100 and time used up by the 2nd reminder, the 3rd is not sent.
+
+        Requirements: FR-SRR-0010, NFR-SRR-0001
+        """
+        progress = self._run_as_scheduler(seconds_left=100, reminder_seconds=40, commit_every=100)
+        self.assertEqual(len(self.rule.execution_ids), 2)
         self.assertEqual(progress.remaining, 3)
 
     def test_a_complete_run_reports_nothing_left(self):
@@ -78,12 +104,12 @@ class TestRunReportsWorkLeft(TransactionCase):
         """
         failing = patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('down'))
         with failing:
-            self._run_as_scheduler(seconds_left=-1)
-            self.assertEqual(len(self.rule.execution_ids), 2)
-            self._run_as_scheduler(seconds_left=-1)
-        self.assertEqual(self.rule.execution_ids.mapped('attempt'), [1, 1, 1, 1])
+            self._run_as_scheduler(seconds_left=100)
+            self.assertEqual(len(self.rule.execution_ids), 5)
+            self._run_as_scheduler(seconds_left=100)
+        self.assertEqual(self.rule.execution_ids.mapped('attempt'), [1] * 5)
         with failing:
-            self._run_as_scheduler(seconds_left=-1, at='2026-03-10 10:00:00')
+            self._run_as_scheduler(seconds_left=100, at='2026-03-10 10:00:00')
         self.assertIn(2, self.rule.execution_ids.mapped('attempt'))
 
     def test_the_first_run_tries_the_failures_of_a_manual_run(self):
