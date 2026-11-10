@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_reminder_root" name="Reminders"
+              web_icon="mail,static/description/icon.png"
+              sequence="97" groups="group_reminder_manager"/>
+    <menuitem id="menu_reminder_rule" name="Rules"
+              parent="menu_reminder_root" action="record_reminder_rule_action"
+              sequence="10" groups="group_reminder_manager"/>
+</odoo>
