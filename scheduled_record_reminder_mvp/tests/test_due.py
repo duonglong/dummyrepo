@@ -81,3 +81,50 @@ class TestDueWindowEdges(TransactionCase):
             rule = self._rule()
         self._partner(None)
         self.assertFalse(rule._collect_due(datetime(2026, 3, 10, 9, 0)))
+
+    def test_bug_b_0168_date_field_reminder_date_is_the_record_date(self):
+        """Regression test for B-0168: 3 days before a date of 20 March, the history says 20 March.
+
+        Runs the scheduled job on a date field; the due moment (17 March) is not the reminder date.
+        An email rule is used: currency rates hold no activities.
+
+        Requirements: BR-SRR-0001, FR-SRR-0011
+        """
+        field = self.env['ir.model.fields']._get('res.currency.rate', 'name')
+        currency = self.env['res.currency'].create({'name': 'XQZ', 'symbol': 'Z', 'active': True})
+        template = self.env['mail.template'].create({
+            'name': 'SRR b0168 tpl', 'model_id': field.model_id.id, 'subject': 'x', 'body_html': '<p>x</p>'})
+        with freeze_time('2026-03-01 08:00:00'):
+            rule = self._rule(
+                model_id=field.model_id.id, date_field_id=field.id, tz='Europe/Brussels', offset=3,
+                channel='email', mail_template_id=template.id, activity_type_id=False,
+                domain="[('currency_id', '=', %d)]" % currency.id)
+        self.env['res.currency.rate'].create({'name': date(2026, 3, 20), 'currency_id': currency.id, 'rate': 1.0})
+        with freeze_time('2026-03-18 09:00:00'):
+            self.env['record.reminder.rule']._cron_send_reminders()
+        self.assertEqual(rule.execution_ids.mapped('reminder_date'), [date(2026, 3, 20)])
+
+    def test_bug_b_0168_datetime_field_reminder_date_is_the_day_of_the_value(self):
+        """Regression test for B-0168: 1 day before a value of 10 March 14:00, the reminder date is 10 March.
+
+        Requirements: BR-SRR-0001, FR-SRR-0009, FR-SRR-0011
+        """
+        with freeze_time('2026-03-01 08:00:00'):
+            rule = self._rule(offset=1, tz='Europe/Brussels')
+        partner = self._partner(datetime(2026, 3, 10, 14, 0))
+        due_reminders = rule._collect_due(datetime(2026, 3, 10, 15, 0))
+        self.assertEqual(due_reminders, [(partner, '2026-03-10 14:00:00', date(2026, 3, 10))])
+
+    def test_bug_b_0168_run_now_uses_the_record_date(self):
+        """Regression test for B-0168: Run now sends the record date, also as the activity deadline.
+
+        Requirements: BR-SRR-0001, FR-SRR-0014
+        """
+        with freeze_time('2026-03-01 08:00:00'):
+            rule = self._rule(offset=1, tz='UTC')
+        partner = self._partner(datetime(2026, 3, 10, 14, 0))
+        with freeze_time('2026-03-11 15:00:00'):
+            rule.with_user(self.env.ref('base.user_admin')).action_run_now()
+        self.assertEqual(rule.execution_ids.reminder_date, date(2026, 3, 10))
+        activities = self.env['mail.activity'].search([('res_model', '=', 'res.partner'), ('res_id', '=', partner.id)])
+        self.assertEqual(set(activities.mapped('date_deadline')), {date(2026, 3, 10)})

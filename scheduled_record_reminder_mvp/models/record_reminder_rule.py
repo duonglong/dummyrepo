@@ -17,6 +17,7 @@ _logger = logging.getLogger(__name__)
 DATE_TYPES = ['date', 'datetime']
 MAX_TRIES = 3  # a failed reminder is tried again by the scheduled run until it has failed this many times (BR-SRR-0004)
 COMMIT_EVERY = 100  # the scheduled run commits its progress after this many reminders
+TIME_MARGIN = 30  # seconds: below this much time left the run stops rather than start work the kill would cut
 
 
 class RecordReminderRule(models.Model):
@@ -261,9 +262,9 @@ class RecordReminderRule(models.Model):
         }
         if not record.exists():
             return executions.create(dict(values, state='failed', error_message=_("The record no longer exists.")))
-        values['record_name'] = record.display_name
         try:
             with self.env.cr.savepoint():
+                values['record_name'] = record.display_name
                 users, partners = self._recipients(record)
                 line = executions.create(dict(values, state='sent', partner_ids=[Command.set(partners.ids)]))
                 self._deliver(record, users, partners, reminder_date)
@@ -273,6 +274,7 @@ class RecordReminderRule(models.Model):
             return executions
         except Exception as error:  # noqa: BLE001 - one failed reminder must not stop the others (FR-SRR-0012)
             _logger.warning("reminders: rule %s failed on %s %s", self.id, record._name, record.id, exc_info=True)
+            values.setdefault('record_name', '%s,%s' % (record._name, record.id))
             return executions.create(dict(values, state='failed', error_message=str(error)))
 
     def _deliver(self, record: models.BaseModel, users: models.BaseModel, partners: models.BaseModel,
@@ -363,7 +365,6 @@ class RecordReminderRule(models.Model):
         records = self.env[self.model_name].sudo().search(domain)
         if not records:
             return []
-        zone = pytz.timezone(self.tz)
         in_window = {}
         for record in records:
             value = record[field.name]
@@ -387,10 +388,18 @@ class RecordReminderRule(models.Model):
             failed_at = last_failure.get((res_id, reminder_key))
             if skip_failed_since and failed_at and failed_at >= skip_failed_since:
                 continue
-            reminder_date = pytz.utc.localize(due).astimezone(zone).date()
-            due_reminders.append((due, record, reminder_key, reminder_date))
+            due_reminders.append((due, record, reminder_key, self._reminder_date(record[field.name])))
         due_reminders.sort(key=lambda item: (item[0], item[1].id))
         return [(record, reminder_key, reminder_date) for _due, record, reminder_key, reminder_date in due_reminders]
+
+    def _reminder_date(self, value: date | datetime) -> date:
+        """The day of the date field's value in the rule's time zone: the reminder date, not the due day.
+
+        Requirements: BR-SRR-0001, FR-SRR-0009, FR-SRR-0011.
+        """
+        if isinstance(value, datetime):
+            return pytz.utc.localize(value).astimezone(pytz.timezone(self.tz)).date()
+        return value
 
     def _reminder_key(self, value: date | datetime) -> str:
         """The date field's value as text: the identity of a reminder with its record and rule.
@@ -437,16 +446,21 @@ class RecordReminderRule(models.Model):
         # one is taken from the end of its time budget, which all calls of one run share.
         # (a call outside the scheduler, with no `cron_end_time`, is a plain run: every failed reminder may be tried)
         job_start = self._job_start(now)
-        for rule in self.search([]):
-            if not rule._send_due(now, job_start):
+        rules = self.search([])
+        for position, rule in enumerate(rules, 1):
+            if not rule._send_due(now, job_start, rules_left=len(rules) - position):
                 return
         if not modules.module.current_test:  # a test runs in one transaction that may not be committed
             self.env['ir.cron']._commit_progress(remaining=0)
 
-    def _send_due(self, now: datetime, skip_failed_since: datetime | None = None) -> bool:
-        """Send the due reminders of one rule; False when the job must stop (its time is used up).
+    def _send_due(self, now: datetime, skip_failed_since: datetime | None = None, rules_left: int = 0) -> bool:
+        """Send the due reminders of one rule; False when the job must stop (its time is up).
 
         A reminder that failed since ``skip_failed_since`` is not tried again in this pass.
+        Progress is committed every ``COMMIT_EVERY`` reminders and at the end of
+        the rule when ``rules_left`` rules follow it, so a killed worker loses
+        no sent line of an email already out; the job stops when less than
+        ``TIME_MARGIN`` seconds are left.
 
         Requirements: FR-SRR-0005, FR-SRR-0013, BR-SRR-0004, NFR-SRR-0001.
         """
@@ -468,7 +482,7 @@ class RecordReminderRule(models.Model):
             if index % COMMIT_EVERY or index == len(due_reminders) or modules.module.current_test:
                 continue  # a test runs in one transaction that may not be committed
             time_left = self.env['ir.cron']._commit_progress(COMMIT_EVERY, remaining=len(due_reminders) - index)
-            if not time_left:
+            if time_left < TIME_MARGIN:
                 self._log_counts(sent, failed, started)
                 _logger.info("reminders: rule %s: time is up after %s reminders, the job runs again for the rest",
                              self.id, index)
@@ -477,7 +491,10 @@ class RecordReminderRule(models.Model):
                 self._log_counts(sent, failed, started)
                 return True
         self._log_counts(sent, failed, started)
-        return True
+        if not due_reminders or not rules_left or modules.module.current_test:
+            return True
+        time_left = self.env['ir.cron']._commit_progress(len(due_reminders) % COMMIT_EVERY, remaining=rules_left)
+        return time_left >= TIME_MARGIN
 
     def action_run_now(self) -> dict:
         """Send this rule's due reminders at once and tell how many were sent and failed.

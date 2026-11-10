@@ -26,6 +26,7 @@ class TestRunNowAcceptance(TransactionCase):
         self.todo = self.env.ref('mail.mail_activity_data_todo')
         self.ann = self.env['res.users'].create({
             'name': 'Ann', 'login': 'srr_rn_ann',
+            'email': 'srr_rn_ann@example.com',
             'group_ids': [(6, 0, [self.env.ref('base.group_user').id])],
         })
         self.template = self.env['mail.template'].create({
