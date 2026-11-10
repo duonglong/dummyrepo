@@ -365,7 +365,6 @@ class RecordReminderRule(models.Model):
         records = self.env[self.model_name].sudo().search(domain)
         if not records:
             return []
-        zone = pytz.timezone(self.tz)
         in_window = {}
         for record in records:
             value = record[field.name]
@@ -389,10 +388,18 @@ class RecordReminderRule(models.Model):
             failed_at = last_failure.get((res_id, reminder_key))
             if skip_failed_since and failed_at and failed_at >= skip_failed_since:
                 continue
-            reminder_date = pytz.utc.localize(due).astimezone(zone).date()
-            due_reminders.append((due, record, reminder_key, reminder_date))
+            due_reminders.append((due, record, reminder_key, self._reminder_date(record[field.name])))
         due_reminders.sort(key=lambda item: (item[0], item[1].id))
         return [(record, reminder_key, reminder_date) for _due, record, reminder_key, reminder_date in due_reminders]
+
+    def _reminder_date(self, value: date | datetime) -> date:
+        """The day of the date field's value in the rule's time zone: the reminder date, not the due day.
+
+        Requirements: BR-SRR-0001, FR-SRR-0009, FR-SRR-0011.
+        """
+        if isinstance(value, datetime):
+            return pytz.utc.localize(value).astimezone(pytz.timezone(self.tz)).date()
+        return value
 
     def _reminder_key(self, value: date | datetime) -> str:
         """The date field's value as text: the identity of a reminder with its record and rule.
