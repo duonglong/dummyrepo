@@ -40,7 +40,8 @@ class TestSendReminderAcceptance(TransactionCase):
 
     def _user(self, name, login, group):
         return self.env['res.users'].create({
-            'name': name, 'login': login, 'group_ids': [(6, 0, [group.id])],
+            'name': name, 'login': login, 'email': f'{login}@example.com',
+            'group_ids': [(6, 0, [group.id])],
         })
 
     def _field(self, name, model='res.partner'):

@@ -25,6 +25,7 @@ class TestDueWindowAcceptance(TransactionCase):
         self.todo = self.env.ref('mail.mail_activity_data_todo')
         self.ann = self.env['res.users'].create({
             'name': 'Ann', 'login': 'srr_due_ann',
+            'email': 'srr_due_ann@example.com',
             'group_ids': [(6, 0, [self.env.ref('base.group_user').id])],
         })
 
@@ -108,9 +109,9 @@ class TestDueWindowAcceptance(TransactionCase):
     def test_only_records_matching_the_conditions_are_reminded(self):
         """Requirements: FR-SRR-0003. Scenario SC-SRR-0003-1."""
         with freeze_time('2026-03-01 08:00:00'):
-            rule = self._rule(domain="[('name', 'like', 'SRR-'), ('is_company', '=', True)]")
-        match = self._partner('company', date(2026, 3, 10), is_company=True)
-        other = self._partner('person', date(2026, 3, 10), is_company=False)
+            rule = self._rule(domain="[('name', 'like', 'SRR-'), ('color', '=', 3)]")
+        match = self._partner('company', date(2026, 3, 10), color=3)
+        other = self._partner('person', date(2026, 3, 10), color=0)
         self._run('2026-03-10 09:00:00')
         self.assertEqual(len(self._activities(match)), 1)
         self.assertFalse(self._activities(other))
@@ -183,7 +184,7 @@ class TestDueWindowAcceptance(TransactionCase):
         """Requirements: FR-SRR-0004. Scenario SC-SRR-0004-3."""
         with freeze_time('2026-03-01 08:00:00'):
             rule = self._rule()
-        partner = self._partner('nodate', False)
+        partner = self._partner('nodate', None)
         self._run('2026-03-10 09:00:00')
         self.assertFalse(self._activities(partner))
         self.assertFalse(self._lines(rule))
