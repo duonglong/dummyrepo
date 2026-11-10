@@ -16,7 +16,7 @@ class RecordReminderExecution(models.Model):
     _key_idx = models.Index("(rule_id, res_id, reminder_key)")
 
     rule_id = fields.Many2one(
-        'record.reminder.rule', string="Rule", required=True, index=True, ondelete='restrict')
+        'record.reminder.rule', string="Rule", required=True, index=True, ondelete='cascade')
     res_model = fields.Char(string="Record Type", required=True, index=True)
     res_id = fields.Many2oneReference(
         string="Record", model_field='res_model', required=True, index=True)

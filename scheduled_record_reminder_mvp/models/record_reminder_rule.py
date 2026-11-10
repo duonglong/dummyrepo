@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from psycopg2 import errors
 
@@ -170,15 +171,24 @@ class RecordReminderRule(models.Model):
             'context_today': lambda: fields.Date.context_today(self),
         }
 
-    def unlink(self):
-        """Forbid deleting a rule that already sent or tried a reminder: switching it off keeps its history."""
-        if self.execution_ids:
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_with_history(self) -> None:
+        """Forbid deleting a rule that already sent or tried a reminder: switching it off keeps its history.
+
+        Removing the app of the watched records still removes the rule with its history.
+
+        Requirements: FR-SRR-0017.
+        """
+        # sudo: the check counts history lines, which the deleting manager may read anyway
+        if self.env['record.reminder.execution'].sudo().search_count([('rule_id', 'in', self.ids)], limit=1):
             raise UserError(_(
                 "A rule that already sent or tried a reminder cannot be deleted. Switch it off instead."))
-        return super().unlink()
 
-    def _recipient_partners(self, record):
-        """The contacts to remind about a record, read at sending time.
+    def _recipients(self, record: models.BaseModel) -> tuple[models.BaseModel, models.BaseModel]:
+        """The users and the contacts to remind about a record, read at sending time.
+
+        The users are those to give an activity; the contacts those to email.
+        A contact field gives contacts only.
 
         Requirements: FR-SRR-0006, FR-SRR-0007.
         """
@@ -187,21 +197,25 @@ class RecordReminderRule(models.Model):
             users = self.user_ids.filtered('active')
             if not users:
                 raise UserError(_("No active user in the rule's fixed users."))
-            return users.partner_id
+            return users, users.partner_id
         field = self.recipient_field_id
         value = record[field.name]
         if field.relation == 'res.users':
-            value = value.filtered('active').partner_id
-        if not value:
+            users = value.filtered('active')
+            partners = users.partner_id
+        else:
+            users, partners = self.env['res.users'], value
+        if not partners:
             raise UserError(_("No recipient: the field %s is empty on this record.", field.field_description))
-        return value
+        return users, partners
 
-    def _send_one(self, record, reminder_key: str, reminder_date):
+    def _send_one(self, record: models.BaseModel, reminder_key: str, reminder_date: date) -> models.BaseModel:
         """Send the reminder of one record once and write its history line.
 
         The sent line is claimed first, inside a savepoint, so the database
         refuses a second send of the same record, rule and reminder date; any
-        error undoes that reminder only and becomes a failed line.
+        error undoes that reminder only and becomes a failed line, also when
+        the record was deleted before sending.
 
         Requirements: FR-SRR-0006, FR-SRR-0007, FR-SRR-0008, FR-SRR-0009,
         FR-SRR-0010, FR-SRR-0011, FR-SRR-0012, BR-SRR-0001.
@@ -211,21 +225,25 @@ class RecordReminderRule(models.Model):
         self.ensure_one()
         # sudo: history lines are written by the engine only, managers can read them
         executions = self.env['record.reminder.execution'].sudo()
-        key = [('rule_id', '=', self.id), ('res_model', '=', record._name),
-               ('res_id', '=', record.id), ('reminder_key', '=', reminder_key)]
-        if executions.search_count(key + [('state', '=', 'sent')], limit=1):
+        counts = dict(executions._read_group(
+            [('rule_id', '=', self.id), ('res_model', '=', record._name),
+             ('res_id', '=', record.id), ('reminder_key', '=', reminder_key)],
+            ['state'], ['__count']))
+        if counts.get('sent'):
             return executions
         values = {
             'rule_id': self.id, 'res_model': record._name, 'res_id': record.id,
-            'record_name': record.display_name, 'reminder_key': reminder_key,
-            'reminder_date': reminder_date, 'channel': self.channel,
-            'attempt': executions.search_count(key + [('state', '=', 'failed')]) + 1,
+            'reminder_key': reminder_key, 'reminder_date': reminder_date, 'channel': self.channel,
+            'attempt': counts.get('failed', 0) + 1,
         }
+        if not record.exists():
+            return executions.create(dict(values, state='failed', error_message=_("The record no longer exists.")))
+        values['record_name'] = record.display_name
         try:
             with self.env.cr.savepoint():
-                partners = self._recipient_partners(record)
+                users, partners = self._recipients(record)
                 line = executions.create(dict(values, state='sent', partner_ids=[Command.set(partners.ids)]))
-                self._deliver(record, partners, reminder_date)
+                self._deliver(record, users, partners, reminder_date)
             return line
         except errors.UniqueViolation:
             _logger.info("reminders: rule %s: %s %s already sent for %s", self.id, record._name, record.id, reminder_key)
@@ -234,8 +252,9 @@ class RecordReminderRule(models.Model):
             _logger.warning("reminders: rule %s failed on %s %s", self.id, record._name, record.id, exc_info=True)
             return executions.create(dict(values, state='failed', error_message=str(error)))
 
-    def _deliver(self, record, partners, reminder_date):
-        """Send the email, or create one activity per recipient user."""
+    def _deliver(self, record: models.BaseModel, users: models.BaseModel, partners: models.BaseModel,
+                 reminder_date: date) -> None:
+        """Send the email to the contacts, or create one activity per user."""
         self.ensure_one()
         if self.channel == 'email':
             # sudo: the template is rendered and mailed as the engine, managers are trusted to send (FR-SRR-0018)
@@ -247,7 +266,7 @@ class RecordReminderRule(models.Model):
                     'recipient_cc_ids': [Command.clear()],
                 })
             return
-        for user in partners.user_ids:
+        for user in users:
             # sudo: the recipient need not be the user who runs the rule
             record.sudo().activity_schedule(
                 date_deadline=reminder_date, summary=self.activity_summary or '',
