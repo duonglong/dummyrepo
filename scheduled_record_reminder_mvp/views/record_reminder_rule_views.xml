@@ -12,6 +12,8 @@
                 <field name="offset_unit" optional="hide"/>
                 <field name="offset_direction" optional="hide"/>
                 <field name="channel" optional="hide"/>
+                <field name="sent_count"/>
+                <field name="failed_count"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -22,7 +24,19 @@
         <field name="model">record.reminder.rule</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button name="action_run_now" type="object" string="Run now" class="btn-primary"
+                            invisible="not active" groups="scheduled_record_reminder_mvp.group_reminder_manager"/>
+                </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_sent" type="object" class="oe_stat_button" icon="fa-check">
+                            <field name="sent_count" widget="statinfo" string="Sent"/>
+                        </button>
+                        <button name="action_view_failed" type="object" class="oe_stat_button" icon="fa-exclamation-triangle">
+                            <field name="failed_count" widget="statinfo" string="Failed"/>
+                        </button>
+                    </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
                         <label for="name"/>

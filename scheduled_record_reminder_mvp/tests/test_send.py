@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from unittest.mock import patch
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase
@@ -88,3 +89,25 @@ class TestSendOneEdgeCases(TransactionCase):
         first = self.rule._send_one(partner, '2026-03-20 09:00:00', date(2026, 3, 20))
         second = self.rule._send_one(partner, '2026-03-20 09:00:00', date(2026, 3, 20))
         self.assertEqual((first.attempt, second.attempt), (1, 2))
+
+    def test_bug_b_0169_a_record_whose_name_cannot_be_read_is_a_failed_line(self):
+        """Regression test for B-0169: one record with a broken display name fails alone, the run goes on.
+
+        Requirements: FR-SRR-0012, FR-SRR-0010
+        """
+        broken, good = self.env['res.partner'].create([{'name': 'SRR-broken'}, {'name': 'SRR-good'}])
+        broken, good = broken.with_prefetch(broken.ids), good.with_prefetch(good.ids)  # no shared compute batch
+        compute = self.env.registry['res.partner']._compute_display_name
+
+        def failing_for_broken(partners):
+            if broken in partners:
+                raise ValueError("display name unreadable")
+            compute(partners)
+
+        self.env.invalidate_all()
+        with patch.object(self.env.registry['res.partner'], '_compute_display_name', failing_for_broken):
+            lines = [self.rule._send_one(partner, '2026-03-20 09:00:00', date(2026, 3, 20))
+                     for partner in (broken, good)]
+        self.assertEqual([line.state for line in lines], ['failed', 'sent'])
+        self.assertIn("display name unreadable", lines[0].error_message)
+        self.assertEqual(lines[0].record_name, 'res.partner,%s' % broken.id)

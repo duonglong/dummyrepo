@@ -25,6 +25,7 @@ class TestDueWindowAcceptance(TransactionCase):
         self.todo = self.env.ref('mail.mail_activity_data_todo')
         self.ann = self.env['res.users'].create({
             'name': 'Ann', 'login': 'srr_due_ann',
+            'email': 'srr_due_ann@example.com',
             'group_ids': [(6, 0, [self.env.ref('base.group_user').id])],
         })
 
