@@ -128,3 +128,107 @@ class TestDueWindowEdges(TransactionCase):
         self.assertEqual(rule.execution_ids.reminder_date, date(2026, 3, 10))
         activities = self.env['mail.activity'].search([('res_model', '=', 'res.partner'), ('res_id', '=', partner.id)])
         self.assertEqual(set(activities.mapped('date_deadline')), {date(2026, 3, 10)})
+
+
+class TestWindowAfterRuleChange(TransactionCase):
+    """B-0174: a change of what a rule watches opens a new window; reminders due before it are not sent.
+
+    Requirements: BR-SRR-0003, FR-SRR-0016, FR-SRR-0017.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.ann = self.env['res.users'].create({
+            'name': 'Ann', 'login': 'srr_window_ann',
+            'group_ids': [(6, 0, [self.env.ref('base.group_user').id])],
+        })
+        with freeze_time('2026-03-01 08:00:00'):
+            self.rule = self.env['record.reminder.rule'].create({
+                'name': 'SRR window rule',
+                'model_id': self.env['ir.model']._get('res.partner').id,
+                'domain': "[('name', '=', 'SRR-WIN')]",
+                'date_field_id': self._field('res.partner', 'create_date').id,
+                'tz': 'UTC', 'channel': 'activity',
+                'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+                'recipient_mode': 'users', 'user_ids': [(6, 0, [self.ann.id])],
+            })
+
+    def _field(self, model, name):
+        return self.env['ir.model.fields']._get(model, name)
+
+    def _partner(self, name, create_date, write_date):
+        partner = self.env['res.partner'].create({'name': name})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_partner SET create_date = %s, write_date = %s WHERE id = %s", [create_date, write_date, partner.id])
+        partner.invalidate_recordset(['create_date', 'write_date'])
+        return partner
+
+    def _collected(self, now):
+        return [record for record, _key, _date in self.rule._collect_due(now)]
+
+    def test_bug_b_0174_widened_conditions_skip_reminders_due_before_the_change(self):
+        """Regression test for B-0174: removing a condition on a rule that has been on for days.
+
+        Requirements: BR-SRR-0003, FR-SRR-0017
+        """
+        old = self._partner('SRR-WIN old', datetime(2026, 3, 5, 9, 0), datetime(2026, 3, 5, 9, 0))
+        with freeze_time('2026-03-10 09:00:00'):
+            self.rule.write({'domain': "[('name', 'like', 'SRR-WIN')]"})
+        new = self._partner('SRR-WIN new', datetime(2026, 3, 11, 9, 0), datetime(2026, 3, 11, 9, 0))
+        self.assertEqual(self._collected(datetime(2026, 3, 12, 9, 0)), [new])
+        self.assertNotIn(old, self._collected(datetime(2026, 3, 12, 9, 0)))
+
+    def test_bug_b_0174_new_date_field_skips_reminders_due_before_the_change(self):
+        """Regression test for B-0174: switching the date field of a rule that has been on for days.
+
+        Requirements: BR-SRR-0003, FR-SRR-0017
+        """
+        old = self._partner('SRR-WIN', datetime(2026, 3, 20, 9, 0), datetime(2026, 3, 5, 9, 0))
+        new = self._partner('SRR-WIN', datetime(2026, 3, 20, 9, 0), datetime(2026, 3, 11, 9, 0))
+        with freeze_time('2026-03-10 09:00:00'):
+            self.rule.write({'date_field_id': self._field('res.partner', 'write_date').id})
+        self.assertEqual(self._collected(datetime(2026, 3, 12, 9, 0)), [new])
+        self.assertNotIn(old, self._collected(datetime(2026, 3, 12, 9, 0)))
+
+    def test_bug_b_0174_new_record_type_skips_reminders_due_before_the_change(self):
+        """Regression test for B-0174: switching the record type of a rule that has been on for days.
+
+        Requirements: BR-SRR-0003, FR-SRR-0017
+        """
+        users = self.env['res.users']
+        old = users.create({'name': 'SRR-WIN old', 'login': 'srr_window_old'})
+        new = users.create({'name': 'SRR-WIN new', 'login': 'srr_window_new'})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET create_date = %s WHERE id = %s", [datetime(2026, 3, 5, 9, 0), old.id])
+        self.env.cr.execute(
+            "UPDATE res_users SET create_date = %s WHERE id = %s", [datetime(2026, 3, 11, 9, 0), new.id])
+        users.invalidate_model(['create_date'])
+        with freeze_time('2026-03-10 09:00:00'):
+            self.rule.write({
+                'model_id': self.env['ir.model']._get('res.users').id,
+                'date_field_id': self._field('res.users', 'create_date').id,
+                'domain': "[('login', 'like', 'srr_window_')]",
+            })
+        self.assertEqual(self._collected(datetime(2026, 3, 12, 9, 0)), [new])
+
+    def test_bug_b_0174_a_change_that_keeps_the_values_does_not_move_the_window(self):
+        """Regression test for B-0174: saving the same conditions again is not a change.
+
+        Requirements: BR-SRR-0003, FR-SRR-0017
+        """
+        old = self._partner('SRR-WIN', datetime(2026, 3, 5, 9, 0), datetime(2026, 3, 5, 9, 0))
+        with freeze_time('2026-03-10 09:00:00'):
+            self.rule.write({'domain': self.rule.domain, 'date_field_id': self.rule.date_field_id.id})
+        self.assertEqual(self._collected(datetime(2026, 3, 12, 9, 0)), [old])
+
+    def test_bug_b_0174_an_offset_change_keeps_the_window(self):
+        """An offset change keeps the switch-on window (SC-SRR-0017-1 holds through the sent keys).
+
+        Requirements: BR-SRR-0003, FR-SRR-0017
+        """
+        old = self._partner('SRR-WIN', datetime(2026, 3, 5, 9, 0), datetime(2026, 3, 5, 9, 0))
+        with freeze_time('2026-03-10 09:00:00'):
+            self.rule.write({'offset': 0})
+        self.assertEqual(self._collected(datetime(2026, 3, 12, 9, 0)), [old])

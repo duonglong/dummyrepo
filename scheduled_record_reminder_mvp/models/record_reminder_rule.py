@@ -40,6 +40,10 @@ class RecordReminderRule(models.Model):
     activated_at = fields.Datetime(
         string="Switched on", readonly=True, copy=False,
         help="The moment the rule was last switched on. Only reminders falling due after it are sent.")
+    window_start_at = fields.Datetime(
+        readonly=True, copy=False,
+        help="The moment the record type, date field or conditions were last changed. "
+             "Only reminders falling due after it are sent, so a change does not send the backlog.")
 
     model_id = fields.Many2one(
         'ir.model', string="Record Type", required=True, ondelete='cascade',
@@ -125,14 +129,32 @@ class RecordReminderRule(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        """Requirements: FR-SRR-0016. Record a new switch-on moment when a rule goes from off to on."""
+        """Record a new switch-on moment when a rule goes from off to on, and a new window start when it watches other records.
+
+        Requirements: FR-SRR-0016, FR-SRR-0017, BR-SRR-0003.
+        """
         switched_on = self.browse()
         if vals.get('active'):
             switched_on = self.filtered(lambda rule: not rule.active)
+        watching_other_records = self.filtered(lambda rule: rule._changes_watched_records(vals))
         result = super().write(vals)
+        if watching_other_records:
+            watching_other_records.window_start_at = fields.Datetime.now()
         if switched_on:
             switched_on.write({'activated_at': fields.Datetime.now()})
         return result
+
+    def _changes_watched_records(self, vals: dict) -> bool:
+        """Whether ``vals`` changes the record type, the date field or the conditions of the rule.
+
+        Requirements: FR-SRR-0017, BR-SRR-0003.
+        """
+        self.ensure_one()
+        return any((
+            'model_id' in vals and vals['model_id'] != self.model_id.id,
+            'date_field_id' in vals and vals['date_field_id'] != self.date_field_id.id,
+            'domain' in vals and vals['domain'] != self.domain,
+        ))
 
     @api.constrains('model_id', 'date_field_id', 'offset')
     def _check_timing(self):
@@ -377,7 +399,7 @@ class RecordReminderRule(models.Model):
         """The reminders due at ``now`` that were not sent yet, oldest first.
 
         A reminder is due when its moment is at or after the moment the rule
-        was switched on and at or before ``now``. Reminders that already failed
+        was switched on or last changed what it watches, and at or before ``now``. Reminders that already failed
         ``MAX_TRIES`` times are left out unless ``include_exhausted``. A
         reminder that failed at or after ``skip_failed_since`` is left out too,
         so one scheduler job does not spend the tries of a failure in minutes.
@@ -389,7 +411,7 @@ class RecordReminderRule(models.Model):
         BR-SRR-0002, BR-SRR-0003, BR-SRR-0004.
         """
         self.ensure_one()
-        start = self.activated_at or self.create_date
+        start = max(self.activated_at or self.create_date, self.window_start_at or datetime.min)
         field = self.date_field_id
         low, high = self._value_bounds(start, now)
         domain = Domain(safe_eval.safe_eval(self.domain or '[]', self._conditions_context())) & Domain([
