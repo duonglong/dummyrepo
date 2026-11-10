@@ -8,7 +8,7 @@ from psycopg2 import errors
 from odoo import Command, _, api, fields, modules, models
 from odoo.addons.base.models.ir_cron import MIN_TIME_PER_JOB
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import safe_eval
 
@@ -88,6 +88,23 @@ class RecordReminderRule(models.Model):
         string="Fixed Users", help="The users who are reminded about every record.")
     execution_ids = fields.One2many(
         'record.reminder.execution', 'rule_id', string="History")
+
+    sent_count = fields.Integer(string="Sent", compute='_compute_counts')
+    failed_count = fields.Integer(string="Failed", compute='_compute_counts')
+
+    @api.depends('execution_ids.state')
+    def _compute_counts(self) -> None:
+        """Count the sent and the failed lines of each rule's history.
+
+        Requirements: FR-SRR-0015.
+        """
+        # sudo: counting is not reading lines: the counts are shown to those who read the rule
+        counts = dict(
+            ((rule.id, state), count) for rule, state, count in self.env['record.reminder.execution'].sudo()._read_group(
+                [('rule_id', 'in', self.ids)], ['rule_id', 'state'], ['__count']))
+        for rule in self:
+            rule.sent_count = counts.get((rule.id, 'sent'), 0)
+            rule.failed_count = counts.get((rule.id, 'failed'), 0)
 
     @api.onchange('model_id')
     def _onchange_model_id(self):
@@ -461,6 +478,66 @@ class RecordReminderRule(models.Model):
                 return True
         self._log_counts(sent, failed, started)
         return True
+
+    def action_run_now(self) -> dict:
+        """Send this rule's due reminders at once and tell how many were sent and failed.
+
+        Reminders that already failed ``MAX_TRIES`` times are tried again; what was
+        already sent is not sent again. The rule's row is locked for the run.
+
+        Requirements: FR-SRR-0014, FR-SRR-0018.
+        """
+        self.ensure_one()
+        if not self.env.user.has_group('scheduled_record_reminder_mvp.group_reminder_manager'):
+            raise AccessError(_("Only reminder managers can run a reminder rule."))
+        if not self.active:
+            raise UserError(_("Switch the rule on before running it."))
+        # sudo: the manager running the rule may lack access to the watched records and to the history lines
+        rule = self.sudo()
+        try:
+            with self.env.cr.savepoint():
+                self.env.cr.execute(
+                    "SELECT id FROM record_reminder_rule WHERE id = %s FOR UPDATE NOWAIT", [self.id])
+        except errors.LockNotAvailable:
+            raise UserError(_("This rule is being run right now. Try again in a minute.")) from None
+        due_reminders = rule._collect_due(fields.Datetime.now(), include_exhausted=True)
+        states = [rule._send_one(record, key, reminder_date).state for record, key, reminder_date in due_reminders]
+        sent, failed = states.count('sent'), states.count('failed')
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'warning' if failed else 'success',
+                'message': _("Rule \"%(rule)s\": %(sent)s sent, %(failed)s failed.",
+                             rule=self.name, sent=sent, failed=failed),
+            },
+        }
+
+    def _history_action(self, state: str | None = None) -> dict:
+        """The history of this rule, of one state when given."""
+        self.ensure_one()
+        domain = [('rule_id', '=', self.id)] + ([('state', '=', state)] if state else [])
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("History of %s", self.name),
+            'res_model': 'record.reminder.execution',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_view_sent(self) -> dict:
+        """Open the sent lines of this rule's history.
+
+        Requirements: FR-SRR-0015.
+        """
+        return self._history_action('sent')
+
+    def action_view_failed(self) -> dict:
+        """Open the failed lines of this rule's history.
+
+        Requirements: FR-SRR-0015.
+        """
+        return self._history_action('failed')
 
     def _log_counts(self, sent: int, failed: int, started: float) -> None:
         """Log what one rule's run sent and failed (design, section 5)."""

@@ -7,3 +7,5 @@ from . import test_cron
 from . import test_performance
 from . import test_run_now_acceptance
 from . import test_history_views_acceptance
+from . import test_run_now
+from . import test_history_views
