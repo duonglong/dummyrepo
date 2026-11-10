@@ -261,6 +261,9 @@ class RecordReminderRule(models.Model):
             partners = users.partner_id
         else:
             field = self.recipient_field_id
+            if not field:
+                raise UserError(_(
+                    "The rule's recipient field no longer exists. Choose a recipient field or fixed users."))
             value = record[field.name]
             if field.relation == 'res.users':
                 users = value.filtered('active')

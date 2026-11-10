@@ -191,3 +191,59 @@ class TestEmailToUnreachableRecipients(TransactionCase):
         second = self._send(record)
         self.assertEqual((first.state, second.state), ('failed', 'sent'))
         self.assertEqual(second.attempt, 2)
+
+
+class TestRemovedRecipientField(TransactionCase):
+    """A rule in field mode whose recipient field was removed fails for the reason, for each channel."""
+
+    def setUp(self):
+        super().setUp()
+        partner_model = self.env['ir.model']._get('res.partner')
+        self.reviewer_field = self.env['ir.model.fields'].create({
+            'name': 'x_srr_reviewer_id', 'field_description': 'SRR reviewer', 'model_id': partner_model.id,
+            'ttype': 'many2one', 'relation': 'res.users', 'state': 'manual',
+        })
+        self.template = self.env['mail.template'].create({
+            'name': 'SRR removed field', 'model_id': partner_model.id,
+            'subject': 'Reminder', 'body_html': '<p>Reminder</p>',
+        })
+        self.customer = self.env['res.partner'].create({'name': 'SRR Customer X', 'email': 'srr.customer@example.com'})
+
+    def _rule_without_recipient_field(self, **channel_values):
+        rule = self.env['record.reminder.rule'].create(dict({
+            'name': 'SRR removed field test',
+            'model_id': self.env['ir.model']._get('res.partner').id,
+            'date_field_id': self.env['ir.model.fields']._get('res.partner', 'create_date').id,
+            'recipient_mode': 'field',
+            'recipient_field_id': self.reviewer_field.id,
+        }, **channel_values))
+        self.reviewer_field.unlink()
+        return rule
+
+    def _send(self, rule):
+        return rule._send_one(self.customer, '2026-03-20 09:00:00', date(2026, 3, 20))
+
+    def assertFailedForRemovedField(self, line):
+        self.assertEqual(line.state, 'failed')
+        self.assertIn("recipient field no longer exists", line.error_message)
+        self.assertFalse(line.partner_ids)
+
+    def test_bug_b_0175_activity_rule_fails_instead_of_recording_a_send(self):
+        """Regression test for B-0175: the watched record is not its own recipient; no activity means a failed line.
+
+        Requirements: FR-SRR-0006, FR-SRR-0009, FR-SRR-0012
+        """
+        rule = self._rule_without_recipient_field(
+            channel='activity', activity_type_id=self.env.ref('mail.mail_activity_data_todo').id)
+        self.assertFailedForRemovedField(self._send(rule))
+        self.assertFalse(self.env['mail.activity'].search([
+            ('res_model', '=', 'res.partner'), ('res_id', '=', self.customer.id)]))
+
+    def test_bug_b_0175_email_rule_does_not_mail_the_watched_record(self):
+        """Regression test for B-0175: the internal reminder is not emailed to the customer.
+
+        Requirements: FR-SRR-0006, FR-SRR-0008, FR-SRR-0012
+        """
+        rule = self._rule_without_recipient_field(channel='email', mail_template_id=self.template.id)
+        self.assertFailedForRemovedField(self._send(rule))
+        self.assertFalse(self.env['mail.mail'].search([('recipient_ids', 'in', self.customer.ids)]))
