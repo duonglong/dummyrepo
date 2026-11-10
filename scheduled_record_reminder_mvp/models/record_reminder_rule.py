@@ -262,9 +262,9 @@ class RecordReminderRule(models.Model):
         }
         if not record.exists():
             return executions.create(dict(values, state='failed', error_message=_("The record no longer exists.")))
-        values['record_name'] = record.display_name
         try:
             with self.env.cr.savepoint():
+                values['record_name'] = record.display_name
                 users, partners = self._recipients(record)
                 line = executions.create(dict(values, state='sent', partner_ids=[Command.set(partners.ids)]))
                 self._deliver(record, users, partners, reminder_date)
@@ -274,6 +274,7 @@ class RecordReminderRule(models.Model):
             return executions
         except Exception as error:  # noqa: BLE001 - one failed reminder must not stop the others (FR-SRR-0012)
             _logger.warning("reminders: rule %s failed on %s %s", self.id, record._name, record.id, exc_info=True)
+            values.setdefault('record_name', '%s,%s' % (record._name, record.id))
             return executions.create(dict(values, state='failed', error_message=str(error)))
 
     def _deliver(self, record: models.BaseModel, users: models.BaseModel, partners: models.BaseModel,
