@@ -4,3 +4,4 @@ from . import test_due_acceptance
 from . import test_send
 from . import test_due
 from . import test_cron
+from . import test_performance

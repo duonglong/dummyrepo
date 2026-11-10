@@ -304,6 +304,8 @@ class RecordReminderRule(models.Model):
         A date-only field is widened by one calendar day on each side, so the
         time zone and the day-length changes cannot cut a value off; the exact
         check is made on the candidates (ADR-SRR-003).
+
+        Requirements: FR-SRR-0004, BR-SRR-0003.
         """
         self.ensure_one()
         sign = 1 if self.offset_direction == 'before' else -1
@@ -363,11 +365,17 @@ class RecordReminderRule(models.Model):
         return [(record, reminder_key, reminder_date) for _due, record, reminder_key, reminder_date in due_reminders]
 
     def _reminder_key(self, value: date | datetime) -> str:
-        """The date field's value as text: the identity of a reminder with its record and rule (BR-SRR-0001)."""
+        """The date field's value as text: the identity of a reminder with its record and rule.
+
+        Requirements: BR-SRR-0001.
+        """
         return fields.Datetime.to_string(value) if isinstance(value, datetime) else fields.Date.to_string(value)
 
     def _lock_row(self) -> bool:
-        """Lock the rule's row for this run; False when another run holds it (ADR-SRR-002)."""
+        """Lock the rule's row for this run; False when another run holds it (ADR-SRR-002).
+
+        Requirements: FR-SRR-0005.
+        """
         self.ensure_one()
         self.env.cr.execute(
             "SELECT id FROM record_reminder_rule WHERE id = %s FOR UPDATE SKIP LOCKED", [self.id])
@@ -378,8 +386,9 @@ class RecordReminderRule(models.Model):
         """The scheduled action: send the due reminders of every active rule.
 
         A rule another run is processing is left to it. Progress is committed
-        every ``COMMIT_EVERY`` reminders; when the time of the job is used up
-        the run stops and the next run goes on.
+        every ``COMMIT_EVERY`` reminders with the number of reminders left, so
+        when the time of the job is used up the run stops and the scheduler
+        runs the job again at once; a complete run reports nothing left.
 
         Requirements: FR-SRR-0005, FR-SRR-0013, FR-SRR-0016, NFR-SRR-0001.
         """
@@ -387,6 +396,8 @@ class RecordReminderRule(models.Model):
         for rule in self.search([]):
             if not rule._send_due(now):
                 return
+        if not modules.module.current_test:  # a test runs in one transaction that may not be committed
+            self.env['ir.cron']._commit_progress(remaining=0)
 
     def _send_due(self, now: datetime) -> bool:
         """Send the due reminders of one rule; False when the job must stop (its time is used up).
@@ -410,10 +421,18 @@ class RecordReminderRule(models.Model):
             failed += line.state == 'failed'
             if index % COMMIT_EVERY or index == len(due_reminders) or modules.module.current_test:
                 continue  # a test runs in one transaction that may not be committed
-            if not self.env['ir.cron']._commit_progress(COMMIT_EVERY):
-                _logger.info("reminders: rule %s: time is up after %s reminders, the next run goes on", self.id, index)
+            time_left = self.env['ir.cron']._commit_progress(COMMIT_EVERY, remaining=len(due_reminders) - index)
+            if not time_left:
+                self._log_counts(sent, failed, started)
+                _logger.info("reminders: rule %s: time is up after %s reminders, the job runs again for the rest",
+                             self.id, index)
                 return False
             if not self._lock_row():
+                self._log_counts(sent, failed, started)
                 return True
-        _logger.info("reminders: rule %s: %s sent, %s failed in %.1fs", self.id, sent, failed, time.monotonic() - started)
+        self._log_counts(sent, failed, started)
         return True
+
+    def _log_counts(self, sent: int, failed: int, started: float) -> None:
+        """Log what one rule's run sent and failed (design, section 5)."""
+        _logger.info("reminders: rule %s: %s sent, %s failed in %.1fs", self.id, sent, failed, time.monotonic() - started)
