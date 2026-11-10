@@ -18,6 +18,7 @@ DATE_TYPES = ['date', 'datetime']
 MAX_TRIES = 3  # a failed reminder is tried again by the scheduled run until it has failed this many times (BR-SRR-0004)
 COMMIT_EVERY = 100  # the scheduled run commits its progress after this many reminders
 TIME_MARGIN = 30  # seconds: below this much time left the run stops rather than start work the kill would cut
+RUN_NOW_LIMIT = 20  # Run now sends at most this many reminders in the request; the scheduled run takes the rest at once
 
 
 class RecordReminderRule(models.Model):
@@ -555,7 +556,9 @@ class RecordReminderRule(models.Model):
         """Send this rule's due reminders at once and tell how many were sent and failed.
 
         Reminders that already failed ``MAX_TRIES`` times are tried again; what was
-        already sent is not sent again. The rule's row is locked for the run.
+        already sent is not sent again. The rule's row is locked for the run. At most
+        ``RUN_NOW_LIMIT`` reminders are sent in the request; the scheduled run is
+        started at once for the rest.
 
         Requirements: FR-SRR-0014, FR-SRR-0018.
         """
@@ -573,16 +576,19 @@ class RecordReminderRule(models.Model):
         except errors.LockNotAvailable:
             raise UserError(_("This rule is being run right now. Try again in a minute.")) from None
         due_reminders = rule._collect_due(fields.Datetime.now(), include_exhausted=True)
-        states = [rule._send_one(record, key, reminder_date).state for record, key, reminder_date in due_reminders]
+        batch, left = due_reminders[:RUN_NOW_LIMIT], len(due_reminders) - RUN_NOW_LIMIT
+        states = [rule._send_one(record, key, reminder_date).state for record, key, reminder_date in batch]
         sent, failed = states.count('sent'), states.count('failed')
+        message = _("Rule \"%(rule)s\": %(sent)s sent, %(failed)s failed.", rule=self.name, sent=sent, failed=failed)
+        if left > 0:
+            # the request transaction stays short: a killed request would roll back emails already out
+            # sudo: the manager may not read the scheduled action
+            self.env.ref('scheduled_record_reminder_mvp.ir_cron_record_reminder_send').sudo()._trigger()
+            message += " " + _("%s more are due: the scheduled run sends them shortly, or run the rule again.", left)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
-            'params': {
-                'type': 'warning' if failed else 'success',
-                'message': _("Rule \"%(rule)s\": %(sent)s sent, %(failed)s failed.",
-                             rule=self.name, sent=sent, failed=failed),
-            },
+            'params': {'type': 'warning' if failed else 'success', 'message': message},
         }
 
     def _history_action(self, state: str | None = None) -> dict:
