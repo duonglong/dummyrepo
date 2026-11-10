@@ -132,11 +132,13 @@ class TestHistoryViewsAcceptance(TransactionCase):
         root = self.env.ref(f'{MODULE}.menu_reminder_root')
         all_menus = self.env['ir.ui.menu'].sudo().search([('id', 'child_of', root.id)])
         self.assertTrue(len(all_menus) >= 3, "root, rules and history menus expected")
-        visible = self.env['ir.ui.menu'].with_user(sales).search([('id', 'in', all_menus.ids)])
+        # Odoo does not filter search() by menu groups; the menu tree shown to a user
+        # is built with _filter_visible_menus().
+        visible = all_menus.with_user(sales)._filter_visible_menus()
         self.assertFalse(visible)
         manager = self._user('srr_hv_manager', f'{MODULE}.group_reminder_manager')
-        visible = self.env['ir.ui.menu'].with_user(manager).search([('id', 'in', all_menus.ids)])
-        self.assertEqual(visible, all_menus)
+        visible = all_menus.with_user(manager)._filter_visible_menus()
+        self.assertEqual(visible, all_menus.with_user(manager))
 
     def test_user_who_is_not_a_manager_cannot_use_rules_or_history(self):
         """Requirements: FR-SRR-0018. Scenario SC-SRR-0018-1 (other ways are refused)."""
