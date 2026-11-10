@@ -41,18 +41,17 @@ class TestRunReportsWorkLeft(TransactionCase):
         partners.invalidate_recordset(['create_date'])
         self.cron = self.env.ref('scheduled_record_reminder_mvp.ir_cron_record_reminder_send')
 
-    def _run_as_scheduler(self, seconds_left: float, lastcall=False):
+    def _run_as_scheduler(self, seconds_left: float, at='2026-03-10 09:00:00'):
         """Run the job once, as the scheduler does, with ``seconds_left`` of its time; return its progress."""
         # sudo: progress records belong to the scheduler, as when it runs the job
         progress = self.env['ir.cron.progress'].sudo().create({'cron_id': self.cron.id, 'done': 0, 'remaining': 0})
         # the scheduler commits each chunk; a test transaction may not be committed
         with patch(RULE_MODULE + '.COMMIT_EVERY', 2), patch('odoo.modules.module.current_test', None), \
-                patch.object(self.env.cr, 'commit'), freeze_time('2026-03-10 09:00:00'):
+                patch.object(self.env.cr, 'commit'), freeze_time(at):
             context = {
                 'cron_id': self.cron.id,
                 'ir_cron_progress_id': progress.id,
                 'cron_end_time': time.monotonic() + seconds_left,  # the frozen clock is the one the job reads
-                'lastcall': lastcall,
             }
             self.env['record.reminder.rule'].with_context(context)._cron_send_reminders()
         return progress
@@ -73,16 +72,25 @@ class TestRunReportsWorkLeft(TransactionCase):
     def test_a_failure_is_not_tried_again_by_the_next_pass_of_the_same_job(self):
         """Requirements: BR-SRR-0004, FR-SRR-0013. The scheduler calls the job again at once while work is left.
 
-        A reminder that failed in the first pass is left for the next scheduled
-        run: it keeps one failed line after the second pass; the next run (a
-        new ``lastcall``) tries it again.
+        A reminder that failed in the first pass keeps one failed line after
+        the second pass of the same job; the next job, an hour later (its own
+        time budget, as the scheduler gives each job), tries it again.
         """
-        with patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('mail down')):
+        failing = patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('down'))
+        with failing:
             self._run_as_scheduler(seconds_left=-1)
-            first = self.rule.execution_ids.mapped('res_id')
+            self.assertEqual(len(self.rule.execution_ids), 2)
             self._run_as_scheduler(seconds_left=-1)
-        self.assertEqual(len(first), 2)
         self.assertEqual(self.rule.execution_ids.mapped('attempt'), [1, 1, 1, 1])
-        with patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('mail down')):
-            self._run_as_scheduler(seconds_left=-1, lastcall=datetime(2026, 3, 10, 9, 30))
+        with failing:
+            self._run_as_scheduler(seconds_left=-1, at='2026-03-10 10:00:00')
         self.assertIn(2, self.rule.execution_ids.mapped('attempt'))
+
+    def test_the_first_run_tries_the_failures_of_a_manual_run(self):
+        """Requirements: BR-SRR-0004. A failure from before the job started (Run now) is tried by the job."""
+        failing = patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('down'))
+        with failing, freeze_time('2026-03-10 08:30:00'):
+            self.rule._send_due(datetime(2026, 3, 10, 8, 30))
+        self.assertEqual(set(self.rule.execution_ids.mapped('attempt')), {1})
+        self._run_as_scheduler(seconds_left=600)
+        self.assertEqual(len(self.rule.execution_ids.filtered(lambda line: line.state == 'sent')), 5)

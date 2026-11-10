@@ -6,6 +6,7 @@ import pytz
 from psycopg2 import errors
 
 from odoo import Command, _, api, fields, modules, models
+from odoo.addons.base.models.ir_cron import MIN_TIME_PER_JOB
 from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
@@ -392,6 +393,17 @@ class RecordReminderRule(models.Model):
         return bool(self.env.cr.fetchone())
 
     @api.model
+    def _job_start(self, now: datetime) -> datetime | None:
+        """The moment the running scheduler job started, None outside the scheduler.
+
+        Requirements: BR-SRR-0004, FR-SRR-0013.
+        """
+        end_time = self.env.context.get('cron_end_time')
+        if not end_time:
+            return None
+        return now - timedelta(seconds=time.monotonic() - (end_time - MIN_TIME_PER_JOB))
+
+    @api.model
     def _cron_send_reminders(self) -> None:
         """The scheduled action: send the due reminders of every active rule.
 
@@ -403,10 +415,11 @@ class RecordReminderRule(models.Model):
         Requirements: FR-SRR-0005, FR-SRR-0013, FR-SRR-0016, NFR-SRR-0001.
         """
         now = fields.Datetime.now()
-        # the scheduler runs the job again within one pass while work is left, and sets `lastcall` only when a pass
-        # is complete: a failure since then was made by this pass and waits for the next one (BR-SRR-0004)
-        # (a call outside the scheduler, with no `cron_id`, is a plain run: every failed reminder may be tried)
-        job_start = (self.env.context.get('lastcall') or datetime.min) if self.env.context.get('cron_id') else None
+        # the scheduler calls the job again within one run while work is left: a failure made since this run started
+        # waits for the next run (BR-SRR-0004). `lastcall` is the start of the PREVIOUS run, so the start of this
+        # one is taken from the end of its time budget, which all calls of one run share.
+        # (a call outside the scheduler, with no `cron_end_time`, is a plain run: every failed reminder may be tried)
+        job_start = self._job_start(now)
         for rule in self.search([]):
             if not rule._send_due(now, job_start):
                 return
