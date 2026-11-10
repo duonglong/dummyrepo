@@ -1,9 +1,11 @@
 import logging
-from datetime import date
+import time
+from datetime import date, datetime, timedelta
 
+import pytz
 from psycopg2 import errors
 
-from odoo import Command, _, api, fields, models
+from odoo import Command, _, api, fields, modules, models
 from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
@@ -12,6 +14,8 @@ from odoo.tools import safe_eval
 _logger = logging.getLogger(__name__)
 
 DATE_TYPES = ['date', 'datetime']
+MAX_TRIES = 3  # a failed reminder is tried again by the scheduled run until it has failed this many times (BR-SRR-0004)
+COMMIT_EVERY = 100  # the scheduled run commits its progress after this many reminders
 
 
 class RecordReminderRule(models.Model):
@@ -19,6 +23,7 @@ class RecordReminderRule(models.Model):
 
     Requirements: FR-SRR-0017 (changing a rule keeps the rule, so its history),
     FR-SRR-0018 (access only through the Reminder Manager group), NFR-SRR-0002.
+    The due-window engine and the scheduled run are in the methods below.
     """
 
     _name = 'record.reminder.rule'
@@ -271,3 +276,144 @@ class RecordReminderRule(models.Model):
             record.sudo().activity_schedule(
                 date_deadline=reminder_date, summary=self.activity_summary or '',
                 user_id=user.id, activity_type_id=self.activity_type_id.id)
+
+    def _compute_due_moment(self, value: date | datetime) -> datetime:
+        """The UTC moment a reminder is due for a record whose date field holds ``value``.
+
+        A date without time counts from 00:00 in the rule's time zone; a date
+        with time is taken as it is. The offset is then taken off (before) or
+        added (after). Days of a date-only value are calendar days of the
+        rule's time zone; hours are elapsed hours.
+
+        Requirements: FR-SRR-0004, BR-SRR-0002.
+        """
+        self.ensure_one()
+        sign = -1 if self.offset_direction == 'before' else 1
+        delta = timedelta(**{self.offset_unit: sign * self.offset})
+        if isinstance(value, datetime):
+            return value + delta
+        zone = pytz.timezone(self.tz)
+        local = datetime.combine(value, datetime.min.time())
+        if self.offset_unit == 'days':
+            return zone.localize(local + delta).astimezone(pytz.utc).replace(tzinfo=None)
+        return zone.localize(local).astimezone(pytz.utc).replace(tzinfo=None) + delta
+
+    def _value_bounds(self, start: datetime, end: datetime) -> tuple[date | datetime, date | datetime]:
+        """Bounds on the date field that surely hold every value whose due moment is in [start, end].
+
+        A date-only field is widened by one calendar day on each side, so the
+        time zone and the day-length changes cannot cut a value off; the exact
+        check is made on the candidates (ADR-SRR-003).
+        """
+        self.ensure_one()
+        sign = 1 if self.offset_direction == 'before' else -1
+        delta = timedelta(**{self.offset_unit: sign * self.offset})
+        low, high = start + delta, end + delta
+        if self.date_field_id.ttype == 'datetime':
+            return low, high
+        zone = pytz.timezone(self.tz)
+
+        def local_day(moment: datetime) -> date:
+            return pytz.utc.localize(moment).astimezone(zone).date()
+
+        return local_day(low) - timedelta(days=1), local_day(high) + timedelta(days=1)
+
+    def _collect_due(self, now: datetime, include_exhausted: bool = False) -> list[tuple[models.BaseModel, str, date]]:
+        """The reminders due at ``now`` that were not sent yet, oldest first.
+
+        A reminder is due when its moment is at or after the moment the rule
+        was switched on and at or before ``now``. Reminders that already failed
+        ``MAX_TRIES`` times are left out unless ``include_exhausted``.
+
+        :return: list of ``(record, reminder_key, reminder_date)``
+        Requirements: FR-SRR-0003, FR-SRR-0004, FR-SRR-0005, FR-SRR-0013,
+        BR-SRR-0002, BR-SRR-0003, BR-SRR-0004.
+        """
+        self.ensure_one()
+        start = self.activated_at or self.create_date
+        field = self.date_field_id
+        low, high = self._value_bounds(start, now)
+        domain = Domain(safe_eval.safe_eval(self.domain or '[]', self._conditions_context())) & Domain([
+            (field.name, '!=', False), (field.name, '>=', low), (field.name, '<=', high)])
+        # sudo: the manager running the rule may lack read access on the watched type; the conditions are the filter
+        records = self.env[self.model_name].sudo().search(domain)
+        if not records:
+            return []
+        zone = pytz.timezone(self.tz)
+        in_window = {}
+        for record in records:
+            value = record[field.name]
+            due = self._compute_due_moment(value)
+            if start <= due <= now:
+                in_window[record.id] = (due, record, self._reminder_key(value))
+        done = {}
+        # sudo: the history is read by the engine to know what was sent; managers may not read every line
+        for res_id, reminder_key, state, count in self.env['record.reminder.execution'].sudo()._read_group(
+                [('rule_id', '=', self.id), ('res_model', '=', self.model_name), ('res_id', 'in', list(in_window))],
+                ['res_id', 'reminder_key', 'state'], ['__count']):
+            done.setdefault((res_id, reminder_key), {})[state] = count
+        due_reminders = []
+        for res_id, (due, record, reminder_key) in in_window.items():
+            tries = done.get((res_id, reminder_key), {})
+            if tries.get('sent') or (tries.get('failed', 0) >= MAX_TRIES and not include_exhausted):
+                continue
+            reminder_date = pytz.utc.localize(due).astimezone(zone).date()
+            due_reminders.append((due, record, reminder_key, reminder_date))
+        due_reminders.sort(key=lambda item: (item[0], item[1].id))
+        return [(record, reminder_key, reminder_date) for _due, record, reminder_key, reminder_date in due_reminders]
+
+    def _reminder_key(self, value: date | datetime) -> str:
+        """The date field's value as text: the identity of a reminder with its record and rule (BR-SRR-0001)."""
+        return fields.Datetime.to_string(value) if isinstance(value, datetime) else fields.Date.to_string(value)
+
+    def _lock_row(self) -> bool:
+        """Lock the rule's row for this run; False when another run holds it (ADR-SRR-002)."""
+        self.ensure_one()
+        self.env.cr.execute(
+            "SELECT id FROM record_reminder_rule WHERE id = %s FOR UPDATE SKIP LOCKED", [self.id])
+        return bool(self.env.cr.fetchone())
+
+    @api.model
+    def _cron_send_reminders(self) -> None:
+        """The scheduled action: send the due reminders of every active rule.
+
+        A rule another run is processing is left to it. Progress is committed
+        every ``COMMIT_EVERY`` reminders; when the time of the job is used up
+        the run stops and the next run goes on.
+
+        Requirements: FR-SRR-0005, FR-SRR-0013, FR-SRR-0016, NFR-SRR-0001.
+        """
+        now = fields.Datetime.now()
+        for rule in self.search([]):
+            if not rule._send_due(now):
+                return
+
+    def _send_due(self, now: datetime) -> bool:
+        """Send the due reminders of one rule; False when the job must stop (its time is used up).
+
+        Requirements: FR-SRR-0005, FR-SRR-0013, NFR-SRR-0001.
+        """
+        self.ensure_one()
+        started = time.monotonic()
+        if not self._lock_row():
+            return True
+        try:
+            with self.env.cr.savepoint():
+                due_reminders = self._collect_due(now)
+        except Exception:  # noqa: BLE001 - a rule that cannot be read must not stop the other rules (design, section 5)
+            _logger.error("reminders: rule %s: collecting the due reminders failed", self.id, exc_info=True)
+            return True
+        sent = failed = 0
+        for index, (record, reminder_key, reminder_date) in enumerate(due_reminders, 1):
+            line = self._send_one(record, reminder_key, reminder_date)
+            sent += line.state == 'sent'
+            failed += line.state == 'failed'
+            if index % COMMIT_EVERY or index == len(due_reminders) or modules.module.current_test:
+                continue  # a test runs in one transaction that may not be committed
+            if not self.env['ir.cron']._commit_progress(COMMIT_EVERY):
+                _logger.info("reminders: rule %s: time is up after %s reminders, the next run goes on", self.id, index)
+                return False
+            if not self._lock_row():
+                return True
+        _logger.info("reminders: rule %s: %s sent, %s failed in %.1fs", self.id, sent, failed, time.monotonic() - started)
+        return True

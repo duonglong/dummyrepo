@@ -8,6 +8,7 @@
     'data': [
         'security/reminder_security.xml',
         'security/ir.access.csv',
+        'data/ir_cron_data.xml',
         'views/record_reminder_rule_views.xml',
         'views/menus.xml',
     ],
