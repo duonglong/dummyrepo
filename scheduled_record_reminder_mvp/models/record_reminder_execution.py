@@ -1,4 +1,5 @@
-from odoo import fields, models
+from odoo import _, fields, models
+from odoo.exceptions import UserError
 
 
 class RecordReminderExecution(models.Model):
@@ -35,3 +36,19 @@ class RecordReminderExecution(models.Model):
     executed_at = fields.Datetime(
         string="Time", required=True, default=fields.Datetime.now)
     attempt = fields.Integer(help="Which try of this reminder this line is.")
+
+    def action_open_record(self) -> dict:
+        """Open the record this line is about.
+
+        Requirements: FR-SRR-0015.
+        """
+        self.ensure_one()
+        if not self.env[self.res_model].browse(self.res_id).exists():
+            raise UserError(_("The record no longer exists."))
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self.res_model,
+            'res_id': self.res_id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
