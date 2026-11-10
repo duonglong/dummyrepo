@@ -281,14 +281,17 @@ class TestSendReminderAcceptance(TransactionCase):
     def test_failure_is_recorded_and_the_others_go_on(self):
         """Requirements: FR-SRR-0012. Scenario SC-SRR-0012-1.
 
-        Rendering the template divides by the partner's colour: it fails for
-        the second record only.
+        Rendering the template divides by zero for the second record only.
+        Odoo renders a template's dynamic fields against one existing record
+        when it is saved, so the expression must hold for any record but
+        the second one: the failure then comes at send time.
         """
-        self.template.subject = '{{ 1 / object.color }}'
+        self.template.subject = (
+            "{{ 1 / (0 if object.name == 'SRR-second' else 1) }}")
         rule = self._email_rule()
-        first = self._partner('first', color=1)
-        second = self._partner('second', color=0)
-        third = self._partner('third', color=1)
+        first = self._partner('first')
+        second = self._partner('second')
+        third = self._partner('third')
         for partner in (first, second, third):
             self._send(rule, partner)
         self.assertTrue(self._mails(first))
