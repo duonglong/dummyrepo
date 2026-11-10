@@ -10,7 +10,7 @@ from odoo.addons.base.models.ir_cron import MIN_TIME_PER_JOB
 from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import safe_eval
+from odoo.tools import email_normalize, safe_eval
 
 _logger = logging.getLogger(__name__)
 
@@ -221,17 +221,32 @@ class RecordReminderRule(models.Model):
             users = self.user_ids.filtered('active')
             if not users:
                 raise UserError(_("No active user in the rule's fixed users."))
-            return users, users.partner_id
-        field = self.recipient_field_id
-        value = record[field.name]
-        if field.relation == 'res.users':
-            users = value.filtered('active')
             partners = users.partner_id
         else:
-            users, partners = self.env['res.users'], value
-        if not partners:
-            raise UserError(_("No recipient: the field %s is empty on this record.", field.field_description))
+            field = self.recipient_field_id
+            value = record[field.name]
+            if field.relation == 'res.users':
+                users = value.filtered('active')
+                partners = users.partner_id
+            else:
+                users, partners = self.env['res.users'], value
+            if not partners:
+                raise UserError(_("No recipient: the field %s is empty on this record.", field.field_description))
+        if self.channel == 'email':
+            self._check_reachable(partners)
         return users, partners
+
+    def _check_reachable(self, partners: models.BaseModel) -> None:
+        """Refuse an email none of whose contacts has a valid email address.
+
+        Native mail does not raise for such an email, it only marks it as an
+        exception, so without this check the reminder would read as sent.
+
+        Requirements: FR-SRR-0008, FR-SRR-0012.
+        """
+        if not partners.filtered(lambda partner: email_normalize(partner.email)):
+            raise UserError(_(
+                "The recipients have no email address: %s.", ", ".join(partners.mapped('display_name'))))
 
     def _send_one(self, record: models.BaseModel, reminder_key: str, reminder_date: date) -> models.BaseModel:
         """Send the reminder of one record once and write its history line.

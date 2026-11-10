@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase
 
@@ -111,3 +112,82 @@ class TestSendOneEdgeCases(TransactionCase):
         self.assertEqual([line.state for line in lines], ['failed', 'sent'])
         self.assertIn("display name unreadable", lines[0].error_message)
         self.assertEqual(lines[0].record_name, 'res.partner,%s' % broken.id)
+
+
+class TestEmailToUnreachableRecipients(TransactionCase):
+    """An email reminder whose recipients have no email address is a failure, never a send.
+
+    Native mail only marks such an email as an exception and raises nothing, so
+    the rule must check the addresses itself, for each way it finds recipients.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.no_mail_user = self.env['res.users'].create({'name': 'SRR Nomail', 'login': 'srr_nomail'})
+        self.no_mail_user.partner_id.email = False
+        self.template = self.env['mail.template'].create({
+            'name': 'SRR unreachable', 'model_id': self.env['ir.model']._get('res.partner').id,
+            'subject': 'Reminder', 'body_html': '<p>Reminder</p>',
+        })
+        self.rule = self.env['record.reminder.rule'].create({
+            'name': 'SRR unreachable test',
+            'model_id': self.env['ir.model']._get('res.partner').id,
+            'date_field_id': self.env['ir.model.fields']._get('res.partner', 'create_date').id,
+            'channel': 'email',
+            'mail_template_id': self.template.id,
+            'recipient_mode': 'users',
+            'user_ids': [Command.set(self.no_mail_user.ids)],
+        })
+
+    def _send(self, record):
+        return self.rule._send_one(record, '2026-03-20 09:00:00', date(2026, 3, 20))
+
+    def assertFailedForNoAddress(self, line, contact):
+        self.assertEqual(line.state, 'failed')
+        self.assertIn("no email address", line.error_message)
+        self.assertIn(contact.name, line.error_message)
+
+    def test_bug_b_0170_fixed_user_without_email_is_a_failed_line(self):
+        """Regression test for B-0170: fixed users whose contacts have no email address.
+
+        Requirements: FR-SRR-0007, FR-SRR-0008, FR-SRR-0012
+        """
+        line = self._send(self.env['res.partner'].create({'name': 'SRR-fixed'}))
+        self.assertFailedForNoAddress(line, self.no_mail_user.partner_id)
+
+    def test_bug_b_0170_user_field_without_email_is_a_failed_line(self):
+        """Regression test for B-0170: a user field holding a user whose contact has no email address.
+
+        Requirements: FR-SRR-0006, FR-SRR-0008, FR-SRR-0012
+        """
+        self.rule.write({
+            'recipient_mode': 'field',
+            'recipient_field_id': self.env['ir.model.fields']._get('res.partner', 'user_id').id,
+        })
+        record = self.env['res.partner'].create({'name': 'SRR-userfield', 'user_id': self.no_mail_user.id})
+        self.assertFailedForNoAddress(self._send(record), self.no_mail_user.partner_id)
+
+    def test_bug_b_0170_contact_field_without_email_is_a_failed_line(self):
+        """Regression test for B-0170: a contact field holding a contact with no email address.
+
+        Requirements: FR-SRR-0006, FR-SRR-0008, FR-SRR-0012
+        """
+        self.rule.write({
+            'recipient_mode': 'field',
+            'recipient_field_id': self.env['ir.model.fields']._get('res.partner', 'parent_id').id,
+        })
+        contact = self.env['res.partner'].create({'name': 'SRR Company without mail'})
+        record = self.env['res.partner'].create({'name': 'SRR-contactfield', 'parent_id': contact.id})
+        self.assertFailedForNoAddress(self._send(record), contact)
+
+    def test_bug_b_0170_unreachable_reminder_is_tried_again(self):
+        """Regression test for B-0170: the failure blocks no later try; once an address is set it is sent.
+
+        Requirements: FR-SRR-0013, BR-SRR-0004
+        """
+        record = self.env['res.partner'].create({'name': 'SRR-retry-mail'})
+        first = self._send(record)
+        self.no_mail_user.partner_id.email = 'nomail@example.com'
+        second = self._send(record)
+        self.assertEqual((first.state, second.state), ('failed', 'sent'))
+        self.assertEqual(second.attempt, 2)
