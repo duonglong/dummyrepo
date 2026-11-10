@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="record_reminder_rule_view_list" model="ir.ui.view">
+        <field name="name">record.reminder.rule.list</field>
+        <field name="model">record.reminder.rule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id" optional="show"/>
+                <field name="date_field_id" optional="hide"/>
+                <field name="offset" optional="hide"/>
+                <field name="offset_unit" optional="hide"/>
+                <field name="offset_direction" optional="hide"/>
+                <field name="channel" optional="hide"/>
+                <field name="sent_count"/>
+                <field name="failed_count"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="record_reminder_rule_view_form" model="ir.ui.view">
+        <field name="name">record.reminder.rule.form</field>
+        <field name="model">record.reminder.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_run_now" type="object" string="Run now" class="btn-primary"
+                            invisible="not active" groups="scheduled_record_reminder_mvp.group_reminder_manager"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_sent" type="object" class="oe_stat_button" icon="fa-check">
+                            <field name="sent_count" widget="statinfo" string="Sent"/>
+                        </button>
+                        <button name="action_view_failed" type="object" class="oe_stat_button" icon="fa-exclamation-triangle">
+                            <field name="failed_count" widget="statinfo" string="Failed"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. Contract ends"/></h1>
+                    </div>
+                    <group>
+                        <group string="Records">
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="activated_at"/>
+                            <field name="model_name" invisible="1"/>
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="domain" widget="domain" options="{'model': 'model_name'}"
+                                   invisible="not model_id"/>
+                        </group>
+                        <group string="When">
+                            <field name="date_field_id" options="{'no_create': True, 'no_open': True}"/>
+                            <label for="offset"/>
+                            <div class="d-flex gap-2">
+                                <field name="offset" class="oe_inline"/>
+                                <field name="offset_unit" class="oe_inline"/>
+                                <field name="offset_direction" class="oe_inline"/>
+                            </div>
+                            <field name="tz"/>
+                        </group>
+                        <group string="Reminder">
+                            <field name="channel" widget="radio"/>
+                            <field name="mail_template_id" invisible="channel != 'email'"
+                                   required="channel == 'email'" options="{'no_create': True}"/>
+                            <field name="activity_type_id" invisible="channel != 'activity'"
+                                   required="channel == 'activity'" options="{'no_create': True}"/>
+                            <field name="activity_summary" invisible="channel != 'activity'"/>
+                        </group>
+                        <group string="Recipients">
+                            <field name="recipient_mode" widget="radio"/>
+                            <field name="recipient_field_id" invisible="recipient_mode != 'field'"
+                                   required="recipient_mode == 'field'" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="user_ids" widget="many2many_tags" invisible="recipient_mode != 'users'"
+                                   required="recipient_mode == 'users'"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="record_reminder_rule_view_search" model="ir.ui.view">
+        <field name="name">record.reminder.rule.search</field>
+        <field name="model">record.reminder.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="model_id"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_model" string="Record Type" context="{'group_by': 'model_id'}"/>
+                    <filter name="group_channel" string="Channel" context="{'group_by': 'channel'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="record_reminder_rule_action" model="ir.actions.act_window">
+        <field name="name">Reminder Rules</field>
+        <field name="res_model">record.reminder.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No reminder rule yet. Create one to remind people before a date on any record.</p>
+        </field>
+    </record>
+</odoo>
