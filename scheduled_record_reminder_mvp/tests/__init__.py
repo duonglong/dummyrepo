@@ -9,3 +9,4 @@ from . import test_run_now_acceptance
 from . import test_history_views_acceptance
 from . import test_run_now
 from . import test_history_views
+from . import test_history_protection

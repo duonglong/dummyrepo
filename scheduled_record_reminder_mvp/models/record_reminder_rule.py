@@ -208,6 +208,20 @@ class RecordReminderRule(models.Model):
             raise UserError(_(
                 "A rule that already sent or tried a reminder cannot be deleted. Switch it off instead."))
 
+    @api.model
+    def _check_history_kept(self, link_field: str, ids: list[int]) -> None:
+        """Refuse when a rule linked through ``link_field`` to one of ``ids`` has history; its removal would delete it.
+
+        Requirements: FR-SRR-0017.
+        """
+        # sudo: the rules and their history may be out of reach of the administrator removing the field or record type
+        histories = self.sudo().with_context(active_test=False).search([(link_field, 'in', ids)]).filtered(
+            lambda rule: rule.execution_ids)
+        if histories:
+            raise UserError(_(
+                "This cannot be removed: the reminder rules %s already sent or tried reminders that would be deleted "
+                "with it. Switch those rules off instead.", ", ".join(histories.mapped('name'))))
+
     def _recipients(self, record: models.BaseModel) -> tuple[models.BaseModel, models.BaseModel]:
         """The users and the contacts to remind about a record, read at sending time.
 
