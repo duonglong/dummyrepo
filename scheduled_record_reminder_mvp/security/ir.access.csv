@@ -2,3 +2,4 @@ id,name,model_id,group_id/id,operation,domain
 access_record_reminder_rule_manager,record.reminder.rule manager,record.reminder.rule,group_reminder_manager,crud,
 access_record_reminder_ir_model_manager,record types readable by reminder managers,ir.model,group_reminder_manager,r,
 access_record_reminder_ir_model_fields_manager,record fields readable by reminder managers,ir.model.fields,group_reminder_manager,r,
+access_record_reminder_execution_manager,record.reminder.execution manager,record.reminder.execution,group_reminder_manager,r,

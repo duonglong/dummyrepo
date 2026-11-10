@@ -1,8 +1,14 @@
+import logging
+
+from psycopg2 import errors
+
 from odoo import Command, _, api, fields, models
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import safe_eval
+
+_logger = logging.getLogger(__name__)
 
 DATE_TYPES = ['date', 'datetime']
 
@@ -73,6 +79,8 @@ class RecordReminderRule(models.Model):
     user_ids = fields.Many2many(
         'res.users', 'record_reminder_rule_res_users_rel', 'rule_id', 'user_id',
         string="Fixed Users", help="The users who are reminded about every record.")
+    execution_ids = fields.One2many(
+        'record.reminder.execution', 'rule_id', string="History")
 
     @api.onchange('model_id')
     def _onchange_model_id(self):
@@ -161,3 +169,86 @@ class RecordReminderRule(models.Model):
             'datetime': safe_eval.datetime,
             'context_today': lambda: fields.Date.context_today(self),
         }
+
+    def unlink(self):
+        """Forbid deleting a rule that already sent or tried a reminder: switching it off keeps its history."""
+        if self.execution_ids:
+            raise UserError(_(
+                "A rule that already sent or tried a reminder cannot be deleted. Switch it off instead."))
+        return super().unlink()
+
+    def _recipient_partners(self, record):
+        """The contacts to remind about a record, read at sending time.
+
+        Requirements: FR-SRR-0006, FR-SRR-0007.
+        """
+        self.ensure_one()
+        if self.recipient_mode == 'users':
+            users = self.user_ids.filtered('active')
+            if not users:
+                raise UserError(_("No active user in the rule's fixed users."))
+            return users.partner_id
+        field = self.recipient_field_id
+        value = record[field.name]
+        if field.relation == 'res.users':
+            value = value.filtered('active').partner_id
+        if not value:
+            raise UserError(_("No recipient: the field %s is empty on this record.", field.field_description))
+        return value
+
+    def _send_one(self, record, reminder_key: str, reminder_date):
+        """Send the reminder of one record once and write its history line.
+
+        The sent line is claimed first, inside a savepoint, so the database
+        refuses a second send of the same record, rule and reminder date; any
+        error undoes that reminder only and becomes a failed line.
+
+        Requirements: FR-SRR-0006, FR-SRR-0007, FR-SRR-0008, FR-SRR-0009,
+        FR-SRR-0010, FR-SRR-0011, FR-SRR-0012, BR-SRR-0001.
+
+        :return: the history line written, empty when it was already sent
+        """
+        self.ensure_one()
+        # sudo: history lines are written by the engine only, managers can read them
+        executions = self.env['record.reminder.execution'].sudo()
+        key = [('rule_id', '=', self.id), ('res_model', '=', record._name),
+               ('res_id', '=', record.id), ('reminder_key', '=', reminder_key)]
+        if executions.search_count(key + [('state', '=', 'sent')], limit=1):
+            return executions
+        values = {
+            'rule_id': self.id, 'res_model': record._name, 'res_id': record.id,
+            'record_name': record.display_name, 'reminder_key': reminder_key,
+            'reminder_date': reminder_date, 'channel': self.channel,
+            'attempt': executions.search_count(key + [('state', '=', 'failed')]) + 1,
+        }
+        try:
+            with self.env.cr.savepoint():
+                partners = self._recipient_partners(record)
+                line = executions.create(dict(values, state='sent', partner_ids=[Command.set(partners.ids)]))
+                self._deliver(record, partners, reminder_date)
+            return line
+        except errors.UniqueViolation:
+            _logger.info("reminders: rule %s: %s %s already sent for %s", self.id, record._name, record.id, reminder_key)
+            return executions
+        except Exception as error:  # noqa: BLE001 - one failed reminder must not stop the others (FR-SRR-0012)
+            _logger.warning("reminders: rule %s failed on %s %s", self.id, record._name, record.id, exc_info=True)
+            return executions.create(dict(values, state='failed', error_message=str(error)))
+
+    def _deliver(self, record, partners, reminder_date):
+        """Send the email, or create one activity per recipient user."""
+        self.ensure_one()
+        if self.channel == 'email':
+            # sudo: the template is rendered and mailed as the engine, managers are trusted to send (FR-SRR-0018)
+            self.mail_template_id.sudo().send_mail(
+                record.id, force_send=True, raise_exception=True,
+                email_values={
+                    'recipient_ids': [Command.set(partners.ids)],
+                    'email_to': False, 'email_cc': False,
+                    'recipient_cc_ids': [Command.clear()],
+                })
+            return
+        for user in partners.user_ids:
+            # sudo: the recipient need not be the user who runs the rule
+            record.sudo().activity_schedule(
+                date_deadline=reminder_date, summary=self.activity_summary or '',
+                user_id=user.id, activity_type_id=self.activity_type_id.id)
