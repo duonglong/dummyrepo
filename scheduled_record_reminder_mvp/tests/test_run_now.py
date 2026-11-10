@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.addons.scheduled_record_reminder_mvp.models.record_reminder_rule import RUN_NOW_LIMIT
 from odoo.exceptions import UserError
@@ -82,3 +84,68 @@ class TestRunNowBatch(TransactionCase):
         self.assertIn(f"{RUN_NOW_LIMIT} sent", message)
         self.assertNotIn("more", message)
         self.assertEqual(self._triggers(), triggers_before)
+
+
+class TestRunNowExhaustedReminders(TestRunNowBatch):
+    """Run now tells the truth about what the scheduled run takes and walks forward through failures.
+
+    Requirements: FR-SRR-0013, FR-SRR-0014, BR-SRR-0004.
+    """
+
+    def _fail_times(self, partners, times):
+        executions = self.env['record.reminder.execution']
+        for partner in partners:
+            key = self.rule._reminder_key(partner.create_date)
+            for attempt in range(1, times + 1):
+                executions.create({
+                    'rule_id': self.rule.id, 'res_model': 'res.partner', 'res_id': partner.id,
+                    'reminder_key': key, 'reminder_date': partner.create_date.date(), 'channel': 'activity',
+                    'state': 'failed', 'error_message': 'down', 'attempt': attempt,
+                    'executed_at': datetime(2026, 3, 10, 6, attempt),
+                })
+
+    def _partners(self, count):
+        self._due_partners(count)
+        return self.env['res.partner'].search([('name', 'like', 'SRR-batch')], order='id')
+
+    def test_b_0173_left_over_that_failed_three_times_is_not_promised_to_the_scheduled_run(self):
+        """Regression test for B-0173 (R4-1): the cron never takes a reminder that failed 3 times.
+
+        Requirements: FR-SRR-0014, BR-SRR-0004
+        """
+        partners = self._partners(RUN_NOW_LIMIT + 5)
+        self._fail_times(partners, 3)
+        triggers_before = self._triggers()
+        message = self._run_now()
+        self.assertNotIn("scheduled run sends", message)
+        self.assertIn("5 already failed 3 times", message)
+        self.assertEqual(self._triggers(), triggers_before)
+
+    def test_b_0173_left_over_is_split_between_the_scheduled_run_and_run_now(self):
+        """Never-failed reminders go first; the message names who takes what is left.
+
+        Requirements: FR-SRR-0014, BR-SRR-0004
+        """
+        partners = self._partners(RUN_NOW_LIMIT + 5)
+        self._fail_times(partners[:3], 3)
+        triggers_before = self._triggers()
+        message = self._run_now()
+        self.assertIn("2 more go out with the scheduled run", message)
+        self.assertIn("3 already failed 3 times", message)
+        self.assertEqual(self._triggers(), triggers_before + 1)
+
+    def test_b_0173_repeated_run_now_walks_forward_through_failing_reminders(self):
+        """The second Run now reaches the reminders the first one did not try.
+
+        Requirements: FR-SRR-0014, BR-SRR-0004
+        """
+        partners = self._partners(RUN_NOW_LIMIT + 5)
+        self._fail_times(partners, 3)
+        with patch.object(type(self.rule), '_deliver', side_effect=UserError("still down")):
+            self._run_now()
+            self._run_now()
+        untried = [
+            partner.id for partner in partners
+            if self.env['record.reminder.execution'].search_count(
+                [('rule_id', '=', self.rule.id), ('res_id', '=', partner.id), ('state', '=', 'failed')]) == 3]
+        self.assertEqual(untried, [])

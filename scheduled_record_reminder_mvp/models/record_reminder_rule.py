@@ -372,6 +372,7 @@ class RecordReminderRule(models.Model):
 
     def _collect_due(
         self, now: datetime, include_exhausted: bool = False, skip_failed_since: datetime | None = None,
+        least_tried_first: bool = False,
     ) -> list[tuple[models.BaseModel, str, date]]:
         """The reminders due at ``now`` that were not sent yet, oldest first.
 
@@ -380,6 +381,8 @@ class RecordReminderRule(models.Model):
         ``MAX_TRIES`` times are left out unless ``include_exhausted``. A
         reminder that failed at or after ``skip_failed_since`` is left out too,
         so one scheduler job does not spend the tries of a failure in minutes.
+        With ``least_tried_first`` the never-failed come first, then those whose last
+        failure is the oldest, so a capped run walks forward through the failures.
 
         :return: list of ``(record, reminder_key, reminder_date)``
         Requirements: FR-SRR-0003, FR-SRR-0004, FR-SRR-0005, FR-SRR-0013,
@@ -418,9 +421,10 @@ class RecordReminderRule(models.Model):
             failed_at = last_failure.get((res_id, reminder_key))
             if skip_failed_since and failed_at and failed_at >= skip_failed_since:
                 continue
-            due_reminders.append((due, record, reminder_key, self._reminder_date(record[field.name])))
-        due_reminders.sort(key=lambda item: (item[0], item[1].id))
-        return [(record, reminder_key, reminder_date) for _due, record, reminder_key, reminder_date in due_reminders]
+            order = (failed_at or datetime.min) if least_tried_first else None
+            due_reminders.append((order, due, record, reminder_key, self._reminder_date(record[field.name])))
+        due_reminders.sort(key=lambda item: (item[0] or datetime.min, item[1], item[2].id))
+        return [(record, reminder_key, reminder_date) for _order, _due, record, reminder_key, reminder_date in due_reminders]
 
     def _reminder_date(self, value: date | datetime) -> date:
         """The day of the date field's value in the rule's time zone: the reminder date, not the due day.
@@ -575,16 +579,23 @@ class RecordReminderRule(models.Model):
                     "SELECT id FROM record_reminder_rule WHERE id = %s FOR UPDATE NOWAIT", [self.id])
         except errors.LockNotAvailable:
             raise UserError(_("This rule is being run right now. Try again in a minute.")) from None
-        due_reminders = rule._collect_due(fields.Datetime.now(), include_exhausted=True)
-        batch, left = due_reminders[:RUN_NOW_LIMIT], len(due_reminders) - RUN_NOW_LIMIT
+        now = fields.Datetime.now()
+        due_reminders = rule._collect_due(now, include_exhausted=True, least_tried_first=True)
+        batch, rest = due_reminders[:RUN_NOW_LIMIT], due_reminders[RUN_NOW_LIMIT:]
+        # the scheduled run takes only what failed fewer than MAX_TRIES times (BR-SRR-0004)
+        cron_keys = {(record.id, key) for record, key, _date in rule._collect_due(now)} if rest else set()
+        left_for_cron = sum((record.id, key) in cron_keys for record, key, _date in rest)
+        left_for_manager = len(rest) - left_for_cron
         states = [rule._send_one(record, key, reminder_date).state for record, key, reminder_date in batch]
         sent, failed = states.count('sent'), states.count('failed')
         message = _("Rule \"%(rule)s\": %(sent)s sent, %(failed)s failed.", rule=self.name, sent=sent, failed=failed)
-        if left > 0:
+        if left_for_cron:
             # the request transaction stays short: a killed request would roll back emails already out
             # sudo: the manager may not read the scheduled action
             self.env.ref('scheduled_record_reminder_mvp.ir_cron_record_reminder_send').sudo()._trigger()
-            message += " " + _("%s more are due: the scheduled run sends them shortly, or run the rule again.", left)
+            message += " " + _("%s more go out with the scheduled run shortly.", left_for_cron)
+        if left_for_manager:
+            message += " " + _("%s already failed %s times: run the rule again to try them.", left_for_manager, MAX_TRIES)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
