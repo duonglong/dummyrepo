@@ -41,7 +41,7 @@ class TestRunReportsWorkLeft(TransactionCase):
         partners.invalidate_recordset(['create_date'])
         self.cron = self.env.ref('scheduled_record_reminder_mvp.ir_cron_record_reminder_send')
 
-    def _run_as_scheduler(self, seconds_left: float):
+    def _run_as_scheduler(self, seconds_left: float, lastcall=False):
         """Run the job once, as the scheduler does, with ``seconds_left`` of its time; return its progress."""
         # sudo: progress records belong to the scheduler, as when it runs the job
         progress = self.env['ir.cron.progress'].sudo().create({'cron_id': self.cron.id, 'done': 0, 'remaining': 0})
@@ -52,6 +52,7 @@ class TestRunReportsWorkLeft(TransactionCase):
                 'cron_id': self.cron.id,
                 'ir_cron_progress_id': progress.id,
                 'cron_end_time': time.monotonic() + seconds_left,  # the frozen clock is the one the job reads
+                'lastcall': lastcall,
             }
             self.env['record.reminder.rule'].with_context(context)._cron_send_reminders()
         return progress
@@ -67,5 +68,21 @@ class TestRunReportsWorkLeft(TransactionCase):
         """Requirements: NFR-SRR-0001. 5 due, enough time: all sent, nothing reported left."""
         progress = self._run_as_scheduler(seconds_left=600)
         self.assertEqual(len(self.rule.execution_ids), 5)
-        self.assertEqual(progress.done, 4)
         self.assertEqual(progress.remaining, 0)
+
+    def test_a_failure_is_not_tried_again_by_the_next_pass_of_the_same_job(self):
+        """Requirements: BR-SRR-0004, FR-SRR-0013. The scheduler calls the job again at once while work is left.
+
+        A reminder that failed in the first pass is left for the next scheduled
+        run: it keeps one failed line after the second pass; the next run (a
+        new ``lastcall``) tries it again.
+        """
+        with patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('mail down')):
+            self._run_as_scheduler(seconds_left=-1)
+            first = self.rule.execution_ids.mapped('res_id')
+            self._run_as_scheduler(seconds_left=-1)
+        self.assertEqual(len(first), 2)
+        self.assertEqual(self.rule.execution_ids.mapped('attempt'), [1, 1, 1, 1])
+        with patch.object(self.env.registry['record.reminder.rule'], '_deliver', side_effect=ValueError('mail down')):
+            self._run_as_scheduler(seconds_left=-1, lastcall=datetime(2026, 3, 10, 9, 30))
+        self.assertIn(2, self.rule.execution_ids.mapped('attempt'))

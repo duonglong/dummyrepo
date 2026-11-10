@@ -320,12 +320,16 @@ class RecordReminderRule(models.Model):
 
         return local_day(low) - timedelta(days=1), local_day(high) + timedelta(days=1)
 
-    def _collect_due(self, now: datetime, include_exhausted: bool = False) -> list[tuple[models.BaseModel, str, date]]:
+    def _collect_due(
+        self, now: datetime, include_exhausted: bool = False, skip_failed_since: datetime | None = None,
+    ) -> list[tuple[models.BaseModel, str, date]]:
         """The reminders due at ``now`` that were not sent yet, oldest first.
 
         A reminder is due when its moment is at or after the moment the rule
         was switched on and at or before ``now``. Reminders that already failed
-        ``MAX_TRIES`` times are left out unless ``include_exhausted``.
+        ``MAX_TRIES`` times are left out unless ``include_exhausted``. A
+        reminder that failed at or after ``skip_failed_since`` is left out too,
+        so one scheduler job does not spend the tries of a failure in minutes.
 
         :return: list of ``(record, reminder_key, reminder_date)``
         Requirements: FR-SRR-0003, FR-SRR-0004, FR-SRR-0005, FR-SRR-0013,
@@ -350,14 +354,20 @@ class RecordReminderRule(models.Model):
                 in_window[record.id] = (due, record, self._reminder_key(value))
         done = {}
         # sudo: the history is read by the engine to know what was sent; managers may not read every line
-        for res_id, reminder_key, state, count in self.env['record.reminder.execution'].sudo()._read_group(
+        last_failure = {}
+        for res_id, reminder_key, state, count, last_try in self.env['record.reminder.execution'].sudo()._read_group(
                 [('rule_id', '=', self.id), ('res_model', '=', self.model_name), ('res_id', 'in', list(in_window))],
-                ['res_id', 'reminder_key', 'state'], ['__count']):
+                ['res_id', 'reminder_key', 'state'], ['__count', 'executed_at:max']):
             done.setdefault((res_id, reminder_key), {})[state] = count
+            if state == 'failed':
+                last_failure[(res_id, reminder_key)] = last_try
         due_reminders = []
         for res_id, (due, record, reminder_key) in in_window.items():
             tries = done.get((res_id, reminder_key), {})
             if tries.get('sent') or (tries.get('failed', 0) >= MAX_TRIES and not include_exhausted):
+                continue
+            failed_at = last_failure.get((res_id, reminder_key))
+            if skip_failed_since and failed_at and failed_at >= skip_failed_since:
                 continue
             reminder_date = pytz.utc.localize(due).astimezone(zone).date()
             due_reminders.append((due, record, reminder_key, reminder_date))
@@ -393,16 +403,22 @@ class RecordReminderRule(models.Model):
         Requirements: FR-SRR-0005, FR-SRR-0013, FR-SRR-0016, NFR-SRR-0001.
         """
         now = fields.Datetime.now()
+        # the scheduler runs the job again within one pass while work is left, and sets `lastcall` only when a pass
+        # is complete: a failure since then was made by this pass and waits for the next one (BR-SRR-0004)
+        # (a call outside the scheduler, with no `cron_id`, is a plain run: every failed reminder may be tried)
+        job_start = (self.env.context.get('lastcall') or datetime.min) if self.env.context.get('cron_id') else None
         for rule in self.search([]):
-            if not rule._send_due(now):
+            if not rule._send_due(now, job_start):
                 return
         if not modules.module.current_test:  # a test runs in one transaction that may not be committed
             self.env['ir.cron']._commit_progress(remaining=0)
 
-    def _send_due(self, now: datetime) -> bool:
+    def _send_due(self, now: datetime, skip_failed_since: datetime | None = None) -> bool:
         """Send the due reminders of one rule; False when the job must stop (its time is used up).
 
-        Requirements: FR-SRR-0005, FR-SRR-0013, NFR-SRR-0001.
+        A reminder that failed since ``skip_failed_since`` is not tried again in this pass.
+
+        Requirements: FR-SRR-0005, FR-SRR-0013, BR-SRR-0004, NFR-SRR-0001.
         """
         self.ensure_one()
         started = time.monotonic()
@@ -410,7 +426,7 @@ class RecordReminderRule(models.Model):
             return True
         try:
             with self.env.cr.savepoint():
-                due_reminders = self._collect_due(now)
+                due_reminders = self._collect_due(now, skip_failed_since=skip_failed_since)
         except Exception:  # noqa: BLE001 - a rule that cannot be read must not stop the other rules (design, section 5)
             _logger.error("reminders: rule %s: collecting the due reminders failed", self.id, exc_info=True)
             return True
