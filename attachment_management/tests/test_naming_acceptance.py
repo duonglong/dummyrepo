@@ -117,7 +117,9 @@ class TestNamingAcceptance(HttpCase):
         """Requirements: FR-AM-0017. SC-AM-0017-1: a name the uploader typed ("Signed
         contract") is kept exactly, with no extension added and no pattern applied."""
         self._make_rule('{record_ref}_{date}')
-        attachment = self.env['ir.attachment'].with_user(self.user).create({
+        # The creator must be able to write the contact, or native create refuses
+        # before any naming applies; an administrator can.
+        attachment = self.env['ir.attachment'].with_user(self.admin).create({
             'name': 'Signed contract', 'raw': b'am-signed',
             'res_model': 'res.partner', 'res_id': self.order.id})
         self.assertEqual(attachment.name, 'Signed contract')
