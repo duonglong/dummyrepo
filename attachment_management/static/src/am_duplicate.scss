@@ -1,0 +1,19 @@
+// Requirements: FR-AM-0016, UX-AM-003
+// The duplicate warning names up to five copies: show the whole text, with the Open buttons below it.
+.o_am_duplicate_notification {
+    .o_notification_body {
+        flex-direction: column;
+        gap: map-get($spacers, 2);
+    }
+
+    .o_notification_content {
+        display: block;
+        overflow: visible;
+        width: 100%;
+    }
+
+    .o_notification_buttons {
+        margin-left: 0 !important;
+        justify-content: flex-start !important;
+    }
+}

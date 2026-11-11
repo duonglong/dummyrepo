@@ -209,3 +209,17 @@ class TestDuplicateUploadRoutes(HttpCase):
         """Requirements: FR-AM-0014. The file widget upload (many2many_binary) of a stored file warns."""
         self._post_upload('/web/binary/upload_attachment', {'model': 'res.partner', 'id': str(self.target.id)})
         self.assertEqual(len(self._warnings()), 1)
+
+
+@tagged('post_install', '-at_install')
+class TestDuplicateWarningScreen(HttpCase):
+    """Requirements: FR-AM-0016, UX-AM-003. B-0182: the warning text is readable on screen.
+
+    The tour delivers a five-copy warning through the bus service's own
+    notification channel and reads the drawn notification (text height,
+    button position). It cannot reach the server side of the upload (covered
+    by TestDuplicateUploadRoutes) nor the websocket transport itself.
+    """
+
+    def test_b_0182_warning_text_is_not_cut_by_the_buttons(self):
+        self.start_tour('/odoo', 'am_duplicate_warning_tour', login='admin')

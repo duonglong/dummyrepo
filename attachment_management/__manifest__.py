@@ -21,6 +21,10 @@
         'web.assets_backend': [
             'attachment_management/static/src/am_service.js',
             'attachment_management/static/src/am_duplicate.js',
+            'attachment_management/static/src/am_duplicate.scss',
+        ],
+        'web.assets_tests': [
+            'attachment_management/static/tests/tours/am_duplicate_tour.js',
         ],
     },
     'pre_init_hook': 'pre_init_hook',

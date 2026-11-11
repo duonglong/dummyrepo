@@ -4,6 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 /**
  * Requirements: FR-AM-0014, FR-AM-0016
  * Show the duplicate warning with one Open button per copy the person may open.
+ * It stays until closed, so the person can read which copies exist.
  */
 export const amDuplicateService = {
     dependencies: ["bus_service", "notification", "action"],
@@ -22,7 +23,12 @@ export const amDuplicateService = {
                         target: "current",
                     }),
             }));
-            notification.add(message, { type: "warning", sticky: false, buttons });
+            notification.add(message, {
+                type: "warning",
+                sticky: true,
+                className: "o_am_duplicate_notification",
+                buttons,
+            });
         });
     },
 };
