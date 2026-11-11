@@ -42,6 +42,8 @@ class TestSearchPerformance(AttachmentManagementCase):
                 'model_id': cls.env['ir.model']._get_id(model), 'own_every': OWN_UPLOAD_EVERY,
                 'own_uid': cls.am_user.id, 'other_uid': cls.am_other_user.id, 'rows': ROWS_PER_MODEL,
             })
+        # A database of this size has planner statistics; rows inserted in this transaction get none until analyzed.
+        cls.env.cr.execute('ANALYZE ir_attachment')
         cls.env.invalidate_all()
         cls.action = cls.env.ref('attachment_management.action_attachment_central')
         cls.menu_domain = [('type', '=', 'binary'), ('url', '=', False)]
@@ -72,6 +74,16 @@ class TestSearchPerformance(AttachmentManagementCase):
     def test_file_type_filter_within_two_seconds(self):
         """Requirements: NFR-AM-0001. A file-type filter over every upload of every kind of record."""
         domain = self.menu_domain + [('file_type_group', '=', 'pdf')]
+        self.assertLess(self._list_seconds(domain), FIRST_PAGE_SECONDS)
+
+    def test_owner_filter_within_two_seconds(self):
+        """Requirements: NFR-AM-0001. An owner filter on someone else's uploads, over every kind of record."""
+        domain = self.menu_domain + [('create_uid', '=', self.am_other_user.id)]
+        self.assertLess(self._list_seconds(domain), FIRST_PAGE_SECONDS)
+
+    def test_name_search_within_two_seconds(self):
+        """Requirements: NFR-AM-0001. A search on the file name that matches files of every kind of record."""
+        domain = self.menu_domain + [('name', 'ilike', 'perf-')]
         self.assertLess(self._list_seconds(domain), FIRST_PAGE_SECONDS)
 
     def test_kind_of_record_filter_within_two_seconds(self):

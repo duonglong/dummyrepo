@@ -7,6 +7,8 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 
+from odoo.addons.base.models.ir_attachment import MAX_COMODELS_FOR_DOMAIN, condition_values
+
 _logger = logging.getLogger(__name__)
 
 LABEL_CHUNK = 1000
@@ -93,16 +95,47 @@ class IrAttachment(models.Model):
 
         Mirror every condition on the kind of record as the same condition on
         ``res_model`` so the native access check stays in SQL (it only does so
-        when the domain names the models).
+        when the domain names the models). Otherwise leave out in SQL the files
+        of kinds of record the user cannot read at all, which native's batched
+        check would fetch and drop 1,000 at a time.
         """
         domain = Domain(domain).map_conditions(self._mirror_res_model_condition)
+        if self.env.su or bypass_access:
+            return super()._search(
+                domain, offset, limit, order, active_test=active_test, bypass_access=bypass_access)
         shows_label = self._am_names_label(domain, order=order)
-        if (self.env.context.get('am_central_list') or shows_label) and not (self.env.su or bypass_access):
+        if self.env.context.get('am_central_list') or shows_label:
             hidden = self._am_hidden_public_files(domain)
             if hidden:
                 domain &= Domain('id', 'not in', hidden.ids)
+        if not 0 < len(condition_values(self, 'res_model', domain) or ()) <= MAX_COMODELS_FOR_DOMAIN:
+            domain &= self._am_readable_kinds_domain(domain)
+            if limit and not order:
+                # A count up to a limit asks for no order; native would then sort every match
+                # again for each batch it checks. The id order reads each batch from the primary key.
+                order = 'id'
         return super()._search(
             domain, offset, limit, order, active_test=active_test, bypass_access=bypass_access)
+
+    @api.model
+    def _am_readable_kinds_domain(self, domain):
+        """Requirements: NFR-AM-0001, BR-AM-0001. Exclude the kinds of record of ``domain`` the user cannot read at all.
+
+        Native access never grants a file of such a kind (no record of a model whose access
+        domain is false passes ``_filtered_access``), so only the work changes, never the
+        result. A file with no record stays: native judges it by its uploader. Users are
+        kept: native lets a person reach the files of their own user record.
+        """
+        # sudo: lists the kinds of record present; no file leaves this method.
+        kinds = [res_model for [res_model] in self.sudo()._read_group(domain, ['res_model']) if res_model]
+        unreadable = [
+            res_model for res_model in kinds
+            if res_model != 'res.users' and (
+                res_model not in self.env or self.env[res_model]._access_domain('read').is_false())
+        ]
+        if not unreadable:
+            return Domain.TRUE
+        return Domain('res_model', 'not in', unreadable) | Domain('res_id', 'in', [False, 0])
 
     @api.model
     def _am_names_label(self, domain=(), specs=(), order=None):

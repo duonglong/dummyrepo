@@ -80,3 +80,21 @@ class TestSearchHelpers(AttachmentManagementCase):
             'name': 'f', 'raw': b'f', 'res_model': 'res.partner', 'res_id': partner.id,
             'res_field': 'image_1920'})
         self.assertFalse(att.record_label)
+
+    def test_unreadable_kind_left_out_but_own_file_without_record_kept(self):
+        """Requirements: BR-AM-0001, BR-AM-0002, NFR-AM-0001. Leaving out the kinds a user cannot read keeps native's result.
+
+        A file on a record of a kind the user cannot read stays hidden; a file of that kind
+        with no record stays with its uploader, as native decides by the uploader there.
+        """
+        parameter = self.env['ir.config_parameter'].sudo().search([], limit=1)
+        attachments = self.env['ir.attachment'].with_user(self.am_user).sudo()
+        on_record, no_record = attachments.create([
+            {'name': 'am-kind-guard.txt', 'raw': b'on', 'res_model': 'ir.config_parameter', 'res_id': parameter.id},
+            {'name': 'am-kind-guard.txt', 'raw': b'off', 'res_model': 'ir.config_parameter', 'res_id': 0},
+        ])
+        found = self.env['ir.attachment'].with_user(self.am_user).search([('name', '=', 'am-kind-guard.txt')])
+        self.assertEqual(found, no_record)
+        self.assertNotIn(on_record, found)
+        self.assertEqual(
+            self.env['ir.attachment'].with_user(self.am_user).search_count([('name', '=', 'am-kind-guard.txt')]), 1)
