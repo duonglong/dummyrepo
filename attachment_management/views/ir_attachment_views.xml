@@ -12,6 +12,9 @@
                 <field name="file_type_group"/>
                 <field name="file_size"/>
                 <field name="create_date"/>
+                <field name="res_id" column_invisible="1"/>
+                <button name="action_open_record" type="object" string="Open record"
+                        icon="fa-external-link" invisible="not res_id"/>
             </list>
         </field>
     </record>

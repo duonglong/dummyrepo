@@ -25,6 +25,7 @@
         ],
         'web.assets_tests': [
             'attachment_management/static/tests/tours/am_duplicate_tour.js',
+            'attachment_management/static/tests/tours/am_open_record_tour.js',
         ],
     },
     'pre_init_hook': 'pre_init_hook',
