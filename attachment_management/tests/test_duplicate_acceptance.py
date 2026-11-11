@@ -12,7 +12,6 @@ for a particular payload key. The Open buttons and the notification itself are
 browser work that the build leaves to the JS service; the upload is the ORM
 creation of the attachment by the uploader, which is what the upload routes do.
 """
-import base64
 import json
 
 from odoo.tests.common import TransactionCase, new_test_user, tagged
@@ -45,7 +44,7 @@ class TestDuplicateAcceptance(TransactionCase):
         env = self.env(user=user) if user else self.env(su=True)
         return env['ir.attachment'].create({
             'name': name,
-            'datas': base64.b64encode(content or self.content),
+            'raw': content or self.content,
             'res_model': record._name,
             'res_id': record.id,
         })
@@ -59,7 +58,7 @@ class TestDuplicateAcceptance(TransactionCase):
         self._reset_bus()
         attachment = self.env['ir.attachment'].with_user(self.user).create({
             'name': name,
-            'datas': base64.b64encode(content or self.content),
+            'raw': content or self.content,
             'res_model': record._name,
             'res_id': record.id,
         })
@@ -164,7 +163,7 @@ class TestDuplicateAcceptance(TransactionCase):
         """Requirements: FR-AM-0014. A file stored for a picture field (res_field set)
         is not a copy to warn about."""
         self.env['ir.attachment'].sudo().create({
-            'name': 'image_1920', 'datas': base64.b64encode(self.content),
+            'name': 'image_1920', 'raw': self.content,
             'res_model': 'res.partner', 'res_id': self.contact.id, 'res_field': 'image_1920'})
         _attachment, warnings = self._upload(self.order, 'copy.pdf')
         self.assertEqual(warnings, [])
