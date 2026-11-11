@@ -6,7 +6,7 @@ import time
 import zipfile
 from datetime import timedelta
 
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.tools import SQL, config
@@ -16,6 +16,7 @@ _logger = logging.getLogger(__name__)
 ZIP_INLINE_MAX_BYTES = 100 * 1024 * 1024
 ZIP_KEEP_HOURS = 24
 ZIP_STALE_BUILD_HOURS = 1
+ZIP_CHUNK_BYTES = 64 * 1024
 ZIP_FOLDER = 'attachment_management_zip'
 # Files of these groups are already compressed: store them as they are.
 STORED_TYPE_GROUPS = ('pdf', 'image', 'archive')
@@ -125,6 +126,31 @@ class AttachmentZipDownload(models.Model):
             'url': '/attachment_management/zip/%d' % self.id,
             'target': 'self',
         }
+
+    def _stream_then_release(self, path):
+        """Requirements: FR-AM-0009. Yield the file in chunks; once the last chunk is read, mark
+        the request downloaded and delete the file.
+
+        A transfer that is closed before that point leaves the request ready with its file,
+        so the person can fetch it again and the 24-hour clean-up still bounds it. The release
+        runs just before the last chunk is handed out, so the file is gone when the client has
+        received everything.
+        """
+        # The request cursor is closed when the response is streamed: keep plain values only.
+        registry, download_id = self.env.registry, self.id
+        with open(path, 'rb') as handle:
+            chunk = handle.read(ZIP_CHUNK_BYTES)
+            while True:
+                following = handle.read(ZIP_CHUNK_BYTES)
+                if not following:
+                    break
+                yield chunk
+                chunk = following
+        with registry.cursor() as cr:
+            # sudo: requesters cannot write their requests; the state is kept by the server.
+            api.Environment(cr, SUPERUSER_ID, {})[self._name].browse(download_id).write({'state': 'downloaded'})
+        os.unlink(path)
+        yield chunk
 
     # -- build -----------------------------------------------------------
     @api.model

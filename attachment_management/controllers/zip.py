@@ -1,7 +1,6 @@
 import os
 
 from werkzeug.exceptions import NotFound
-from werkzeug.wsgi import wrap_file
 
 from odoo import http
 from odoo.http import request
@@ -14,8 +13,9 @@ class AttachmentZipController(http.Controller):
     def download_zip(self, download_id):
         """Requirements: FR-AM-0008, FR-AM-0009, FR-AM-0010.
 
-        Build the zip when it is not built yet (access is checked again), stream it
-        and delete its temporary file once the response is closed; only the requester finds it, once.
+        Build the zip when it is not built yet (access is checked again) and stream it; the
+        request is marked downloaded and the temporary file deleted only once the whole file
+        was read, so a broken transfer can be repeated. Only the requester finds it.
         """
         download = request.env['attachment.zip.download'].search(
             [('id', '=', download_id), ('user_id', '=', request.env.uid), ('state', '=', 'ready')])
@@ -25,20 +25,14 @@ class AttachmentZipController(http.Controller):
         if not download.sudo().file_path:
             download._build()
         path = download.sudo().file_path
-        # sudo: requesters cannot write their requests; the state is kept by the server.
-        download.sudo().write({'state': 'downloaded'})
         try:
-            handle = open(path, 'rb')
+            size = os.path.getsize(path)
         except FileNotFoundError:
             raise NotFound()
-        # Unlinked only when the response is closed, after the transaction committed;
-        # the open handle stays readable meanwhile.
-        size = os.fstat(handle.fileno()).st_size
-        response = request.make_response(wrap_file(request.httprequest.environ, handle), headers=[
+        response = request.make_response(download.sudo()._stream_then_release(path), headers=[
             ('Content-Type', 'application/zip'),
             ('Content-Length', size),
             ('Content-Disposition', content_disposition(download.zip_name)),
             ('X-Content-Type-Options', 'nosniff'),
         ])
-        response.call_on_close(lambda: os.path.exists(path) and os.unlink(path))
         return response
