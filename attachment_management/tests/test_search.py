@@ -43,11 +43,40 @@ class TestSearchHelpers(AttachmentManagementCase):
         self.assertEqual(att.record_label, 'Label Two')
         other.name = 'Label Renamed'
         self.assertEqual(att.record_label, 'Label Two')
-        self.env['ir.attachment']._cron_refresh_record_labels()
+        self.env['ir.attachment']._refresh_all_record_labels()
         self.assertEqual(att.record_label, 'Label Renamed')
 
     def test_no_record_means_no_label(self):
         """Requirements: FR-AM-0003. A file with no record has no kind of record and no label."""
         att = self.env['ir.attachment'].create({'name': 'n.txt', 'raw': b'n'})
         self.assertFalse(att.res_model_id)
+        self.assertFalse(att.record_label)
+
+    def test_detached_file_loses_its_label(self):
+        """Requirements: FR-AM-0004. A file taken off its record keeps no record name, also after the nightly job."""
+        partner = self.env['res.partner'].create({'name': 'Label Gone'})
+        att = self.env['ir.attachment'].create({
+            'name': 'd.txt', 'raw': b'd', 'res_model': 'res.partner', 'res_id': partner.id})
+        self.assertEqual(att.record_label, 'Label Gone')
+        att.write({'res_model': False, 'res_id': 0})
+        self.assertFalse(att.record_label)
+        stale = self.env['ir.attachment'].create({'name': 's.txt', 'raw': b's'})
+        stale.write({'record_label': 'Stale'})
+        self.env['ir.attachment']._refresh_all_record_labels()
+        self.assertFalse(stale.record_label)
+
+    def test_labels_of_many_files_in_one_refresh(self):
+        """Requirements: FR-AM-0004. A batch of files on several records gets one label each."""
+        partners = self.env['res.partner'].create([{'name': 'Batch A'}, {'name': 'Batch B'}])
+        atts = self.env['ir.attachment'].create([
+            {'name': f'b{i}.txt', 'raw': b'b', 'res_model': 'res.partner', 'res_id': partners[i % 2].id}
+            for i in range(4)])
+        self.assertEqual(atts.mapped('record_label'), ['Batch A', 'Batch B', 'Batch A', 'Batch B'])
+
+    def test_field_files_get_no_label(self):
+        """Requirements: FR-AM-0001. Internal field files stay out of the label work."""
+        partner = self.env['res.partner'].create({'name': 'Field Owner'})
+        att = self.env['ir.attachment'].create({
+            'name': 'f', 'raw': b'f', 'res_model': 'res.partner', 'res_id': partner.id,
+            'res_field': 'image_1920'})
         self.assertFalse(att.record_label)

@@ -82,7 +82,10 @@ class IrAttachment(models.Model):
 
     @api.model
     def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
-        """Requirements: FR-AM-0002, NFR-AM-0001.
+        """Requirements: FR-AM-0002, FR-AM-0003, BR-AM-0001, BR-AM-0002, NFR-AM-0001.
+
+        Access itself stays native: the parent record decides, and a file with no
+        record is only found by its uploader and administrators.
 
         Mirror every condition on the kind of record as the same condition on
         ``res_model`` so the native access check stays in SQL (it only does so
@@ -109,7 +112,8 @@ class IrAttachment(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         attachments = super().create(vals_list)
-        attachments._refresh_record_labels()
+        # Files of picture and binary fields never appear in the central list.
+        attachments.filtered(lambda attachment: not attachment.res_field)._refresh_record_labels()
         return attachments
 
     def write(self, vals):
@@ -118,32 +122,57 @@ class IrAttachment(models.Model):
             self._refresh_record_labels()
         return result
 
-    def _record_label_of(self, res_model, res_id):
-        """Display name of a record, or an empty string when it is gone."""
-        if res_model not in self.env or not res_id:
-            return ''
+    @api.model
+    def _record_labels_of(self, res_model, res_ids):
+        """Return ``{res_id: display name}`` of the records still there, read in one batch."""
+        if not res_model or res_model not in self.env:
+            return {}
         # sudo: the label is stored once for everyone; the list only shows it for
         # attachments the viewer can already find through the native access check.
-        return self.env[res_model].sudo().browse(res_id).exists().display_name or ''
+        records = self.env[res_model].sudo().browse({res_id for res_id in res_ids if res_id}).exists()
+        return {record.id: record.display_name for record in records}
 
     def _refresh_record_labels(self):
-        """Requirements: FR-AM-0004. Store the display name of each record the files belong to."""
-        for attachment in self.filtered('res_model'):
-            label = self._record_label_of(attachment.res_model, attachment.res_id)
-            if label != (attachment.record_label or ''):
-                super(IrAttachment, attachment).write({'record_label': label})
+        """Requirements: FR-AM-0004. Store the display name of each record the files belong to.
+
+        The names are read once per model and each distinct name is written once;
+        a file with no record (or a record that is gone) gets an empty label.
+        """
+        for res_model in set(self.mapped('res_model')):
+            attachments = self.filtered(lambda attachment: attachment.res_model == res_model)
+            labels = self._record_labels_of(res_model, attachments.mapped('res_id'))
+            new_label = {attachment.id: labels.get(attachment.res_id, '') for attachment in attachments}
+            changed = attachments.filtered(
+                lambda attachment: new_label[attachment.id] != (attachment.record_label or ''))
+            for label in set(new_label[attachment.id] for attachment in changed):
+                group = changed.filtered(lambda attachment: new_label[attachment.id] == label)
+                super(IrAttachment, group).write({'record_label': label or False})
 
     @api.model
-    def _cron_refresh_record_labels(self):
-        """Requirements: FR-AM-0004. Rewrite the labels that differ from the record names, model by model."""
+    def _refresh_all_record_labels(self, commit_progress=False):
+        """Rewrite the labels that differ from the record names, model by model, in chunks.
+
+        With ``commit_progress`` each chunk is committed (cron use), so a job that
+        is stopped keeps the labels it already rewrote.
+        """
         # sudo: a system job that must see every attachment.
         attachments = self.sudo()
-        models_in_use = [
+        base_domain = [('res_field', '=', False)]
+        # Files whose model is unset or gone still need their stale label cleared.
+        res_models = [
             group[0] for group in attachments._read_group(
-                [('res_model', '!=', False), ('res_id', '>', 0)], groupby=['res_model'])]
-        for res_model in models_in_use:
-            domain = [('res_model', '=', res_model), ('res_id', '>', 0)]
+                base_domain + [('res_model', '!=', False)], groupby=['res_model'])]
+        domains = [base_domain + [('res_model', '=', res_model)] for res_model in res_models]
+        domains.append(base_domain + [('res_model', '=', False), ('record_label', '!=', False)])
+        for domain in domains:
             offset = 0
             while chunk := attachments.search(domain, offset=offset, limit=LABEL_CHUNK, order='id'):
                 chunk._refresh_record_labels()
                 offset += LABEL_CHUNK
+                if commit_progress:
+                    self.env['ir.cron']._commit_progress(len(chunk))
+
+    @api.model
+    def _cron_refresh_record_labels(self):
+        """Requirements: FR-AM-0004. Nightly refresh of the stored record names."""
+        self._refresh_all_record_labels(commit_progress=True)

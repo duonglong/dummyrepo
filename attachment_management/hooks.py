@@ -6,7 +6,7 @@ from .models.ir_attachment import OTHER_GROUP, TYPE_GROUPS
 def _type_group_case():
     """SQL CASE giving the file type group of a mimetype, built from the Python table."""
     branches = [
-        SQL("WHEN mimetype LIKE ANY (%s) THEN %s",
+        SQL("WHEN lower(mimetype) LIKE ANY (%s) THEN %s",
             [pattern.replace('*', '%') for pattern in patterns], group)
         for group, patterns in TYPE_GROUPS
     ]
@@ -31,4 +31,4 @@ def pre_init_hook(env):
 
 def post_init_hook(env):
     """Requirements: FR-AM-0004. Fill the record labels of the attachments already stored."""
-    env['ir.attachment']._cron_refresh_record_labels()
+    env['ir.attachment']._refresh_all_record_labels()
