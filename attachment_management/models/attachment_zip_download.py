@@ -15,6 +15,7 @@ _logger = logging.getLogger(__name__)
 
 ZIP_INLINE_MAX_BYTES = 100 * 1024 * 1024
 ZIP_KEEP_HOURS = 24
+ZIP_STALE_BUILD_HOURS = 1
 ZIP_FOLDER = 'attachment_management_zip'
 # Files of these groups are already compressed: store them as they are.
 STORED_TYPE_GROUPS = ('pdf', 'image', 'archive')
@@ -49,10 +50,11 @@ class AttachmentZipDownload(models.Model):
     zip_name = fields.Char(string="Name", required=True)
     total_size = fields.Integer(string="Size", help="Total size of the files, in bytes.")
     state = fields.Selection(
-        [('queued', "Being prepared"), ('ready', "Ready"), ('downloaded', "Downloaded"), ('failed', "Failed")],
-        required=True, default='ready', index=True)
+        [('queued', "Being prepared"), ('building', "Building"), ('ready', "Ready"), ('downloaded', "Downloaded"), ('failed', "Failed")],
+        required=True, default='queued', index=True)
     file_path = fields.Char(groups='base.group_system')
     ready_date = fields.Datetime(string="Ready since")
+    build_start = fields.Datetime(string="Build started")
     error = fields.Char()
     file_count = fields.Integer(string="Files", compute='_compute_file_count')
 
@@ -61,6 +63,10 @@ class AttachmentZipDownload(models.Model):
         for download in self:
             # sudo: count every file of the request, also ones the viewer cannot open since.
             download.file_count = len(download.sudo().attachment_ids)  # sudo: see above
+
+    def copy(self, default=None):
+        """Requirements: FR-AM-0009. A zip request is a one-off; it is not copied."""
+        raise UserError(self.env._("A zip request cannot be duplicated."))
 
     # -- request ---------------------------------------------------------
     @api.model
@@ -173,7 +179,13 @@ class AttachmentZipDownload(models.Model):
     # -- scheduled jobs --------------------------------------------------
     @api.model
     def _cron_build_queued(self):
-        """Requirements: FR-AM-0008. Build the zips queued for the background, one request at a time."""
+        """Requirements: FR-AM-0008, FR-AM-0009. Build the zips queued for the background, one request at a time.
+
+        A request is marked ``building`` and committed before its build, so a build
+        killed half way never keeps the queue: it is reset to ``failed`` after
+        ZIP_STALE_BUILD_HOURS and the job goes on with the next request.
+        """
+        self._fail_stale_builds()
         while True:
             self.env.flush_all()  # the next query reads the state in SQL
             # Locked rows are skipped: two workers never build the same request.
@@ -184,16 +196,33 @@ class AttachmentZipDownload(models.Model):
             if not row:
                 return
             download = self.browse(row[0])
+            # sudo: see _build.
+            download.sudo().write({'state': 'building', 'build_start': fields.Datetime.now()})
+            self.env['ir.cron']._commit_progress(0)
             self._build_as_requester(download)
-            self.env['ir.cron']._commit_progress(1)
+            if not self.env['ir.cron']._commit_progress(1):
+                self.env.ref('attachment_management.ir_cron_am_zip_build')._trigger()
+                return
+
+    @api.model
+    def _fail_stale_builds(self):
+        """Requirements: FR-AM-0009. Give up the requests left building for more than ZIP_STALE_BUILD_HOURS."""
+        cutoff = fields.Datetime.now() - timedelta(hours=ZIP_STALE_BUILD_HOURS)
+        # sudo: a system job that must see every request.
+        stale = self.sudo().search([('state', '=', 'building'), ('build_start', '<', cutoff)])
+        stale.write({'state': 'failed', 'error': self.env._("The zip could not be prepared in time.")})
+        if stale:
+            _logger.warning("zip requests %s were left building and are failed", stale.ids)
 
     @api.model
     def _build_as_requester(self, download):
-        """Build one queued zip with the rights of the person who asked for it; a failure is recorded."""
+        """Build one queued zip with the rights of the person who asked for it; any failure is recorded."""
         try:
-            download.with_user(download.user_id)._build()
-        except (UserError, AccessError, OSError) as error:
-            _logger.warning("zip %s failed: %s", download.id, error)
+            with self.env.cr.savepoint():
+                download.with_user(download.user_id)._build()
+        except Exception as error:  # noqa: BLE001 - one bad request must never block the queue
+            _logger.warning("zip %s failed: %s", download.id, error, exc_info=not isinstance(
+                error, (UserError, AccessError, OSError)))
             # sudo: see _build.
             download.sudo().write({'state': 'failed', 'error': str(error)})
 
@@ -216,7 +245,7 @@ class AttachmentZipDownload(models.Model):
 
     @api.model
     def _remove_orphan_files(self, before):
-        """Remove files of the zip folder older than ``before`` (a timestamp) that no request holds."""
+        """Remove files of the zip folder older than ``before`` (a timestamp), whatever request left them."""
         folder = self._zip_folder()
         for name in os.listdir(folder):
             path = os.path.join(folder, name)

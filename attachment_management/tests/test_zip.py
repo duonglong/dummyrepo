@@ -1,9 +1,11 @@
 import os
 import zipfile
+from datetime import timedelta
 from unittest.mock import patch
 
 from odoo.addons.attachment_management.models import attachment_zip_download as zip_module
 from odoo.addons.attachment_management.models.attachment_zip_download import unique_member_names
+from odoo import fields
 from odoo.exceptions import AccessError, UserError
 
 from .common import AttachmentManagementCase
@@ -103,3 +105,63 @@ class TestZipDownload(AttachmentManagementCase):
         download.state = 'downloaded'
         self.Zip._cron_cleanup()
         self.assertFalse(download.exists())
+
+    def _queue(self, attachment):
+        with patch.object(zip_module, 'ZIP_INLINE_MAX_BYTES', 0):
+            self._request(attachment)
+        return self.Zip.search([('user_id', '=', self.am_admin.id)], limit=1)
+
+    def test_unexpected_build_error_fails_the_request_and_the_queue_goes_on(self):
+        """Requirements: FR-AM-0008, FR-AM-0009. A build raising any error is failed; the next request is built."""
+        first = self._queue(self._attach('first.txt', b'first-unexpected'))
+        second = self._queue(self._attach('second.txt', b'second-unexpected'))
+        original = type(self.Zip)._build
+
+        def build(record):
+            if record == first:
+                raise ValueError("boom")
+            return original(record)
+
+        with patch.object(type(self.Zip), '_build', build):
+            self._run_build_job()
+        self.assertEqual(first.state, 'failed')
+        self.assertIn('boom', first.error)
+        self.assertEqual(second.state, 'ready')
+        self.addCleanup(os.unlink, second.sudo().file_path)
+
+    def test_stale_building_request_is_failed_by_the_job(self):
+        """Requirements: FR-AM-0009. A request left building for over an hour is failed."""
+        stale = self._queue(self._attach('stale.txt', b'stale-content'))
+        stale.write({'state': 'building', 'build_start': fields.Datetime.now() - timedelta(hours=2)})
+        recent = self._queue(self._attach('recent.txt', b'recent-content'))
+        recent.write({'state': 'building', 'build_start': fields.Datetime.now()})
+        self._run_build_job()
+        self.assertEqual(stale.state, 'failed')
+        self.assertTrue(stale.error)
+        self.assertEqual(recent.state, 'building')
+
+    def test_threshold_boundary(self):
+        """Requirements: FR-AM-0008. Up to the threshold goes at once; one byte more is queued."""
+        attachment = self._attach('edge.txt', b'12345')
+        with patch.object(zip_module, 'ZIP_INLINE_MAX_BYTES', 5):
+            self._request(attachment)
+            self.assertEqual(self.Zip.search([], limit=1).state, 'ready')
+        with patch.object(zip_module, 'ZIP_INLINE_MAX_BYTES', 4):
+            self._request(attachment)
+            self.assertEqual(self.Zip.search([], limit=1).state, 'queued')
+
+    def test_members_are_streamed_one_at_a_time(self):
+        """Requirements: NFR-AM-0002. Each member is copied from an open stream and the cache is released."""
+        attachments = self._attach('s1.txt', b'stream-one') + self._attach('s2.txt', b'stream-two')
+        download = self._queue(attachments)
+        with patch.object(zip_module.shutil, 'copyfileobj', wraps=zip_module.shutil.copyfileobj) as copy:
+            self._run_build_job()
+        self.assertEqual(copy.call_count, 2)
+        self.addCleanup(os.unlink, download.sudo().file_path)
+
+    def test_zip_request_is_not_copyable_and_defaults_to_queued(self):
+        """Requirements: FR-AM-0008. A request made by a direct create is queued, never served at once."""
+        download = self.Zip.create({'attachment_ids': [fields.Command.set(self._attach('c.txt').ids)], 'zip_name': 'c.zip'})
+        self.assertEqual(download.state, 'queued')
+        with self.assertRaises(UserError):
+            download.copy()

@@ -15,7 +15,7 @@ class AttachmentZipController(http.Controller):
         """Requirements: FR-AM-0008, FR-AM-0009, FR-AM-0010.
 
         Build the zip when it is not built yet (access is checked again), stream it
-        and delete its temporary file at once; only the requester finds it, once.
+        and delete its temporary file once the response is closed; only the requester finds it, once.
         """
         download = request.env['attachment.zip.download'].search(
             [('id', '=', download_id), ('user_id', '=', request.env.uid), ('state', '=', 'ready')])
@@ -31,12 +31,14 @@ class AttachmentZipController(http.Controller):
             handle = open(path, 'rb')
         except FileNotFoundError:
             raise NotFound()
-        # The open file stays readable after the unlink: nothing is left on the server.
-        os.unlink(path)
+        # Unlinked only when the response is closed, after the transaction committed;
+        # the open handle stays readable meanwhile.
         size = os.fstat(handle.fileno()).st_size
-        return request.make_response(wrap_file(request.httprequest.environ, handle), headers=[
+        response = request.make_response(wrap_file(request.httprequest.environ, handle), headers=[
             ('Content-Type', 'application/zip'),
             ('Content-Length', size),
             ('Content-Disposition', content_disposition(download.zip_name)),
             ('X-Content-Type-Options', 'nosniff'),
         ])
+        response.call_on_close(lambda: os.path.exists(path) and os.unlink(path))
+        return response
