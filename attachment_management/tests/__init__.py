@@ -8,3 +8,4 @@ from . import test_zip_acceptance
 from . import test_naming
 from . import test_preview
 from . import test_duplicate_acceptance
+from . import test_zip_download_acceptance
