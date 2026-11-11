@@ -2,3 +2,6 @@ from . import test_search_acceptance
 from . import test_smoke
 from . import test_search
 from . import test_search_performance
+from . import test_preview_acceptance
+from . import test_naming_acceptance
+from . import test_zip_acceptance
