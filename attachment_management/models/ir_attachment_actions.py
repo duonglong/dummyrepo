@@ -11,6 +11,7 @@ class IrAttachment(models.Model):  # sdd-allow: model-split T-003 plans the form
         """
         self.ensure_one()
         self.check_access('read')
+        self._am_check_parent_access()
         return {
             'type': 'ir.actions.client',
             'tag': 'attachment_management.preview',
@@ -24,6 +25,7 @@ class IrAttachment(models.Model):  # sdd-allow: model-split T-003 plans the form
         """
         self.ensure_one()
         self.check_access('read')
+        self._am_check_parent_access()
         return {
             'type': 'ir.actions.act_url',
             'url': '/web/content/%d?download=true' % self.id,

@@ -1,7 +1,9 @@
 import fnmatch
 import logging
+from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.exceptions import AccessError
 from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
@@ -92,6 +94,10 @@ class IrAttachment(models.Model):
         when the domain names the models).
         """
         domain = Domain(domain).map_conditions(self._mirror_res_model_condition)
+        if self.env.context.get('am_central_list') and not (self.env.su or bypass_access):
+            hidden = self._am_hidden_public_files(domain)
+            if hidden:
+                domain &= Domain('id', 'not in', hidden.ids)
         return super()._search(
             domain, offset, limit, order, active_test=active_test, bypass_access=bypass_access)
 
@@ -108,6 +114,61 @@ class IrAttachment(models.Model):
         # sudo: model names are not sensitive and ordinary users cannot read ir.model.
         names = self.env['ir.model'].sudo().browse(ids).exists().mapped('model')
         return condition & Domain('res_model', 'in', names)
+
+    @api.model
+    def _am_hidden_public_files(self, domain):
+        """Requirements: BR-AM-0001, BR-AM-0002. The public files of ``domain`` whose parent the user cannot open.
+
+        Odoo lets every internal user read a file flagged public, whatever its record; the
+        central list still follows the record (or, with no record, the uploader).
+        """
+        # sudo: finds the public files the native check lets through, to judge each one by its parent below.
+        public = self.sudo().search(Domain(domain) & Domain('public', '=', True))
+        return public - public._am_openable()
+
+    def _am_openable(self):
+        """Requirements: BR-AM-0001, BR-AM-0002. The files of ``self`` whose parent the current user can open.
+
+        With a record: the user can read that record. With no record: the user uploaded
+        the file or is an administrator. Judged on the parent only, never on the file's
+        public flag, and in batches per kind of record.
+        """
+        user = self.env.user
+        by_model = defaultdict(set)
+        linked = {}
+        openable = set()
+        # sudo: the link to the parent must be read to judge it, also for a file the user cannot read natively.
+        for attachment in self.sudo():
+            if attachment.res_model and attachment.res_id:
+                by_model[attachment.res_model].add(attachment.res_id)
+                linked[attachment.id] = (attachment.res_model, attachment.res_id)
+            elif user._is_system() or attachment.create_uid == user:
+                openable.add(attachment.id)
+        readable = {}
+        for res_model, res_ids in by_model.items():
+            if res_model in self.env:
+                records = self.env[res_model].with_user(user).browse(res_ids).exists()
+                readable[res_model] = set(records._filtered_access('read').ids)
+        openable.update(
+            attachment_id for attachment_id, (res_model, res_id) in linked.items()
+            if res_id in readable.get(res_model, ()))
+        return self.filtered(lambda attachment: attachment.id in openable)
+
+    def _am_check_parent_access(self):
+        """Requirements: BR-AM-0001, FR-AM-0010. Refuse when a file's parent record is not open to the current user."""
+        if self - self._am_openable():
+            raise AccessError(self.env._("Sorry, you are not allowed to access this document."))
+
+    def _read_format(self, fnames, load='_classic_read'):
+        """Requirements: BR-AM-0001. Hand out the stored record name only for files whose parent the user can open."""
+        result = super()._read_format(fnames, load)
+        if 'record_label' in fnames and not self.env.su:
+            labelled = [values for values in result if values.get('record_label')]
+            openable = self.browse([values['id'] for values in labelled])._am_openable()
+            for values in labelled:
+                if values['id'] not in openable.ids:
+                    values['record_label'] = False
+        return result
 
     @api.model_create_multi
     def create(self, vals_list):

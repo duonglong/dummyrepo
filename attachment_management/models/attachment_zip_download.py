@@ -91,6 +91,7 @@ class AttachmentZipDownload(models.Model):
         if not attachments:
             raise UserError(self.env._("Select at least one attachment."))
         attachments.check_access('read')
+        attachments._am_check_parent_access()
         files = attachments.filtered(lambda attachment: attachment.type == 'binary')
         if not files:
             raise UserError(self.env._("None of the selected attachments holds a file."))
@@ -144,6 +145,7 @@ class AttachmentZipDownload(models.Model):
         attachment_ids = self.sudo().attachment_ids.ids
         attachments = self.env['ir.attachment'].browse(attachment_ids)
         attachments.check_access('read')
+        attachments._am_check_parent_access()
         started = time.monotonic()
         handle, path = tempfile.mkstemp(suffix='.zip', dir=self._zip_folder())
         os.close(handle)

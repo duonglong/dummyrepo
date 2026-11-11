@@ -63,7 +63,9 @@ class IrAttachment(models.Model):  # sdd-allow: model-split the duplicate warnin
         if not self.sudo().search_count(domain, limit=1):
             return
         # with_user drops a sudo of the caller (the chatter upload route creates in sudo).
-        readable_copies = self.with_user(self.env.user).search(domain, limit=DUPLICATE_MAX_NAMES, order='id')
+        # Odoo lets every internal user read a public file, so the record of each copy is checked as well.
+        copies = self.with_user(self.env.user).search(domain, order='id')
+        readable_copies = copies._am_openable()[:DUPLICATE_MAX_NAMES]
         self.env.user._bus_send(DUPLICATE_EVENT, {
             'message': self._duplicate_message(readable_copies),
             'copies': [
