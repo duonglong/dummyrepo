@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_attachment_naming_rule_list" model="ir.ui.view">
+        <field name="name">attachment.naming.rule.list</field>
+        <field name="model">attachment.naming.rule</field>
+        <field name="arch" type="xml">
+            <list string="Naming Patterns">
+                <field name="model_id"/>
+                <field name="pattern"/>
+                <field name="example_name"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_attachment_naming_rule_form" model="ir.ui.view">
+        <field name="name">attachment.naming.rule.form</field>
+        <field name="model">attachment.naming.rule</field>
+        <field name="arch" type="xml">
+            <form string="Naming Pattern">
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <field name="model_id" options="{'no_create': True}"/>
+                        <field name="active"/>
+                        <field name="pattern" placeholder="{record_ref}_{date}"/>
+                        <field name="example_name"/>
+                    </group>
+                    <div class="text-muted">
+                        Placeholders: {record_name}, {record_ref}, {date}, {uploader}, {original_name}, {seq}.
+                        The original file extension is kept.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_attachment_naming_rule_search" model="ir.ui.view">
+        <field name="name">attachment.naming.rule.search</field>
+        <field name="model">attachment.naming.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="model_id"/>
+                <field name="pattern"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_attachment_naming_rule" model="ir.actions.act_window">
+        <field name="name">Naming Patterns</field>
+        <field name="res_model">attachment.naming.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a naming pattern</p>
+            <p>Files uploaded to a kind of record are renamed by its pattern.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_attachment_configuration" name="Configuration"
+              parent="menu_attachment_management_root" groups="base.group_system" sequence="90"/>
+    <menuitem id="menu_attachment_naming_rule" name="Naming Patterns"
+              parent="menu_attachment_configuration" action="action_attachment_naming_rule"
+              groups="base.group_system" sequence="10"/>
+</odoo>

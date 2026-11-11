@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_attachment_central_form" model="ir.ui.view">
+        <field name="name">ir.attachment.central.form</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <form string="Attachment" create="0" delete="0">
+                <header>
+                    <button name="action_preview" type="object" string="Preview"
+                            class="btn-primary"
+                            invisible="file_type_group not in ('pdf', 'image')"/>
+                    <button name="action_download" type="object" string="Download"/>
+                    <button name="action_open_record" type="object" string="Open record"
+                            invisible="not res_id"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="res_id" invisible="1"/>
+                        <field name="file_type_group" readonly="1"/>
+                        <field name="res_model_id" readonly="1" options="{'no_open': True}"/>
+                        <field name="record_label" readonly="1"/>
+                        <field name="create_uid" readonly="1"/>
+                        <field name="file_size" readonly="1"/>
+                        <field name="create_date" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_attachment_central_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_attachment_central_form"/>
+        <field name="act_window_id" ref="action_attachment_central"/>
+    </record>
+</odoo>
