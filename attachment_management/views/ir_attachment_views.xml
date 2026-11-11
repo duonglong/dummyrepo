@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_attachment_central_list" model="ir.ui.view">
+        <field name="name">ir.attachment.central.list</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <list string="Attachments" create="0" default_order="create_date desc">
+                <field name="name"/>
+                <field name="res_model_id"/>
+                <field name="record_label"/>
+                <field name="create_uid"/>
+                <field name="file_type_group"/>
+                <field name="file_size"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_attachment_central_search" model="ir.ui.view">
+        <field name="name">ir.attachment.central.search</field>
+        <field name="model">ir.attachment</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="res_model_id"/>
+                <field name="record_label"/>
+                <field name="create_uid"/>
+                <filter name="my_uploads" string="My uploads" domain="[('create_uid', '=', uid)]"/>
+                <separator/>
+                <filter name="type_pdf" string="PDF" domain="[('file_type_group', '=', 'pdf')]"/>
+                <filter name="type_image" string="Image" domain="[('file_type_group', '=', 'image')]"/>
+                <filter name="type_document" string="Document" domain="[('file_type_group', '=', 'document')]"/>
+                <filter name="type_spreadsheet" string="Spreadsheet" domain="[('file_type_group', '=', 'spreadsheet')]"/>
+                <filter name="type_presentation" string="Presentation" domain="[('file_type_group', '=', 'presentation')]"/>
+                <filter name="type_archive" string="Archive" domain="[('file_type_group', '=', 'archive')]"/>
+                <filter name="type_other" string="Other" domain="[('file_type_group', '=', 'other')]"/>
+                <separator/>
+                <filter name="create_date" string="Uploaded" date="create_date"/>
+                <group>
+                    <filter name="group_model" string="Kind of Record" context="{'group_by': 'res_model_id'}"/>
+                    <filter name="group_record" string="Record" context="{'group_by': 'record_label'}"/>
+                    <filter name="group_owner" string="Owner" context="{'group_by': 'create_uid'}"/>
+                    <filter name="group_type" string="File Type" context="{'group_by': 'file_type_group'}"/>
+                    <filter name="group_date" string="Upload Date" context="{'group_by': 'create_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_attachment_central" model="ir.actions.act_window">
+        <field name="name">Attachments</field>
+        <field name="res_model">ir.attachment</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('type', '=', 'binary'), ('url', '=', False)]</field>
+        <field name="search_view_id" ref="view_attachment_central_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No attachments yet.</p>
+            <p>Files attached to records you can open appear here.</p>
+        </field>
+    </record>
+
+    <record id="action_attachment_central_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_attachment_central_list"/>
+        <field name="act_window_id" ref="action_attachment_central"/>
+    </record>
+</odoo>

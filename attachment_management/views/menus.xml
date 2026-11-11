@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_attachment_management_root" name="Documents"
+              groups="base.group_user" sequence="80"/>
+    <menuitem id="menu_attachment_central" name="Attachments"
+              parent="menu_attachment_management_root"
+              action="action_attachment_central" sequence="10"/>
+</odoo>
