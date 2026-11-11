@@ -79,3 +79,27 @@ class TestOpenRecordScreen(HttpCase):
     def test_b_0183_form_button_opens_the_record(self):
         self.start_tour('/odoo/action-attachment_management.action_attachment_central',
                         'am_open_record_form_tour', login='admin')
+
+
+@tagged('post_install', '-at_install')
+class TestListRowButtonsScreen(HttpCase):
+    """Requirements: UX-AM-001, FR-AM-0006, FR-AM-0007. B-0184: Preview on the list row.
+
+    The tour looks at the Attachments list the way the user does, clicks Preview on the PDF row
+    and expects the viewer. It does not reach image rows, and it cannot tell that the viewer
+    shows the right bytes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        partner = cls.env['res.partner'].create({'name': 'AM Row Partner'})
+        for name, mimetype in (('link.pdf', 'application/pdf'), ('sheet.xlsx', 'application/vnd.ms-excel')):
+            cls.env['ir.attachment'].create({
+                'name': name, 'mimetype': mimetype, 'raw': b'x',
+                'res_model': 'res.partner', 'res_id': partner.id,
+            })
+
+    def test_b_0184_row_buttons_preview_and_download(self):
+        self.start_tour('/odoo/action-attachment_management.action_attachment_central',
+                        'am_row_buttons_tour', login='admin')

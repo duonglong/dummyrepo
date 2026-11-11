@@ -39,3 +39,31 @@ registry.category("web_tour.tours").add("am_open_record_form_tour", {
         { trigger: RECORD_FORM },
     ],
 });
+
+/**
+ * Requirements: UX-AM-001, FR-AM-0006, FR-AM-0007
+ * Preview and Download sit on the list row: Preview only on a PDF or image row, Download on
+ * every row; the Preview button opens the viewer without leaving the list.
+ */
+registry.category("web_tour.tours").add("am_row_buttons_tour", {
+    steps: () => [
+        CLEAR_DEFAULT_FILTER,
+        {
+            trigger: ".o_data_row:contains(link.pdf) button[name=action_preview]",
+            run: "click",
+        },
+        { trigger: ".o-FileViewer", run: "press Escape" },
+        { trigger: ".o_data_row:contains(sheet.xlsx) button[name=action_download]" },
+        {
+            trigger: ".o_data_row:contains(sheet.xlsx)",
+            run() {
+                const sheet = [...document.querySelectorAll(".o_data_row")].find((row) =>
+                    row.textContent.includes("sheet.xlsx")
+                );
+                if (sheet.querySelector("button[name=action_preview]")) {
+                    throw new Error("A spreadsheet row offers Preview");
+                }
+            },
+        },
+    ],
+});
