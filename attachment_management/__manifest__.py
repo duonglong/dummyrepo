@@ -7,10 +7,16 @@
     'data': [
         'security/ir.access.csv',
         'views/ir_attachment_views.xml',
+        'views/ir_attachment_actions_views.xml',
         'views/menus.xml',
         'views/attachment_naming_rule_views.xml',
         'data/ir_cron_data.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'attachment_management/static/src/am_service.js',
+        ],
+    },
     'pre_init_hook': 'pre_init_hook',
     'post_init_hook': 'post_init_hook',
     'license': 'LGPL-3',
