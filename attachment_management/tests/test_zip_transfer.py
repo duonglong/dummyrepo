@@ -76,3 +76,68 @@ class TestZipTransfer(HttpCase):
         path = download.sudo().file_path
         self.assertTrue(self._wait_for_state(download, 'downloaded'))
         self.assertFalse(os.path.exists(path))
+
+
+@tagged('post_install', '-at_install')
+class TestZipDownloadRecheck(HttpCase):
+    """Requirements: FR-AM-0009, FR-AM-0010. The zip file exists before the link is opened, and opening it
+    checks again that the person can still open every file."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.zip_user = new_test_user(cls.env, login='am_recheck_user', groups='base.group_user')
+        cls.partner = cls.env['res.partner'].create({'name': 'Recheck Partner'})
+        cls.hidden_record = cls.env['ir.config_parameter'].sudo().search([], limit=1)
+        cls.Zip = cls.env['attachment.zip.download']
+
+    def setUp(self):
+        super().setUp()
+        self.attachment = self.env['ir.attachment'].create({
+            'name': 'recheck.txt', 'raw': b'recheck', 'res_model': 'res.partner', 'res_id': self.partner.id})
+
+    def _latest_request(self):
+        return self.Zip.sudo().search([('user_id', '=', self.zip_user.id)], order='id desc', limit=1)
+
+    def _hide_file_and_open(self, url):
+        """Move the file onto a record the user cannot open, then open the link as the user."""
+        self.attachment.write({'res_model': 'ir.config_parameter', 'res_id': self.hidden_record.id})
+        self.authenticate(self.zip_user.login, self.zip_user.login)
+        return self.url_open(url, timeout=120)
+
+    def test_bug_b_0186_small_zip_written_before_the_link_is_opened(self):
+        """Regression test for B-0186: a zip up to 100 MB is written to its temporary file when it is asked for.
+
+        Requirements: FR-AM-0009
+        """
+        action = self.env.ref('attachment_management.action_attachment_download_zip')
+        action.with_user(self.zip_user).with_context(
+            active_model='ir.attachment', active_ids=self.attachment.ids, active_id=self.attachment.id).run()
+        path = self._latest_request().file_path
+        self.assertTrue(path and os.path.exists(path), "The zip was not written to a temporary file")
+
+    def test_bug_b_0186_small_zip_refused_when_access_was_lost(self):
+        """Regression test for B-0186: a zip written when asked for is still refused at the link
+        when the person can no longer open one of its files.
+
+        Requirements: FR-AM-0010
+        """
+        action = self.env.ref('attachment_management.action_attachment_download_zip')
+        result = action.with_user(self.zip_user).with_context(
+            active_model='ir.attachment', active_ids=self.attachment.ids, active_id=self.attachment.id).run()
+        response = self._hide_file_and_open(result['url'])
+        self.assertEqual(response.status_code, 403)
+
+    def test_bug_b_0186_background_zip_refused_when_access_was_lost(self):
+        """Regression test for B-0186: a zip prepared in the background is refused at the link
+        when the person can no longer open one of its files.
+
+        Requirements: FR-AM-0010
+        """
+        download = self.Zip.sudo().create({
+            'user_id': self.zip_user.id, 'attachment_ids': [(6, 0, self.attachment.ids)],
+            'zip_name': 'recheck.zip', 'state': 'queued'})
+        self.Zip._build_as_requester(download)  # the job's step for one request, without its commits
+        self.assertEqual(download.state, 'ready')
+        response = self._hide_file_and_open(download.action_download()['url'])
+        self.assertEqual(response.status_code, 403)

@@ -84,7 +84,8 @@ class AttachmentZipDownload(models.Model):
         """Requirements: FR-AM-0008, FR-AM-0009, FR-AM-0010.
 
         Record a zip request for the selected files and answer the action that
-        delivers it: the download link up to ZIP_INLINE_MAX_BYTES, otherwise a
+        delivers it: up to ZIP_INLINE_MAX_BYTES the zip is written to its
+        temporary file at once and the download link returned, otherwise a
         notice that the zip is being prepared in the background.
         Any file the person cannot open refuses the whole request.
         """
@@ -106,6 +107,7 @@ class AttachmentZipDownload(models.Model):
             'ready_date': fields.Datetime.now() if in_request else False,
         })
         if in_request:
+            download._build()
             return download.action_download()
         self.env.ref('attachment_management.ir_cron_am_zip_build')._trigger()
         return {
@@ -165,13 +167,7 @@ class AttachmentZipDownload(models.Model):
         Write the zip of the request to a temporary file, one file at a time, and
         keep its path. Access is checked again as the current user.
         """
-        self.ensure_one()
-        # sudo: the link table lists every file of the request, also those the user can no
-        # longer open; the access check below must see them.
-        attachment_ids = self.sudo().attachment_ids.ids
-        attachments = self.env['ir.attachment'].browse(attachment_ids)
-        attachments.check_access('read')
-        attachments._am_check_parent_access()
+        attachments = self._check_files_access()
         started = time.monotonic()
         handle, path = tempfile.mkstemp(suffix='.zip', dir=self._zip_folder())
         os.close(handle)
@@ -184,7 +180,18 @@ class AttachmentZipDownload(models.Model):
         self.sudo().write({'file_path': path, 'state': 'ready', 'ready_date': fields.Datetime.now()})
         _logger.info(
             "zip %s: %s files, %s bytes in %.1fs",
-            self.id, len(attachment_ids), os.path.getsize(path), time.monotonic() - started)
+            self.id, len(attachments), os.path.getsize(path), time.monotonic() - started)
+
+    def _check_files_access(self):
+        """Requirements: FR-AM-0010. Return the files of the request; refuse them all when the
+        current user can no longer open one of them."""
+        self.ensure_one()
+        # sudo: the link table lists every file of the request, also those the user can no
+        # longer open; the access check below must see them.
+        attachments = self.env['ir.attachment'].browse(self.sudo().attachment_ids.ids)
+        attachments.check_access('read')
+        attachments._am_check_parent_access()
+        return attachments
 
     def _write_zip(self, path, attachments):
         names = unique_member_names(attachments.mapped('name'))

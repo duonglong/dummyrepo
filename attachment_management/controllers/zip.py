@@ -13,16 +13,19 @@ class AttachmentZipController(http.Controller):
     def download_zip(self, download_id):
         """Requirements: FR-AM-0008, FR-AM-0009, FR-AM-0010.
 
-        Build the zip when it is not built yet (access is checked again) and stream it; the
-        request is marked downloaded and the temporary file deleted only once the whole file
-        was read, so a broken transfer can be repeated. Only the requester finds it.
+        Check again that the requester can open every file, build the zip when it is not built
+        yet and stream it; the request is marked downloaded and the temporary file deleted only
+        once the whole file was read, so a broken transfer can be repeated. Only the requester
+        finds it.
         """
         download = request.env['attachment.zip.download'].search(
             [('id', '=', download_id), ('user_id', '=', request.env.uid), ('state', '=', 'ready')])
         if not download:
             raise NotFound()
         # sudo: only administrators read the path of the temporary file; the requester owns the request.
-        if not download.sudo().file_path:
+        if download.sudo().file_path:
+            download._check_files_access()
+        else:
             download._build()
         path = download.sudo().file_path
         try:
