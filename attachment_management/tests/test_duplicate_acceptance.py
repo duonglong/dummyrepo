@@ -54,9 +54,11 @@ class TestDuplicateAcceptance(TransactionCase):
         self.env['bus.bus'].sudo().search([]).unlink()
 
     def _upload(self, record, name, content=None):
-        """The user uploads a file to a record; returns (attachment, duplicate payload text list)."""
+        """The user uploads a file to a record the way the upload screens do (the
+        ``am_name_from_file`` marker); returns (attachment, duplicate payload text list)."""
         self._reset_bus()
-        attachment = self.env['ir.attachment'].with_user(self.user).create({
+        attachment = self.env['ir.attachment'].with_user(self.user).with_context(
+            am_name_from_file=True).create({
             'name': name,
             'raw': content or self.content,
             'res_model': record._name,
@@ -167,3 +169,16 @@ class TestDuplicateAcceptance(TransactionCase):
             'res_model': 'res.partner', 'res_id': self.contact.id, 'res_field': 'image_1920'})
         _attachment, warnings = self._upload(self.order, 'copy.pdf')
         self.assertEqual(warnings, [])
+
+    def test_file_nobody_uploaded_sends_no_warning(self):
+        """Requirements: FR-AM-0014. Answered decision: warn only on files a person
+        uploads. A copy made by another app (same content, no upload marker) raises no warning."""
+        self._store(self.contact, 'contract.pdf')
+        self._reset_bus()
+        self.env['ir.attachment'].with_user(self.user).create({
+            'name': 'copied.pdf', 'raw': self.content,
+            'res_model': 'res.partner', 'res_id': self.order.id})
+        self.env.flush_all()
+        self.env.cr.precommit.run()
+        events = [json.loads(n.message).get('type') for n in self.env['bus.bus'].sudo().search([])]
+        self.assertNotIn(DUPLICATE_EVENT, events)
