@@ -3,7 +3,9 @@
     'summary': 'Find, preview and download the attachments of every kind of record from one place',
     'version': '20.0.1.0.0',
     'category': 'Productivity/Documents',
-    'depends': ['mail'],
+    'depends': [
+        'mail',
+    ],
     'data': [
         'security/ir.access.csv',
         'views/ir_attachment_views.xml',
@@ -11,6 +13,9 @@
         'views/menus.xml',
         'views/attachment_naming_rule_views.xml',
         'data/ir_cron_data.xml',
+        'views/attachment_zip_download_views.xml',
+        'data/ir_cron_zip_data.xml',
+        'data/ir_actions_server.xml',
     ],
     'assets': {
         'web.assets_backend': [
