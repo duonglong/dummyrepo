@@ -15,6 +15,7 @@
     'assets': {
         'web.assets_backend': [
             'attachment_management/static/src/am_service.js',
+            'attachment_management/static/src/am_duplicate.js',
         ],
     },
     'pre_init_hook': 'pre_init_hook',
