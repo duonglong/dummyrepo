@@ -14,3 +14,4 @@ from . import test_duplicate
 from . import test_zip
 from . import test_public_attachment
 from . import test_zip_transfer
+from . import test_zip_refusal_acceptance
