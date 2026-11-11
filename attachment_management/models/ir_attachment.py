@@ -1,6 +1,7 @@
 import fnmatch
 import logging
 from collections import defaultdict
+from itertools import groupby
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
@@ -9,6 +10,7 @@ from odoo.fields import Domain
 _logger = logging.getLogger(__name__)
 
 LABEL_CHUNK = 1000
+LABEL_FIELD = 'record_label'
 
 # File type groups of FR-AM-0005: (group, mimetype patterns, ``*`` matches any
 # characters). The first matching group wins; anything unmatched is ``other``.
@@ -94,12 +96,49 @@ class IrAttachment(models.Model):
         when the domain names the models).
         """
         domain = Domain(domain).map_conditions(self._mirror_res_model_condition)
-        if self.env.context.get('am_central_list') and not (self.env.su or bypass_access):
+        shows_label = self._am_names_label(domain, order=order)
+        if (self.env.context.get('am_central_list') or shows_label) and not (self.env.su or bypass_access):
             hidden = self._am_hidden_public_files(domain)
             if hidden:
                 domain &= Domain('id', 'not in', hidden.ids)
         return super()._search(
             domain, offset, limit, order, active_test=active_test, bypass_access=bypass_access)
+
+    @api.model
+    def _am_names_label(self, domain=(), specs=(), order=None):
+        """Whether a query reads the stored record name: in its domain, group-by or aggregates, or sort order."""
+        names = {condition.field_expr.partition(':')[0] for condition in Domain(domain).iter_conditions()}
+        names.update(spec.partition(':')[0] for spec in specs)
+        names.update(part.split()[0] for part in (order or '').split(',') if part.strip())
+        return LABEL_FIELD in names
+
+    @api.model
+    def _read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None):
+        """Requirements: BR-AM-0001, FR-AM-0002. Group and total the record names of openable records only."""
+        if not self.env.su and self._am_names_label(
+            having, specs=(*groupby, *aggregates), order=order
+        ):
+            hidden = self._am_hidden_public_files(domain)
+            if hidden:
+                domain = Domain(domain) & Domain('id', 'not in', hidden.ids)
+        return super()._read_group(domain, groupby, aggregates, having, offset, limit, order)
+
+    def _export_rows(self, fields, *, _is_toplevel_call=True):
+        """Requirements: BR-AM-0001, FR-AM-0002. Export no record name for a file whose record the user cannot open."""
+        label_columns = [index for index, path in enumerate(fields) if path[:1] == [LABEL_FIELD]]
+        hidden = self.browse() if self.env.su or not label_columns else self.filtered('public') - self._am_openable()
+        if not hidden:
+            return super()._export_rows(fields, _is_toplevel_call=_is_toplevel_call)
+        lines = []
+        for is_hidden, run in groupby(self, key=lambda attachment: attachment in hidden):
+            run_lines = super(IrAttachment, self.browse([attachment.id for attachment in run]))._export_rows(
+                fields, _is_toplevel_call=_is_toplevel_call)
+            if is_hidden:
+                for line in run_lines:
+                    for index in label_columns:
+                        line[index] = ''
+            lines += run_lines
+        return lines
 
     def _mirror_res_model_condition(self, condition):
         if (
