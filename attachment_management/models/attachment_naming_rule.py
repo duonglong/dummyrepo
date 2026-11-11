@@ -37,12 +37,9 @@ class AttachmentNamingRule(models.Model):
     @api.depends('pattern')
     def _compute_example_name(self):
         for rule in self:
-            try:
-                rule.example_name = rule._render(
-                    original_name='scan.pdf', record_name='Azure Interior', record_ref='AZ-001',
-                    date=fields.Date.context_today(rule), uploader=rule.env.user.name, seq='1')
-            except ValidationError:
-                rule.example_name = False
+            rule.example_name = rule._render(
+                original_name='scan.pdf', record_name='Azure Interior', record_ref='AZ-001',
+                date=fields.Date.context_today(rule), uploader=rule.env.user.name, seq='1')
 
     @api.constrains('model_id', 'active')
     def _check_one_active_rule_per_model(self):
@@ -66,6 +63,7 @@ class AttachmentNamingRule(models.Model):
 
     @api.constrains('model_id')
     def _check_model_kind(self):
+        """Requirements: FR-AM-0011. Only kinds of record that store records can carry a pattern."""
         for rule in self:
             if rule.model_id.transient or rule.model_id.abstract:
                 raise ValidationError(self.env._("Choose a kind of record that stores records."))

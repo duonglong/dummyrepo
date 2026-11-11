@@ -65,6 +65,13 @@ class TestNamingRule(AttachmentManagementCase):
         pending.write({'res_model': 'res.partner', 'res_id': self.partner.id})
         self.assertEqual(pending.name, 'Con_tact.pdf')
 
+    def test_pending_report_file_is_not_renamed_when_posted(self):
+        """Requirements: FR-AM-0012. A composer file made without the upload flag (printed report) keeps its name."""
+        self._rule('{record_ref}')
+        pending = self._upload({'res_model': 'mail.compose.message', 'res_id': 0, 'name': 'INV_0001.pdf'})
+        pending.write({'res_model': 'res.partner', 'res_id': self.partner.id})
+        self.assertEqual(pending.name, 'INV_0001.pdf')
+
     def test_pending_file_without_pattern_moves_unchanged(self):
         """Requirements: FR-AM-0013. With no pattern the moved composer file keeps its name."""
         pending = self._upload({'res_model': 'mail.compose.message', 'res_id': 0}, am_name_from_file=True)
