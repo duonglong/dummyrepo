@@ -29,10 +29,15 @@ class IrAttachment(models.Model):  # sdd-allow: model-split the duplicate warnin
 
     @api.model
     def _wants_duplicate_check(self):
-        """Internal users only, and not while installing, importing or when the caller asked to skip."""
+        """Only files a person uploads (the upload screens set ``am_name_from_file``), by internal users.
+
+        Files other apps copy or create (calendar invitations, expenses, mail composer) carry no marker.
+        Not while installing, importing or when the caller asked to skip.
+        """
         context = self.env.context
         return (
-            self.env.user._is_internal()
+            bool(context.get('am_name_from_file'))
+            and self.env.user._is_internal()
             and not context.get('install_mode')
             and not context.get('import_file')
             and not context.get('am_skip_duplicate_check')

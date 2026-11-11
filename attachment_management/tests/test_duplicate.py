@@ -51,6 +51,7 @@ class TestDuplicate(TransactionCase):
 
     def _upload(self, name='copy.pdf', raw=b'am-dup-own', **context):
         self._reset_bus()
+        context.setdefault('am_name_from_file', True)
         attachment = self._create(self.target, name, raw, user=self.user, **context)
         return attachment, self._warnings()
 
@@ -111,4 +112,11 @@ class TestDuplicate(TransactionCase):
         original = self._create(self.contact, 'contract.pdf')
         self._reset_bus()
         original.with_user(self.user).copy({'res_id': self.target.id})
+        self.assertEqual(self._warnings(), [])
+
+    def test_file_nobody_uploaded_sends_no_warning(self):
+        """Requirements: FR-AM-0014. A create without the upload marker (calendar, expenses) sends no warning."""
+        self._create(self.contact, 'contract.pdf')
+        self._reset_bus()
+        self._create(self.target, 'copy.pdf', user=self.user)
         self.assertEqual(self._warnings(), [])
