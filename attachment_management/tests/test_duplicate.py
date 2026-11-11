@@ -105,3 +105,10 @@ class TestDuplicate(TransactionCase):
         self._create(self.contact, 'contract.pdf')
         _attachment, warnings = self._upload(am_skip_duplicate_check=True)
         self.assertEqual(warnings, [])
+
+    def test_copy_sends_no_warning(self):
+        """Requirements: FR-AM-0014. Copying an attachment is not an upload: no warning."""
+        original = self._create(self.contact, 'contract.pdf')
+        self._reset_bus()
+        original.with_user(self.user).copy({'res_id': self.target.id})
+        self.assertEqual(self._warnings(), [])

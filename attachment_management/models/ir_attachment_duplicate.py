@@ -19,6 +19,14 @@ class IrAttachment(models.Model):  # sdd-allow: model-split the duplicate warnin
             attachments._warn_about_duplicates()
         return attachments
 
+    def copy(self, default=None):
+        """Requirements: FR-AM-0014.
+
+        A copy (a template's attachments on a mail send, a duplicated template)
+        is not an upload by the person, so it is never warned about.
+        """
+        return super(IrAttachment, self.with_context(am_skip_duplicate_check=True)).copy(default)
+
     @api.model
     def _wants_duplicate_check(self):
         """Internal users only, and not while installing, importing or when the caller asked to skip."""
