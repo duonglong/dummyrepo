@@ -5,3 +5,4 @@ from . import test_search_performance
 from . import test_preview_acceptance
 from . import test_naming_acceptance
 from . import test_zip_acceptance
+from . import test_naming

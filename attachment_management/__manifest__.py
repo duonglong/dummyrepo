@@ -5,8 +5,10 @@
     'category': 'Productivity/Documents',
     'depends': ['mail'],
     'data': [
+        'security/ir.access.csv',
         'views/ir_attachment_views.xml',
         'views/menus.xml',
+        'views/attachment_naming_rule_views.xml',
         'data/ir_cron_data.xml',
     ],
     'pre_init_hook': 'pre_init_hook',
