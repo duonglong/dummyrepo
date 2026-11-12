@@ -114,8 +114,11 @@
                         <field name="field_label" readonly="1" string="Field"/>
                         <field name="section_id" options="{'no_create': True}"/>
                     </group>
-                    <group string="Hidden from">
-                        <field name="hidden_group_ids" widget="many2many_tags" nolabel="1"/>
+                    <group string="Hidden from" col="1">
+                        <field name="hidden_group_ids" widget="many2many_tags" nolabel="1"
+                               placeholder="Choose the user groups that must not see this field"
+                               domain="['|', ('privilege_id', '!=', False), ('name', 'like', ' / ')]"
+                               options="{'no_create': True, 'no_open': True}"/>
                         <div class="alert alert-info" role="alert">Hiding a field only removes it from this form. Its data can still be read in lists, reports and exports.</div>
                         <div class="alert alert-danger" role="alert" invisible="not refusal_notice">
                             <field name="refusal_notice" nolabel="1" readonly="1"/>

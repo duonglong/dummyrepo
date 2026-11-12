@@ -240,3 +240,30 @@ class TestScreenReview(HttpCase, FvfCommon):
             }
             await discardEverything();
         """ % layout.id)
+
+    def test_bug_b_0192_groups_picker_is_visible_and_user_facing(self):
+        """B-0192: the Hidden from picker is wide, has a placeholder and offers no technical group or Create entry.
+
+        Cannot reach: groups of other modules that carry no scope in their name.
+        """
+        layout = self._layout()
+        self._editor(layout, """
+            const dialog = await openLineDialog(%d, "Phone");
+            const input = await waitFor(() => dialog.querySelector("[name=hidden_group_ids] input"), "the groups input");
+            const width = input.getBoundingClientRect().width;
+            const sheet = dialog.querySelector(".o_form_sheet").getBoundingClientRect().width;
+            if (width < sheet * 0.5) {
+                throw new Error("the groups input is only " + Math.round(width) + " px wide");
+            }
+            if (!input.placeholder) {
+                throw new Error("the groups input has no placeholder");
+            }
+            input.focus();
+            input.click();
+            await sleep(1500);
+            const entries = [...document.querySelectorAll(".o-autocomplete--dropdown-menu .dropdown-item")].map(textOf);
+            const bad = entries.filter((text) => /Is regular user|Bypass HTML|Default access|Create/.test(text));
+            if (bad.length) {
+                throw new Error("the picker offers " + bad.join(" | "));
+            }
+        """ % layout.id)
