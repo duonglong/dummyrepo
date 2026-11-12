@@ -1,4 +1,4 @@
-import { Component, proxy, useProps } from "@odoo/owl";
+import { Component, markup, proxy, useProps } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -6,8 +6,8 @@ import { user } from "@web/core/user";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
 /**
- * Shows the dependents table, the "Depends on" list and the empty message.
- * Requirements: FR-SFD-0004, FR-SFD-0005, FR-SFD-0007, FR-SFD-0010
+ * Shows the dependents table, the "Depends on" list, the chain diagram and the empty message.
+ * Requirements: FR-SFD-0004, FR-SFD-0005, FR-SFD-0006, FR-SFD-0007, FR-SFD-0010
  */
 export class SfdDependencyMap extends Component {
     static template = "smart_field_dependency_viewer.SfdDependencyMap";
@@ -27,6 +27,11 @@ export class SfdDependencyMap extends Component {
 
     get hasDependents() {
         return Boolean(this.map && !this.map.empty);
+    }
+
+    /** The SVG as the server built it (every label is escaped there). */
+    get diagram() {
+        return markup(this.map.svg);
     }
 
     get emptyMessage() {
