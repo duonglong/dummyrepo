@@ -1,5 +1,6 @@
 from lxml import etree
 
+from odoo.exceptions import UserError
 from odoo.tests import Form
 from odoo.tools.safe_eval import safe_eval
 
@@ -41,6 +42,24 @@ class TestPreview(FvfCommon):
         preview = self.env['fvf.layout.preview'].with_user(self.user_admin).with_context(
             default_layout_id=default.id).default_get(['company_id'])
         self.assertEqual(preview['company_id'], self.user_admin.company_id.id)
+
+    def test_company_defaults_to_the_current_one_when_the_layout_company_is_not_active(self):
+        """FR-FVF-0010: the proposed company is one the dialog's company list offers (Form in the dialog's context)."""
+        form = Form(self.env['fvf.layout.preview'].with_user(self.user_admin).with_context(
+            default_layout_id=self.layout.id, allowed_company_ids=[self.company_fr.id]))
+        self.assertEqual(form.company_id, self.company_fr)
+
+    def test_record_outside_the_chosen_company_is_refused(self):
+        """FR-FVF-0010: the record is checked in the chosen company only, as the browser reads it.
+
+        The administrator is active in BE and FR; a customer contact of BE previewed in FR
+        gets the designed refusal, not a raw access error in the browser.
+        """
+        customer_be = self.env['res.partner'].create({'name': 'BE customer', 'company_id': self.company_be.id})
+        preview = self._preview(company_id=self.company_fr.id, res_id=customer_be.id).with_context(
+            allowed_company_ids=(self.company_be | self.company_fr).ids)
+        with self.assertRaisesRegex(UserError, "The chosen record cannot be shown."):
+            preview.get_preview_view()
 
     def test_preview_button_opens_the_dialog_for_the_layout(self):
         """FR-FVF-0010: the action behind the Preview button opens the dialog as a popup, defaulting to the open layout's company."""

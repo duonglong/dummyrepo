@@ -40,7 +40,9 @@ class FvfLayoutPreview(models.TransientModel):
     @api.model
     def _default_company(self):
         layout = self.env['fvf.layout'].browse(self.env.context.get('default_layout_id'))
-        return layout.company_id or self.env.company
+        if layout.company_id in self.env.companies:
+            return layout.company_id
+        return self.env.company
 
     def action_show_preview(self) -> dict:
         """Open the client action that draws the preview chosen in the dialog.
@@ -68,8 +70,9 @@ class FvfLayoutPreview(models.TransientModel):
             raise AccessError(_("Only Settings administrators can preview a layout."))
         layout = self.layout_id
         company = self.company_id
-        record = self._readable_record(layout.model, company)
-        model = self.env[layout.model].with_company(company).with_context(fvf_preview_layout_id=layout.id)
+        model = self._in_company_only(layout.model, company)
+        record = self._readable_record(model)
+        model = model.with_context(fvf_preview_layout_id=layout.id)
         arch, view = model._get_view(layout.view_id.id, 'form')
         arch, field_names_by_model = model._get_view_postprocessed(view, arch)
         field_names_by_model = model._get_view_fields('form', field_names_by_model)
@@ -91,9 +94,13 @@ class FvfLayoutPreview(models.TransientModel):
                 group=self.group_id.full_name, company=company.name, record=record.display_name),
         }
 
-    def _readable_record(self, model_name: str, company):
-        """Return the chosen record, or refuse when it is missing or cannot be read."""
-        record = self.env[model_name].with_company(company).browse(self.res_id).exists()
+    def _in_company_only(self, model_name: str, company):
+        """Return ``model_name`` working in ``company`` alone, the company set the browser reads the record with."""
+        return self.env[model_name].with_context(allowed_company_ids=[company.id])
+
+    def _readable_record(self, model):
+        """Return the chosen record of ``model``, or refuse when it is missing or cannot be read."""
+        record = model.browse(self.res_id).exists()
         try:
             record.check_access('read')
         except AccessError:
