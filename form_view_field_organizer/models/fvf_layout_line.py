@@ -28,6 +28,23 @@ class FvfLayoutLine(models.Model):
     missing = fields.Boolean(compute='_compute_is_required_and_missing')
     condition_summary = fields.Char(compute='_compute_condition_summary')
 
+    @api.model_create_multi
+    def create(self, vals_list: list[dict]) -> 'FvfLayoutLine':
+        """Requirements: FR-FVF-0014 (a published layout refuses new lines)"""
+        self.env['fvf.layout'].browse([vals['layout_id'] for vals in vals_list if vals.get('layout_id')])._fvf_check_unlocked()
+        return super().create(vals_list)
+
+    def write(self, vals: dict) -> bool:
+        """Requirements: FR-FVF-0014"""
+        self.layout_id._fvf_check_unlocked()
+        self.env['fvf.layout'].browse(vals.get('layout_id'))._fvf_check_unlocked()
+        return super().write(vals)
+
+    def unlink(self) -> bool:
+        """Requirements: FR-FVF-0014"""
+        self.layout_id._fvf_check_unlocked()
+        return super().unlink()
+
     @api.depends('field_name', 'layout_id.model')
     def _compute_field_id(self) -> None:
         for line in self:

@@ -93,13 +93,23 @@ class FvfLayoutCondition(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> 'FvfLayoutCondition':
+        """Requirements: FR-FVF-0014 (a published layout refuses new conditions)"""
+        self.env['fvf.layout.line'].browse([vals['line_id'] for vals in vals_list if vals.get('line_id')]).layout_id._fvf_check_unlocked()
         for vals in vals_list:
             self._fvf_value_from_record(vals)
         return super().create(vals_list)
 
     def write(self, vals: dict) -> bool:
+        """Requirements: FR-FVF-0014"""
+        self.line_id.layout_id._fvf_check_unlocked()
+        self.env['fvf.layout.line'].browse(vals.get('line_id')).layout_id._fvf_check_unlocked()
         self._fvf_value_from_record(vals)
         return super().write(vals)
+
+    def unlink(self) -> bool:
+        """Requirements: FR-FVF-0014"""
+        self.line_id.layout_id._fvf_check_unlocked()
+        return super().unlink()
 
     @staticmethod
     def _fvf_value_from_record(vals: dict) -> None:
