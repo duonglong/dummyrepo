@@ -37,3 +37,18 @@ class TestExpressions(TransactionCase):
     def test_combine_without_original_rule(self):
         """BR-FVF-0001: with no original invisible rule the field is hidden unless the condition holds."""
         self.assertEqual(expressions.combine(None, 'a'), 'not (a)')
+
+    def test_non_finite_number_is_refused(self):
+        """FR-FVF-0005: nan and inf are names, not literals; the browser would fail on them."""
+        for kind in ('float', 'monetary'):
+            for text in ('nan', 'inf', '-infinity', '1e999'):
+                with self.assertRaises(UserError):
+                    expressions.build_condition([{'field': 'q', 'operator': 'gt', 'value': text}], {'q': kind})
+
+    def test_unknown_boolean_spelling_is_refused(self):
+        """FR-FVF-0005: a yes/no value in an unknown spelling is refused, not read as no."""
+        with self.assertRaises(UserError):
+            expressions.build_condition([{'field': 'b', 'operator': 'is', 'value': 'yes'}], {'b': 'boolean'})
+        self.assertEqual(
+            expressions.build_condition([{'field': 'b', 'operator': 'is', 'value': 'false'}], {'b': 'boolean'}),
+            'b == False')

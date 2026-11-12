@@ -1,4 +1,6 @@
 """Condition expressions of the layout engine: pure functions, no ORM."""
+import math
+
 from odoo import _
 from odoo.exceptions import UserError
 
@@ -10,13 +12,26 @@ EQUALITY_FIELD_TYPES = (
     'char', 'text', 'selection', 'boolean', 'integer', 'float', 'monetary', 'many2one')
 ORDER_FIELD_TYPES = ('integer', 'float', 'monetary')
 
-TRUE_TEXTS = ('1', 'true', 'True')
+BOOLEAN_TEXTS = {'1': True, 'true': True, 'True': True, '0': False, 'false': False, 'False': False}
+
+
+def _parse_boolean(text):
+    return BOOLEAN_TEXTS[text]
+
+
+def _parse_finite_float(text):
+    number = float(text)
+    if not math.isfinite(number):
+        raise ValueError(text)
+    return number
+
+
 LITERAL_PARSERS = {
     'integer': int,
     'many2one': int,
-    'float': float,
-    'monetary': float,
-    'boolean': lambda text: text in TRUE_TEXTS,
+    'float': _parse_finite_float,
+    'monetary': _parse_finite_float,
+    'boolean': _parse_boolean,
 }
 
 
@@ -25,11 +40,11 @@ def _literal(field_type, text):
     parse = LITERAL_PARSERS.get(field_type, str)
     try:
         return repr(parse(text))
-    except ValueError:
-        raise UserError(_("%(value)s is not a valid value for a %(type)s field.", value=text, type=field_type))
+    except (ValueError, KeyError, TypeError):
+        raise UserError(_("Enter a value for this comparison."))
 
 
-def _check_operator(field, operator, field_type):
+def _check_operator(operator, field_type):
     """Refuse an operator the field's kind does not offer."""
     if operator in PRESENCE_OPERATORS:
         return
@@ -37,9 +52,7 @@ def _check_operator(field, operator, field_type):
         (operator in EQUALITY_OPERATORS and field_type in EQUALITY_FIELD_TYPES)
         or (operator in ORDER_OPERATORS and field_type in ORDER_FIELD_TYPES))
     if not allowed:
-        raise UserError(_(
-            "The comparison %(operator)s is not available for the field %(field)s.",
-            operator=operator, field=field))
+        raise UserError(_("This comparison cannot be used with this kind of field."))
 
 
 def build_condition_line(line, field_types):
@@ -48,7 +61,7 @@ def build_condition_line(line, field_types):
     Requirements: FR-FVF-0005
     """
     field, operator = line['field'], line['operator']
-    _check_operator(field, operator, field_types.get(field))
+    _check_operator(operator, field_types.get(field))
     if operator == 'set':
         return field
     if operator == 'not_set':

@@ -23,21 +23,24 @@ def _occurrences(tree, name):
 
 def _hide(nodes, hide_refs):
     """Append ``!<group>`` for each group to the groups of every node."""
+    if not hide_refs:
+        return
+    marks = ['!%s' % ref for ref in hide_refs]
     for node in nodes:
-        marks = ['!%s' % ref for ref in hide_refs]
         node.set('groups', ','.join(filter(None, [node.get('groups')] + marks)))
 
 
-def _usable_condition(condition, model_fields):
+def _usable_condition(condition, model_fields, layout_id):
     """Condition lines whose field still exists."""
     usable = [line for line in condition if line['field'] in model_fields]
-    if len(usable) < len(condition):
-        _logger.debug("Condition lines on missing fields skipped: %s", condition)
+    for line in condition:
+        if line['field'] not in model_fields:
+            _logger.debug("Layout %s: condition line on missing field %s skipped", layout_id, line['field'])
     return usable
 
 
-def _apply_condition(nodes, condition, model_fields):
-    usable = _usable_condition(condition, model_fields)
+def _apply_condition(nodes, condition, model_fields, layout_id):
+    usable = _usable_condition(condition, model_fields, layout_id)
     if not usable:
         return
     field_types = {name: info['type'] for name, info in model_fields.items()}
@@ -47,18 +50,44 @@ def _apply_condition(nodes, condition, model_fields):
 
 
 def _join_invisible(rules):
+    """OR the non-empty ``rules`` together."""
     rules = [rule for rule in rules if rule]
     if len(rules) > 1:
         return ' or '.join('(%s)' % rule for rule in rules)
     return rules[0] if rules else None
 
 
+def _all_invisible(rules):
+    """AND the ``rules``; no rule at all when one occurrence is never invisible."""
+    if not all(rules):
+        return None
+    distinct = list(dict.fromkeys(rules))
+    if len(distinct) == 1:
+        return distinct[0]
+    return ' and '.join('(%s)' % rule for rule in distinct)
+
+
+def _keep_tail(node):
+    """Hand the text following ``node`` to the node before it, or to its parent."""
+    if not (node.tail and node.tail.strip()):
+        return
+    previous = node.getprevious()
+    if previous is not None:
+        previous.tail = (previous.tail or '') + node.tail
+    else:
+        parent = node.getparent()
+        parent.text = (parent.text or '') + node.tail
+    node.tail = None
+
+
 def _drop(node):
     """Remove ``node`` and every wrapper div it leaves without an element child."""
+    _keep_tail(node)
     parent = node.getparent()
     parent.remove(node)
     while parent.tag == 'div' and len(parent) == 0 and parent.getparent() is not None:
         node, parent = parent, parent.getparent()
+        _keep_tail(node)
         parent.remove(node)
 
 
@@ -68,26 +97,70 @@ def _former_containers(field):
             if node.get('groups') or node.get('invisible')]
 
 
-def _take_out(fields, labels):
-    """Detach the first occurrence and its labels, drop the rest.
+def _group_chain(field, keep_own_groups):
+    """Groups a user needs to see ``field`` where it was, outermost first."""
+    chain = [node.get('groups') for node in _former_containers(field) if node.get('groups')]
+    if keep_own_groups and field.get('groups'):
+        chain.append(field.get('groups'))
+    return chain
 
-    Return the node to place: the moved field, with its labels, wrapped in one
-    div per former container ``groups`` value (outermost first) and carrying
-    the invisible rules of its former containers.
+
+def _shared_groups(chains):
+    """Wrapper groups showing the field to every group that saw at least one occurrence.
+
+    The common leading groups stay nested; below them the groups of the
+    occurrences are joined as alternatives. When occurrences differ by more
+    than one group each, every distinct group is required, which only narrows.
+    """
+    shared = []
+    for step in zip(*chains):
+        if len(set(step)) > 1:
+            break
+        shared.append(step[0])
+    rests = [chain[len(shared):] for chain in chains]
+    if all(rests) and all(len(rest) == 1 for rest in rests):
+        return shared + [','.join(dict.fromkeys(rest[0] for rest in rests))]
+    if all(rests):
+        return shared + list(dict.fromkeys(group for rest in rests for group in rest))
+    return shared
+
+
+def _visibility_rule(field):
+    """Invisible rule under which ``field`` was hidden where it was."""
+    return _join_invisible([field.get('invisible')] + [node.get('invisible') for node in _former_containers(field)])
+
+
+def _set_invisible(node, rule):
+    if rule:
+        node.set('invisible', rule)
+    else:
+        node.attrib.pop('invisible', None)
+
+
+def _take_out(fields, labels):
+    """Detach the occurrences of a field and its labels, keep one.
+
+    Return the node to place: the first occurrence with its labels, wrapped in
+    one div per shared groups value (outermost first). The field is shown
+    wherever any original occurrence was shown: its invisible is the AND of
+    the occurrences' rules (own plus former containers) and its groups the
+    alternatives of theirs.
     """
     first = fields[0]
-    containers = _former_containers(first)
+    several = len(fields) > 1
+    invisible = _all_invisible([_visibility_rule(field) for field in fields])
+    groups = _shared_groups([_group_chain(field, several) for field in fields])
     moved = [label for label in labels if label.getparent() is first.getparent()] + [first]
-    invisible = _join_invisible([first.get('invisible')] + [node.get('invisible') for node in containers])
     for node in fields + labels:
         _drop(node)
-    if invisible:
-        first.set('invisible', invisible)
-    wrappers = [etree.Element('div', groups=node.get('groups')) for node in containers if node.get('groups')]
+    if several:
+        first.attrib.pop('groups', None)
+    _set_invisible(first, invisible)
+    for label in moved[:-1]:
+        _set_invisible(label, _join_invisible([label.get('invisible'), invisible]))
+    wrappers = [etree.Element('div', groups=value) for value in groups]
     for outer, inner in zip(wrappers, wrappers[1:]):
         outer.append(inner)
-    for node in moved:
-        node.tail = None
     if not wrappers:
         return moved
     wrappers[-1].extend(moved)
@@ -104,7 +177,8 @@ def _section_node(section):
 
 def _attach_sections(tree, section_nodes):
     """Append the sections as last children of the sheet, else of the form before the chatter."""
-    sheet = tree.find('.//sheet')
+    sheets = tree.xpath('.//sheet[not(ancestor::field)]')
+    sheet = sheets[0] if sheets else None
     if sheet is not None:
         sheet.extend(section_nodes)
         return
@@ -132,7 +206,7 @@ def apply_layout(arch_tree, spec, model_fields):
             _logger.debug("Layout %s: line on missing field %s skipped", spec['layout_id'], line['field'])
             continue
         _hide(fields + labels, line['hide_refs'])
-        _apply_condition(fields + labels, line['condition'], model_fields)
+        _apply_condition(fields + labels, line['condition'], model_fields, spec['layout_id'])
         if line['section_id'] in section_nodes:
             placed[line['section_id']].append((line['sequence'], position, _take_out(fields, labels)))
     for section_id, items in placed.items():
@@ -149,7 +223,7 @@ def prune_empty_sections(tree):
     Requirements: FR-FVF-0004, FR-FVF-0015
     """
     for section in tree.xpath(SECTION_XPATH):
-        fields = section.findall('.//field')
+        fields = section.xpath('.//field[not(ancestor::field)]')
         if not fields:
             section.getparent().remove(section)
         elif all(field.get('invisible') for field in fields):
