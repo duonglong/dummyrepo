@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="fvf_layout_view_list" model="ir.ui.view">
+        <field name="name">fvf.layout.list</field>
+        <field name="model">fvf.layout</field>
+        <field name="arch" type="xml">
+            <list string="Form layouts">
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="view_id" string="Form"/>
+                <field name="company_id" placeholder="Default"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"/>
+                <field name="missing_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="fvf_layout_view_search" model="ir.ui.view">
+        <field name="name">fvf.layout.search</field>
+        <field name="model">fvf.layout</field>
+        <field name="arch" type="xml">
+            <search string="Form layouts">
+                <field name="name"/>
+                <field name="model_id"/>
+                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="published" string="Published" domain="[('state', '=', 'published')]"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_model" string="Model" context="{'group_by': 'model_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="fvf_layout_view_form" model="ir.ui.view">
+        <field name="name">fvf.layout.form</field>
+        <field name="model">fvf.layout</field>
+        <field name="arch" type="xml">
+            <form string="Form layout">
+                <header>
+                    <button name="action_publish" type="object" string="Publish" class="btn-primary"
+                            invisible="state != 'draft' or not id"/>
+                    <button name="action_withdraw" type="object" string="Withdraw"
+                            invisible="state != 'published'"/>
+                    <button name="action_edit" type="object" string="Edit" class="btn-primary"
+                            invisible="state != 'published'"/>
+                    <button name="action_discard_draft_copy" type="object" string="Discard draft copy"
+                            confirm="Delete this draft copy? The published layout stays as it is."
+                            invisible="state != 'draft' or not origin_id"/>
+                    <button name="action_refresh_fields" type="object" string="Refresh fields"
+                            invisible="state != 'draft' or not id"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,published"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-info" role="alert" invisible="not origin_id">
+                        This is a draft copy of <field name="origin_id" readonly="1" nolabel="1"
+                                                       options="{'no_open': True}" class="oe_inline"/>.
+                        Users keep seeing the published layout until you publish this copy.
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Layout name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="model" invisible="1"/>
+                            <field name="model_id" readonly="state != 'draft' or line_ids"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="view_id" string="Form"
+                                   readonly="not model_id or state != 'draft' or line_ids"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="company_id" readonly="state != 'draft' or line_ids"
+                                   placeholder="Default (all companies without their own layout)"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Sections" name="sections">
+                            <button name="action_add_section" type="object" string="Add section"
+                                    class="btn-secondary" invisible="not id"/>
+                            <field name="section_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="start_state" widget="radio"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Fields" name="fields">
+                            <field name="line_ids" nolabel="1">
+                                <list create="0">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="field_label"/>
+                                    <field name="section_id"/>
+                                    <field name="hidden_group_ids" widget="many2many_tags"/>
+                                    <field name="condition_summary" string="Show only when"/>
+                                    <field name="missing" string="Missing field"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="fvf_layout_line_view_form" model="ir.ui.view">
+        <field name="name">fvf.layout.line.form</field>
+        <field name="model">fvf.layout.line</field>
+        <field name="arch" type="xml">
+            <form string="Field">
+                <sheet>
+                    <group>
+                        <field name="layout_id" invisible="1"/>
+                        <field name="field_label" readonly="1" string="Field"/>
+                        <field name="section_id" options="{'no_create': True}"/>
+                    </group>
+                    <group string="Hidden from" col="1">
+                        <field name="hidden_group_ids" widget="many2many_tags" nolabel="1"
+                               placeholder="Choose the user groups that must not see this field"
+                               domain="['|', ('privilege_id', '!=', False), ('name', 'like', ' / ')]"
+                               options="{'no_create': True, 'no_open': True}"/>
+                        <div class="alert alert-info" role="alert">Hiding a field only removes it from this form. Its data can still be read in lists, reports and exports.</div>
+                        <div class="alert alert-danger" role="alert" invisible="not refusal_notice">
+                            <field name="refusal_notice" nolabel="1" readonly="1"/>
+                        </div>
+                    </group>
+                    <group string="Show only when" col="1">
+                        <field name="condition_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="layout_model" column_invisible="1"/>
+                                <field name="field_name" column_invisible="1"/>
+                                <field name="value_model" column_invisible="1"/>
+                                <field name="field_id" string="Field" required="1"
+                                       domain="[('model', '=', layout_model), ('store', '=', True)]"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <field name="operator"/>
+                                <field name="value"
+                                       invisible="operator in ('set', 'not_set') or value_model"/>
+                                <field name="value_res_id" widget="many2one_reference"
+                                       invisible="operator in ('set', 'not_set') or not value_model"/>
+                                <field name="refusal_notice" string="Notice" readonly="1"
+                                       decoration-danger="refusal_notice"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="fvf_layout_action" model="ir.actions.act_window">
+        <field name="name">Form layouts</field>
+        <field name="res_model">fvf.layout</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_model': 1}</field>
+    </record>
+</odoo>

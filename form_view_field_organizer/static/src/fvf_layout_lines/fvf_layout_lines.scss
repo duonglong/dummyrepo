@@ -1,0 +1,49 @@
+.o_field_fvf_layout_lines {
+    display: block;
+    width: 100%;
+}
+
+.o_fvf_layout_lines {
+    width: 100%;
+
+    .o_fvf_line_header,
+    .o_fvf_line_row {
+        display: grid;
+        grid-template-columns: 1.5rem minmax(9rem, 2fr) minmax(7rem, 1.5fr) minmax(8rem, 2fr) minmax(9rem, 3fr) minmax(7rem, auto);
+        align-items: center;
+        column-gap: map-get($spacers, 3);
+        padding-block: map-get($spacers, 1);
+        padding-inline: map-get($spacers, 2);
+    }
+
+    .o_fvf_line_block {
+        margin-block-end: map-get($spacers, 3);
+        min-block-size: 2rem;
+    }
+
+    .o_fvf_line_row {
+        border-block-end: 1px solid $border-color;
+        cursor: pointer;
+    }
+
+    .o_fvf_line_handle {
+        min-inline-size: 1rem;
+        min-block-size: 1rem;
+        cursor: grab;
+    }
+}
+
+// The refusal of a condition row wraps inside its cell instead of being cut to the column width.
+.o_list_renderer .o_data_cell[name="refusal_notice"] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    min-inline-size: 14rem;
+
+    .o_field_widget,
+    span {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+}
