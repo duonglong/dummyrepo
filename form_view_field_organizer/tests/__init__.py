@@ -7,3 +7,4 @@ from . import test_smoke
 from . import test_engine
 from . import test_expressions
 from . import test_layout_models
+from . import test_publish
