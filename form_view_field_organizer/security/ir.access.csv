@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_fvf_layout_system,fvf.layout system,fvf.layout,base.group_system,crud,
+access_fvf_layout_section_system,fvf.layout.section system,fvf.layout.section,base.group_system,crud,
+access_fvf_layout_line_system,fvf.layout.line system,fvf.layout.line,base.group_system,crud,
+access_fvf_layout_condition_system,fvf.layout.condition system,fvf.layout.condition,base.group_system,crud,

@@ -5,6 +5,10 @@
     'category': 'Technical',
     'author': 'Empty Sandbox',
     'depends': ['web'],
-    'data': [],
+    'data': [
+        'security/ir.access.csv',
+        'views/fvf_layout_views.xml',
+        'views/menus.xml',
+    ],
     'license': 'LGPL-3',
 }
