@@ -2,4 +2,20 @@
     .o_sfd_depth_limit {
         width: 6rem;
     }
+
+    .o_sfd_diagram {
+        overflow: auto;
+        border: 1px solid var(--border-color);
+    }
+
+    .o_sfd_legend span {
+        padding: 0 0.5rem;
+        border-left: 4px solid;
+    }
+
+    .o_sfd_legend_circular { border-color: #c0392b; }
+    .o_sfd_legend_recursive { border-color: #2e6fbd; }
+    .o_sfd_legend_too_deep { border-color: #e67e22; }
+    .o_sfd_legend_too_large { border-color: #7f8c8d; }
+    .o_sfd_legend_related { border-color: #444444; border-left-style: dashed !important; }
 }

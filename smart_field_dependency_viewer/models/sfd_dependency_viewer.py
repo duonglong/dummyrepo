@@ -5,7 +5,7 @@ from typing import Any
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError
 
-from ..engine import graph
+from ..engine import graph, svg
 
 _logger = logging.getLogger(__name__)
 
@@ -57,7 +57,8 @@ class SfdDependencyViewer(models.TransientModel):
         """Return the dependency map payload of one field.
 
         Requirements: FR-SFD-0001, FR-SFD-0002, FR-SFD-0003, FR-SFD-0004,
-        FR-SFD-0005, FR-SFD-0007, FR-SFD-0010, NFR-SEC-0001, NFR-SEC-0002
+        FR-SFD-0005, FR-SFD-0006, FR-SFD-0007, FR-SFD-0008, FR-SFD-0009,
+        FR-SFD-0010, NFR-PERF-0001, NFR-SEC-0001, NFR-SEC-0002
         """
         if not self.env.is_system():
             raise AccessError(_("Only settings administrators can open the dependency viewer."))
@@ -69,7 +70,9 @@ class SfdDependencyViewer(models.TransientModel):
         limit = self.env.user._sfd_effective_depth_limit()
         index = self._sfd_reverse_index()
         dependents = index.get((model_name, field_name), [])
-        chain = graph.walk(index, (model_name, field_name), limit) if dependents else {"nodes": [], "links": []}
+        chain = (
+            graph.walk(index, (model_name, field_name), limit, self._sfd_is_recursive)
+            if dependents else {"nodes": [], "links": [], "marks": [], "truncated": False})
         payload = {
             "start": {
                 "model": model_name,
@@ -80,15 +83,15 @@ class SfdDependencyViewer(models.TransientModel):
             "depth_limit": limit,
             "own_dependencies": graph.own_dependencies(registry, model_name, field_name),
             "empty": not dependents,
-            "truncated": False,
+            "truncated": chain["truncated"],
             "dependents": [dict(row) for row in dependents],
             "nodes": chain["nodes"],
             "links": chain["links"],
-            "marks": [],
-            "svg": "",
+            "marks": chain["marks"],
         }
-        _logger.info("sfd: map %s.%s: %s nodes in %.2fs", model_name, field_name,
-                     len(payload["nodes"]), time.monotonic() - started)
+        payload["svg"] = svg.render_svg(payload, self.env._)
+        _logger.info("sfd: map %s.%s: %s nodes, %s marks in %.2fs", model_name, field_name,
+                     len(payload["nodes"]), len(payload["marks"]), time.monotonic() - started)
         return payload
 
     @api.model
@@ -96,3 +99,7 @@ class SfdDependencyViewer(models.TransientModel):
     def _sfd_reverse_index(self) -> dict[tuple[str, str], list[dict[str, Any]]]:
         """Return the reverse dependency index, built once per registry load."""
         return graph.build_reverse_index(self.env.registry)
+
+    def _sfd_is_recursive(self, key: tuple[str, str]) -> bool:
+        """Tell whether the registry declares the field recursive on purpose."""
+        return bool(self.env.registry[key[0]]._fields[key[1]].recursive)

@@ -4,11 +4,14 @@ The engine only reads field definitions; it has no write path.
 """
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from typing import Any
 
 _logger = logging.getLogger(__name__)
 
 FieldKey = tuple[str, str]
+
+MAX_NODES = 1000
 
 
 def _method_name(field) -> str | None:
@@ -95,30 +98,58 @@ def own_dependencies(registry, model_name: str, field_name: str) -> list[str] | 
     return list(registry.field_depends.get(field, ())) or None
 
 
-def walk(index: dict[FieldKey, list[dict[str, Any]]], start: FieldKey, limit: int) -> dict[str, list]:
+def walk(
+    index: dict[FieldKey, list[dict[str, Any]]],
+    start: FieldKey,
+    limit: int,
+    is_recursive: Callable[[FieldKey], bool] | None = None,
+) -> dict[str, Any]:
     """Walk the dependents of start level by level, down to limit levels.
 
-    A dependent already on the current path is linked but not expanded.
+    The start is level 0 and each dependent one level more than the field it
+    depends on. A field met again on the same path gets a "circular" mark (or
+    "recursive" when is_recursive says so) on the link back and is not
+    expanded. A field at the limit that still has dependents is marked
+    "too_deep" with the number of its distinct dependents. After MAX_NODES
+    boxes, each branch left unexpanded is marked "too_large".
 
-    Requirements: FR-SFD-0006, FR-SFD-0010
+    Requirements: BR-SFD-0002, BR-SFD-0003, FR-SFD-0006, FR-SFD-0008, FR-SFD-0009
     """
     nodes: list[dict[str, Any]] = []
     links: list[dict[str, Any]] = []
+    marks: list[dict[str, Any]] = []
 
     def add(row: dict[str, Any], level: int) -> int:
         nodes.append({**row, "id": len(nodes), "level": level})
         return len(nodes) - 1
 
-    def expand(key: FieldKey, node_id: int, level: int, on_path: frozenset[FieldKey]) -> None:
+    def expand(key: FieldKey, node_id: int, level: int, path: dict[FieldKey, int]) -> None:
+        rows = index.get(key, ())
         if level >= limit:
+            if rows:
+                marks.append({"node": node_id, "type": "too_deep", "not_shown": len(rows)})
             return
-        for row in index.get(key, ()):
+        not_shown = 0
+        for row in rows:
             child_key = (row["model"], row["field"])
-            child_id = add(row, level + 1)
-            links.append({"from": node_id, "to": child_id, "path": row["path"]})
-            if child_key not in on_path:
-                expand(child_key, child_id, level + 1, on_path | {child_key})
+            if child_key in path:
+                links.append({"from": node_id, "to": path[child_key], "path": row["path"]})
+                kind = "recursive" if is_recursive and is_recursive(child_key) else "circular"
+                marks.append({"node": node_id, "type": kind, "to": path[child_key]})
+            elif len(nodes) >= MAX_NODES:
+                not_shown += 1
+            else:
+                child_id = add(row, level + 1)
+                links.append({"from": node_id, "to": child_id, "path": row["path"]})
+                expand(child_key, child_id, level + 1, {**path, child_key: child_id})
+        if not_shown:
+            marks.append({"node": node_id, "type": "too_large", "not_shown": not_shown})
 
     start_id = add({"model": start[0], "field": start[1]}, 0)
-    expand(start, start_id, 0, frozenset({start}))
-    return {"nodes": nodes, "links": links}
+    expand(start, start_id, 0, {start: start_id})
+    return {
+        "nodes": nodes,
+        "links": links,
+        "marks": marks,
+        "truncated": any(mark["type"] == "too_large" for mark in marks),
+    }

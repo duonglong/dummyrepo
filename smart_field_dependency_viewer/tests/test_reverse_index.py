@@ -46,10 +46,11 @@ class TestReverseIndex(TransactionCase):
         self.assertEqual(len(result['links']), 2)
 
     def test_walk_does_not_loop(self):
-        """A dependent already on the path is linked but not expanded again."""
+        """A dependent already on the path is linked back to its earlier box, not drawn again."""
         index = {('m', 'a'): [_row('m', 'b')], ('m', 'b'): [_row('m', 'a')]}
         result = graph.walk(index, ('m', 'a'), 10)
-        self.assertEqual([n['field'] for n in result['nodes']], ['a', 'b', 'a'])
+        self.assertEqual([n['field'] for n in result['nodes']], ['a', 'b'])
+        self.assertEqual([(l['from'], l['to']) for l in result['links']], [(0, 1), (1, 0)])
 
     def test_shared_prefix_joins_every_declared_path(self):
         """Two declared paths through one relation are both shown on its row."""

@@ -43,6 +43,17 @@
                     </tbody>
                 </table>
             </div>
+            <div class="o_sfd_diagram_section mt-3" t-if="this.map.svg">
+                <h5>Chain</h5>
+                <div class="o_sfd_legend d-flex flex-wrap gap-3 mb-2">
+                    <span class="o_sfd_legend_circular">Circular</span>
+                    <span class="o_sfd_legend_recursive">Recursive by design</span>
+                    <span class="o_sfd_legend_too_deep">Too deep</span>
+                    <span class="o_sfd_legend_too_large">Map too large</span>
+                    <span class="o_sfd_legend_related">Dashed box: related field</span>
+                </div>
+                <div class="o_sfd_diagram" t-out="this.diagram"/>
+            </div>
         </div>
     </t>
 </templates>
