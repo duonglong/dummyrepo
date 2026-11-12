@@ -1,0 +1,17 @@
+.o_fvf_section_block {
+    margin-block: map-get($spacers, 2);
+
+    .o_fvf_section_toggle {
+        display: flex;
+        align-items: center;
+        gap: map-get($spacers, 2);
+        padding-inline: 0;
+        font-weight: bold;
+        text-align: start;
+        text-decoration: none;
+    }
+
+    .o_fvf_section_chevron {
+        inline-size: 1em;
+    }
+}

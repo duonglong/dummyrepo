@@ -9,14 +9,22 @@
         'security/ir.access.csv',
         'views/fvf_layout_views.xml',
         'views/fvf_layout_preview_views.xml',
+        'views/fvf_layout_widget_views.xml',
         'views/menus.xml',
     ],
     'assets': {
         'web.assets_backend': [
             'form_view_field_organizer/static/src/fvf_layout_preview/*',
+            'form_view_field_organizer/static/src/fvf_section/fvf_section.js',
+            'form_view_field_organizer/static/src/fvf_section/fvf_section.xml',
+            'form_view_field_organizer/static/src/fvf_section/fvf_section.scss',
+            'form_view_field_organizer/static/src/fvf_section/form_compiler.js',
+            'form_view_field_organizer/static/src/fvf_layout_lines/fvf_layout_lines.js',
+            'form_view_field_organizer/static/src/fvf_layout_lines/fvf_layout_lines.xml',
+            'form_view_field_organizer/static/src/fvf_layout_lines/fvf_layout_lines.scss',
         ],
         'web.assets_unit_tests': [
-            'form_view_field_organizer/static/tests/fvf_layout_preview.test.js',
+            'form_view_field_organizer/static/tests/**/*.test.js',
         ],
     },
     'license': 'LGPL-3',
