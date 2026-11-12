@@ -102,6 +102,7 @@ class FvfLayoutCondition(models.Model):
     def write(self, vals: dict) -> bool:
         """Requirements: FR-FVF-0014"""
         self.line_id.layout_id._fvf_check_unlocked()
+        self.env['fvf.layout.line'].browse(vals.get('line_id')).layout_id._fvf_check_unlocked()
         self._fvf_value_from_record(vals)
         return super().write(vals)
 

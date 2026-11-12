@@ -32,7 +32,8 @@ class FvfLayout(models.Model):
     _clear_cache_on_fields = ('state', 'active', 'company_id', 'view_id')
 
     _published_unique = models.UniqueIndex(
-        "(view_id, COALESCE(company_id, 0)) WHERE state = 'published' AND active")
+        "(view_id, COALESCE(company_id, 0)) WHERE state = 'published' AND active",
+        "Another layout is already published for this form and company.")
     _one_draft_copy = models.UniqueIndex("(origin_id) WHERE origin_id IS NOT NULL AND active")
 
     name = fields.Char(
@@ -276,8 +277,9 @@ class FvfLayout(models.Model):
         Requirements: FR-FVF-0014
         """
         self.ensure_one()
-        draft = self.with_context(active_test=False).search(
-            [('origin_id', '=', self.id), ('active', '=', True)], limit=1)
+        if self.state != 'published':
+            raise UserError(_("Only a published layout can be edited through a draft copy."))
+        draft = self.search([('origin_id', '=', self.id)], limit=1)
         if not draft:
             draft = self.copy({'origin_id': self.id})
         return {

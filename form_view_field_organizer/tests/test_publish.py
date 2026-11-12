@@ -136,3 +136,49 @@ class TestPublish(FvfCommon):
     def test_cache_token_empty_without_layouts(self):
         """NFR-PERF-0001: a model without a layout keeps one cache entry."""
         self.assertEqual(self.env['fvf.layout']._fvf_cache_token('res.country'), ())
+
+    def _published_with_draft_hiding_website(self):
+        live = self._layout(self.company_be)
+        live.action_publish()
+        live.action_edit()
+        draft = self.env['fvf.layout'].search([('origin_id', '=', live.id)])
+        self._line(draft, 'website').hidden_group_ids = [(4, self.env.ref('base.group_user').id)]
+        return live, draft
+
+    def _views_with_preview(self, user, draft):
+        partners = self.env['res.partner'].with_user(user).with_company(self.company_be)
+        return partners.with_context(fvf_preview_layout_id=draft.id).get_views([(False, 'form')])
+
+    def test_preview_context_of_a_plain_user_never_reaches_other_users(self):
+        """FR-FVF-0014, NFR-SEC-0001: a plain user's preview context is ignored and caches no draft."""
+        _live, draft = self._published_with_draft_hiding_website()
+        self.env.transaction.invalidate_ormcache('templates')
+        self._views_with_preview(self.user_ben, draft)
+        self.assertTrue(self._has_field(self.user_ben, 'website'))
+
+    def test_preview_context_of_an_administrator_stays_out_of_the_shared_cache(self):
+        """FR-FVF-0014: an administrator's preview shows the draft, then plain calls still show the published layout."""
+        _live, draft = self._published_with_draft_hiding_website()
+        self.env.transaction.invalidate_ormcache('templates')
+        arch = self._views_with_preview(self.user_admin, draft)['views']['form']['arch']
+        self.assertFalse(etree.fromstring(arch).xpath('.//field[@name="website"][not(ancestor::field)]'))
+        self.assertTrue(self._has_field(self.user_ben, 'website'))
+
+    def test_preview_context_with_a_non_integer_value_is_ignored(self):
+        """NFR-SEC-0001: a list value in the preview context does not break the form."""
+        partners = self.env['res.partner'].with_user(self.user_admin).with_company(self.company_be)
+        views = partners.with_context(fvf_preview_layout_id=[1, 2]).get_views([(False, 'form')])
+        self.assertIn('form', views['views'])
+
+    def test_lock_refuses_moving_a_line_into_a_published_layout(self):
+        """FR-FVF-0014: the lock checks the new parent as well as the current one."""
+        live = self._layout(self.company_be)
+        live.action_publish()
+        other = self._layout(self.company_fr)
+        with self.assertRaises(UserError):
+            self._line(other, 'website').layout_id = live
+
+    def test_edit_refuses_a_draft_layout(self):
+        """FR-FVF-0014: only a published layout is edited through a draft copy."""
+        with self.assertRaises(UserError):
+            self._layout(self.company_be).action_edit()

@@ -23,6 +23,7 @@ class FvfLayoutSection(models.Model):
     def write(self, vals: dict) -> bool:
         """Requirements: FR-FVF-0014"""
         self.layout_id._fvf_check_unlocked()
+        self.env['fvf.layout'].browse(vals.get('layout_id'))._fvf_check_unlocked()
         return super().write(vals)
 
     def unlink(self) -> bool:
