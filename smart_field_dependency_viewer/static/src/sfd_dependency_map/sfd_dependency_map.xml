@@ -43,6 +43,12 @@
                     </tbody>
                 </table>
             </div>
+            <div class="o_sfd_export d-flex gap-2 mt-3">
+                <button type="button" class="o_sfd_export_image btn btn-secondary"
+                        t-att-disabled="this.map.empty" t-on-click="this.onExportImage">Export image</button>
+                <button type="button" class="o_sfd_export_data btn btn-secondary"
+                        t-att-disabled="this.map.empty" t-on-click="this.onExportData">Export data</button>
+            </div>
             <div class="o_sfd_diagram_section mt-3" t-if="this.map.svg">
                 <h5>Chain</h5>
                 <div class="o_sfd_legend d-flex flex-wrap gap-3 mb-2">

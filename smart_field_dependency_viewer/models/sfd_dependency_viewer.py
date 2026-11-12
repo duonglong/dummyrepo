@@ -73,12 +73,14 @@ class SfdDependencyViewer(models.TransientModel):
         chain = (
             graph.walk(index, (model_name, field_name), limit, self._sfd_is_recursive)
             if dependents else {"nodes": [], "links": [], "marks": [], "truncated": False})
+        if chain["nodes"]:
+            chain["nodes"][0].update(graph.field_attributes(field))
         payload = {
             "start": {
                 "model": model_name,
                 "field": field_name,
                 "label": field.string or field_name,
-                "kind": "related" if field.related else "computed" if field.compute else "plain",
+                "kind": graph.field_kind(field),
             },
             "depth_limit": limit,
             "own_dependencies": graph.own_dependencies(registry, model_name, field_name),

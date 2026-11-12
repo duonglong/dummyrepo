@@ -41,17 +41,26 @@ def _resolved_dependencies(field, registry) -> list[tuple]:
         return []
 
 
-def _dependent_row(field, path: str) -> dict[str, Any]:
+def field_kind(field) -> str:
+    """Return "related", "computed" or "plain" for a field."""
+    return "related" if field.related else "computed" if field.compute else "plain"
+
+
+def field_attributes(field) -> dict[str, Any]:
+    """Return what every box of the map says about its field."""
     return {
         "model": field.model_name,
         "field": field.name,
         "label": field.string or field.name,
-        "kind": "related" if field.related else "computed",
+        "kind": field_kind(field),
         "stored": bool(field.store),
-        "path": path,
         "method": _method_name(field),
         "related": field.related or None,
     }
+
+
+def _dependent_row(field, path: str) -> dict[str, Any]:
+    return {**field_attributes(field), "path": path}
 
 
 def build_reverse_index(registry) -> dict[FieldKey, list[dict[str, Any]]]:
