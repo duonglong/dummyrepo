@@ -1,6 +1,7 @@
 from lxml import etree
 
 from odoo.tests import Form
+from odoo.tools.safe_eval import safe_eval
 
 from .common import FvfCommon
 
@@ -42,11 +43,17 @@ class TestPreview(FvfCommon):
         self.assertEqual(preview['company_id'], self.user_admin.company_id.id)
 
     def test_preview_button_opens_the_dialog_for_the_layout(self):
-        """FR-FVF-0010: the layout form's Preview button is an action on the dialog, run for the open layout."""
+        """FR-FVF-0010: the action behind the Preview button opens the dialog as a popup, defaulting to the open layout's company."""
         action = self.env.ref('form_view_field_organizer.action_fvf_layout_preview')
         self.assertEqual((action.res_model, action.target), ('fvf.layout.preview', 'new'))
-        form = self.env.ref('form_view_field_organizer.fvf_layout_view_form_preview')
-        self.assertIn('name="%d"' % action.id, form.arch_db)
+        context = safe_eval(action.context, {'active_id': self.layout.id})
+        defaults = self.env['fvf.layout.preview'].with_user(self.user_admin).with_context(**context).default_get(['company_id'])
+        self.assertEqual(defaults['company_id'], self.layout.company_id.id)
+
+    def test_preview_returns_the_chosen_company_for_the_browser(self):
+        """FR-FVF-0010: the result names the chosen company so the form is read in it, not in the active companies."""
+        preview = self._preview()
+        self.assertEqual(preview.get_preview_view()['company_id'], preview.company_id.id)
 
     def test_banner_names_group_company_and_record(self):
         """FR-FVF-0010: the banner reads 'Preview (read-only) as <group> in <company> - <record>'."""

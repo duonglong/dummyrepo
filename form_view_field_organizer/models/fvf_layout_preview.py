@@ -5,6 +5,7 @@ from odoo.exceptions import AccessError, UserError
 
 _READ_ONLY_FORM_ATTRIBUTES = ('edit', 'create', 'delete', 'duplicate')
 
+
 def _remove(node) -> None:
     """Remove ``node`` and hand the text that follows it to the node before it or to its parent."""
     parent = node.getparent()
@@ -16,11 +17,13 @@ def _remove(node) -> None:
             parent.text = (parent.text or '') + node.tail
     parent.remove(node)
 
+
 def _unwrap(node) -> None:
     """Replace ``node`` by its children, which keeps a group's fields side by side."""
     for child in reversed(node):
         node.addnext(child)
     _remove(node)
+
 
 class FvfLayoutPreview(models.TransientModel):
     _name = 'fvf.layout.preview'
@@ -68,13 +71,13 @@ class FvfLayoutPreview(models.TransientModel):
         record = self._readable_record(layout.model, company)
         model = self.env[layout.model].with_company(company).with_context(fvf_preview_layout_id=layout.id)
         arch, view = model._get_view(layout.view_id.id, 'form')
-        arch, models = model._get_view_postprocessed(view, arch)
-        models = model._get_view_fields('form', models)
+        arch, field_names_by_model = model._get_view_postprocessed(view, arch)
+        field_names_by_model = model._get_view_fields('form', field_names_by_model)
         tree = etree.fromstring(arch)
         self._resolve_groups(tree, self._simulated_groups())
         tree = self.env['ir.ui.view']._postprocess_access_rights(tree)
         self._make_read_only(tree)
-        related_models = {name: {'fields': self._describe_fields(names, name)} for name, names in models.items()}
+        related_models = {name: {'fields': self._describe_fields(names, name)} for name, names in field_names_by_model.items()}
         return {
             'arch': etree.tostring(tree, encoding='unicode'),
             'fields': related_models[layout.model]['fields'],
@@ -82,6 +85,7 @@ class FvfLayoutPreview(models.TransientModel):
             'res_model': layout.model,
             'res_id': record.id,
             'layout_id': layout.id,
+            'company_id': company.id,
             'banner': _(
                 "Preview (read-only) as %(group)s in %(company)s - %(record)s",
                 group=self.group_id.full_name, company=company.name, record=record.display_name),
@@ -98,9 +102,9 @@ class FvfLayoutPreview(models.TransientModel):
             raise UserError(_("The chosen record cannot be shown."))
         return record
 
-    def _describe_fields(self, names, model_name: str | None = None) -> dict:
+    def _describe_fields(self, names, model_name: str) -> dict:
         """Describe ``names`` the way ``get_views`` does for the web client."""
-        model = self.env[model_name or self.layout_id.model]
+        model = self.env[model_name]
         return model.fields_get(allfields=list(names), attributes=model._get_view_field_attributes())
 
     def _simulated_groups(self):

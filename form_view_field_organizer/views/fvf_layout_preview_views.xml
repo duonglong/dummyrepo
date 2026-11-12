@@ -9,7 +9,7 @@
                 <group>
                     <field name="layout_id" readonly="1" options="{'no_open': True}"/>
                     <field name="group_id" options="{'no_create': True, 'no_open': True}"/>
-                    <field name="company_id" options="{'no_create': True, 'no_open': True}"/>
+                    <field name="company_id" domain="[('id', 'in', allowed_company_ids)]" options="{'no_create': True, 'no_open': True}"/>
                     <field name="res_id" widget="many2one_reference"/>
                 </group>
                 <footer>

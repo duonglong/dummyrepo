@@ -24,7 +24,7 @@ export class FvfLayoutPreview extends Component {
     }
 
     get viewProps() {
-        const { arch, fields, relatedModels, res_model, res_id } = this.state.preview;
+        const { arch, fields, relatedModels, res_model, res_id, company_id } = this.state.preview;
         return {
             type: "form",
             resModel: res_model,
@@ -32,6 +32,7 @@ export class FvfLayoutPreview extends Component {
             arch,
             fields,
             relatedModels,
+            context: { allowed_company_ids: [company_id] },
             display: { controlPanel: false },
         };
     }
