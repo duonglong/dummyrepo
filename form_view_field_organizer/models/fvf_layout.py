@@ -1,5 +1,9 @@
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 def _models_with_main_form(layouts) -> list:
@@ -87,6 +91,21 @@ class FvfLayout(models.Model):
                 continue
             occurrences.setdefault(node.get('name'), []).append(node.get('required'))
         return occurrences
+
+    def _fvf_readable_form_fields(self) -> dict:
+        """Like ``_fvf_form_field_requirements`` but an unreadable form counts as having no field.
+
+        Used by the computed marks, so one broken form never stops the layouts
+        list from opening; the actions still raise the message.
+        """
+        self.ensure_one()
+        if not self.view_id:
+            return {}
+        try:
+            return self._fvf_form_field_requirements()
+        except UserError:
+            _logger.warning("fvf: layout %s cannot read form view %s", self.id, self.view_id.id)
+            return {}
 
     def _fvf_sync_lines(self) -> None:
         """Add a line for each field of the form that has none yet.

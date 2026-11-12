@@ -40,7 +40,7 @@ class FvfLayoutLine(models.Model):
     def _compute_is_required_and_missing(self) -> None:
         """Requirements: BR-FVF-0004 (a field is required when the model or any occurrence in the form says so)"""
         for layout, lines in self.grouped('layout_id').items():
-            occurrences = layout._fvf_form_field_requirements() if layout.view_id else {}
+            occurrences = layout._fvf_readable_form_fields()
             model_fields = self.env[layout.model]._fields if layout.model else {}
             for line in lines:
                 name = line.field_name
@@ -51,7 +51,8 @@ class FvfLayoutLine(models.Model):
                     for attribute in occurrences.get(name, []))
                 line.is_required = bool(model_required or form_required)
 
-    @api.depends('condition_ids.field_name', 'condition_ids.operator', 'condition_ids.value')
+    @api.depends('condition_ids.field_name', 'condition_ids.operator', 'condition_ids.value',
+                 'condition_ids.value_res_id')
     def _compute_condition_summary(self) -> None:
         for line in self:
             line.condition_summary = _(" and ").join(

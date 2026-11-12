@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.exceptions import ValidationError
+from odoo.tests import Form
 
 from .common import FvfCommon
 
@@ -78,7 +81,11 @@ class TestLayoutModels(FvfCommon):
                 ('color', 'gt', 'ten'),
                 ('type', 'is', 'maybe'),
                 ('is_company', 'is', 'maybe'),
-                ('partner_latitude', 'gt', 'nan')]:
+                ('partner_latitude', 'gt', 'nan'),
+                ('is_company', 'is', 'TRUE'),
+                ('is_company', 'is', 'tRue'),
+                ('color', 'gt', '--5'),
+                ('type', 'is', ' contact')]:
             with self.subTest(field=field_name, value=value):
                 self._refused('Enter a value for this comparison',
                               self._condition_vals(field_name, operator, value))
@@ -92,10 +99,12 @@ class TestLayoutModels(FvfCommon):
                 ('color', 'gt', '10', {}),
                 ('type', 'is', 'contact', {}),
                 ('is_company', 'is', 'true', {}),
-                ('partner_latitude', 'le', '1.5', {})]:
+                ('partner_latitude', 'le', '1.5', {}),
+                ('color', 'ge', '-5', {}),
+                ('is_company', 'is_not', 'False', {})]:
             with self.subTest(field=field_name):
                 line.write(self._condition_vals(field_name, operator, value, **extra))
-        self.assertEqual(len(line.condition_ids), 5)
+        self.assertEqual(len(line.condition_ids), 7)
 
     def test_hiding_required_field_warns_in_editor(self):
         """FR-FVF-0016: choosing a group for a required field warns and puts the groups back."""
@@ -123,3 +132,62 @@ class TestLayoutModels(FvfCommon):
         result = condition._onchange_field_name()
         self.assertIn('own value', result['warning']['message'])
         self.assertFalse(condition.field_name)
+
+    def _field(self, name):
+        return self.env['ir.model.fields']._get('res.partner', name)
+
+    def test_changing_condition_field_clears_the_chosen_record(self):
+        """FR-FVF-0005: choosing another field drops the record chosen for the previous one.
+
+        The line dialog is opened with Form; its buttons stay for the screen review.
+        """
+        line = self.layout.line_ids.filtered(lambda l: l.field_name == 'vat')
+        belgium = self.env.ref('base.be')
+        form = Form(line, view='form_view_field_organizer.fvf_layout_line_view_form')
+        with form.condition_ids.new() as condition:
+            condition.field_id = self._field('country_id')
+            condition.operator = 'is'
+            condition.value_res_id = belgium.id
+            self.assertEqual(condition.value, str(belgium.id))
+            condition.field_id = self._field('state_id')
+            self.assertFalse(condition.value)
+            self.assertFalse(condition.value_res_id)
+            self.assertEqual(condition.operator, 'is')
+            condition.field_id = self._field('create_date')
+            self.assertFalse(condition.operator)
+            condition.operator = 'set'
+        form.save()
+        self.assertEqual(line.condition_ids.field_name, 'create_date')
+        self.assertFalse(line.condition_ids.value_res_id)
+
+    def test_chosen_record_is_the_value_of_a_single_link(self):
+        """FR-FVF-0005: a single link's value is the chosen record, shown by its name."""
+        line = self.layout.line_ids.filtered(lambda l: l.field_name == 'vat')
+        belgium = self.env.ref('base.be')
+        line.write(self._condition_vals('country_id', 'is', 'Belgium', value_res_id=belgium.id))
+        self.assertEqual(line.condition_ids.value, str(belgium.id))
+        self.assertEqual(line.condition_summary, "Country is %s" % belgium.display_name)
+
+    def test_value_disagreeing_with_chosen_record_refused(self):
+        """FR-FVF-0005: a typed value that differs from the chosen record is refused."""
+        line = self.layout.line_ids.filtered(lambda l: l.field_name == 'vat')
+        line.write(self._condition_vals('country_id', 'is', value_res_id=self.env.ref('base.be').id))
+        with self.assertRaisesRegex(ValidationError, 'Enter a value for this comparison'):
+            with self.cr.savepoint():
+                line.condition_ids.write({'value': str(self.env.ref('base.fr').id)})
+
+    def test_field_record_naming_another_field_refused(self):
+        """FR-FVF-0005: the field record and the field name must name the same field of the form."""
+        self._refused('Choose a field of this form',
+                      self._condition_vals('color', 'set', field_id=self._field('country_id').id))
+        user_field = self.env['ir.model.fields']._get('res.users', 'color')
+        self._refused('Choose a field of this form',
+                      self._condition_vals('color', 'set', field_id=user_field.id))
+
+    def test_unreadable_form_does_not_block_the_layouts_list(self):
+        """FR-FVF-0001: a form that cannot be read marks its lines missing instead of failing the list."""
+        View = type(self.env['ir.ui.view'])
+        with patch.object(View, '_get_combined_arch', side_effect=ValueError("broken")):
+            self.layout.invalidate_recordset(['missing_count'])
+            self.layout.line_ids.invalidate_recordset(['missing', 'is_required'])
+            self.assertEqual(self.layout.missing_count, len(self.layout.line_ids))
