@@ -8,11 +8,13 @@
     'data': [
         'security/ir.access.csv',
         'views/fvf_layout_views.xml',
+        'views/fvf_layout_preview_views.xml',
         'views/fvf_layout_widget_views.xml',
         'views/menus.xml',
     ],
     'assets': {
         'web.assets_backend': [
+            'form_view_field_organizer/static/src/fvf_layout_preview/*',
             'form_view_field_organizer/static/src/fvf_section/fvf_section.js',
             'form_view_field_organizer/static/src/fvf_section/fvf_section.xml',
             'form_view_field_organizer/static/src/fvf_section/fvf_section.scss',

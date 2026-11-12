@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="fvf_layout_preview_view_form" model="ir.ui.view">
+        <field name="name">fvf.layout.preview.form</field>
+        <field name="model">fvf.layout.preview</field>
+        <field name="arch" type="xml">
+            <form string="Preview layout">
+                <field name="res_model" invisible="1"/>
+                <group>
+                    <field name="layout_id" readonly="1" options="{'no_open': True}"/>
+                    <field name="group_id" options="{'no_create': True, 'no_open': True}"/>
+                    <field name="company_id" domain="[('id', 'in', allowed_company_ids)]" options="{'no_create': True, 'no_open': True}"/>
+                    <field name="res_id" widget="many2one_reference"/>
+                </group>
+                <footer>
+                    <button name="action_show_preview" type="object" string="Show preview"
+                            class="btn-primary" data-hotkey="q"/>
+                    <button special="cancel" string="Cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fvf_layout_preview" model="ir.actions.act_window">
+        <field name="name">Preview layout</field>
+        <field name="res_model">fvf.layout.preview</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'default_layout_id': active_id}</field>
+    </record>
+
+    <record id="fvf_layout_view_form_preview" model="ir.ui.view">
+        <field name="name">fvf.layout.form.preview</field>
+        <field name="model">fvf.layout</field>
+        <field name="inherit_id" ref="fvf_layout_view_form"/>
+        <field name="arch" type="xml">
+            <button name="action_publish" position="before">
+                <button name="%(action_fvf_layout_preview)d" type="action" string="Preview"
+                        invisible="state != 'draft' or not id"/>
+            </button>
+        </field>
+    </record>
+</odoo>
