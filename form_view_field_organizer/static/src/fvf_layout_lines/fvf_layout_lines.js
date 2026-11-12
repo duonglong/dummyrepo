@@ -45,7 +45,7 @@ export class FvfLayoutLines extends X2ManyField {
             return sectionIds.has(id) ? id : false;
         };
         const blockOf = (sectionId, title) => ({
-            key: sectionId || "original",
+            key: String(sectionId || "original"),
             sectionId,
             title,
             lines: lines
@@ -81,8 +81,7 @@ export class FvfLayoutLines extends X2ManyField {
     async onDrop({ element, parent, previous }) {
         const moved = this._lineById(element.dataset.lineId);
         const block = this.blocks.find(
-            (b) => b.key === parent.dataset.sectionKey
-        );
+            (b) => b.key === parent.dataset.sectionKey);
         if (!moved || !block) {
             return;
         }

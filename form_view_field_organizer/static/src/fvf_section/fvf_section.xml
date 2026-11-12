@@ -5,7 +5,7 @@
             <button type="button" class="o_fvf_section_toggle btn btn-link"
                     t-att-aria-expanded="this.state.closed ? 'false' : 'true'"
                     t-att-aria-controls="this.bodyId"
-                    t-on-click="this.toggle">
+                    t-on-click="() => this.toggle()">
                 <i class="o_fvf_section_chevron fa" t-att-class="this.state.closed ? 'fa-caret-right' : 'fa-caret-down'" aria-hidden="true"/>
                 <span class="o_fvf_section_title" t-out="this.props.title"/>
             </button>

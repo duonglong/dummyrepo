@@ -15,6 +15,9 @@
     }
 
     .o_fvf_line_handle {
+        display: inline-block;
+        min-inline-size: 1rem;
+        min-block-size: 1rem;
         cursor: grab;
     }
 
