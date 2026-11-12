@@ -27,6 +27,9 @@ class FvfLayoutLine(models.Model):
     is_required = fields.Boolean(compute='_compute_is_required_and_missing')
     missing = fields.Boolean(compute='_compute_is_required_and_missing')
     condition_summary = fields.Char(compute='_compute_condition_summary')
+    refusal_notice = fields.Char(
+        string='Refusal', readonly=True, store=False, copy=False,
+        help="Why the last change in the line dialog was refused; shown beside the groups.")
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> 'FvfLayoutLine':
@@ -93,23 +96,21 @@ class FvfLayoutLine(models.Model):
                 raise ValidationError(_("The section belongs to another layout."))
 
     @api.onchange('hidden_group_ids')
-    def _onchange_hidden_group_ids(self) -> dict | None:
-        """Warn at once and put the groups back when the field is required.
+    def _onchange_hidden_group_ids(self) -> None:
+        """Refuse at once beside the groups and put them back when the field is required.
 
         Requirements: FR-FVF-0016
         """
         if self.is_required and self.hidden_group_ids:
             self.hidden_group_ids = False
-            return {'warning': {'title': _("Not allowed"), 'message': _("A required field cannot be hidden.")}}
-        return None
+            self.refusal_notice = _("A required field cannot be hidden.")
 
     @api.onchange('condition_ids')
-    def _onchange_condition_ids(self) -> dict | None:
-        """Warn at once and drop the conditions when the field is required.
+    def _onchange_condition_ids(self) -> None:
+        """Refuse at once beside the groups and drop the conditions when the field is required.
 
         Requirements: FR-FVF-0016
         """
         if self.is_required and self.condition_ids:
             self.condition_ids = [Command.clear()]
-            return {'warning': {'title': _("Not allowed"), 'message': _("A required field cannot be hidden.")}}
-        return None
+            self.refusal_notice = _("A required field cannot be hidden.")

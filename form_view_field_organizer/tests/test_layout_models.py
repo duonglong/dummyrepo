@@ -106,31 +106,31 @@ class TestLayoutModels(FvfCommon):
                 line.write(self._condition_vals(field_name, operator, value, **extra))
         self.assertEqual(len(line.condition_ids), 7)
 
-    def test_hiding_required_field_warns_in_editor(self):
-        """FR-FVF-0016: choosing a group for a required field warns and puts the groups back."""
+    def test_hiding_required_field_is_refused_in_editor(self):
+        """FR-FVF-0016: choosing a group for a required field is refused beside the line and puts the groups back."""
         line = self.env['fvf.layout.line'].new({
             'layout_id': self.layout.id, 'field_name': 'name',
             'hidden_group_ids': [Command.set(self.env.ref('base.group_user').ids)]})
-        result = line._onchange_hidden_group_ids()
-        self.assertIn('A required field cannot be hidden.', result['warning']['message'])
+        self.assertIsNone(line._onchange_hidden_group_ids())
+        self.assertEqual(line.refusal_notice, 'A required field cannot be hidden.')
         self.assertFalse(line.hidden_group_ids)
 
-    def test_condition_on_required_field_warns_in_editor(self):
-        """FR-FVF-0016: adding a condition to a required field warns and drops the condition."""
+    def test_condition_on_required_field_is_refused_in_editor(self):
+        """FR-FVF-0016: adding a condition to a required field is refused beside the line and drops the condition."""
         line = self.env['fvf.layout.line'].new({
             'layout_id': self.layout.id, 'field_name': 'name',
             'condition_ids': [Command.create({'field_name': 'vat', 'operator': 'set'})]})
-        result = line._onchange_condition_ids()
-        self.assertIn('A required field cannot be hidden.', result['warning']['message'])
+        self.assertIsNone(line._onchange_condition_ids())
+        self.assertEqual(line.refusal_notice, 'A required field cannot be hidden.')
         self.assertFalse(line.condition_ids)
 
-    def test_condition_on_own_field_warns_in_editor(self):
-        """FR-FVF-0017: choosing the line's own field for a condition warns and clears it."""
+    def test_condition_on_own_field_is_refused_in_editor(self):
+        """FR-FVF-0017: choosing the line's own field for a condition is refused beside the line and clears it."""
         line = self.layout.line_ids.filtered(lambda l: l.field_name == 'country_id')
         condition = self.env['fvf.layout.condition'].new(
             {'line_id': line.id, 'field_name': 'country_id', 'operator': 'set'})
-        result = condition._onchange_field_name()
-        self.assertIn('own value', result['warning']['message'])
+        self.assertIsNone(condition._onchange_field_name())
+        self.assertIn('own value', condition.refusal_notice)
         self.assertFalse(condition.field_name)
 
     def _field(self, name):

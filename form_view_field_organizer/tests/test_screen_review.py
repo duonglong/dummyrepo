@@ -162,3 +162,50 @@ class TestScreenReview(HttpCase, FvfCommon):
                 throw new Error("the Tax ID label is not beside its value");
             }
         """)
+
+    def test_bug_b_0190_refusal_is_shown_in_the_line_dialog_not_in_another_dialog(self):
+        """B-0190: hiding the required Name field shows the refusal inside the line dialog, with no second dialog.
+
+        Cannot reach: the refusal of a condition on the field itself (next test) or the saved layout.
+        """
+        layout = self._layout()
+        self._editor(layout, """
+            const dialog = await openLineDialog(%d, "Name");
+            const input = await waitFor(() => dialog.querySelector("[name=hidden_group_ids] input"), "the groups input");
+            const item = await pickFromInput(input, "Role");
+            item.click();
+            await sleep(1500);
+            if (document.querySelectorAll(".modal").length > 1) {
+                throw new Error("a second dialog opened: " + textOf(document.querySelectorAll(".modal")[1]));
+            }
+            const notice = [...dialog.querySelectorAll(".alert-danger")].find((el) => visible(el));
+            if (!notice || !textOf(notice).includes("A required field cannot be hidden.")) {
+                throw new Error("no refusal beside the groups");
+            }
+            await discardEverything();
+        """ % layout.id)
+
+    def test_bug_b_0190_condition_on_own_field_is_refused_in_the_line_dialog(self):
+        """B-0190: a condition on the field itself shows its refusal in the line dialog, with no second dialog.
+
+        Cannot reach: the refusal of hiding a required field (previous test).
+        """
+        layout = self._layout()
+        self._editor(layout, """
+            const dialog = await openLineDialog(%d, "Phone");
+            const add = await waitFor(() => dialog.querySelector(".o_field_x2many_list_row_add a, .o_field_x2many_list_row_add button"), "Add a line");
+            add.click();
+            const input = await waitFor(() => dialog.querySelector(".o_data_row [name=field_id] input"), "the condition field input");
+            const item = await pickFromInput(input, "Phone");
+            item.click();
+            await sleep(1500);
+            if (document.querySelectorAll(".modal").length > 1) {
+                throw new Error("a second dialog opened: " + textOf(document.querySelectorAll(".modal")[1]));
+            }
+            const notice = [...dialog.querySelectorAll(".text-danger, .alert-danger")].find(
+                (el) => visible(el) && textOf(el).includes("A field cannot be shown or hidden based on its own value."));
+            if (!notice) {
+                throw new Error("no refusal beside the condition");
+            }
+            await discardEverything();
+        """ % layout.id)

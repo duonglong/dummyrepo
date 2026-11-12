@@ -72,6 +72,9 @@ class FvfLayoutCondition(models.Model):
     value_res_id = fields.Many2oneReference(model_field='value_model')
     value_model = fields.Char(compute='_compute_value_model', store=True)
     missing = fields.Boolean(compute='_compute_missing')
+    refusal_notice = fields.Char(
+        string='Refusal', readonly=True, store=False, copy=False,
+        help="Why the last change in this row was refused; shown beside the row.")
     layout_model = fields.Char(related='line_id.layout_id.model', string='Layout model name')
 
     @api.depends('field_name', 'line_id.layout_id.model')
@@ -192,15 +195,12 @@ class FvfLayoutCondition(models.Model):
             self.value = str(self.value_res_id)
 
     @api.onchange('field_name')
-    def _onchange_field_name(self) -> dict | None:
-        """Warn at once about a condition on the line's own field.
+    def _onchange_field_name(self) -> None:
+        """Refuse at once, beside the row, a condition on the line's own field.
 
         Requirements: FR-FVF-0017
         """
         if self.field_name and self.field_name == self.line_id.field_name:
             self.field_name = False
-            return {'warning': {
-                'title': _("Not allowed"),
-                'message': _("A field cannot be shown or hidden based on its own value."),
-            }}
-        return None
+            self.field_id = False
+            self.refusal_notice = _("A field cannot be shown or hidden based on its own value.")
