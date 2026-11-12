@@ -35,7 +35,7 @@ def _usable_condition(condition, model_fields, layout_id):
     usable = [line for line in condition if line['field'] in model_fields]
     for line in condition:
         if line['field'] not in model_fields:
-            _logger.debug("Layout %s: condition line on missing field %s skipped", layout_id, line['field'])
+            _logger.debug("fvf: layout %s skipped missing field %s", layout_id, line['field'])
     return usable
 
 
@@ -137,23 +137,44 @@ def _set_invisible(node, rule):
         node.attrib.pop('invisible', None)
 
 
+def _required_groups(chains):
+    """Every distinct group of the ``chains``, nested: shown only to users who saw every appearance."""
+    return list(dict.fromkeys(group for chain in chains for group in chain))
+
+
+def _merged_visibility(fields):
+    """Invisible rule and wrapper groups under which the merged field is shown.
+
+    Appearances seen by the same groups: shown whenever any of them showed it
+    (AND of their rules). Appearances sharing one rule: shown to every group
+    that saw one of them. Appearances differing in both: shown only where
+    every appearance would show it (OR of the rules, every group required),
+    which never reveals (BR-FVF-0001).
+    """
+    several = len(fields) > 1
+    rules = [_visibility_rule(field) for field in fields]
+    chains = [_group_chain(field, several) for field in fields]
+    if len({tuple(chain) for chain in chains}) == 1:
+        return _all_invisible(rules), chains[0]
+    if len(set(rules)) == 1:
+        return rules[0], _shared_groups(chains)
+    return _join_invisible(rules), _required_groups(chains)
+
+
 def _take_out(fields, labels):
     """Detach the occurrences of a field and its labels, keep one.
 
-    Return the node to place: the first occurrence with its labels, wrapped in
-    one div per shared groups value (outermost first). The field is shown
-    wherever any original occurrence was shown: its invisible is the AND of
-    the occurrences' rules (own plus former containers) and its groups the
-    alternatives of theirs.
+    Return ``(top, moved)``: ``top`` the nodes to place, ``moved`` the kept
+    field and its labels. The first occurrence is kept with its labels,
+    wrapped in one div per groups value (outermost first), with the
+    visibility of :func:`_merged_visibility`.
     """
     first = fields[0]
-    several = len(fields) > 1
-    invisible = _all_invisible([_visibility_rule(field) for field in fields])
-    groups = _shared_groups([_group_chain(field, several) for field in fields])
+    invisible, groups = _merged_visibility(fields)
     moved = [label for label in labels if label.getparent() is first.getparent()] + [first]
     for node in fields + labels:
         _drop(node)
-    if several:
+    if len(fields) > 1:
         first.attrib.pop('groups', None)
     _set_invisible(first, invisible)
     for label in moved[:-1]:
@@ -162,9 +183,9 @@ def _take_out(fields, labels):
     for outer, inner in zip(wrappers, wrappers[1:]):
         outer.append(inner)
     if not wrappers:
-        return moved
+        return moved, moved
     wrappers[-1].extend(moved)
-    return wrappers[:1]
+    return wrappers[:1], moved
 
 
 def _section_node(section):
@@ -203,12 +224,14 @@ def apply_layout(arch_tree, spec, model_fields):
     for position, line in enumerate(spec['lines']):
         fields, labels = _occurrences(arch_tree, line['field'])
         if line['field'] not in model_fields or not fields:
-            _logger.debug("Layout %s: line on missing field %s skipped", spec['layout_id'], line['field'])
+            _logger.debug("fvf: layout %s skipped missing field %s", spec['layout_id'], line['field'])
             continue
-        _hide(fields + labels, line['hide_refs'])
-        _apply_condition(fields + labels, line['condition'], model_fields, spec['layout_id'])
+        nodes = fields + labels
         if line['section_id'] in section_nodes:
-            placed[line['section_id']].append((line['sequence'], position, _take_out(fields, labels)))
+            top, nodes = _take_out(fields, labels)
+            placed[line['section_id']].append((line['sequence'], position, top))
+        _hide(nodes, line['hide_refs'])
+        _apply_condition(nodes, line['condition'], model_fields, spec['layout_id'])
     for section_id, items in placed.items():
         group = section_nodes[section_id][0]
         for _sequence, _position, nodes in sorted(items, key=lambda item: item[:2]):

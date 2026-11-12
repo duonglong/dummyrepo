@@ -113,3 +113,56 @@ class TestEngine(TransactionCase):
             '<list><field name="x" invisible="y"/></list></field></group></div></form>')
         apply.prune_empty_sections(tree)
         self.assertIsNone(tree.xpath('.//div[@name="fvf_section_1"]')[0].get('invisible'))
+
+    def test_hidden_twice_seen_field_keeps_groups_as_alternatives(self):
+        """FR-FVF-0007, FR-FVF-0002: hiding from a group does not turn 'either group' into 'both groups'."""
+        tree = self._run(
+            '<form><sheet><group groups="x.g1"><field name="a"/></group>'
+            '<group groups="x.g2"><field name="a"/></group></sheet></form>', [self._line('a', hide_refs=['x.h'])])
+        node = tree.xpath('.//field[@name="a"]')[0]
+        self.assertEqual(node.get('groups'), '!x.h')
+        self.assertEqual([d.get('groups') for d in node.iterancestors('div') if d.get('groups')], ['x.g1,x.g2'])
+
+    def test_hidden_twice_seen_field_open_once_has_no_wrapper(self):
+        """FR-FVF-0007, FR-FVF-0002: users outside g1 who saw the open appearance keep the field."""
+        tree = self._run(
+            '<form><sheet><group groups="x.g1"><field name="a"/></group>'
+            '<group><field name="a"/></group></sheet></form>', [self._line('a', hide_refs=['x.h'])])
+        node = tree.xpath('.//field[@name="a"]')[0]
+        self.assertEqual(node.get('groups'), '!x.h')
+        self.assertFalse([d for d in node.iterancestors('div') if d.get('groups')])
+
+    def test_hidden_moved_field_label_gets_the_hide_mark(self):
+        """FR-FVF-0002: the moved label is hidden from the same groups as its field."""
+        tree = self._run(
+            '<form><sheet><group><label for="a"/><field name="a"/></group></sheet></form>',
+            [self._line('a', hide_refs=['x.h'])])
+        self.assertEqual(tree.xpath('.//label[@for="a"]')[0].get('groups'), '!x.h')
+
+    def test_different_groups_and_rules_never_reveal(self):
+        """BR-FVF-0001 (standing answer): shown only where every appearance would show it.
+
+        g1 saw the field while 'not c', g2 while 'c': a g1-only user must not see it while 'c'.
+        """
+        tree = self._run(
+            '<form><sheet><group groups="x.g1" invisible="c"><field name="a"/></group>'
+            '<group groups="x.g2" invisible="not c"><field name="a"/></group></sheet></form>', [self._line('a')])
+        node = tree.xpath('.//field[@name="a"]')[0]
+        self.assertEqual(node.get('invisible'), '(c) or (not c)')
+        self.assertEqual([d.get('groups') for d in reversed(list(node.iterancestors('div'))) if d.get('groups')],
+                         ['x.g1', 'x.g2'])
+
+    def test_same_groups_different_rules_are_anded(self):
+        """FR-FVF-0007: appearances seen by the same groups show the field whenever either showed it."""
+        tree = self._run(
+            '<form><sheet><group groups="x.g1" invisible="c"><field name="a"/></group>'
+            '<group groups="x.g1" invisible="not c"><field name="a"/></group></sheet></form>', [self._line('a')])
+        node = tree.xpath('.//field[@name="a"]')[0]
+        self.assertEqual(node.get('invisible'), '(c) and (not c)')
+        self.assertEqual([d.get('groups') for d in node.iterancestors('div') if d.get('groups')], ['x.g1'])
+
+    def test_skipped_line_logs_the_design_text(self):
+        """FR-FVF-0015: a line on a vanished field is skipped with the design's DEBUG line."""
+        with self.assertLogs(apply.__name__, level='DEBUG') as logs:
+            self._run('<form><sheet><field name="a"/></sheet></form>', [self._line('zz')])
+        self.assertIn('fvf: layout 1 skipped missing field zz', logs.output[0])
