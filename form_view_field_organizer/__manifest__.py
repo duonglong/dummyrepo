@@ -8,7 +8,16 @@
     'data': [
         'security/ir.access.csv',
         'views/fvf_layout_views.xml',
+        'views/fvf_layout_preview_views.xml',
         'views/menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'form_view_field_organizer/static/src/fvf_layout_preview/*',
+        ],
+        'web.assets_unit_tests': [
+            'form_view_field_organizer/static/tests/fvf_layout_preview.test.js',
+        ],
+    },
     'license': 'LGPL-3',
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="form_view_field_organizer.FvfLayoutPreview">
+        <div class="o_fvf_preview d-flex flex-column h-100" t-if="this.state.preview">
+            <div class="o_fvf_preview_banner alert alert-info d-flex align-items-center gap-2 mb-0" role="status">
+                <span class="o_fvf_preview_text flex-grow-1" t-out="this.state.preview.banner"/>
+                <button type="button" class="o_fvf_preview_back btn btn-secondary" t-on-click="this.backToEditor">Back to editor</button>
+                <button type="button" class="o_fvf_preview_publish btn btn-primary" t-on-click="this.publish">Publish</button>
+            </div>
+            <div class="o_fvf_preview_form flex-grow-1 overflow-auto">
+                <View t-props="this.viewProps"/>
+            </div>
+        </div>
+    </t>
+</templates>
