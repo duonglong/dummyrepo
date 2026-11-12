@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="sfd_dependency_viewer_view_form" model="ir.ui.view">
+        <field name="name">sfd.dependency.viewer.form</field>
+        <field name="model">sfd.dependency.viewer</field>
+        <field name="arch" type="xml">
+            <form string="Field dependencies" create="0" duplicate="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                        <group>
+                            <field name="field_id" readonly="not model_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                    </group>
+                    <field name="map_data" widget="sfd_dependency_map" nolabel="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="sfd_dependency_viewer_action" model="ir.actions.act_window">
+        <field name="name">Field Dependencies</field>
+        <field name="res_model">sfd.dependency.viewer</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+    <menuitem id="sfd_dependency_viewer_menu"
+              name="Field Dependencies"
+              parent="base.next_id_9"
+              action="sfd_dependency_viewer_action"
+              groups="base.group_system"
+              sequence="90"/>
+</odoo>
