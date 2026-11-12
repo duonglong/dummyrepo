@@ -124,7 +124,7 @@
                             <field name="refusal_notice" nolabel="1" readonly="1"/>
                         </div>
                     </group>
-                    <group string="Show only when">
+                    <group string="Show only when" col="1">
                         <field name="condition_ids" nolabel="1">
                             <list editable="bottom">
                                 <field name="sequence" widget="handle"/>

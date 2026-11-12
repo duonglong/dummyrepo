@@ -267,3 +267,35 @@ class TestScreenReview(HttpCase, FvfCommon):
                 throw new Error("the picker offers " + bad.join(" | "));
             }
         """ % layout.id)
+
+    def test_bug_b_0193_self_condition_refusal_is_fully_readable(self):
+        """B-0193: the refusal of a condition on the field itself is shown whole, in a table using the dialog width.
+
+        Cannot reach: a real pointer or keyboard entry of the field; the choice is made by a DOM click on
+        the suggestion. Other refusals (required field) have their own test.
+        """
+        layout = self._layout()
+        self._editor(layout, """
+            const dialog = await openLineDialog(%d, "Phone");
+            const add = await waitFor(() => dialog.querySelector(".o_field_x2many_list_row_add a, .o_field_x2many_list_row_add button"), "Add a line");
+            add.click();
+            const input = await waitFor(() => dialog.querySelector(".o_data_row [name=field_id] input"), "the condition field input");
+            const item = await pickFromInput(input, "Phone");
+            item.click();
+            await sleep(1500);
+            const message = "A field cannot be shown or hidden based on its own value.";
+            const notice = [...dialog.querySelectorAll(".o_data_row [name=refusal_notice], .alert-danger")].find(
+                (el) => visible(el) && textOf(el).includes(message));
+            if (!notice) {
+                throw new Error("no refusal beside the condition");
+            }
+            if (notice.scrollWidth > notice.clientWidth + 1) {
+                throw new Error("the refusal is cut off: " + notice.clientWidth + " px shown of " + notice.scrollWidth);
+            }
+            const table = dialog.querySelector(".o_field_x2many_list .o_list_renderer").getBoundingClientRect().width;
+            const content = dialog.querySelector(".alert-info").getBoundingClientRect().width;
+            if (table < content * 0.95) {
+                throw new Error("the condition table uses only " + Math.round(100 * table / content) + "%% of the dialog width");
+            }
+            await discardEverything();
+        """ % layout.id)

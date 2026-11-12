@@ -32,3 +32,18 @@
         cursor: grab;
     }
 }
+
+// The refusal of a condition row wraps inside its cell instead of being cut to the column width.
+.o_list_renderer .o_data_cell[name="refusal_notice"] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    min-inline-size: 14rem;
+
+    .o_field_widget,
+    span {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+}
