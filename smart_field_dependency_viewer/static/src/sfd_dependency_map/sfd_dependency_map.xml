@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="smart_field_dependency_viewer.SfdDependencyMap">
+        <div class="o_sfd_dependency_map" t-if="map">
+            <div class="o_sfd_limit d-flex align-items-center gap-2 mb-3">
+                <label for="sfd_depth_limit">Depth limit</label>
+                <input id="sfd_depth_limit" type="number" min="1" step="1"
+                       class="o_sfd_depth_limit form-control w-auto"
+                       t-att-value="map.depth_limit"
+                       t-on-change="onLimitChange"/>
+            </div>
+            <div class="o_sfd_own mb-3" t-if="map.own_dependencies">
+                <h5>Depends on</h5>
+                <ul>
+                    <li t-foreach="map.own_dependencies" t-as="path" t-key="path" t-out="path"/>
+                </ul>
+            </div>
+            <div class="o_sfd_empty alert alert-info" t-if="!hasDependents" t-out="emptyMessage"/>
+            <div class="o_sfd_dependents table-responsive" t-else="">
+                <h5>Dependents</h5>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Field</th>
+                            <th>Label</th>
+                            <th>Kind</th>
+                            <th>Stored</th>
+                            <th>Path</th>
+                            <th>Method / Related path</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="map.dependents" t-as="row" t-key="row.model + '.' + row.field">
+                            <td t-out="row.model"/>
+                            <td t-out="row.field"/>
+                            <td t-out="row.label"/>
+                            <td t-out="row.kind"/>
+                            <td><t t-if="row.stored">Yes</t><t t-else="">No</t></td>
+                            <td t-out="row.path"/>
+                            <td t-out="row.method || row.related"/>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </t>
+</templates>
