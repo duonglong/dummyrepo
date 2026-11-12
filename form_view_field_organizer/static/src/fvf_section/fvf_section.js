@@ -1,5 +1,10 @@
 import { Component, proxy, t, useProps } from "@odoo/owl";
 
+/**
+ * Collapsible section of a form; the fold state lasts for one opening of the form.
+ *
+ * Requirements: FR-FVF-0003, FR-FVF-0004
+ */
 export class FvfSection extends Component {
     static template = "form_view_field_organizer.FvfSection";
     props = useProps({

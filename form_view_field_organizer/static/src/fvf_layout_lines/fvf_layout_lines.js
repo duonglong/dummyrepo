@@ -4,8 +4,6 @@ import { useSortable } from "@web/core/utils/sortable_owl";
 import { X2ManyField, x2ManyField } from "@web/views/fields/x2many/x2many_field";
 import { signal } from "@odoo/owl";
 
-export const ORIGINAL_PLACE = false;
-
 /**
  * Field lines of a layout as one block per section, with an "Original place" block first.
  * Rows drag within a block (writes sequence) and across blocks (writes section_id and sequence).
@@ -30,21 +28,32 @@ export class FvfLayoutLines extends X2ManyField {
         });
     }
 
-    /** Blocks in display order: the original place first, then the sections in section order. */
+    /**
+     * Blocks in display order: the original place first, then the saved sections in section order.
+     * Every block has a key that is never falsy (the original place is "original"), so it can sit in
+     * a data attribute. Sections not saved yet get no block (lines cannot point at a virtual id); lines
+     * whose section is not a block show in the original place.
+     */
     get blocks() {
         const lines = this.list.records;
-        const sections = [...this.props.record.data.section_ids.records].sort(
-            (a, b) => a.data.sequence - b.data.sequence || a.resId - b.resId
-        );
+        const sections = this.props.record.data.section_ids.records
+            .filter((section) => section.resId)
+            .sort((a, b) => a.data.sequence - b.data.sequence || a.resId - b.resId);
+        const sectionIds = new Set(sections.map((section) => section.resId));
+        const sectionOf = (line) => {
+            const id = line.data.section_id?.id;
+            return sectionIds.has(id) ? id : false;
+        };
         const blockOf = (sectionId, title) => ({
+            key: sectionId || "original",
             sectionId,
             title,
             lines: lines
-                .filter((line) => (line.data.section_id?.id || ORIGINAL_PLACE) === sectionId)
+                .filter((line) => sectionOf(line) === sectionId)
                 .sort((a, b) => a.data.sequence - b.data.sequence),
         });
         return [
-            blockOf(ORIGINAL_PLACE, ""),
+            blockOf(false, ""),
             ...sections.map((section) => blockOf(section.resId, section.data.name)),
         ];
     }
@@ -57,6 +66,13 @@ export class FvfLayoutLines extends X2ManyField {
         this.openRecord(line);
     }
 
+    onRowKeydown(ev, line) {
+        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+            ev.preventDefault();
+            this.openLine(line);
+        }
+    }
+
     _lineById(id) {
         return this.list.records.find((line) => String(line.resId || line._virtualId) === id);
     }
@@ -65,7 +81,7 @@ export class FvfLayoutLines extends X2ManyField {
     async onDrop({ element, parent, previous }) {
         const moved = this._lineById(element.dataset.lineId);
         const block = this.blocks.find(
-            (b) => String(b.sectionId) === parent.dataset.sectionId
+            (b) => b.key === parent.dataset.sectionKey
         );
         if (!moved || !block) {
             return;
@@ -80,11 +96,16 @@ export class FvfLayoutLines extends X2ManyField {
             ? { id: section.resId, display_name: section.data.name }
             : false;
         for (const [index, line] of ordered.entries()) {
-            const values = { sequence: index + 1 };
+            const values = {};
+            if (line.data.sequence !== index + 1) {
+                values.sequence = index + 1;
+            }
             if (line === moved) {
                 values.section_id = sectionValue;
             }
-            await line.update(values);
+            if (Object.keys(values).length) {
+                await line.update(values);
+            }
         }
     }
 }

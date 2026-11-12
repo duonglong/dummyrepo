@@ -2,14 +2,16 @@
 <templates xml:space="preserve">
     <t t-name="form_view_field_organizer.FvfLayoutLines">
         <div class="o_fvf_layout_lines" t-ref="this.blocksRef">
-            <div t-foreach="this.blocks" t-as="block" t-key="block.sectionId" class="o_fvf_line_block" t-att-data-section-id="block.sectionId">
+            <div t-foreach="this.blocks" t-as="block" t-key="block.key" class="o_fvf_line_block" t-att-data-section-key="block.key">
                 <h4 class="o_fvf_line_block_title">
-                    <t t-if="block.sectionId === false">Original place (not in a section)</t>
+                    <t t-if="!block.sectionId">Original place (not in a section)</t>
                     <t t-else="" t-out="block.title"/>
                 </h4>
                 <div t-foreach="block.lines" t-as="line" t-key="line.resId or line._virtualId"
                      class="o_fvf_line_row" t-att-data-line-id="line.resId or line._virtualId"
-                     t-on-click="() => this.openLine(line)">
+                     tabindex="0" role="button"
+                     t-on-click="() => this.openLine(line)"
+                     t-on-keydown="(ev) => this.onRowKeydown(ev, line)">
                     <span t-if="!this.props.readonly" class="o_fvf_line_handle fa fa-sort" title="Drag to move" aria-label="Drag to move"/>
                     <span class="o_fvf_line_label" t-out="line.data.field_label"/>
                     <span class="o_fvf_line_groups">
