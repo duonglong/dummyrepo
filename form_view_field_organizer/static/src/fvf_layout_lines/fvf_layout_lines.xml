@@ -2,6 +2,14 @@
 <templates xml:space="preserve">
     <t t-name="form_view_field_organizer.FvfLayoutLines">
         <div class="o_fvf_layout_lines" t-ref="this.blocksRef">
+            <div class="o_fvf_line_header text-muted fw-bold" aria-hidden="true">
+                <span class="o_fvf_line_handle_space"/>
+                <span>Field</span>
+                <span>Section</span>
+                <span>Hidden from</span>
+                <span>Shows when</span>
+                <span/>
+            </div>
             <div t-foreach="this.blocks" t-as="block" t-key="block.key" class="o_fvf_line_block" t-att-data-section-key="block.key">
                 <h4 class="o_fvf_line_block_title">
                     <t t-if="!block.sectionId">Original place (not in a section)</t>
@@ -13,7 +21,12 @@
                      t-on-click="() => this.openLine(line)"
                      t-on-keydown="(ev) => this.onRowKeydown(ev, line)">
                     <span t-if="!this.props.readonly" class="o_fvf_line_handle oi" data-icon="drag_indicator" title="Drag to move" aria-label="Drag to move"/>
+                    <span t-else=""/>
                     <span class="o_fvf_line_label" t-out="line.data.field_label"/>
+                    <span class="o_fvf_line_section">
+                        <t t-if="block.sectionId" t-out="block.title"/>
+                        <t t-else="">Original place</t>
+                    </span>
                     <span class="o_fvf_line_groups">
                         <span t-foreach="this.groupNames(line)" t-as="group" t-key="group_index" class="badge text-bg-secondary" t-out="group"/>
                     </span>

@@ -163,6 +163,37 @@ class TestScreenReview(HttpCase, FvfCommon):
             }
         """)
 
+    def test_bug_b_0191_field_lines_use_the_whole_tab_with_columns(self):
+        """B-0191: the lines widget fills the Fields tab and shows a section column and column titles.
+
+        Cannot reach: the drag of a row (Hoot tests) or a phone width.
+        """
+        layout = self._layout(('vat',))
+        self._editor(layout, """
+            await waitFor(() => document.querySelector(".o_notebook_headers button[name=fields]"), "the Fields tab");
+            document.querySelector(".o_notebook_headers button[name=fields]").click();
+            const widget = await waitFor(() => visible(document.querySelector(".o_fvf_layout_lines")) && document.querySelector(".o_fvf_layout_lines"), "the lines");
+            const tab = widget.closest(".tab-pane").getBoundingClientRect();
+            const share = widget.getBoundingClientRect().width / tab.width;
+            if (share < 0.9) {
+                throw new Error("the lines take only " + Math.round(share * 100) + "% of the tab");
+            }
+            const row = await waitFor(() => [...document.querySelectorAll(".o_fvf_line_row")].find(
+                (r) => textOf(r.querySelector(".o_fvf_line_label")) === "Tax ID"), "the Tax ID line");
+            const label = row.querySelector(".o_fvf_line_label").getBoundingClientRect();
+            if (label.height > 40) {
+                throw new Error("the field name wraps over several lines (" + label.height + " px)");
+            }
+            if (!row.querySelector(".o_fvf_line_section") || textOf(row.querySelector(".o_fvf_line_section")) !== "Accounting") {
+                throw new Error("the line does not show its section");
+            }
+            for (const title of ["Field", "Section", "Hidden from", "Shows when"]) {
+                if (!findByText(".o_fvf_line_header span", title, widget)) {
+                    throw new Error("no column title " + title);
+                }
+            }
+        """)
+
     def test_bug_b_0190_refusal_is_shown_in_the_line_dialog_not_in_another_dialog(self):
         """B-0190: hiding the required Name field shows the refusal inside the line dialog, with no second dialog.
 
