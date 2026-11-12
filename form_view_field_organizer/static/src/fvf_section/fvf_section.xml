@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="form_view_field_organizer.FvfSection">
+        <div class="o_fvf_section_block" t-att-class="{'o_fvf_section_closed': this.state.closed}">
+            <button type="button" class="o_fvf_section_toggle btn btn-link"
+                    t-att-aria-expanded="this.state.closed ? 'false' : 'true'"
+                    t-att-aria-controls="this.bodyId"
+                    t-on-click="this.toggle">
+                <i class="o_fvf_section_chevron fa" t-att-class="this.state.closed ? 'fa-caret-right' : 'fa-caret-down'" aria-hidden="true"/>
+                <span class="o_fvf_section_title" t-out="this.props.title"/>
+            </button>
+            <div class="o_fvf_section_body" t-att-id="this.bodyId" t-att-class="{'d-none': this.state.closed}">
+                <t t-slot="default"/>
+            </div>
+        </div>
+    </t>
+</templates>
