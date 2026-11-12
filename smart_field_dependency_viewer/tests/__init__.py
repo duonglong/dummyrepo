@@ -8,3 +8,4 @@ from . import test_viewer
 from . import test_walk
 from . import test_svg
 from . import test_export_payload_acceptance
+from . import test_export_payload

@@ -4,10 +4,11 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/core/user";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { exportData, exportImage } from "./sfd_export";
 
 /**
  * Shows the dependents table, the "Depends on" list, the chain diagram and the empty message.
- * Requirements: FR-SFD-0004, FR-SFD-0005, FR-SFD-0006, FR-SFD-0007, FR-SFD-0010
+ * Requirements: FR-SFD-0004, FR-SFD-0005, FR-SFD-0006, FR-SFD-0007, FR-SFD-0010, FR-SFD-0011, FR-SFD-0012
  */
 export class SfdDependencyMap extends Component {
     static template = "smart_field_dependency_viewer.SfdDependencyMap";
@@ -36,6 +37,26 @@ export class SfdDependencyMap extends Component {
 
     get emptyMessage() {
         return _t("No computed or related field depends on this field.");
+    }
+
+    /**
+     * Download the shown map as a PNG image.
+     * Requirements: FR-SFD-0011
+     */
+    async onExportImage() {
+        try {
+            await exportImage(this.map);
+        } catch {
+            this.notification.add(_t("The image could not be created in this browser."), { type: "danger" });
+        }
+    }
+
+    /**
+     * Download the shown map as a JSON data file.
+     * Requirements: FR-SFD-0012
+     */
+    onExportData() {
+        exportData(this.map);
     }
 
     /**
