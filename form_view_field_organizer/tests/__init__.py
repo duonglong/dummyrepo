@@ -12,3 +12,4 @@ from . import test_preview
 from . import test_performance_acceptance
 from . import test_uninstall_acceptance
 from . import test_section_widget_support
+from . import test_screen_review

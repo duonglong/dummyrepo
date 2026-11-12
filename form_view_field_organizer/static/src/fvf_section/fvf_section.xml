@@ -6,7 +6,7 @@
                     t-att-aria-expanded="this.state.closed ? 'false' : 'true'"
                     t-att-aria-controls="this.bodyId"
                     t-on-click="() => this.toggle()">
-                <i class="o_fvf_section_chevron fa" t-att-class="this.state.closed ? 'fa-caret-right' : 'fa-caret-down'" aria-hidden="true"/>
+                <i class="oi o_fvf_section_chevron" t-att-data-icon="this.state.closed ? 'chevron_forward' : 'keyboard_arrow_down'" aria-hidden="true"/>
                 <span class="o_fvf_section_title" t-out="this.props.title"/>
             </button>
             <div class="o_fvf_section_body" t-att-id="this.bodyId" t-att-class="{'d-none': this.state.closed}">
