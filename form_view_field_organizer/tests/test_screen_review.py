@@ -143,3 +143,22 @@ class TestScreenReview(HttpCase, FvfCommon):
                 throw new Error("the missing-field mark shows no sign");
             }
         """)
+
+    def test_bug_b_0189_moved_field_keeps_its_label(self):
+        """B-0189: in 'Accounting' the Tax ID value sits right of its own label, as on the original form.
+
+        Cannot reach: the pairing of fields restricted to groups (those are wrapped by the engine).
+        """
+        self._organized_form("""
+            const body = await waitFor(() => document.querySelector(".o_fvf_section_body"), "the section body");
+            const input = await waitFor(() => body.querySelector("[name=vat] input"), "the Tax ID input");
+            const label = body.querySelector("label[for='" + input.id + "']");
+            if (!label) {
+                throw new Error("the Tax ID value has no label in the section");
+            }
+            const labelBox = label.getBoundingClientRect();
+            const inputBox = input.getBoundingClientRect();
+            if (labelBox.right > inputBox.left + 1 || Math.abs(labelBox.top - inputBox.top) > 30) {
+                throw new Error("the Tax ID label is not beside its value");
+            }
+        """)

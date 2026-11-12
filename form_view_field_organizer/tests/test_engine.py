@@ -199,3 +199,20 @@ class TestEngine(TransactionCase):
             '<form><sheet><group groups="x.g1,!x.k"><field name="a"/></group>'
             '<group groups="x.g2"><field name="a"/></group></sheet></form>', [self._line('a')])
         self.assertEqual(self._wrapper_groups(tree), ['x.g1,!x.k,x.g2'])
+
+    def test_bug_b_0189_label_in_another_container_moves_with_its_field(self):
+        """B-0189: a nolabel field whose label sits in an outer cell is moved after that label."""
+        tree = self._run(
+            '<form><sheet><group><div class="o_wrap_label"><label for="a"/>'
+            '<div><field name="a" nolabel="1"/></div></div></group></sheet></form>', [self._line('a')])
+        section = tree.xpath('.//div[contains(@class, "o_fvf_section")]')[0]
+        self.assertEqual([node.tag for node in section.xpath('./group/*')], ['label', 'field'])
+        self.assertEqual(section.xpath('./group/label')[0].get('for'), 'a')
+        self.assertFalse(tree.xpath('.//div[@class="o_wrap_label"]'))
+
+    def test_bug_b_0189_label_moves_with_the_field_when_hidden_by_a_condition(self):
+        """B-0189: the moved label follows the field's show rule, so no label stays without its value."""
+        tree = self._run(
+            '<form><sheet><group><div><label for="a"/><div><field name="a" nolabel="1" invisible="c"/></div></div>'
+            '</group></sheet></form>', [self._line('a')])
+        self.assertEqual(tree.xpath('.//label[@for="a"]')[0].get('invisible'), 'c')

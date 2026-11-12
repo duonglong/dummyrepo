@@ -165,6 +165,18 @@ def _merged_visibility(fields):
     return _join_invisible(rules), _required_groups(chains)
 
 
+def _own_labels(field, labels):
+    """Labels that travel with ``field``: its siblings, or the first label of a nolabel field.
+
+    A nolabel field in a nested cell has its label in an outer cell; left behind, the moved
+    value would show with no label and shift the label of the next field.
+    """
+    siblings = [label for label in labels if label.getparent() is field.getparent()]
+    if siblings or field.get('nolabel') not in ('1', 'true', 'True'):
+        return siblings
+    return labels[:1]
+
+
 def _take_out(fields, labels):
     """Detach the occurrences of a field and its labels, keep one.
 
@@ -175,7 +187,7 @@ def _take_out(fields, labels):
     """
     first = fields[0]
     invisible, groups = _merged_visibility(fields)
-    moved = [label for label in labels if label.getparent() is first.getparent()] + [first]
+    moved = _own_labels(first, labels) + [first]
     for node in fields + labels:
         _drop(node)
     if len(fields) > 1:
