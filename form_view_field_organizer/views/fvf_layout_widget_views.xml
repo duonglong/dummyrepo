@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="fvf_layout_view_form_lines_widget" model="ir.ui.view">
+        <field name="name">fvf.layout.form.lines.widget</field>
+        <field name="model">fvf.layout</field>
+        <field name="inherit_id" ref="fvf_layout_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='line_ids']" position="attributes">
+                <attribute name="widget">fvf_layout_lines</attribute>
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

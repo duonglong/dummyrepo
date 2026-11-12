@@ -10,3 +10,4 @@ from . import test_layout_models
 from . import test_publish
 from . import test_performance_acceptance
 from . import test_uninstall_acceptance
+from . import test_section_widget_support
