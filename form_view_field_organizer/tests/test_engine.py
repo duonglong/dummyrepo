@@ -166,3 +166,36 @@ class TestEngine(TransactionCase):
         with self.assertLogs(apply.__name__, level='DEBUG') as logs:
             self._run('<form><sheet><field name="a"/></sheet></form>', [self._line('zz')])
         self.assertIn('fvf: layout 1 skipped missing field zz', logs.output[0])
+
+    def _wrapper_groups(self, tree):
+        node = tree.xpath('.//field[@name="a"]')[0]
+        return [d.get('groups') for d in reversed(list(node.iterancestors('div'))) if d.get('groups')]
+
+    def test_nested_and_single_group_appearances_stay_alternatives(self):
+        """FR-FVF-0007, BR-FVF-0006: g1-and-g2 users and g3-only users both keep the moved field.
+
+        (g1 and g2) or g3 is written as the nested divs 'g1,g3' > 'g2,g3'.
+        """
+        tree = self._run(
+            '<form><sheet><group groups="x.g1"><group groups="x.g2"><field name="a"/></group></group>'
+            '<group groups="x.g3"><field name="a"/></group></sheet></form>', [self._line('a')])
+        self.assertEqual(self._wrapper_groups(tree), ['x.g1,x.g3', 'x.g2,x.g3'])
+
+    def test_two_nested_appearances_give_every_pick(self):
+        """FR-FVF-0007: (g1 and g2) or (g3 and g4) gives one div per pick across the appearances."""
+        tree = self._run(
+            '<form><sheet><group groups="x.g1"><group groups="x.g2"><field name="a"/></group></group>'
+            '<group groups="x.g3"><group groups="x.g4"><field name="a"/></group></group></sheet></form>',
+            [self._line('a')])
+        self.assertEqual(self._wrapper_groups(tree),
+                         ['x.g1,x.g3', 'x.g1,x.g4', 'x.g2,x.g3', 'x.g2,x.g4'])
+
+    def test_negative_group_mark_narrows_the_alternatives(self):
+        """BR-FVF-0001: a value holding a '!' mark is joined as is, which only narrows.
+
+        A g2 user who is also in k loses the field; nobody gains it.
+        """
+        tree = self._run(
+            '<form><sheet><group groups="x.g1,!x.k"><field name="a"/></group>'
+            '<group groups="x.g2"><field name="a"/></group></sheet></form>', [self._line('a')])
+        self.assertEqual(self._wrapper_groups(tree), ['x.g1,!x.k,x.g2'])

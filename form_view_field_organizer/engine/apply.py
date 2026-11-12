@@ -2,6 +2,7 @@
 
 Pure functions on lxml trees, no ORM access.
 """
+import itertools
 import logging
 
 from lxml import etree
@@ -108,9 +109,13 @@ def _group_chain(field, keep_own_groups):
 def _shared_groups(chains):
     """Wrapper groups showing the field to every group that saw at least one occurrence.
 
-    The common leading groups stay nested; below them the groups of the
-    occurrences are joined as alternatives. When occurrences differ by more
-    than one group each, every distinct group is required, which only narrows.
+    The common leading groups stay nested. Below them, an occurrence is seen
+    by users holding every value of its rest, and the field must show when
+    any occurrence did: (a1 and a2) or (b1) becomes the nested values
+    'a1,b1' > 'a2,b1', one per pick of a value from each rest (Odoo ORs the
+    refs of one value). This is exact for positive refs; a value holding a
+    '!' ref is joined as is, which only narrows (BR-FVF-0001), since Odoo
+    excludes a user matching any '!' ref of a value.
     """
     shared = []
     for step in zip(*chains):
@@ -118,11 +123,10 @@ def _shared_groups(chains):
             break
         shared.append(step[0])
     rests = [chain[len(shared):] for chain in chains]
-    if all(rests) and all(len(rest) == 1 for rest in rests):
-        return shared + [','.join(dict.fromkeys(rest[0] for rest in rests))]
-    if all(rests):
-        return shared + list(dict.fromkeys(group for rest in rests for group in rest))
-    return shared
+    if not all(rests):
+        return shared
+    picks = (','.join(dict.fromkeys(pick)) for pick in itertools.product(*rests))
+    return shared + list(dict.fromkeys(picks))
 
 
 def _visibility_rule(field):
