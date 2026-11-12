@@ -1,6 +1,9 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryOne } from "@odoo/hoot-dom";
 import { defineModels, fields, getService, mountWithCleanup, models, onRpc } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { FormController } from "@web/views/form/form_controller";
+import { formView } from "@web/views/form/form_view";
 import { WebClient } from "@web/webclient/webclient";
 
 import "@form_view_field_organizer/fvf_layout_preview/fvf_layout_preview";
@@ -74,6 +77,37 @@ test("the form is read in the chosen company", async () => {
         params: { preview_id: 1 },
     });
     expect.verifySteps(["[3]"]);
+});
+
+/** Requirements: FR-FVF-0010 */
+test("a form with its own view class keeps it and is read in the chosen company", async () => {
+    class MarkedFormController extends FormController {
+        setup() {
+            super.setup();
+            expect.step("own controller");
+        }
+    }
+    registry.category("views").add("fvf_test_marked_form", { ...formView, Controller: MarkedFormController });
+    onRpc("fvf.layout.preview", "get_preview_view", () => ({
+        arch: `<form edit="0" js_class="fvf_test_marked_form"><field name="name"/></form>`,
+        fields: { name: { name: "name", type: "char", string: "Name" } },
+        relatedModels: { "res.partner": { fields: { name: { name: "name", type: "char", string: "Name" } } } },
+        res_model: "res.partner",
+        res_id: 1,
+        layout_id: 7,
+        company_id: 3,
+        banner: "Preview",
+    }));
+    onRpc("res.partner", "web_read", ({ kwargs }) => {
+        expect.step(JSON.stringify(kwargs.context.allowed_company_ids));
+    });
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        type: "ir.actions.client",
+        tag: "fvf_layout_preview",
+        params: { preview_id: 1 },
+    });
+    expect.verifySteps(["own controller", "[3]"]);
 });
 
 /** Requirements: FR-FVF-0010 */

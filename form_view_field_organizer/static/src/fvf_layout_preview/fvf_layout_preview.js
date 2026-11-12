@@ -1,8 +1,51 @@
 import { Component, onWillStart, proxy, useProps } from "@odoo/owl";
+import { loadBundle } from "@web/core/assets";
+import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { parseXML, serializeXML } from "@web/core/utils/xml";
+import { SearchModel } from "@web/search/search_model";
 import { View } from "@web/views/view";
 import { standardActionServiceProps } from "@web/webclient/actions/action_plugin";
+
+const viewRegistry = registry.category("views");
+
+/**
+ * The search model of a preview: the companies given in the view's context win over the
+ * administrator's active companies, which the native search model puts last.
+ */
+function chosenCompanySearchModel(BaseSearchModel) {
+    return class extends BaseSearchModel {
+        _getContext() {
+            return { ...super._getContext(), allowed_company_ids: this.globalContext.allowed_company_ids };
+        }
+    };
+}
+
+/**
+ * Point the arch at a copy of its own view class that reads in the chosen company,
+ * so the form keeps its controller and renderer.
+ */
+async function inChosenCompany(arch) {
+    const form = parseXML(arch);
+    const viewClass = form.getAttribute("js_class") || "form";
+    const previewClass = `fvf_preview_${viewClass}`;
+    if (!viewRegistry.contains(viewClass)) {
+        // Same lazy load as the native View for a view class not loaded yet.
+        await loadBundle(
+            cookie.get("color_scheme") === "dark" ? "web.assets_backend_lazy_dark" : "web.assets_backend_lazy"
+        );
+    }
+    if (!viewRegistry.contains(previewClass)) {
+        const descr = viewRegistry.get(viewClass);
+        viewRegistry.add(previewClass, {
+            ...descr,
+            SearchModel: chosenCompanySearchModel(descr.SearchModel || SearchModel),
+        });
+    }
+    form.setAttribute("js_class", previewClass);
+    return serializeXML(form);
+}
 
 /**
  * Client action: the draft layout's form for a chosen group, company and record, read-only.
@@ -19,7 +62,8 @@ export class FvfLayoutPreview extends Component {
         this.state = proxy({ preview: null });
         onWillStart(async () => {
             const previewId = this.props.action.params.preview_id;
-            this.state.preview = await this.orm.call("fvf.layout.preview", "get_preview_view", [[previewId]]);
+            const preview = await this.orm.call("fvf.layout.preview", "get_preview_view", [[previewId]]);
+            this.state.preview = { ...preview, arch: await inChosenCompany(preview.arch) };
         });
     }
 
