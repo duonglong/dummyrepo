@@ -81,7 +81,7 @@ class SfdDependencyViewer(models.TransientModel):
             "own_dependencies": graph.own_dependencies(registry, model_name, field_name),
             "empty": not dependents,
             "truncated": False,
-            "dependents": dependents,
+            "dependents": [dict(row) for row in dependents],
             "nodes": chain["nodes"],
             "links": chain["links"],
             "marks": [],

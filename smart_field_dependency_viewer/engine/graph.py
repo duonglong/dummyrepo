@@ -2,8 +2,11 @@
 
 The engine only reads field definitions; it has no write path.
 """
+import logging
 from collections import defaultdict
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 FieldKey = tuple[str, str]
 
@@ -15,12 +18,24 @@ def _method_name(field) -> str | None:
     return field.compute if isinstance(field.compute, str) else getattr(field.compute, "__name__", None)
 
 
-def _declared_path(paths: list[str], names: list[str]) -> str | None:
-    """Return the declared dotted path that the resolved field names start."""
-    for path in paths:
-        if path.split(".")[: len(names)] == names:
-            return path
-    return None
+def _declared_paths(paths: list[str], names: list[str]) -> list[str]:
+    """Return every declared dotted path that the resolved field names start."""
+    return [path for path in paths if path.split(".")[: len(names)] == names]
+
+
+def _resolved_dependencies(field, registry) -> list[tuple]:
+    """Return the resolved dependency tuples of a field, as Odoo's own triggers do.
+
+    A custom (manual) field whose dependency no longer exists is skipped and
+    logged; any other field re-raises, exactly as the registry does.
+    """
+    try:
+        return list(field.resolve_depends(registry))
+    except (ValueError, KeyError) as exc:
+        if not field.base_field.manual:
+            raise
+        _logger.warning("sfd: skipped dependencies of %s: %s", field, exc)
+        return []
 
 
 def _dependent_row(field, path: str) -> dict[str, Any]:
@@ -53,16 +68,16 @@ def build_reverse_index(registry) -> dict[FieldKey, list[dict[str, Any]]]:
             paths = list(registry.field_depends.get(field, ()))
             if not (field.compute or field.related) or not paths:
                 continue
-            for resolved in field.resolve_depends(registry):
+            for resolved in _resolved_dependencies(field, registry):
                 names = [step.name for step in resolved]
-                path = _declared_path(paths, names) or _declared_path(paths, names[:-1])
-                if path is None:
+                declared = _declared_paths(paths, names) or _declared_paths(paths, names[:-1])
+                if not declared:
                     continue
                 target = resolved[-1]
                 row = index[(target.model_name, target.name)].setdefault(
-                    (field.model_name, field.name), _dependent_row(field, path))
-                if path not in row["path"].split(", "):
-                    row["path"] = f"{row['path']}, {path}"
+                    (field.model_name, field.name), _dependent_row(field, declared[0]))
+                shown = row["path"].split(", ")
+                row["path"] = ", ".join(shown + [path for path in declared if path not in shown])
     return {
         key: sorted(rows.values(), key=lambda row: (row["model"], row["field"]))
         for key, rows in index.items()
@@ -85,7 +100,7 @@ def walk(index: dict[FieldKey, list[dict[str, Any]]], start: FieldKey, limit: in
 
     A dependent already on the current path is linked but not expanded.
 
-    Requirements: FR-SFD-0002
+    Requirements: FR-SFD-0006, FR-SFD-0010
     """
     nodes: list[dict[str, Any]] = []
     links: list[dict[str, Any]] = []

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.tests.common import TransactionCase
 
 from ..engine import graph
@@ -15,7 +17,7 @@ class TestReverseIndex(TransactionCase):
     """
 
     def test_native_related_and_computed_dependents(self):
-        """res.partner.country_id feeds related and computed fields, with their declared path."""
+        """A native computed dependent of res.partner.parent_id is listed with its declared path and method."""
         index = graph.build_reverse_index(self.env.registry)
         rows = {(r['model'], r['field']): r for r in index[('res.partner', 'parent_id')]}
         row = rows[('res.partner', 'commercial_partner_id')]
@@ -48,3 +50,37 @@ class TestReverseIndex(TransactionCase):
         index = {('m', 'a'): [_row('m', 'b')], ('m', 'b'): [_row('m', 'a')]}
         result = graph.walk(index, ('m', 'a'), 10)
         self.assertEqual([n['field'] for n in result['nodes']], ['a', 'b', 'a'])
+
+    def test_shared_prefix_joins_every_declared_path(self):
+        """Two declared paths through one relation are both shown on its row."""
+        paths = ['line_ids.price', 'line_ids.quantity', 'other']
+        self.assertEqual(graph._declared_paths(paths, ['line_ids']), ['line_ids.price', 'line_ids.quantity'])
+
+    def test_broken_manual_field_is_skipped(self):
+        """A manual field whose dependency is missing is skipped; the other dependents are kept."""
+        registry = self.env.registry
+        broken = registry['res.partner']._fields['commercial_partner_id']
+        original = type(broken).resolve_depends
+
+        def resolve(field, reg):
+            if field is broken:
+                raise ValueError('missing dependency')
+            return original(field, reg)
+
+        with patch.object(type(broken), 'resolve_depends', resolve), \
+                patch.object(type(broken.base_field), 'manual', True, create=True):
+            with self.assertLogs('odoo.addons.smart_field_dependency_viewer.engine.graph', 'WARNING'):
+                index = graph.build_reverse_index(registry)
+        self.assertTrue(index)
+
+    def test_broken_standard_field_re_raises(self):
+        """A non-manual field with a missing dependency is not hidden."""
+        registry = self.env.registry
+        broken = registry['res.partner']._fields['commercial_partner_id']
+
+        def resolve(field, reg):
+            raise ValueError('missing dependency')
+
+        with patch.object(type(broken), 'resolve_depends', resolve), \
+                self.assertRaises(ValueError):
+            graph.build_reverse_index(registry)

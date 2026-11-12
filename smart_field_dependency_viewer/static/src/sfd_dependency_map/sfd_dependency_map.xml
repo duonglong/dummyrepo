@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="smart_field_dependency_viewer.SfdDependencyMap">
-        <div class="o_sfd_dependency_map" t-if="map">
+        <div class="o_sfd_dependency_map" t-if="this.map">
             <div class="o_sfd_limit d-flex align-items-center gap-2 mb-3">
                 <label for="sfd_depth_limit">Depth limit</label>
                 <input id="sfd_depth_limit" type="number" min="1" step="1"
                        class="o_sfd_depth_limit form-control w-auto"
-                       t-att-value="map.depth_limit"
-                       t-on-change="onLimitChange"/>
+                       t-att-value="this.map.depth_limit"
+                       t-on-change="this.onLimitChange"/>
             </div>
-            <div class="o_sfd_own mb-3" t-if="map.own_dependencies">
+            <div class="o_sfd_own mb-3" t-if="this.map.own_dependencies">
                 <h5>Depends on</h5>
                 <ul>
-                    <li t-foreach="map.own_dependencies" t-as="path" t-key="path" t-out="path"/>
+                    <li t-foreach="this.map.own_dependencies" t-as="path" t-key="path" t-out="path"/>
                 </ul>
             </div>
-            <div class="o_sfd_empty alert alert-info" t-if="!hasDependents" t-out="emptyMessage"/>
+            <div class="o_sfd_empty alert alert-info" t-if="!this.hasDependents" t-out="this.emptyMessage"/>
             <div class="o_sfd_dependents table-responsive" t-else="">
                 <h5>Dependents</h5>
                 <table class="table table-sm">
@@ -31,7 +31,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr t-foreach="map.dependents" t-as="row" t-key="row.model + '.' + row.field">
+                        <tr t-foreach="this.map.dependents" t-as="row" t-key="row.model + '.' + row.field">
                             <td t-out="row.model"/>
                             <td t-out="row.field"/>
                             <td t-out="row.label"/>

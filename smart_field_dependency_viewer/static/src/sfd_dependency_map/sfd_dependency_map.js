@@ -1,19 +1,23 @@
-import { Component, useState } from "@odoo/owl";
+import { Component, proxy, useProps } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/core/user";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
+/**
+ * Shows the dependents table, the "Depends on" list and the empty message.
+ * Requirements: FR-SFD-0004, FR-SFD-0005, FR-SFD-0007, FR-SFD-0010
+ */
 export class SfdDependencyMap extends Component {
     static template = "smart_field_dependency_viewer.SfdDependencyMap";
-    static props = { ...standardFieldProps };
+    props = useProps({ ...standardFieldProps });
 
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
         // the map redrawn after a limit change, for the field value it was drawn from
-        this.state = useState({ redrawn: null, drawnFrom: null });
+        this.state = proxy({ redrawn: null, drawnFrom: null });
     }
 
     get map() {
