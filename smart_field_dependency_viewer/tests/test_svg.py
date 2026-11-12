@@ -43,3 +43,43 @@ class TestSvg(TransactionCase):
         drawing = svg.render_svg(payload, self.env._)
         ET.fromstring(drawing)
         self.assertIn('&lt;b&gt;&amp;x', drawing)
+
+    def test_box_with_two_marks_shows_both_labels(self):
+        """An accidental loop beside a recursive one, and a cut map on a looping box, keep every label."""
+        payload = {
+            'nodes': [_node(0, 0, 'a'), _node(1, 1, 'b')],
+            'links': [{'from': 0, 'to': 1}, {'from': 1, 'to': 0}, {'from': 1, 'to': 1}],
+            'marks': [
+                {'node': 1, 'type': 'recursive', 'to': 1},
+                {'node': 1, 'type': 'circular', 'to': 0},
+                {'node': 1, 'type': 'too_large', 'not_shown': 3},
+            ],
+        }
+        drawing = svg.render_svg(payload, self.env._)
+        ET.fromstring(drawing)
+        self.assertIn('recursive by design', drawing)
+        self.assertEqual(drawing.count('>circular<'), 1)
+        self.assertIn('map too large: 3 dependents not shown', drawing)
+
+    def test_box_border_takes_the_most_important_mark(self):
+        """An accidental loop wins over a recursive mark on the same box border."""
+        payload = {
+            'nodes': [_node(0, 0, 'a'), _node(1, 1, 'b')],
+            'links': [{'from': 0, 'to': 1}],
+            'marks': [{'node': 1, 'type': 'recursive', 'to': 1}, {'node': 1, 'type': 'circular', 'to': 0}],
+        }
+        drawing = svg.render_svg(payload, self.env._)
+        self.assertIn(f'stroke="{svg.MARK_COLOURS["circular"]}" stroke-width="2"', drawing)
+
+    def test_self_loop_arrow_has_width(self):
+        """A link from a box to itself curves out to the side instead of a flat line."""
+        payload = {
+            'nodes': [_node(0, 0, 'a')],
+            'links': [{'from': 0, 'to': 0}],
+            'marks': [{'node': 0, 'type': 'recursive', 'to': 0}],
+        }
+        drawing = svg.render_svg(payload, self.env._)
+        path = ET.fromstring(drawing).find('.//{http://www.w3.org/2000/svg}path[@fill="none"]').get('d')
+        start_x = path.split(' ')[0][1:].split(',')[0]
+        end_x = path.split(' ')[-1].split(',')[0]
+        self.assertNotEqual(start_x, end_x)

@@ -3,11 +3,13 @@
 Every text is XML-escaped; colours and sizes are fixed here, so nothing from
 a field label can reach an attribute.
 """
+from collections import defaultdict
 from collections.abc import Callable
 from xml.sax.saxutils import escape
 
 BOX_WIDTH = 230
 BOX_HEIGHT = 62
+MARK_LINE_HEIGHT = 16
 COLUMN_GAP = 90
 ROW_GAP = 24
 MARGIN = 20
@@ -18,6 +20,8 @@ MARK_COLOURS = {
     "too_deep": "#e67e22",
     "too_large": "#7f8c8d",
 }
+# keep the legend colours of sfd_dependency_map.scss equal to these
+MARK_PRIORITY = ("circular", "too_large", "too_deep", "recursive")
 DEFAULT_COLOUR = "#444444"
 
 
@@ -33,7 +37,7 @@ def _mark_label(mark: dict, _: Callable[..., str]) -> str:
     }[mark["type"]]()
 
 
-def _positions(nodes: list[dict]) -> dict[int, tuple[int, int]]:
+def _positions(nodes: list[dict], box_height: int) -> dict[int, tuple[int, int]]:
     """Place each node in the column of its level, one row after the other."""
     rows_used: dict[int, int] = {}
     positions = {}
@@ -42,14 +46,17 @@ def _positions(nodes: list[dict]) -> dict[int, tuple[int, int]]:
         rows_used[node["level"]] = row + 1
         positions[node["id"]] = (
             MARGIN + node["level"] * (BOX_WIDTH + COLUMN_GAP),
-            MARGIN + row * (BOX_HEIGHT + ROW_GAP),
+            MARGIN + row * (box_height + ROW_GAP),
         )
     return positions
 
 
-def _box(node: dict, position: tuple[int, int], mark: dict | None, _: Callable[..., str]) -> str:
+def _box(node: dict, position: tuple[int, int], marks: list[dict], box_height: int,
+         _: Callable[..., str]) -> str:
+    """Draw one box; the border takes the most important mark, every mark has its own text line."""
     x, y = position
-    colour = MARK_COLOURS[mark["type"]] if mark else DEFAULT_COLOUR
+    main = min(marks, key=lambda mark: MARK_PRIORITY.index(mark["type"]), default=None)
+    colour = MARK_COLOURS[main["type"]] if main else DEFAULT_COLOUR
     width = 3 if node["level"] == 0 else 2
     dash = ' stroke-dasharray="6 3"' if node.get("kind") == "related" else ""
     lines = [
@@ -58,23 +65,25 @@ def _box(node: dict, position: tuple[int, int], mark: dict | None, _: Callable[.
         f'<text x="{x + 8}" y="{y + 34}" font-size="11" fill="#555">'
         f'{escape(node["model"])}.{escape(node["field"])}</text>',
     ]
-    if mark:
+    for index, label in enumerate(dict.fromkeys((mark["type"], _mark_label(mark, _)) for mark in marks)):
         lines.append(
-            f'<text x="{x + 8}" y="{y + 52}" font-size="11" font-weight="bold" fill="{colour}">'
-            f'{escape(_mark_label(mark, _))}</text>')
+            f'<text x="{x + 8}" y="{y + 52 + index * MARK_LINE_HEIGHT}" font-size="11" '
+            f'font-weight="bold" fill="{MARK_COLOURS[label[0]]}">{escape(label[1])}</text>')
     return (
-        f'<g><rect x="{x}" y="{y}" width="{BOX_WIDTH}" height="{BOX_HEIGHT}" rx="4" fill="#fff" '
+        f'<g><rect x="{x}" y="{y}" width="{BOX_WIDTH}" height="{box_height}" rx="4" fill="#fff" '
         f'stroke="{colour}" stroke-width="{width}"{dash}/>{"".join(lines)}</g>')
 
 
-def _arrow(source: tuple[int, int], target: tuple[int, int], colour: str) -> str:
+def _arrow(source: tuple[int, int], target: tuple[int, int], colour: str, box_height: int) -> str:
     """Draw a link from the right side of a box to the left side of the next one."""
-    x1, y1 = source[0] + BOX_WIDTH, source[1] + BOX_HEIGHT // 2
-    x2, y2 = target[0], target[1] + BOX_HEIGHT // 2
+    x1, y1 = source[0] + BOX_WIDTH, source[1] + box_height // 2
+    x2, y2 = target[0], target[1] + box_height // 2
     if x2 <= x1:
         # a link back to an earlier box: leave from the top of the source, enter the top of the target
         x1, y1 = source[0] + BOX_WIDTH // 2, source[1]
         x2, y2 = target[0] + BOX_WIDTH // 2, target[1]
+        if source == target:
+            x1, x2 = x1 - BOX_WIDTH // 4, x2 + BOX_WIDTH // 4
         lift = min(y1, y2) - ROW_GAP
         path = f"M{x1},{y1} C{x1},{lift} {x2},{lift} {x2},{y2}"
     else:
@@ -98,19 +107,25 @@ def render_svg(payload: dict, _: Callable[..., str]) -> str:
     nodes = payload["nodes"]
     if not nodes:
         return ""
-    positions = _positions(nodes)
-    mark_of_node = {}
+    marks_of_node: dict[int, list[dict]] = defaultdict(list)
+    mark_of_link = {}
     for mark in payload["marks"]:
-        mark_of_node.setdefault(mark["node"], mark)
+        marks_of_node[mark["node"]].append(mark)
+        if "to" in mark:
+            mark_of_link.setdefault((mark["node"], mark["to"]), mark)
+    box_height = BOX_HEIGHT + MARK_LINE_HEIGHT * max(
+        (len({_mark_label(mark, _) for mark in marks}) - 1 for marks in marks_of_node.values()),
+        default=0)
+    positions = _positions(nodes, box_height)
     arrows = []
     for link in payload["links"]:
-        mark = next((m for m in payload["marks"]
-                     if m["node"] == link["from"] and m.get("to") == link["to"]), None)
+        mark = mark_of_link.get((link["from"], link["to"]))
         arrows.append(_arrow(positions[link["from"]], positions[link["to"]],
-                             MARK_COLOURS[mark["type"]] if mark else DEFAULT_COLOUR))
-    boxes = [_box(node, positions[node["id"]], mark_of_node.get(node["id"]), _) for node in nodes]
+                             MARK_COLOURS[mark["type"]] if mark else DEFAULT_COLOUR, box_height))
+    boxes = [_box(node, positions[node["id"]], marks_of_node[node["id"]], box_height, _)
+             for node in nodes]
     width = max(x for x, _row in positions.values()) + BOX_WIDTH + MARGIN
-    height = max(y for _col, y in positions.values()) + BOX_HEIGHT + MARGIN
+    height = max(y for _col, y in positions.values()) + box_height + MARGIN
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" font-family="sans-serif">'
