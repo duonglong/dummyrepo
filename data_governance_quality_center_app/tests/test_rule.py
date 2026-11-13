@@ -1,4 +1,4 @@
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 from .acceptance_helpers import AcceptanceCase
 
@@ -75,6 +75,86 @@ class TestRule(AcceptanceCase):
             rule.write({'version': 5})
 
     def test_domain_code_is_refused_not_run(self):
-        """BR-DGQ-0009: an expression in a filter is refused without being evaluated."""
+        """BR-DGQ-0009: an expression in a filter is refused without being evaluated.
+
+        Run as code, this text would give a valid domain and the rule would be saved; read as plain
+        data, it holds a call and is refused.
+        """
         with self.assertRaises(ValidationError):
-            self.make_rule('res.partner', 'condition', condition_domain="__import__('os').getcwd()")
+            self.make_rule('res.partner', 'condition', condition_domain="[('name', '=', str(1))]")
+
+    def test_version_cannot_be_set_on_create(self):
+        """FR-DGQ-0011: a new rule starts at version 1; the number cannot be given by hand."""
+        with self.assertRaises(UserError):
+            self.make_rule('res.partner', 'required', ['vat'], version=5)
+
+
+class TestRuleFilterFields(AcceptanceCase):
+    """Every field a rule filter reads, also through links, is held to the field marks.
+
+    Requirements: FR-DGQ-0001, BR-DGQ-0010
+    """
+
+    def _mark_comment_sensitive(self):
+        self.env['data.quality.field.config'].create({
+            'field_id': self.fld('res.partner', 'comment').id,
+            'status': 'sensitive',
+        })
+
+    def test_filter_path_to_a_sensitive_field_is_refused(self):
+        """BR-DGQ-0010: a filter cannot reach a sensitive field through a link."""
+        self._mark_comment_sensitive()
+        with self.assertRaises(ValidationError):
+            self.make_rule(
+                'res.partner', 'condition', condition_domain="[('parent_id.comment', 'ilike', 'x')]")
+
+    def test_filter_sub_domain_on_a_sensitive_field_is_refused(self):
+        """BR-DGQ-0010: the inner filter of 'any' is held to the marks of the linked model."""
+        self._mark_comment_sensitive()
+        with self.assertRaises(ValidationError):
+            self.make_rule(
+                'res.partner', 'condition',
+                condition_domain="[('child_ids', 'any', [('comment', 'ilike', 'x')])]")
+
+    def test_filter_path_to_a_bank_account_number_is_refused(self):
+        """BR-DGQ-0010: bank account numbers are sensitive by default, also through links."""
+        with self.assertRaisesRegex(ValidationError, 'bank_ids'):
+            self.make_rule(
+                'res.partner', 'condition', applies_domain="[('is_company', '=', True)]",
+                condition_domain="[('commercial_partner_id.bank_ids.account_number', '=like', 'FR76%')]")
+
+    def test_filter_on_a_field_that_is_not_stored_is_refused(self):
+        """BR-DGQ-0010: a computed field may read a sensitive one, so only stored fields are used."""
+        with self.assertRaises(ValidationError):
+            self.make_rule(
+                'res.partner', 'condition', condition_domain="[('display_name', 'ilike', 'x')]")
+
+    def test_filter_path_to_a_usable_field_is_saved(self):
+        """FR-DGQ-0001: a filter following a link to usable fields is accepted."""
+        rule = self.make_rule(
+            'res.partner', 'condition',
+            condition_domain="[('parent_id.is_company', '=', True), "
+                             "('child_ids', 'any', [('vat', '!=', False)])]")
+        self.assertTrue(rule.exists())
+
+
+class TestRuleFieldListAccess(AcceptanceCase):
+    """A viewer reads the field list of marked models only.
+
+    Requirements: FR-DGQ-0001
+    """
+
+    def test_viewer_reads_fields_of_a_marked_model(self):
+        """FR-DGQ-0001: the rule form shows the fields of the models a rule can check."""
+        viewer = self.user('viewer')
+        field = self.fld('res.partner', 'vat').with_user(viewer)
+        self.assertEqual(field.name, 'vat')
+
+    def test_viewer_cannot_read_fields_of_an_unmarked_model(self):
+        """FR-DGQ-0001: fields of models not marked supported or restricted stay hidden."""
+        viewer = self.user('viewer')
+        self.assertFalse(self.env['data.quality.model.config'].search(
+            [('model_id', '=', self.model('res.currency').id)]))
+        field = self.fld('res.currency', 'name').with_user(viewer)
+        with self.assertRaises(AccessError):
+            field.read(['name'])

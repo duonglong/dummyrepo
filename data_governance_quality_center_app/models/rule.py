@@ -15,6 +15,7 @@ DEFINITION_FIELDS = (
     'validator_key',
 )
 RULE_TYPES_WITHOUT_FIELD = ('condition', 'custom')
+SUB_DOMAIN_OPERATORS = ('any', 'not any', 'any!', 'not any!')
 FIELD_TYPES_OF_RULE_TYPE = {
     'pattern': ('char', 'text'),
     'range': ('integer', 'float', 'monetary'),
@@ -261,27 +262,65 @@ class DataQualityRule(models.Model):
                     "The condition rule %s needs a 'Must Match' filter.", rule.name))
 
     def _dgq_validate_domain(self, label, text):
-        """Raise a ValidationError when ``text`` is not a domain that resolves on the model."""
+        """Raise a ValidationError when ``text`` is not a domain that resolves on the model, or
+        when it reads a field that scans may not read."""
         self.ensure_one()
         try:
             domain = Domain(ast.literal_eval(text))
             domain.validate(self.env[self.model_name])
-            used = {condition.field_expr.split('.')[0] for condition in domain.iter_conditions()}
         except (ValueError, SyntaxError, TypeError, KeyError, AttributeError, UserError) as error:
             raise ValidationError(self.env._(
                 "The filter %(label)s of the rule %(rule)s is not a valid domain on %(model)s: %(error)s",
                 label=label, rule=self.name, model=self.model_id.name, error=error)) from error
-        usable = self.env['data.quality.field.config']._get_usable_field_names(self.model_name)
-        model_fields = self.env[self.model_name]._fields
-        # a non-stored field reads no stored secret of its own, so only stored fields are held to the marks
-        blocked = sorted(
-            name for name in used if model_fields[name].store and name not in usable)
+        blocked = sorted(self._dgq_blocked_fields(self.env[self.model_name], domain, {}))
         if blocked:
             raise ValidationError(self.env._(
-                "The filter %(label)s of the rule %(rule)s uses fields that are excluded or "
-                "sensitive: %(fields)s. A data quality administrator can mark a field as allowed in "
-                "Data Quality > Configuration > Fields.",
+                "The filter %(label)s of the rule %(rule)s uses fields that are not stored, or are "
+                "excluded or sensitive: %(fields)s. A data quality administrator can mark a stored "
+                "field as allowed in Data Quality > Configuration > Fields.",
                 label=label, rule=self.name, fields=', '.join(blocked)))
+
+    @api.model
+    def _dgq_blocked_fields(
+            self, model: models.BaseModel, domain: Domain, usable_cache: dict[str, set[str]],
+    ) -> set[str]:
+        """Return the fields a domain reads that scans may not read, as 'model.field' names.
+
+        Every segment of a field path is checked on its own model, and the inner domain of
+        'any' / 'not any' on the linked model: scans run filters in sudo, so a filter reaching a
+        sensitive field, even through a link, would turn pass/fail into an oracle on its value.
+        A field that is not stored is refused, since it may compute from a sensitive one.
+
+        Requirements: BR-DGQ-0010
+        """
+        blocked = set()
+        for condition in domain.iter_conditions():
+            refused, end_model = self._dgq_walk_path(model, condition.field_expr, usable_cache)
+            if refused:
+                blocked.add(refused)
+            elif condition.operator in SUB_DOMAIN_OPERATORS and isinstance(
+                    condition.value, (Domain, list, tuple)):
+                blocked |= self._dgq_blocked_fields(
+                    end_model, Domain(condition.value), usable_cache)
+        return blocked
+
+    @api.model
+    def _dgq_walk_path(
+            self, model: models.BaseModel, path: str, usable_cache: dict[str, set[str]],
+    ) -> tuple[str | None, models.BaseModel]:
+        """Follow a dotted field path; return the first field scans may not read, if any, and
+        the model the path ends on."""
+        for name in path.split('.'):
+            if model._name not in usable_cache:
+                usable_cache[model._name] = self.env[
+                    'data.quality.field.config']._get_usable_field_names(model._name)
+            field = model._fields[name]
+            if not field.store or name not in usable_cache[model._name]:
+                return f"{model._name}.{name}", model
+            if not field.relational:
+                break
+            model = self.env[field.comodel_name]
+        return None, model
 
     @api.constrains('rule_type', 'field_ids', 'compare_field_id', 'compare_operator')
     def _check_cross_field(self):
@@ -314,6 +353,17 @@ class DataQualityRule(models.Model):
                     "The custom rule %s needs a validator provided by an installed module.", rule.name))
 
     # ---- versions --------------------------------------------------------
+
+    @api.model_create_multi
+    def create(self, vals_list: list[dict]):
+        """A new rule starts at version 1; the number is never given by hand.
+
+        Requirements: FR-DGQ-0011
+        """
+        if any('version' in vals for vals in vals_list):
+            raise UserError(self.env._(
+                "A new rule starts at version 1; its version cannot be set by hand."))
+        return super().create(vals_list)
 
     def write(self, vals):
         """Keep the previous definition as a version when the definition changes.
@@ -358,3 +408,11 @@ class DataQualityRule(models.Model):
         return [
             dict(vals, name=self.env._("%s (copy)", rule.name))
             for rule, vals in zip(self, vals_list)]
+
+
+class IrModel(models.Model):
+    """Link from a model to its data quality mark, so access rows can filter on it."""
+    _inherit = 'ir.model'
+
+    dgq_config_ids = fields.One2many(
+        'data.quality.model.config', 'model_id', string='Data Quality Marks')
