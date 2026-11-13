@@ -7,3 +7,4 @@ from . import audit
 from . import audit_export
 from . import rule
 from . import rule_version
+from . import scan

@@ -11,3 +11,7 @@ access_dgq_rule_viewer,data.quality.rule viewer,data.quality.rule,group_dgq_view
 access_dgq_rule_manager,data.quality.rule manager,data.quality.rule,group_dgq_manager,crud,
 access_dgq_rule_version_viewer,data.quality.rule.version viewer,data.quality.rule.version,group_dgq_viewer,r,
 access_dgq_ir_model_fields_viewer,ir.model.fields viewer,ir.model.fields,group_dgq_viewer,r,"[('model_id.dgq_config_ids.status','in',('supported','restricted'))]"
+access_dgq_scan_viewer,data.quality.scan viewer,data.quality.scan,group_dgq_viewer,r,
+access_dgq_scan_operator,data.quality.scan operator,data.quality.scan,group_dgq_operator,cru,
+access_dgq_scan_line_viewer,data.quality.scan.line viewer,data.quality.scan.line,group_dgq_viewer,r,
+access_dgq_scan_checkpoint_viewer,data.quality.scan.checkpoint viewer,data.quality.scan.checkpoint,group_dgq_viewer,r,
