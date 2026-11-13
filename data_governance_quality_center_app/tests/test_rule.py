@@ -40,3 +40,41 @@ class TestRule(AcceptanceCase):
         rule.severity = 'info'
         with self.assertRaises(UserError):
             rule.version_ids.unlink()
+
+    def test_copy_of_several_rules(self):
+        """FR-DGQ-0011: duplicating several rules at once names each copy after its own rule."""
+        first = self.make_rule('res.partner', 'required', ['vat'], name='First')
+        second = self.make_rule('res.partner', 'required', ['vat'], name='Second')
+        copies = (first | second).copy()
+        self.assertEqual(copies.mapped('name'), ['First (copy)', 'Second (copy)'])
+
+    def _mark_comment_sensitive(self):
+        self.env['data.quality.field.config'].create({
+            'field_id': self.fld('res.partner', 'comment').id,
+            'status': 'sensitive',
+        })
+
+    def test_condition_filter_cannot_read_a_sensitive_field(self):
+        """BR-DGQ-0010: a filter on a sensitive field would make pass/fail an oracle on its value."""
+        self._mark_comment_sensitive()
+        with self.assertRaises(ValidationError):
+            self.make_rule('res.partner', 'condition', condition_domain="[('comment', 'ilike', 'x')]")
+
+    def test_compare_field_cannot_be_a_sensitive_field(self):
+        """BR-DGQ-0010: the field compared with is held to the same marks as the checked fields."""
+        self._mark_comment_sensitive()
+        with self.assertRaises(ValidationError):
+            self.make_rule(
+                'res.partner', 'cross_field', ['name'],
+                compare_field_id=self.fld('res.partner', 'comment').id, compare_operator='=')
+
+    def test_version_cannot_be_set_by_hand(self):
+        """FR-DGQ-0011: the version number only moves with a change of the definition."""
+        rule = self.make_rule('res.partner', 'required', ['vat'])
+        with self.assertRaises(UserError):
+            rule.write({'version': 5})
+
+    def test_domain_code_is_refused_not_run(self):
+        """BR-DGQ-0009: an expression in a filter is refused without being evaluated."""
+        with self.assertRaises(ValidationError):
+            self.make_rule('res.partner', 'condition', condition_domain="__import__('os').getcwd()")

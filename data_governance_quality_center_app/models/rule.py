@@ -164,9 +164,10 @@ class DataQualityRule(models.Model):
             if rule.model_id.id not in allowed:
                 raise ValidationError(self.env._(
                     "%s is not marked as supported in the data quality settings and cannot be "
-                    "checked by a rule.", rule.model_id.name))
+                    "checked by a rule. A data quality administrator can mark it in Data Quality > "
+                    "Configuration > Models.", rule.model_id.name))
 
-    @api.constrains('field_ids', 'model_id', 'rule_type')
+    @api.constrains('field_ids', 'compare_field_id', 'model_id', 'rule_type')
     def _check_fields(self):
         """Fields belong to the model, are readable by scans and fit the check type.
 
@@ -178,11 +179,13 @@ class DataQualityRule(models.Model):
                 raise ValidationError(self.env._(
                     "The rule %s needs at least one field to check.", rule.name))
             usable = usable_names._get_usable_field_names(rule.model_name)
-            for field in rule.field_ids:
+            for field in rule.field_ids | rule.compare_field_id:
                 if field.model_id != rule.model_id or not field.store or field.name not in usable:
                     raise ValidationError(self.env._(
                         "The field %(field)s cannot be checked on %(model)s: it is not a stored "
-                        "field of the model, or it is excluded or sensitive.",
+                        "field of the model, or it is excluded or sensitive. A data quality "
+                        "administrator can mark a field as allowed in Data Quality > "
+                        "Configuration > Fields.",
                         field=field.display_name, model=rule.model_id.name))
             allowed_types = FIELD_TYPES_OF_RULE_TYPE.get(rule.rule_type)
             for field in rule.field_ids:
@@ -263,10 +266,22 @@ class DataQualityRule(models.Model):
         try:
             domain = Domain(ast.literal_eval(text))
             domain.validate(self.env[self.model_name])
+            used = {condition.field_expr.split('.')[0] for condition in domain.iter_conditions()}
         except (ValueError, SyntaxError, TypeError, KeyError, AttributeError, UserError) as error:
             raise ValidationError(self.env._(
                 "The filter %(label)s of the rule %(rule)s is not a valid domain on %(model)s: %(error)s",
                 label=label, rule=self.name, model=self.model_id.name, error=error)) from error
+        usable = self.env['data.quality.field.config']._get_usable_field_names(self.model_name)
+        model_fields = self.env[self.model_name]._fields
+        # a non-stored field reads no stored secret of its own, so only stored fields are held to the marks
+        blocked = sorted(
+            name for name in used if model_fields[name].store and name not in usable)
+        if blocked:
+            raise ValidationError(self.env._(
+                "The filter %(label)s of the rule %(rule)s uses fields that are excluded or "
+                "sensitive: %(fields)s. A data quality administrator can mark a field as allowed in "
+                "Data Quality > Configuration > Fields.",
+                label=label, rule=self.name, fields=', '.join(blocked)))
 
     @api.constrains('rule_type', 'field_ids', 'compare_field_id', 'compare_operator')
     def _check_cross_field(self):
@@ -308,6 +323,9 @@ class DataQualityRule(models.Model):
 
         Requirements: FR-DGQ-0011
         """
+        if 'version' in vals:
+            raise UserError(self.env._(
+                "The version of a rule is raised by changing its definition; it cannot be set by hand."))
         if not any(name in vals for name in DEFINITION_FIELDS):
             return super().write(vals)
         before = {rule.id: rule._dgq_definition() for rule in self}
@@ -334,6 +352,9 @@ class DataQualityRule(models.Model):
 
         Requirements: FR-DGQ-0011
         """
-        default = dict(default or {})
-        default.setdefault('name', self.env._("%s (copy)", self.name))
-        return super().copy_data(default)
+        vals_list = super().copy_data(default)
+        if default and 'name' in default:
+            return vals_list
+        return [
+            dict(vals, name=self.env._("%s (copy)", rule.name))
+            for rule, vals in zip(self, vals_list)]
