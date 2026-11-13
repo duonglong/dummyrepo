@@ -18,6 +18,5 @@
     ],
     'installable': True,
     'application': True,
-    'author': 'Empty Sandbox',
     'license': 'LGPL-3',
 }

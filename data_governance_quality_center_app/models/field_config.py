@@ -1,10 +1,12 @@
 import re
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 SENSITIVE_NAME_WORDS = frozenset({'password', 'passwd', 'token', 'secret', 'key', 'signature'})
 SENSITIVE_FIELD_TYPES = frozenset({'binary'})
-BANK_ACCOUNT_FIELDS = {'res.partner.bank': {'account_number', 'sanitized_account_number'}}
+BANK_ACCOUNT_MODEL = 'res.partner.bank'
+BANK_ACCOUNT_FIELDS = {BANK_ACCOUNT_MODEL: {'account_number', 'sanitized_account_number'}}
 
 
 class DataQualityFieldConfig(models.Model):
@@ -25,12 +27,27 @@ class DataQualityFieldConfig(models.Model):
     _field_unique = models.Constraint(
         'UNIQUE(field_id)', 'A field can only carry one mark.')
 
+    @api.constrains('field_id')
+    def _check_field_is_stored(self):
+        """Refuse a field that scans cannot read: of a model without a table, or not stored.
+
+        Requirements: FR-DGQ-0075
+        """
+        for config in self:
+            field = config.field_id
+            model = self.env.registry.get(field.model)
+            if model is None or not model._auto or model._transient or not field.store:
+                raise ValidationError(_(
+                    "%(field)s is not a stored field of a model with a table and cannot be marked.",
+                    field=field.display_name))
+
     @api.model
     def _is_sensitive_by_default(self, field):
         """Tell whether an ir.model.fields record is sensitive without any mark.
 
         Secrets (password, token, secret, key, signature names), binary fields, bank account
-        numbers and fields restricted to user groups.
+        numbers and links to bank accounts, and fields restricted to user groups (also those
+        hidden from everyone).
 
         Requirements: BR-DGQ-0010
         """
@@ -39,8 +56,20 @@ class DataQualityFieldConfig(models.Model):
             words & SENSITIVE_NAME_WORDS
             or field.ttype in SENSITIVE_FIELD_TYPES
             or field.name in BANK_ACCOUNT_FIELDS.get(field.model, ())
+            or field.relation == BANK_ACCOUNT_MODEL
             or field.groups
+            or self._is_hidden_from_everyone(field)
         )
+
+    @api.model
+    def _is_hidden_from_everyone(self, field):
+        """Tell whether the field is declared with no group allowed, which Odoo does not list.
+
+        Requirements: BR-DGQ-0010
+        """
+        model = self.env.registry.get(field.model)
+        python_field = model._fields.get(field.name) if model is not None else None
+        return python_field is not None and python_field.groups == fields.NO_ACCESS
 
     @api.model
     def _get_usable_field_names(self, model_name):

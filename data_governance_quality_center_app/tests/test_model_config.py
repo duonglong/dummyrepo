@@ -26,7 +26,7 @@ class TestModelConfig(DGQTestCase):
 
     def test_abstract_model_message(self):
         """FR-DGQ-0075: the refusal is a validation error naming the model."""
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, 'Email Thread'):
             self.env['data.quality.model.config'].create({
                 'model_id': self.env['ir.model']._get('mail.thread').id})
 
@@ -61,3 +61,31 @@ class TestModelConfig(DGQTestCase):
         self.assertNotIn('comment', Config._get_usable_field_names('res.partner'))
         mark.status = 'sensitive'
         self.assertNotIn('comment', Config._get_usable_field_names('res.partner'))
+
+    def test_bank_accounts_link_is_sensitive_by_default(self):
+        """SC-DGQ-0075-3 / BR-DGQ-0010: Contact's Bank Accounts is left out until allowed (through
+        the form of the mark; the save button belongs to the screen review)."""
+        Config = self.env['data.quality.field.config']
+        self.assertNotIn('bank_ids', Config._get_usable_field_names('res.partner'))
+        with Form(Config) as form:
+            form.field_id = self.env['ir.model.fields']._get('res.partner', 'bank_ids')
+            form.status = 'allowed'
+        self.assertIn('bank_ids', Config._get_usable_field_names('res.partner'))
+
+    def test_field_hidden_from_everyone_is_sensitive_by_default(self):
+        """BR-DGQ-0010: a field declared with no group allowed is sensitive although Odoo lists
+        no group for it (the ir.model.fields record of such a field has no groups)."""
+        Config = self.env['data.quality.field.config']
+        hidden = self.env['ir.model.fields']._get('mail.message', 'res_access_read')
+        plain = self.env['ir.model.fields']._get('mail.message', 'subject')
+        self.assertFalse(hidden.groups)
+        self.assertTrue(Config._is_sensitive_by_default(hidden))
+        self.assertFalse(Config._is_sensitive_by_default(plain))
+
+    def test_field_mark_refused_on_unmarkable_field(self):
+        """FR-DGQ-0075: a non-stored field or a field of a model without table is refused."""
+        Config = self.env['data.quality.field.config']
+        for model, name in (('res.partner', 'display_name'), ('mail.thread', 'message_ids')):
+            field = self.env['ir.model.fields']._get(model, name)
+            with self.assertRaises(ValidationError):
+                Config.create({'field_id': field.id, 'status': 'excluded'})

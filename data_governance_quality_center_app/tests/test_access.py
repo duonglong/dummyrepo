@@ -41,6 +41,8 @@ class TestAccess(DGQTestCase):
                 self.assertFalse(self.env[name].with_user(viewer).has_access(operation))
         config = self.env['data.quality.model.config'].search([], limit=1)
         with self.assertRaises(AccessError):
+            config.with_user(viewer).write({'status': 'excluded'})
+        with self.assertRaises(AccessError):
             config.with_user(self.users['manager']).write({'status': 'excluded'})
 
     def test_only_administrator_changes_marks(self):
@@ -62,4 +64,5 @@ class TestAccess(DGQTestCase):
         readable = mixin.with_user(plain)._get_readable_model_names()
         self.assertIn('res.partner', readable)
         self.assertNotIn('ir.cron', readable)
-        self.assertIn('ir.cron', mixin.with_user(self.env.ref('base.user_admin'))._get_readable_model_names())
+        self.assertIn(
+            'ir.cron', mixin.with_user(self.env.ref('base.user_admin'))._get_readable_model_names())
