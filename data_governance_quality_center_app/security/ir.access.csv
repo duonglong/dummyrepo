@@ -3,3 +3,7 @@ access_dgq_model_config_viewer,data.quality.model.config viewer,data.quality.mod
 access_dgq_model_config_admin,data.quality.model.config admin,data.quality.model.config,group_dgq_admin,crud,
 access_dgq_field_config_viewer,data.quality.field.config viewer,data.quality.field.config,group_dgq_viewer,r,
 access_dgq_field_config_admin,data.quality.field.config admin,data.quality.field.config,group_dgq_admin,crud,
+access_dgq_audit_admin,data.quality.audit admin,data.quality.audit,group_dgq_admin,r,
+access_dgq_audit_purge_admin,data.quality.audit.purge admin,data.quality.audit.purge,group_dgq_admin,crud,
+access_dgq_audit_export_admin,data.quality.audit.export admin,data.quality.audit.export,group_dgq_admin,crud,
+access_dgq_audit_company,data.quality.audit own companies,data.quality.audit,,r,"['|',('company_id','=',False),('company_id','in',company_ids)]"

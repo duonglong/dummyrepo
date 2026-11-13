@@ -8,4 +8,6 @@
               action="model_config_action" sequence="10" groups="group_dgq_admin"/>
     <menuitem id="menu_dgq_field_config" name="Fields" parent="menu_dgq_configuration"
               action="field_config_action" sequence="20" groups="group_dgq_admin"/>
+    <menuitem id="menu_dgq_audit" name="Audit Trail" parent="menu_dgq_configuration"
+              action="audit_action" sequence="30" groups="group_dgq_admin"/>
 </odoo>
