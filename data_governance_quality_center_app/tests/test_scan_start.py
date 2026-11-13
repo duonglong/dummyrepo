@@ -189,3 +189,41 @@ class TestScanStart(AcceptanceCase):
         scan.action_start()
         scan.action_cancel()
         self.assertEqual(scan.state, 'cancelled')
+
+    def test_overlap_counts_a_company_not_active_in_the_switcher(self):
+        """FR-DGQ-0018: a company of the scan that is not active for the requester still blocks an overlap."""
+        rule = self.make_rule('res.partner', 'required', ['ref'], company=False)
+        self.make_scan([rule], companies=[self.cy]).action_start()
+        operator = self.user('operator', login='dgq_ovl_switch', company=self.cx)
+        operator.write({'company_ids': [Command.link(self.cy.id)]})
+        scan = self.make_scan([rule], companies=[self.cx, self.cy], user=operator)
+        with self.assertRaisesRegex(UserError, r"%s.*%s.*cancel it" % (rule.name, self.cy.name)):
+            scan.with_context(allowed_company_ids=[self.cx.id]).action_start()
+        self.assertEqual(scan.sudo().state, 'draft')  # sudo: the operator cannot read company Y's scope
+
+    def test_overlap_counts_a_company_outside_the_requester_companies(self):
+        """FR-DGQ-0018: an operator of company Y alone who scans busy company X is refused."""
+        rule = self.make_rule('res.partner', 'required', ['ref'], company=False)
+        self.make_scan([rule], companies=[self.cx]).action_start()
+        operator = self.user('operator', login='dgq_ovl_outside', company=self.cy)
+        operator.write({'company_ids': [Command.set([self.cy.id])]})
+        scan = self.make_scan([rule], companies=[self.cx], user=operator)
+        with self.assertRaisesRegex(UserError, r"%s.*%s.*cancel it" % (rule.name, self.cx.name)):
+            scan.action_start()
+
+    def test_two_drafts_on_a_company_not_active_are_refused(self):
+        """FR-DGQ-0018: two drafts started together that share a company not active for the requester are refused."""
+        rule = self.make_rule('res.partner', 'required', ['ref'], company=False)
+        operator = self.user('operator', login='dgq_ovl_sibling', company=self.cx)
+        operator.write({'company_ids': [Command.link(self.cy.id)]})
+        first = self.make_scan([rule], companies=[self.cy], user=operator)
+        second = self.make_scan([rule], companies=[self.cy], user=operator)
+        with self.assertRaisesRegex(UserError, "one after the other"):
+            (first | second).with_context(allowed_company_ids=[self.cx.id]).action_start()
+
+    def test_hand_change_refusal_names_the_field_labels(self):
+        """FR-DGQ-0070: the refusal of a hand change names the fields as the form shows them."""
+        Scan = self.env['data.quality.scan'].with_user(self.user('operator'))
+        with self.assertRaisesRegex(UserError, "Records Scanned") as caught:
+            Scan.create({'records_scanned': 5})
+        self.assertNotIn('records_scanned', str(caught.exception))

@@ -132,10 +132,13 @@ class DataQualityScan(models.Model):
         """Refuse the fields a user may not set on a scan."""
         forbidden = names - self._dgq_scope_fields
         if forbidden:
+            labels = sorted(
+                self._fields[name]._description_string(self.env) if name in self._fields else name
+                for name in forbidden)
             raise UserError(self.env._(
                 "These scan fields are set by the app, not by hand: %s. "
                 "A scan moves on only through Start, Resume and Cancel.",
-                ", ".join(sorted(forbidden))))
+                ", ".join(labels)))
 
     def action_cancel(self):
         """Cancel the scans the user may change; the app writes the new state.
@@ -192,22 +195,22 @@ class DataQualityScan(models.Model):
         Requirements: FR-DGQ-0015
         """
         self.ensure_one()
-        # sudo: the scope is resolved over every rule and company whatever the requester may read
-        Rule = self.env['data.quality.rule'].sudo()
-        companies = self.sudo().company_ids or self.env.user.sudo().company_ids  # sudo: the scope covers companies the requester may not read
-        rules = self.rule_ids.sudo()  # sudo: the requester may not read every rule
+        scan = self.sudo()  # sudo: the scope is read as stored, whatever the requester may read
+        Rule = self.env['data.quality.rule'].sudo()  # sudo: an empty scope covers every active rule
+        companies = scan.company_ids or self.env.user.sudo().company_ids  # sudo: all his allowed companies
+        rules = scan.rule_ids
         if rules:
             rules = rules.filtered('active')
         else:
             rules = Rule.search([('active', '=', True)]).filtered(
                 lambda rule: self.env['data.quality.model.config']._get_status(rule.model_name)
                 in ('supported', 'restricted'))
-        if self.model_ids:
-            rules = rules.filtered(lambda rule: rule.model_id in self.model_ids)
+        if scan.model_ids:
+            rules = rules.filtered(lambda rule: rule.model_id in scan.model_ids)
         rules = rules.filtered(lambda rule: not rule.company_ids or rule.company_ids & companies)
         if not rules:
             raise UserError(self.env._("There is no active rule to scan in this scope."))
-        self.sudo().write({  # sudo: the app writes the resolved scope
+        scan.write({  # sudo: the app writes the resolved scope
             'rule_ids': [fields.Command.set(rules.ids)],
             'model_ids': [fields.Command.set(rules.model_id.ids)],
             'company_ids': [fields.Command.set(companies.ids)],
@@ -220,9 +223,10 @@ class DataQualityScan(models.Model):
         Requirements: FR-DGQ-0018
         """
         self.ensure_one()
-        scope = [('rule_ids', 'in', self.rule_ids.ids), ('company_ids', 'in', self.company_ids.ids)]
-        # sudo: the running scan of another user still blocks this one
+        # sudo: the scope is read as stored, whatever companies or rules the requester may read now,
+        # and the running scan of another user still blocks this one
         Scan = self.sudo()
+        scope = [('rule_ids', 'in', Scan.rule_ids.ids), ('company_ids', 'in', Scan.company_ids.ids)]
         busy = Scan.search([('id', '!=', self.id), ('state', 'in', ('queued', 'running'))] + scope, limit=1)
         sibling = Scan.browse()
         if not busy and starting:
