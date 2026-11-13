@@ -180,9 +180,11 @@ class DataQualityDuplicateCheck(models.Model):
             for d in self.env['data.quality.duplicate.dismissal'].sudo().search(  # sudo: see above
                 [('rule_id', '=', rule.id)])
         }
-        pairs = [(a, b, score) for a, b, score in self.pair_data or [] if (a, b) not in dismissed]
+        candidates = [(a, b, score) for a, b, score in self.pair_data or [] if (a, b) not in dismissed]
+        values = self._read_values(sorted({res_id for a, b, _score in candidates for res_id in (a, b)}))
+        # a record deleted since the pairs phase has no values: its pairs drop out
+        pairs = [(a, b, score) for a, b, score in candidates if a in values and b in values]
         components = matching.group_pairs(pairs)
-        values = self._read_values([res_id for ids, _score in components for res_id in ids])
         # sudo: the check writes the groups as the app, whoever started it
         Group = self.env['data.quality.duplicate.group'].sudo()
         existing = {

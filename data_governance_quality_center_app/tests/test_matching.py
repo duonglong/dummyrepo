@@ -88,3 +88,28 @@ class TestDuplicateGroupAccess(DGQTestCase):
         self.assertFalse(groups.search([]))
         self.assertIn('res.partner', groups._get_readable_model_names())
         self.assertNotIn('data.quality.duplicate.group', groups._get_readable_model_names())
+
+
+@tagged('post_install', '-at_install')
+class TestDuplicateGroupsPhase(DGQTestCase):
+    """The groups phase copes with records that disappear while a check runs.
+
+    Requirements: FR-DGQ-0039
+    """
+
+    def test_pair_of_a_deleted_record_is_dropped_without_error(self):
+        rule = self.env['data.quality.duplicate.rule'].create({
+            'name': 'Deleted', 'model_id': self.env['ir.model']._get('res.partner').id,
+            'field_line_ids': [(0, 0, {
+                'field_id': self.env['ir.model.fields']._get('res.partner', 'name').id,
+                'method': 'exact', 'weight': 1})],
+        })
+        one, two, gone = self.env['res.partner'].create([{'name': 'Acme'}, {'name': 'Acme'}, {'name': 'Acme'}])
+        check = self.env['data.quality.duplicate.check'].create({'rule_id': rule.id})
+        gone_id = gone.id
+        gone.unlink()
+        check.write({'phase': 'groups', 'pair_data': [[one.id, two.id, 100.0], [two.id, gone_id, 100.0]]})
+        check._run_groups_batch()
+        groups = self.env['data.quality.duplicate.group'].search([('rule_id', '=', rule.id)])
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(set(groups.line_ids.mapped('res_id')), {one.id, two.id})
