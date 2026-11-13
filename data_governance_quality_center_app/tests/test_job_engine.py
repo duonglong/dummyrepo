@@ -3,6 +3,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from odoo import fields, models
+from odoo.exceptions import UserError
 from odoo.orm.model_classes import add_to_registry
 from odoo.tests import tagged
 
@@ -26,9 +27,12 @@ def define_test_job():
 
         batches = fields.Integer(default=3)
         fail_at = fields.Integer()
+        cancel_at = fields.Integer()
 
         def _dgq_run_batch(self):
             batch = self.done_count + 1
+            if batch == self.cancel_at:
+                self.action_cancel()
             if batch == self.fail_at:
                 raise ValueError("boom")
             return 1, max(self.batches - batch, 0)
@@ -50,6 +54,7 @@ class TestJobEngine(DGQTestCase):
         registry._setup_models__(cls.env.cr)
         registry.init_models(cls.env.cr, ['dgq.test.job'], {'module': MODULE})
         cls.addClassCleanup(registry.models.pop, 'dgq.test.job', None)
+        cls.addClassCleanup(registry['data.quality.job.mixin']._inherit_children.discard, 'dgq.test.job')
         cls.Job = cls.env['dgq.test.job']
 
     def setUp(self):
@@ -81,6 +86,10 @@ class TestJobEngine(DGQTestCase):
         jobs.run_next_job(self.env, 'dgq.test.job')
         self.assertEqual((job.state, job.done_count, job.progress), ('done', 3, 100.0))
         self.assertTrue(job.heartbeat)
+        # one commit after the start mark, then one per batch
+        calls = self.commit_progress.call_args_list
+        self.assertEqual([c.args[0] for c in calls], [0, 1, 1, 1])
+        self.assertEqual([c.kwargs['remaining'] for c in calls], [1, 2, 1, 0])
 
     def test_oldest_queued_job_runs_first_one_at_a_time(self):
         """A runner takes only the oldest queued job; the other waits."""
@@ -96,7 +105,9 @@ class TestJobEngine(DGQTestCase):
         job = self._job(batches=3, fail_at=3)
         job.action_start()
         jobs.run_next_job(self.env, 'dgq.test.job')
-        self.assertEqual((job.state, job.done_count, job.error_message), ('failed', 2, 'boom'))
+        self.assertEqual((job.state, job.done_count), ('failed', 2))
+        self.assertIn('ValueError', job.error_message)
+        self.assertNotIn('boom', job.error_message)
         self.rollback_progress.assert_called_once()
         job.fail_at = 0
         job.action_resume()
@@ -130,9 +141,9 @@ class TestJobEngine(DGQTestCase):
         job.action_cancel()
         self.assertEqual(job.state, 'cancelled')
         done = self._job(state='done')
-        with self.assertRaises(Exception):
+        with self.assertRaises(UserError):
             done.action_cancel()
-        with self.assertRaises(Exception):
+        with self.assertRaises(UserError):
             done.action_start()
 
     def test_batch_reads_never_exceed_batch_size(self):
@@ -149,3 +160,46 @@ class TestJobEngine(DGQTestCase):
         with patch.object(self.TestJob, '_dgq_run_batch', spy):
             jobs.run_next_job(self.env, 'dgq.test.job')
         self.assertEqual(calls, [0, 1])
+
+    def test_cancel_between_batches_is_honoured(self):
+        """A job cancelled while running stays cancelled and no later batch runs."""
+        job = self._job(batches=3, cancel_at=2)
+        job.action_start()
+        jobs.run_next_job(self.env, 'dgq.test.job')
+        self.assertEqual((job.state, job.done_count), ('cancelled', 2))
+
+    def test_cancel_while_stopping_for_time_is_honoured(self):
+        """A cancel is not undone by putting the job back in the queue."""
+        job = self._job(batches=3, cancel_at=1)
+        job.action_start()
+        self.commit_progress.return_value = 0.0
+        jobs.run_next_job(self.env, 'dgq.test.job')
+        self.assertEqual(job.state, 'cancelled')
+
+    def test_waiting_job_is_reported_as_remaining_work(self):
+        """The scheduled action is told to run again while another job is queued."""
+        first, second = self._job(batches=1), self._job(batches=1)
+        first.action_start()
+        second.action_start()
+        second.date_queued = first.date_queued + timedelta(seconds=5)
+        jobs.run_next_job(self.env, 'dgq.test.job')
+        self.assertEqual(self.commit_progress.call_args.kwargs['remaining'], 1)
+
+    def test_failed_job_reports_waiting_job_as_remaining_work(self):
+        """The same holds when the first job fails."""
+        first, second = self._job(batches=1, fail_at=1), self._job(batches=1)
+        first.action_start()
+        second.action_start()
+        second.date_queued = first.date_queued + timedelta(seconds=5)
+        jobs.run_next_job(self.env, 'dgq.test.job')
+        self.assertEqual(first.state, 'failed')
+        self.assertEqual(self.commit_progress.call_args.kwargs['remaining'], 1)
+
+    def test_failed_first_batch_keeps_stale_marks_committed(self):
+        """Stale jobs are marked and committed before the first batch can fail."""
+        self._job(state='running', heartbeat=fields.Datetime.now() - timedelta(minutes=31))
+        job = self._job(batches=1, fail_at=1)
+        job.action_start()
+        jobs.run_next_job(self.env, 'dgq.test.job')
+        self.assertEqual(self.commit_progress.call_args_list[0].kwargs['remaining'], 1)
+        self.rollback_progress.assert_called_once()

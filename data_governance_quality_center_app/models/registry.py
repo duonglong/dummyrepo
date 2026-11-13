@@ -33,12 +33,18 @@ class DataQualityRegistry(models.AbstractModel):
 
     @api.model
     def _dgq_merge_strategies(self):
-        """Merge strategies per model: descriptors ``key``, ``label``, ``handler``."""
+        """Merge strategies per model: descriptors ``key``, ``label``, ``handler``.
+
+        The handler contract is defined with the merge engine task.
+        """
         return []
 
     @api.model
     def _dgq_correction_actions(self):
-        """Correction actions: descriptors ``key``, ``label``, ``handler``."""
+        """Correction actions: descriptors ``key``, ``label``, ``handler``.
+
+        The handler contract is defined with the correction task.
+        """
         return []
 
     @api.model
@@ -55,7 +61,11 @@ class DataQualityRegistry(models.AbstractModel):
         descriptors = getter()
         keys = [descriptor['key'] for descriptor in descriptors]
         if len(keys) != len(set(keys)):
-            raise ValueError(self.env._("Two extensions of one kind share the same key."))
+            duplicates = sorted({key for key in keys if keys.count(key) > 1})
+            raise ValueError(self.env._(
+                "Two %(kind)s extensions share the same key: %(keys)s",
+                kind=kind, keys=", ".join(duplicates),
+            ))
         return descriptors
 
     @api.model

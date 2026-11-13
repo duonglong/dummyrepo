@@ -50,7 +50,7 @@ class TestRegistry(DGQTestCase):
         """Two extensions of one kind with the same key are refused."""
         descriptor = {'key': 'same', 'label': 'A', 'handler': None}
         with self._extend('_dgq_validators', [descriptor, dict(descriptor, label='B')]):
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, "validators.*same"):
                 self.registry_model._dgq_descriptors('validators')
 
     def test_unknown_key_is_not_available(self):
