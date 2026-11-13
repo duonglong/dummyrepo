@@ -5,3 +5,10 @@ from . import model_config
 from . import result_mixin
 from . import audit
 from . import audit_export
+from . import duplicate_rule
+from . import duplicate_rule_field
+from . import duplicate_check
+from . import duplicate_key
+from . import duplicate_group
+from . import duplicate_line
+from . import duplicate_dismissal

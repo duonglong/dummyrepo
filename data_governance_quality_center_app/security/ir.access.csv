@@ -7,3 +7,12 @@ access_dgq_audit_admin,data.quality.audit admin,data.quality.audit,group_dgq_adm
 access_dgq_audit_purge_admin,data.quality.audit.purge admin,data.quality.audit.purge,group_dgq_admin,crud,
 access_dgq_audit_export_admin,data.quality.audit.export admin,data.quality.audit.export,group_dgq_admin,crud,
 access_dgq_audit_company,data.quality.audit own companies,data.quality.audit,,r,"['|',('company_id','=',False),('company_id','in',company_ids)]"
+access_dgq_duplicate_rule_viewer,data.quality.duplicate.rule viewer,data.quality.duplicate.rule,group_dgq_viewer,r,
+access_dgq_duplicate_rule_manager,data.quality.duplicate.rule manager,data.quality.duplicate.rule,group_dgq_manager,crud,
+access_dgq_duplicate_rule_field_viewer,data.quality.duplicate.rule.field viewer,data.quality.duplicate.rule.field,group_dgq_viewer,r,
+access_dgq_duplicate_rule_field_manager,data.quality.duplicate.rule.field manager,data.quality.duplicate.rule.field,group_dgq_manager,crud,
+access_dgq_duplicate_check_manager,data.quality.duplicate.check manager,data.quality.duplicate.check,group_dgq_manager,crud,
+access_dgq_duplicate_dismissal_manager,data.quality.duplicate.dismissal manager,data.quality.duplicate.dismissal,group_dgq_manager,crud,
+access_dgq_duplicate_group_viewer,data.quality.duplicate.group viewer,data.quality.duplicate.group,group_dgq_viewer,r,
+access_dgq_duplicate_line_viewer,data.quality.duplicate.line viewer,data.quality.duplicate.line,group_dgq_viewer,r,
+access_dgq_duplicate_rule_company,data.quality.duplicate.rule own companies,data.quality.duplicate.rule,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
