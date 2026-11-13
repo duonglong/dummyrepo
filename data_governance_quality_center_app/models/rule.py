@@ -131,12 +131,18 @@ class DataQualityRule(models.Model):
         'data.quality.rule.version', 'rule_id', string='Versions', readonly=True, copy=False)
 
     @api.model
-    def _dgq_model_domain(self):
-        """Domain offering only the models marked supported or restricted."""
-        # sudo: the marks are an administrator setting that every rule author needs to see
+    def _dgq_marked_models(self):
+        """The models marked supported or restricted, in sudo."""
+        # sudo: the marks are an administrator setting that every rule author needs to see, and
+        # only settings administrators may read the model list itself
         marks = self.env['data.quality.model.config'].sudo().search(
             [('status', 'in', ('supported', 'restricted'))])
-        return [('id', 'in', marks.model_id.ids)]
+        return marks.model_id
+
+    @api.model
+    def _dgq_model_domain(self):
+        """Domain offering only the models marked supported or restricted."""
+        return [('id', 'in', self._dgq_marked_models().ids)]
 
     @api.model
     def _dgq_serialise(self, value):
@@ -265,62 +271,60 @@ class DataQualityRule(models.Model):
         """Raise a ValidationError when ``text`` is not a domain that resolves on the model, or
         when it reads a field that scans may not read."""
         self.ensure_one()
+        model = self.env[self.model_name]
         try:
             domain = Domain(ast.literal_eval(text))
-            domain.validate(self.env[self.model_name])
+            domain.validate(model)
+            # The basic optimisation is what a search runs: it splits field paths into 'any'
+            # and turns a link compared to text into a search on the linked display name.
+            domain = domain.optimize(model)
         except (ValueError, SyntaxError, TypeError, KeyError, AttributeError, UserError) as error:
             raise ValidationError(self.env._(
                 "The filter %(label)s of the rule %(rule)s is not a valid domain on %(model)s: %(error)s",
                 label=label, rule=self.name, model=self.model_id.name, error=error)) from error
-        blocked = sorted(self._dgq_blocked_fields(self.env[self.model_name], domain, {}))
+        marked = set(self._dgq_marked_models().mapped('model'))
+        blocked = sorted(self._dgq_blocked_fields(model, domain, {}, marked))
         if blocked:
             raise ValidationError(self.env._(
-                "The filter %(label)s of the rule %(rule)s uses fields that are not stored, or are "
-                "excluded or sensitive: %(fields)s. A data quality administrator can mark a stored "
-                "field as allowed in Data Quality > Configuration > Fields.",
+                "The filter %(label)s of the rule %(rule)s uses fields that are not stored, are "
+                "excluded or sensitive, or lead to a model not marked supported or restricted: "
+                "%(fields)s. Compare a link with record ids, or ask a data quality administrator "
+                "to mark the field allowed (Data Quality > Configuration > Fields) or the model "
+                "supported (Data Quality > Configuration > Models).",
                 label=label, rule=self.name, fields=', '.join(blocked)))
 
     @api.model
     def _dgq_blocked_fields(
             self, model: models.BaseModel, domain: Domain, usable_cache: dict[str, set[str]],
+            marked: set[str],
     ) -> set[str]:
-        """Return the fields a domain reads that scans may not read, as 'model.field' names.
+        """Return the fields an optimised domain reads that scans may not read, as 'model.field'.
 
-        Every segment of a field path is checked on its own model, and the inner domain of
-        'any' / 'not any' on the linked model: scans run filters in sudo, so a filter reaching a
-        sensitive field, even through a link, would turn pass/fail into an oracle on its value.
-        A field that is not stored is refused, since it may compute from a sensitive one.
+        The domain must be optimised, so every field path and every link compared to text is an
+        'any' / 'not any' condition. Each field is checked against the marks of its own model,
+        and an inner domain only on a linked model marked supported or restricted: scans run
+        filters in sudo, so a filter reaching a sensitive field, even through a link or a name
+        search, would turn pass/fail into an oracle on its value. A field that is not stored is
+        refused, since it may compute from a sensitive one.
 
         Requirements: BR-DGQ-0010
         """
+        if model._name not in usable_cache:
+            usable_cache[model._name] = self.env[
+                'data.quality.field.config']._get_usable_field_names(model._name)
         blocked = set()
         for condition in domain.iter_conditions():
-            refused, end_model = self._dgq_walk_path(model, condition.field_expr, usable_cache)
-            if refused:
-                blocked.add(refused)
-            elif condition.operator in SUB_DOMAIN_OPERATORS and isinstance(
-                    condition.value, (Domain, list, tuple)):
-                blocked |= self._dgq_blocked_fields(
-                    end_model, Domain(condition.value), usable_cache)
-        return blocked
-
-    @api.model
-    def _dgq_walk_path(
-            self, model: models.BaseModel, path: str, usable_cache: dict[str, set[str]],
-    ) -> tuple[str | None, models.BaseModel]:
-        """Follow a dotted field path; return the first field scans may not read, if any, and
-        the model the path ends on."""
-        for name in path.split('.'):
-            if model._name not in usable_cache:
-                usable_cache[model._name] = self.env[
-                    'data.quality.field.config']._get_usable_field_names(model._name)
+            name = condition.field_expr.split('.')[0]
             field = model._fields[name]
             if not field.store or name not in usable_cache[model._name]:
-                return f"{model._name}.{name}", model
-            if not field.relational:
-                break
-            model = self.env[field.comodel_name]
-        return None, model
+                blocked.add(f"{model._name}.{name}")
+            elif condition.operator in SUB_DOMAIN_OPERATORS and isinstance(condition.value, Domain):
+                if field.comodel_name not in marked:
+                    blocked.add(f"{model._name}.{name}")
+                else:
+                    blocked |= self._dgq_blocked_fields(
+                        self.env[field.comodel_name], condition.value, usable_cache, marked)
+        return blocked
 
     @api.constrains('rule_type', 'field_ids', 'compare_field_id', 'compare_operator')
     def _check_cross_field(self):

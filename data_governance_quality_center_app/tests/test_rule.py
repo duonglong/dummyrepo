@@ -129,6 +129,45 @@ class TestRuleFilterFields(AcceptanceCase):
             self.make_rule(
                 'res.partner', 'condition', condition_domain="[('display_name', 'ilike', 'x')]")
 
+    def test_filter_comparing_a_link_to_text_cannot_search_a_sensitive_field(self):
+        """BR-DGQ-0010: a link compared to text searches the linked record's name fields.
+
+        Odoo turns ('parent_id', 'ilike', text) into a search on the contact's display name,
+        which reads the tax ID; with the tax ID marked sensitive the filter is refused.
+        """
+        self.env['data.quality.field.config'].create({
+            'field_id': self.fld('res.partner', 'vat').id,
+            'status': 'sensitive',
+        })
+        with self.assertRaises(ValidationError):
+            self.make_rule(
+                'res.partner', 'condition', condition_domain="[('parent_id', 'ilike', 'FR12')]")
+
+    def test_filter_path_into_an_unmarked_model_is_refused(self):
+        """FR-DGQ-0001: a filter may follow links only into models marked supported or restricted."""
+        self.assertFalse(self.env['data.quality.model.config'].search(
+            [('model_id', '=', self.model('res.company').id)]))
+        with self.assertRaisesRegex(ValidationError, 'company_id'):
+            self.make_rule(
+                'res.partner', 'condition', condition_domain="[('company_id.name', '=', 'X')]")
+
+    def test_manager_saves_a_filter_following_a_link(self):
+        """FR-DGQ-0001: a manager who is not a settings administrator saves a linked filter."""
+        manager = self.user('manager')
+        rule = self.env['data.quality.rule'].with_user(manager).create({
+            'name': 'Parent is a company',
+            'model_id': self.model('res.partner').id,
+            'rule_type': 'condition',
+            'condition_domain': "[('parent_id.is_company', '=', True)]",
+        })
+        self.assertTrue(rule.exists())
+
+    def test_filter_on_a_link_to_an_unmarked_model_by_id_is_saved(self):
+        """FR-DGQ-0001: comparing a link with record ids reads nothing of the linked model."""
+        rule = self.make_rule(
+            'res.partner', 'condition', condition_domain="[('company_id', '=', %d)]" % self.cx.id)
+        self.assertTrue(rule.exists())
+
     def test_filter_path_to_a_usable_field_is_saved(self):
         """FR-DGQ-0001: a filter following a link to usable fields is accepted."""
         rule = self.make_rule(
