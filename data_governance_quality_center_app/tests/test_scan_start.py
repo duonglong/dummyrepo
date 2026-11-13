@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form
 
@@ -87,7 +88,8 @@ class TestScanStart(AcceptanceCase):
     def test_start_takes_the_scope_rules_before_the_overlap_search(self):
         """FR-DGQ-0018: the start updates the scope's rule rows first, so a concurrent start conflicts and is retried.
 
-        One test transaction cannot hold two snapshots, so this checks the order of the statements.
+        Test cursors share one transaction, so two snapshots cannot be held: this checks that the
+        rule update comes before the search of queued or running scans.
         """
         rule = self.make_rule('res.partner', 'required', ['ref'])
         scan = self.make_scan([rule])
@@ -102,7 +104,8 @@ class TestScanStart(AcceptanceCase):
                           side_effect=lambda cr, *a, **k: spy(*a, **k)):
             scan.action_start()
         lock = next(i for i, text in enumerate(statements) if 'UPDATE data_quality_rule SET write_date' in text)
-        search = next(i for i, text in enumerate(statements) if 'FROM "data_quality_scan"' in text and i > lock)
+        search = next(i for i, text in enumerate(statements)
+                      if 'FROM "data_quality_scan"' in text and '"data_quality_scan"."state" IN' in text)
         self.assertLess(lock, search)
 
     def test_scans_are_separated_by_company(self):
@@ -116,3 +119,73 @@ class TestScanStart(AcceptanceCase):
             self.assertFalse(self.env['data.quality.scan'].with_user(user).search([('id', '=', scan.id)]))
         with self.assertRaises(AccessError):
             scan.with_user(operator).action_cancel()
+
+    def test_two_drafts_of_the_same_scope_started_together_are_refused(self):
+        """FR-DGQ-0018: two scans of one rule and company started in one call: refused, neither queued."""
+        rule = self.make_rule('res.partner', 'required', ['ref'])
+        first, second = self.make_scan([rule]), self.make_scan([rule])
+        with self.assertRaisesRegex(UserError, r"%s.*%s.*%s.*one after the other" % (
+                first.name, second.name, rule.name)):
+            (first | second).action_start()
+        self.assertEqual((first | second).mapped('state'), ['draft', 'draft'])
+
+    def test_two_drafts_of_other_rules_started_together_are_queued(self):
+        """FR-DGQ-0018: scans of different rules started in one call are both queued."""
+        vat = self.make_rule('res.partner', 'required', ['vat'])
+        ref = self.make_rule('res.partner', 'required', ['ref'])
+        scans = self.make_scan([vat]) | self.make_scan([ref])
+        scans.action_start()
+        self.assertEqual(scans.mapped('state'), ['queued', 'queued'])
+
+    def test_checkpoints_follow_the_company_of_their_scan(self):
+        """FR-DGQ-0071: a viewer of company Y does not read the checkpoints of a scan of company X."""
+        rule = self.make_rule('res.partner', 'required', ['ref'])
+        self.partner('Acme', ref=False)
+        scan = self.run_scan([rule], models=['res.partner'])
+        self.assertTrue(scan.checkpoint_ids)
+        Checkpoint = self.env['data.quality.scan.checkpoint']
+        outsider = self.user('viewer', login='dgq_cp_outsider', company=self.cy)
+        insider = self.user('viewer', login='dgq_cp_insider', company=self.cx)
+        self.assertFalse(Checkpoint.with_user(outsider).search([('scan_id', '=', scan.id)]))
+        self.assertTrue(Checkpoint.with_user(insider).search([('scan_id', '=', scan.id)]))
+        with self.assertRaises(AccessError):
+            scan.checkpoint_ids.with_user(outsider).read(['last_id'])
+
+    def test_operator_cannot_change_the_scope_of_a_queued_scan(self):
+        """FR-DGQ-0018, FR-DGQ-0020: a plain save of a queued scan's rules is refused."""
+        operator = self.user('operator')
+        vat = self.make_rule('res.partner', 'required', ['vat'])
+        ref = self.make_rule('res.partner', 'required', ['ref'])
+        scan = self.make_scan([vat], user=operator)
+        scan.action_start()
+        with self.assertRaisesRegex(UserError, "only be changed while it is a draft"):
+            scan.write({'rule_ids': [Command.link(ref.id)]})
+        self.assertEqual(scan.rule_ids, vat)
+
+    def test_operator_cannot_set_the_state_or_counts_by_hand(self):
+        """FR-DGQ-0070: state, counts and requester are written by the app, on create and on save."""
+        operator = self.user('operator')
+        Scan = self.env['data.quality.scan'].with_user(operator)
+        for vals in ({'state': 'queued'}, {'records_scanned': 5}, {'user_id': operator.id}):
+            with self.subTest(vals=vals), self.assertRaisesRegex(UserError, "set by the app"):
+                Scan.create(vals)
+        draft = Scan.create({})
+        with self.assertRaisesRegex(UserError, "set by the app"):
+            draft.write({'state': 'done'})
+        self.assertEqual(draft.state, 'draft')
+
+    def test_context_default_does_not_set_the_state(self):
+        """FR-DGQ-0070: a default state passed in the context is ignored for a user."""
+        operator = self.user('operator')
+        scan = self.env['data.quality.scan'].with_user(operator).with_context(
+            default_state='done', default_records_scanned=9).create({})
+        self.assertEqual((scan.state, scan.records_scanned), ('draft', 0))
+
+    def test_operator_still_cancels_his_queued_scan(self):
+        """FR-DGQ-0015: Cancel works for the operator although he cannot write the state by hand."""
+        operator = self.user('operator')
+        rule = self.make_rule('res.partner', 'required', ['ref'])
+        scan = self.make_scan([rule], user=operator)
+        scan.action_start()
+        scan.action_cancel()
+        self.assertEqual(scan.state, 'cancelled')

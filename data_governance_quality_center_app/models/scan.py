@@ -22,6 +22,8 @@ class DataQualityScan(models.Model):
     _description = 'Data Quality Scan'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_scan'
+    #: the only fields a user may set, and only on a draft scan; the rest moves through the actions
+    _dgq_scope_fields = frozenset({'rule_ids', 'model_ids', 'company_ids'})
 
     name = fields.Char(string='Reference', readonly=True, copy=False, default='/')
     trigger = fields.Selection([
@@ -45,6 +47,17 @@ class DataQualityScan(models.Model):
     checks_passed = fields.Integer(copy=False, readonly=True)
     checks_failed = fields.Integer(copy=False, readonly=True)
     checks_not_applicable = fields.Integer(copy=False, readonly=True)
+
+    # the job progress is written by the app only: shown read-only on screen
+    state = fields.Selection(readonly=True)
+    user_id = fields.Many2one(readonly=True)
+    date_queued = fields.Datetime(readonly=True)
+    date_start = fields.Datetime(readonly=True)
+    date_end = fields.Datetime(readonly=True)
+    heartbeat = fields.Datetime(readonly=True)
+    total_count = fields.Integer(readonly=True)
+    done_count = fields.Integer(readonly=True)
+    error_message = fields.Text(readonly=True)
 
     line_ids = fields.One2many('data.quality.scan.line', 'scan_id', string='Results')
     checkpoint_ids = fields.One2many('data.quality.scan.checkpoint', 'scan_id', string='Checkpoints')
@@ -70,10 +83,23 @@ class DataQualityScan(models.Model):
     def create(self, vals_list):
         """Give each scan its reference and link its companies as the app.
 
-        An operator may name a company of the scan that his own companies do not list, which
-        Odoo would refuse as a read of that company; the scan records the choice, the access to
-        the results stays limited by company (BR-DGQ-0011).
+        A user sets only the scope of a draft scan; state, counts and requester are written
+        by the app (defaults passed in the context included). An operator may name a company
+        of the scan that his own companies do not list, which Odoo would refuse as a read of
+        that company; the scan records the choice, the access to the results stays limited by
+        company (BR-DGQ-0011).
+
+        Requirements: FR-DGQ-0015, FR-DGQ-0018, FR-DGQ-0070
         """
+        scans = self
+        if not self.env.su:
+            for vals in vals_list:
+                self._dgq_check_user_values({key for key, value in vals.items()
+                                             if not (key == 'state' and value == 'draft')})
+            # context defaults would set the fields the user may not
+            scans = self.with_context({
+                key: value for key, value in self.env.context.items()
+                if not key.startswith('default_') or key[len('default_'):] in self._dgq_scope_fields})
         # sudo: an operator may create a scan without reading the sequence
         sequence = self.env['ir.sequence'].sudo()
         vals_list = [dict(vals) for vals in vals_list]
@@ -82,11 +108,42 @@ class DataQualityScan(models.Model):
             companies.append(vals.pop('company_ids', None))
             if vals.get('name', '/') == '/':
                 vals['name'] = sequence.next_by_code('data.quality.scan') or '/'
-        scans = super().create(vals_list)
+        scans = super(DataQualityScan, scans).create(vals_list)
         for scan, commands in zip(scans, companies):
             if commands:
                 scan.sudo().write({'company_ids': commands})  # sudo: companies the operator may not read
         return scans
+
+    def write(self, vals):
+        """A user changes only the scope, and only while every scan is draft.
+
+        A queued or running scan keeps the scope its overlap and not-run checks were made on.
+
+        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0070
+        """
+        if not self.env.su:
+            self._dgq_check_user_values(set(vals))
+            if any(scan.state != 'draft' for scan in self):
+                raise UserError(self.env._("The scope of a scan can only be changed while it is a draft."))
+        return super().write(vals)
+
+    @api.model
+    def _dgq_check_user_values(self, names):
+        """Refuse the fields a user may not set on a scan."""
+        forbidden = names - self._dgq_scope_fields
+        if forbidden:
+            raise UserError(self.env._(
+                "These scan fields are set by the app, not by hand: %s. "
+                "A scan moves on only through Start, Resume and Cancel.",
+                ", ".join(sorted(forbidden))))
+
+    def action_cancel(self):
+        """Cancel the scans the user may change; the app writes the new state.
+
+        Requirements: FR-DGQ-0015
+        """
+        self.check_access('write')
+        return super(DataQualityScan, self.sudo()).action_cancel()  # sudo: after the access check
 
     @api.depends('rules_not_run')
     def _compute_rules_not_run_text(self):
@@ -102,15 +159,18 @@ class DataQualityScan(models.Model):
     def _dgq_enqueue(self):
         """Resolve the scope, refuse an overlap, then queue (also on resume).
 
+        Every scan of the call is checked against the queued and running scans and against
+        the scans before it in the call, before any is queued.
+
         Requirements: FR-DGQ-0015, FR-DGQ-0018
         """
         self.check_access('write')
         for scan in self:
             scan._dgq_resolve_scope()
         self._dgq_lock_scope_rules()
-        for scan in self:
-            scan._dgq_refuse_overlap()
-        return super()._dgq_enqueue()
+        for index, scan in enumerate(self):
+            scan._dgq_refuse_overlap(self[:index])
+        return super(DataQualityScan, self.sudo())._dgq_enqueue()  # sudo: the app writes the state after the checks
 
     def _dgq_lock_scope_rules(self):
         """Touch the scope's rule rows so two starts of the same rule cannot both pass.
@@ -153,28 +213,36 @@ class DataQualityScan(models.Model):
             'company_ids': [fields.Command.set(companies.ids)],
         })
 
-    def _dgq_refuse_overlap(self):
-        """Refuse a scan that shares a rule and a company with a queued or running scan.
+    def _dgq_refuse_overlap(self, starting=None):
+        """Refuse a scan that shares a rule and a company with a queued or running scan,
+        or with one of the ``starting`` scans queued in the same call.
 
         Requirements: FR-DGQ-0018
         """
         self.ensure_one()
+        scope = [('rule_ids', 'in', self.rule_ids.ids), ('company_ids', 'in', self.company_ids.ids)]
         # sudo: the running scan of another user still blocks this one
-        busy = self.sudo().search([
-            ('id', '!=', self.id),
-            ('state', 'in', ('queued', 'running')),
-            ('rule_ids', 'in', self.rule_ids.ids),
-            ('company_ids', 'in', self.company_ids.ids),
-        ], limit=1)
-        if busy:
-            # sudo: the shared rule and company may not be readable by the requester
-            shared_rule = (busy.rule_ids & self.sudo().rule_ids)[:1]
-            shared_company = (busy.company_ids & self.sudo().company_ids)[:1]
+        Scan = self.sudo()
+        busy = Scan.search([('id', '!=', self.id), ('state', 'in', ('queued', 'running'))] + scope, limit=1)
+        sibling = Scan.browse()
+        if not busy and starting:
+            sibling = Scan.search([('id', 'in', starting.ids)] + scope, limit=1)
+        other = busy or sibling
+        if not other:
+            return
+        # sudo: the shared rule and company may not be readable by the requester
+        shared_rule = (other.rule_ids & Scan.rule_ids)[:1].display_name
+        shared_company = (other.company_ids & Scan.company_ids)[:1].display_name
+        if sibling:
             raise UserError(self.env._(
-                "A scan of rule %(rule)s for %(company)s is already %(state)s (%(name)s). "
-                "Wait for it to finish or cancel it.",
-                rule=shared_rule.display_name, company=shared_company.display_name,
-                state=dict(busy._fields['state'].selection)[busy.state].lower(), name=busy.name))
+                "The scans %(first)s and %(second)s both cover rule %(rule)s for %(company)s. "
+                "Start them one after the other.",
+                first=sibling.name, second=self.name, rule=shared_rule, company=shared_company))
+        raise UserError(self.env._(
+            "A scan of rule %(rule)s for %(company)s is already %(state)s (%(name)s). "
+            "Wait for it to finish or cancel it.",
+            rule=shared_rule, company=shared_company,
+            state=dict(busy._fields['state'].selection)[busy.state].lower(), name=busy.name))
 
     # ---- batches ------------------------------------------------------------
 
@@ -289,12 +357,15 @@ class DataQualityScanCheckpoint(models.Model):
     def _access_domain(self, operation):
         """A checkpoint is as visible as its scan, which is separated by company.
 
+        The ``access`` operator applies the scan's own access rules as the user; ``any`` would
+        not, since Odoo evaluates access domains as superuser.
+
         Requirements: FR-DGQ-0071, BR-DGQ-0011
         """
         domain = super()._access_domain(operation)
         if operation == 'create':
             return domain
-        return domain & Domain('scan_id', 'any', [])
+        return domain & Domain('scan_id', 'access', 'read')
 
     _scan_model_unique = models.Constraint(
         'UNIQUE(scan_id, model_id)', 'A scan has one checkpoint per model.')
