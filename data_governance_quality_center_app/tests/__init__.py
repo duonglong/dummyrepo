@@ -7,3 +7,11 @@ from . import test_access
 from . import test_model_config
 from . import test_result_access
 from . import test_audit
+from . import test_rule_acceptance
+from . import test_validation_basic_acceptance
+from . import test_validation_advanced_acceptance
+from . import test_rule_test_acceptance
+from . import test_scan_start_acceptance
+from . import test_scan_run_acceptance
+from . import test_issue_scan_acceptance
+from . import test_issue_workflow_acceptance
