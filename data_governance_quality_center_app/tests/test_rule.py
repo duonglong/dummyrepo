@@ -129,11 +129,12 @@ class TestRuleFilterFields(AcceptanceCase):
             self.make_rule(
                 'res.partner', 'condition', condition_domain="[('display_name', 'ilike', 'x')]")
 
-    def test_filter_comparing_a_link_to_text_cannot_search_a_sensitive_field(self):
+    def test_filter_comparing_a_link_to_text_is_refused(self):
         """BR-DGQ-0010: a link compared to text searches the linked record's name fields.
 
         Odoo turns ('parent_id', 'ilike', text) into a search on the contact's display name,
-        which reads the tax ID; with the tax ID marked sensitive the filter is refused.
+        which reads the tax ID; such a filter is refused whether or not the tax ID is marked,
+        so the sensitive mark is set here only to show the case that matters.
         """
         self.env['data.quality.field.config'].create({
             'field_id': self.fld('res.partner', 'vat').id,
@@ -142,6 +143,25 @@ class TestRuleFilterFields(AcceptanceCase):
         with self.assertRaises(ValidationError):
             self.make_rule(
                 'res.partner', 'condition', condition_domain="[('parent_id', 'ilike', 'FR12')]")
+
+    def test_filter_hierarchy_operator_with_text_is_refused(self):
+        """BR-DGQ-0010: 'child of' / 'parent of' with text is a name search of the linked model."""
+        self.env['data.quality.field.config'].create({
+            'field_id': self.fld('res.partner', 'vat').id,
+            'status': 'sensitive',
+        })
+        for operator in ('child_of', 'parent_of'):
+            with self.subTest(operator=operator), self.assertRaises(ValidationError):
+                self.make_rule(
+                    'res.partner', 'condition',
+                    condition_domain="[('parent_id', '%s', 'FR12')]" % operator)
+
+    def test_filter_hierarchy_operator_with_ids_is_saved(self):
+        """FR-DGQ-0001: 'child of' with record ids reads nothing of the linked model."""
+        rule = self.make_rule(
+            'res.partner', 'condition',
+            condition_domain="[('parent_id', 'child_of', [%d])]" % self.env.user.partner_id.id)
+        self.assertTrue(rule.exists())
 
     def test_filter_path_into_an_unmarked_model_is_refused(self):
         """FR-DGQ-0001: a filter may follow links only into models marked supported or restricted."""
@@ -154,6 +174,7 @@ class TestRuleFilterFields(AcceptanceCase):
     def test_manager_saves_a_filter_following_a_link(self):
         """FR-DGQ-0001: a manager who is not a settings administrator saves a linked filter."""
         manager = self.user('manager')
+        self.env.invalidate_all()  # no earlier sudo search may leave the marked models in the cache
         rule = self.env['data.quality.rule'].with_user(manager).create({
             'name': 'Parent is a company',
             'model_id': self.model('res.partner').id,

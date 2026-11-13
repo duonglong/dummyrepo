@@ -15,6 +15,7 @@ DEFINITION_FIELDS = (
     'validator_key',
 )
 RULE_TYPES_WITHOUT_FIELD = ('condition', 'custom')
+HIERARCHY_OPERATORS = ('child_of', 'parent_of')
 SUB_DOMAIN_OPERATORS = ('any', 'not any', 'any!', 'not any!')
 FIELD_TYPES_OF_RULE_TYPE = {
     'pattern': ('char', 'text'),
@@ -166,9 +167,9 @@ class DataQualityRule(models.Model):
 
         Requirements: FR-DGQ-0001
         """
-        allowed = set(self._dgq_model_domain()[0][2])
+        allowed = self._dgq_marked_models()
         for rule in self:
-            if rule.model_id.id not in allowed:
+            if rule.model_id not in allowed:
                 raise ValidationError(self.env._(
                     "%s is not marked as supported in the data quality settings and cannot be "
                     "checked by a rule. A data quality administrator can mark it in Data Quality > "
@@ -294,6 +295,12 @@ class DataQualityRule(models.Model):
                 label=label, rule=self.name, fields=', '.join(blocked)))
 
     @api.model
+    def _dgq_is_ids(self, value):
+        """Whether ``value`` is record ids only (an id or a collection of ids), never text."""
+        values = value if isinstance(value, (list, tuple, set, frozenset)) else [value]
+        return all(isinstance(item, int) and not isinstance(item, bool) for item in values)
+
+    @api.model
     def _dgq_blocked_fields(
             self, model: models.BaseModel, domain: Domain, usable_cache: dict[str, set[str]],
             marked: set[str],
@@ -301,7 +308,8 @@ class DataQualityRule(models.Model):
         """Return the fields an optimised domain reads that scans may not read, as 'model.field'.
 
         The domain must be optimised, so every field path and every link compared to text is an
-        'any' / 'not any' condition. Each field is checked against the marks of its own model,
+        'any' / 'not any' condition, and 'child of' / 'parent of' must hold record ids, since a
+        text value is a name search of the linked model. Each field is checked against the marks of its own model,
         and an inner domain only on a linked model marked supported or restricted: scans run
         filters in sudo, so a filter reaching a sensitive field, even through a link or a name
         search, would turn pass/fail into an oracle on its value. A field that is not stored is
@@ -317,6 +325,10 @@ class DataQualityRule(models.Model):
             name = condition.field_expr.split('.')[0]
             field = model._fields[name]
             if not field.store or name not in usable_cache[model._name]:
+                blocked.add(f"{model._name}.{name}")
+            elif condition.operator in HIERARCHY_OPERATORS and not self._dgq_is_ids(condition.value):
+                # a text value is resolved by a name search on the linked model, but only when
+                # the search runs in full, so the basic optimisation does not show it
                 blocked.add(f"{model._name}.{name}")
             elif condition.operator in SUB_DOMAIN_OPERATORS and isinstance(condition.value, Domain):
                 if field.comodel_name not in marked:
