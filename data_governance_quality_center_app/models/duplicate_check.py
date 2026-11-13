@@ -1,9 +1,15 @@
+import hashlib
+import logging
+import time
+
 from odoo import Command, fields, models
 from odoo.fields import Domain
 from odoo.exceptions import UserError
 
-from ..const import DUPLICATE_MAX_BLOCK_SIZE, JOB_BATCH_SIZE
+from ..const import DUPLICATE_MAX_BLOCK_KEY_LENGTH, DUPLICATE_MAX_BLOCK_SIZE, JOB_BATCH_SIZE
 from ..services import matching
+
+_logger = logging.getLogger(__name__)
 
 
 class DataQualityDuplicateCheck(models.Model):
@@ -51,6 +57,9 @@ class DataQualityDuplicateCheck(models.Model):
         return super().action_resume()
 
     def _check_not_overlapping(self):
+        # sudo: lock the rule row so that two quick starts of the same rule cannot both pass the
+        # count below; the lock lets the check rows keep pointing at the rule
+        self.rule_id.sudo().lock_for_update(allow_referencing=True)
         for check in self:
             # sudo: a check of the rule that another user queued still counts
             other = self.sudo().search_count([
@@ -76,11 +85,17 @@ class DataQualityDuplicateCheck(models.Model):
         Requirements: FR-DGQ-0039, NFR-DGQ-0003
         """
         self.ensure_one()
-        if self.phase == 'keys':
-            return self._run_keys_batch()
-        if self.phase == 'pairs':
-            return self._run_pairs_batch()
-        return self._run_groups_batch()
+        phase, started = self.phase, time.monotonic()
+        if phase == 'keys':
+            processed, remaining = self._run_keys_batch()
+        elif phase == 'pairs':
+            processed, remaining = self._run_pairs_batch()
+        else:
+            processed, remaining = self._run_groups_batch()
+        _logger.info(
+            "dgq duplicate check %s: rule %s, phase %s, %s processed, %s remaining, %.2fs",
+            self.id, self.rule_id.id, phase, processed, remaining, time.monotonic() - started)
+        return processed, remaining
 
     def _record_domain(self):
         """Domain of the active records the rule compares: its filter and its company."""
@@ -91,10 +106,13 @@ class DataQualityDuplicateCheck(models.Model):
         return domain
 
     def _read_values(self, ids):
-        """Return ``{id: values}`` of the matching fields, the company and the name of records."""
+        """Return ``{id: values}`` of the matching fields and the company of the records that
+        still match the check: active, in the rule's filter and company."""
         rule = self.rule_id
-        # sudo: a check reads the records of every company the rule covers, whoever started it
-        records = self.env[rule.model_name].sudo().browse(ids).exists()
+        # sudo: a check reads the records of every company the rule covers, whoever started it.
+        # Searching again (not browsing) leaves out the records deleted, archived or moved out
+        # of the rule's filter since an earlier phase.
+        records = self.env[rule.model_name].sudo().search(self._record_domain() & Domain('id', 'in', ids))
         names = [name for name, _method, _weight in rule._get_match_lines()]
         has_company = 'company_id' in records._fields
         read_names = names + (['company_id'] if has_company else [])
@@ -104,6 +122,13 @@ class DataQualityDuplicateCheck(models.Model):
             row['__company'] = data['company_id'] if has_company else False
             values[data['id']] = row
         return values
+
+    @staticmethod
+    def _stored_block_key(company, key):
+        """Return the key stored for a record: its company and key, hashed when too long to index."""
+        if len(key) > DUPLICATE_MAX_BLOCK_KEY_LENGTH:
+            key = hashlib.sha256(key.encode()).hexdigest()
+        return '%s|%s' % (company, key)
 
     def _run_keys_batch(self):
         rule = self.rule_id
@@ -119,7 +144,7 @@ class DataQualityDuplicateCheck(models.Model):
         for res_id, values in self._read_values(ids).items():
             company = values['__company'] or 0
             key_values.extend(
-                {'check_id': self.id, 'block_key': '%s|%s' % (company, key), 'res_id': res_id}
+                {'check_id': self.id, 'block_key': self._stored_block_key(company, key), 'res_id': res_id}
                 for key in matching.block_keys(lines, values))
         # sudo: the work table has no access group
         self.env['data.quality.duplicate.key'].sudo().create(key_values)
@@ -140,6 +165,7 @@ class DataQualityDuplicateCheck(models.Model):
         processed = skipped = scored = 0
         last_key = self.last_key
         consumed_all = True
+        compared = []
         for block_key, count in blocks:
             if processed >= JOB_BATCH_SIZE:
                 consumed_all = False
@@ -148,12 +174,15 @@ class DataQualityDuplicateCheck(models.Model):
             processed += count
             if count > DUPLICATE_MAX_BLOCK_SIZE:
                 skipped += 1
-                continue
-            if count < 2:
-                continue
-            ids = Key.search([('check_id', '=', self.id), ('block_key', '=', block_key)]).mapped('res_id')
-            values = self._read_values(ids)
-            ids = sorted(values)
+            elif count >= 2:
+                compared.append(block_key)
+        members = {}
+        for key in Key.search_fetch(
+                [('check_id', '=', self.id), ('block_key', 'in', compared)], ['block_key', 'res_id']):
+            members.setdefault(key.block_key, []).append(key.res_id)
+        values = self._read_values(sorted({res_id for ids in members.values() for res_id in ids}))
+        for ids in members.values():
+            ids = sorted(res_id for res_id in ids if res_id in values)
             for position, first in enumerate(ids):
                 for second in ids[position + 1:]:
                     if (first, second) in known:
@@ -182,8 +211,12 @@ class DataQualityDuplicateCheck(models.Model):
         }
         candidates = [(a, b, score) for a, b, score in self.pair_data or [] if (a, b) not in dismissed]
         values = self._read_values(sorted({res_id for a, b, _score in candidates for res_id in (a, b)}))
-        # a record deleted since the pairs phase has no values: its pairs drop out
-        pairs = [(a, b, score) for a, b, score in candidates if a in values and b in values]
+        # a record deleted, archived or filtered out since the pairs phase has no values, and a
+        # record moved to another company no longer pairs with its old company: such pairs drop out
+        pairs = [
+            (a, b, score) for a, b, score in candidates
+            if a in values and b in values and values[a]['__company'] == values[b]['__company']
+        ]
         components = matching.group_pairs(pairs)
         # sudo: the check writes the groups as the app, whoever started it
         Group = self.env['data.quality.duplicate.group'].sudo()

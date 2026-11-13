@@ -34,6 +34,20 @@ class DataQualityDuplicateRuleField(models.Model):
         help="How much this field counts in the similarity, from 1 to 10. A field of weight 3 counts "
              "three times as much as one of weight 1.")
 
+    def unlink(self):
+        """Refuse to remove the last matching field of a rule that stays.
+
+        A change of the rule's own lines is checked by the rule once all its lines are written,
+        so a field can be replaced in one save.
+
+        Requirements: FR-DGQ-0038
+        """
+        rules = self.rule_id
+        result = super().unlink()
+        if not self.env.context.get('dgq_rule_checks_lines'):
+            rules.exists()._check_field_lines()
+        return result
+
     @api.constrains('weight')
     def _check_weight(self):
         """A weight is a whole number from 1 to 10.

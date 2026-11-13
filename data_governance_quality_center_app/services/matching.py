@@ -8,10 +8,6 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 
-METHOD_EXACT = 'exact'
-METHOD_NORMALIZED = 'normalized'
-METHOD_FUZZY = 'fuzzy'
-
 # Characters of a name that carry no meaning when comparing; everything else is kept.
 _NOT_ALNUM = re.compile(r'[\W_]+')
 _NOT_DIGIT = re.compile(r'\D+')
@@ -53,10 +49,10 @@ def field_score(method, value_a, value_b, field_name=''):
     """
     if is_empty(value_a) or is_empty(value_b):
         return None
-    if method == METHOD_EXACT:
+    if method == 'exact':
         return 100.0 if value_a == value_b else 0.0
     text_a, text_b = normalize(value_a, field_name), normalize(value_b, field_name)
-    if method == METHOD_NORMALIZED:
+    if method == 'normalized':
         return 100.0 if text_a == text_b else 0.0
     return 100.0 * SequenceMatcher(None, text_a, text_b).ratio()
 
@@ -66,7 +62,7 @@ def pair_score(lines, values_a, values_b):
 
     A field empty on either side is left out; when no field is left the pair has no score.
 
-    Requirements: BR-DGQ-0012
+    Requirements: BR-DGQ-0012, NFR-DGQ-0011
     """
     total = weight_sum = 0.0
     for field_name, method, weight in lines:
@@ -90,9 +86,9 @@ def block_keys(lines, values):
         value = values.get(field_name)
         if is_empty(value):
             continue
-        if method == METHOD_EXACT:
+        if method == 'exact':
             keys.add('%s=%s' % (field_name, value))
-        elif method == METHOD_NORMALIZED:
+        elif method == 'normalized':
             keys.add('%s=%s' % (field_name, normalize(value, field_name)))
         else:
             prefix = normalize(value, field_name)[:BLOCK_PREFIX_LENGTH]

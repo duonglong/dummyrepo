@@ -49,7 +49,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Checks" name="checks">
+                        <page string="Checks" name="checks" groups="data_governance_quality_center_app.group_dgq_manager">
                             <field name="check_ids" readonly="1"/>
                         </page>
                     </notebook>

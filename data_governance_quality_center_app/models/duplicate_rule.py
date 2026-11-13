@@ -4,8 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
-from ..const import (
-    DUPLICATE_DEFAULT_THRESHOLD, DUPLICATE_MAX_THRESHOLD, DUPLICATE_MIN_THRESHOLD)
+from ..const import DUPLICATE_MAX_THRESHOLD, DUPLICATE_MIN_THRESHOLD
 
 
 class DataQualityDuplicateRule(models.Model):
@@ -27,7 +26,7 @@ class DataQualityDuplicateRule(models.Model):
         help="Only the records matching this filter are compared, for example contacts of one "
              "country. Leave empty to compare every active record.")
     threshold = fields.Integer(
-        default=DUPLICATE_DEFAULT_THRESHOLD, required=True,
+        default=85, required=True,
         help="The similarity, from 50 to 100, from which two records are shown as likely duplicates. "
              "With fuzzy matching a low value gives more false matches.")
     company_id = fields.Many2one(
@@ -44,6 +43,12 @@ class DataQualityDuplicateRule(models.Model):
         rules = super().create(vals_list)
         rules._check_field_lines()
         return rules
+
+    def write(self, vals):
+        if 'field_line_ids' in vals:
+            # the lines are deleted before new ones are created: the rule checks them afterwards
+            self = self.with_context(dgq_rule_checks_lines=True)
+        return super().write(vals)
 
     @api.constrains('field_line_ids')
     def _check_field_lines(self):
