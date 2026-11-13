@@ -6,3 +6,4 @@ from . import test_registry
 from . import test_access
 from . import test_model_config
 from . import test_result_access
+from . import test_audit
