@@ -10,7 +10,7 @@ from . import test_audit
 from . import test_rule_acceptance
 from . import test_rule_scan_acceptance
 from . import test_rule_issue_acceptance
-from . import test_validation_basic_acceptance
+from . import test_validation_basic_scan_acceptance
 from . import test_validation_advanced_acceptance
 from . import test_rule_test_acceptance
 from . import test_scan_start_acceptance
