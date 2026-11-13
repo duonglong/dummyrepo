@@ -72,6 +72,22 @@ class TestModelConfig(DGQTestCase):
             form.status = 'allowed'
         self.assertIn('bank_ids', Config._get_usable_field_names('res.partner'))
 
+    def test_bank_account_numbers_are_sensitive_on_any_model(self):
+        """BR-DGQ-0010: iban and account number names are sensitive whatever the model."""
+        Config = self.env['data.quality.field.config']
+        Fields = self.env['ir.model.fields']
+        for model, name in (
+                ('account.bank.statement.line', 'account_number'),
+                ('res.partner.bank', 'acc_number'),
+                ('res.partner.bank', 'sanitized_acc_number')):
+            field = Fields._get(model, name)
+            if field:
+                self.assertTrue(Config._is_sensitive_by_default(field), name)
+        fake = Fields.new({'name': 'x_qr_iban', 'model': 'res.partner', 'ttype': 'char'})
+        self.assertTrue(Config._is_sensitive_by_default(fake))
+        self.assertFalse(Config._is_sensitive_by_default(
+            Fields.new({'name': 'x_account_name', 'model': 'res.partner', 'ttype': 'char'})))
+
     def test_field_hidden_from_everyone_is_sensitive_by_default(self):
         """BR-DGQ-0010: a field declared with no group allowed is sensitive although Odoo lists
         no group for it (the ir.model.fields record of such a field has no groups)."""

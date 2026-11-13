@@ -6,7 +6,7 @@ from odoo.exceptions import ValidationError
 SENSITIVE_NAME_WORDS = frozenset({'password', 'passwd', 'token', 'secret', 'key', 'signature'})
 SENSITIVE_FIELD_TYPES = frozenset({'binary'})
 BANK_ACCOUNT_MODEL = 'res.partner.bank'
-BANK_ACCOUNT_FIELDS = {BANK_ACCOUNT_MODEL: {'account_number', 'sanitized_account_number'}}
+BANK_ACCOUNT_WORDS = frozenset({'account', 'acc'})
 
 
 class DataQualityFieldConfig(models.Model):
@@ -46,16 +46,17 @@ class DataQualityFieldConfig(models.Model):
         """Tell whether an ir.model.fields record is sensitive without any mark.
 
         Secrets (password, token, secret, key, signature names), binary fields, bank account
-        numbers and links to bank accounts, and fields restricted to user groups (also those
+        numbers (iban, account number names on any model) and links to bank accounts, and fields restricted to user groups (also those
         hidden from everyone).
 
         Requirements: BR-DGQ-0010
         """
         words = set(re.split(r'[^a-z0-9]+', field.name.lower()))
+        is_bank_account_number = 'iban' in words or (words & BANK_ACCOUNT_WORDS and 'number' in words)
         return bool(
             words & SENSITIVE_NAME_WORDS
+            or is_bank_account_number
             or field.ttype in SENSITIVE_FIELD_TYPES
-            or field.name in BANK_ACCOUNT_FIELDS.get(field.model, ())
             or field.relation == BANK_ACCOUNT_MODEL
             or field.groups
             or self._is_hidden_from_everyone(field)
