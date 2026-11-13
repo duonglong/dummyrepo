@@ -4,13 +4,15 @@ An action is a function ``(value, record, params) -> new value`` that raises ``D
 reason when the value cannot be corrected. Actions are registered through the registry so that an
 installed module can add its own (NFR-DGQ-0010). Nothing here keeps state.
 """
+import ast
+import bisect
 import logging
+import time
 
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools.mail import email_normalize
-from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.phone_validation.tools import phone_validation
 
@@ -21,6 +23,7 @@ _logger = logging.getLogger(__name__)
 TEXT_TYPES = ('char', 'text', 'html')
 DEFAULT_VALUE_TYPES = ('char', 'text', 'integer', 'float', 'selection')
 LINK_TYPES = ('many2one',)
+COUNTRY_MODELS = ('res.country', 'res.country.state')
 TEXT_CASES = {
     'upper': str.upper,
     'lower': str.lower,
@@ -141,6 +144,16 @@ def stored_value(record, field_name):
     return value.id if hasattr(value, 'id') else value
 
 
+def parse_domain(model, text):
+    """The filter text as an optimised domain that resolves on ``model``; never run as code.
+
+    Requirements: BR-DGQ-0009
+    """
+    domain = Domain(ast.literal_eval(text))
+    domain.validate(model)
+    return domain.optimize(model)
+
+
 def target_ids(correction):
     """The ids of the records a correction looks at, in id order.
 
@@ -154,7 +167,7 @@ def target_ids(correction):
     model = env[correction.model_id.model].sudo().with_context(active_test=False)
     domain = Domain.TRUE
     if correction.domain:
-        domain &= Domain(safe_eval(correction.domain))
+        domain &= parse_domain(model, correction.domain)
     elif correction.rule_id:
         if 'data.quality.issue' not in env:
             return []
@@ -197,12 +210,15 @@ def run_batch(run):
     correction = run.correction_id
     if not run.res_ids:
         run.res_ids = target_ids(correction)
-    pending = [rid for rid in run.res_ids if rid > run.last_id]
-    batch, rest = pending[:JOB_BATCH_SIZE], pending[JOB_BATCH_SIZE:]
+    started = time.monotonic()
+    first = bisect.bisect_right(run.res_ids, run.last_id)  # the targets are in id order
+    batch = run.res_ids[first:first + JOB_BATCH_SIZE]
     if batch:
         _handle_batch(run, batch)
         run.last_id = batch[-1]
-    return len(batch), len(rest)
+    _logger.info("dgq correction %s run %s (%s): %s records in %.2fs", correction.id, run.id,
+                 run.kind, len(batch), time.monotonic() - started)
+    return len(batch), len(run.res_ids) - first - len(batch)
 
 
 def _handle_batch(run, ids):
@@ -214,6 +230,7 @@ def _handle_batch(run, ids):
     records = env[model_name].sudo().with_context(active_test=False).browse(ids).exists()
     readable = env[model_name].with_user(run.user_id).with_context(active_test=False).search(
         [('id', 'in', records.ids)]).ids
+    hide_values = correction._dgq_is_sensitive()
     protected = correction._dgq_is_protected() and not correction.protected_authorized
     handler = env['data.quality.registry']._dgq_find('correction_actions', correction.action)['handler']
     params = action_params(correction)
@@ -222,6 +239,9 @@ def _handle_batch(run, ids):
     logs = []
 
     def line(record, state, reason=False, before=None, after=None):
+        if hide_values and state in ('would_change', 'changed', 'failed'):
+            before = after = None
+            reason = env._("The field is sensitive: its values are not kept.")
         counts[{'would_change': 'changed'}.get(state, state)] += 1
         logs.append({
             'run_id': run.id, 'res_model': model_name, 'res_id': record.id,
