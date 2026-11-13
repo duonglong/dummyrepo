@@ -9,8 +9,15 @@
         'base_import',
         'phone_validation',
     ],
-    'data': [],
+    'data': [
+        'security/security.xml',
+        'security/ir.access.csv',
+        'views/model_config_views.xml',
+        'views/menus.xml',
+        'data/model_config_data.xml',
+    ],
     'installable': True,
     'application': True,
+    'author': 'Empty Sandbox',
     'license': 'LGPL-3',
 }

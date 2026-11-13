@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_dgq_root" name="Data Quality" sequence="95"
+              groups="group_dgq_viewer"/>
+    <menuitem id="menu_dgq_configuration" name="Configuration" parent="menu_dgq_root"
+              sequence="90" groups="group_dgq_admin"/>
+    <menuitem id="menu_dgq_model_config" name="Models" parent="menu_dgq_configuration"
+              action="model_config_action" sequence="10" groups="group_dgq_admin"/>
+    <menuitem id="menu_dgq_field_config" name="Fields" parent="menu_dgq_configuration"
+              action="field_config_action" sequence="20" groups="group_dgq_admin"/>
+</odoo>
