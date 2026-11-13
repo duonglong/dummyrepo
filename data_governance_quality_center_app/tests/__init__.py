@@ -15,3 +15,9 @@ from . import test_scan_start_acceptance
 from . import test_scan_run_acceptance
 from . import test_issue_scan_acceptance
 from . import test_issue_workflow_acceptance
+from . import test_issue_bulk_acceptance
+from . import test_duplicate_rule_acceptance
+from . import test_duplicate_compare_acceptance
+from . import test_merge_acceptance
+from . import test_correction_policy_acceptance
+from . import test_correction_run_acceptance
