@@ -22,8 +22,10 @@ class DataQualityAuditPurge(models.TransientModel):
         Requirements: FR-DGQ-0073
         """
         for wizard in self:
-            wizard.entry_count = wizard.date_before and export.count_entries_before(
-                self.env, wizard.date_before) or 0
+            if not wizard.date_before:
+                wizard.entry_count = 0
+                continue
+            wizard.entry_count = export.count_entries_before(self.env, wizard.date_before)
 
     def action_purge(self):
         """Delete the old entries and write the purge entry (administrators only).

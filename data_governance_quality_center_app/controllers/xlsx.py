@@ -14,9 +14,10 @@ class DataQualityXlsx(http.Controller):
         Requirements: FR-DGQ-0074
         """
         wizard = request.env['data.quality.audit.export'].browse(wizard_id).exists()
-        if not wizard or not request.env.user.has_group(
-                'data_governance_quality_center_app.group_dgq_admin'):
+        if not request.env.user.has_group('data_governance_quality_center_app.group_dgq_admin'):
             raise AccessError(request.env._("The audit export is for administrators."))
+        if not wizard:
+            return request.not_found()
         content = export.audit_xlsx(wizard._get_entries())
         return request.make_response(content, headers=[
             ('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),

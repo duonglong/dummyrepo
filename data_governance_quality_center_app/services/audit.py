@@ -4,12 +4,11 @@ The audit table is append-only for the ORM (``data.quality.audit`` refuses write
 unlink for everyone); this module is the one place that writes entries and the one
 place that deletes them, by SQL, for the administrator's purge.
 """
-from datetime import datetime, time
-
 from odoo.exceptions import AccessError
 from odoo.tools import SQL
 
 from ..const import AUDIT_PURGE_BATCH_SIZE
+from .export import day_start_utc
 
 
 def log(env, event, record=None, changes=None, description=False, field_names=False):
@@ -50,18 +49,17 @@ def purge(env, date_before):
     """
     if not env.is_superuser() and not env.user.has_group('data_governance_quality_center_app.group_dgq_admin'):
         raise AccessError(env._("Only an administrator can purge the audit trail."))
-    limit = datetime.combine(date_before, time.min)
-    env['data.quality.audit'].flush_model()
+    audit = env['data.quality.audit']
+    domain = [('date', '<', day_start_utc(env, date_before))]
+    audit.flush_model()
     deleted = 0
     while True:
-        env.cr.execute(SQL(
-            "DELETE FROM data_quality_audit WHERE id IN ("
-            "SELECT id FROM data_quality_audit WHERE date < %s LIMIT %s)",
-            limit, AUDIT_PURGE_BATCH_SIZE,
-        ))
-        deleted += env.cr.rowcount
-        if env.cr.rowcount < AUDIT_PURGE_BATCH_SIZE:
+        # the same domain as the dialog's count: only the entries of the user's companies
+        ids = audit._search(domain, limit=AUDIT_PURGE_BATCH_SIZE).get_result_ids()
+        if not ids:
             break
+        env.cr.execute(SQL("DELETE FROM data_quality_audit WHERE id IN %s", tuple(ids)))
+        deleted += env.cr.rowcount
     env['data.quality.audit'].invalidate_model()
     return log(
         env, 'purge',
