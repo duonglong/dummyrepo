@@ -23,7 +23,7 @@
             <form>
                 <header>
                     <button name="action_start" type="object" string="Start" class="btn-primary"
-                            invisible="state not in ('draft', 'failed', 'cancelled')"
+                            invisible="state != 'draft'"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
                     <button name="action_resume" type="object" string="Resume" class="btn-primary"
                             invisible="state != 'failed'"

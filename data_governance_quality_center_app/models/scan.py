@@ -1,12 +1,15 @@
+import logging
+import time
+
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.tools import SQL
 
 from ..const import JOB_BATCH_SIZE
 from ..services import scan as scan_service
 
-#: key of the lock that serialises the overlap check of two simultaneous starts
-SCAN_SCOPE_LOCK_KEY = 'dgq.scan.scope'
+_logger = logging.getLogger(__name__)
 
 
 class DataQualityScan(models.Model):
@@ -45,6 +48,23 @@ class DataQualityScan(models.Model):
 
     line_ids = fields.One2many('data.quality.scan.line', 'scan_id', string='Results')
     checkpoint_ids = fields.One2many('data.quality.scan.checkpoint', 'scan_id', string='Checkpoints')
+
+    @api.model
+    def _access_domain(self, operation):
+        """Limit scans to the allowed companies; a scan without company is open to all.
+
+        The requester keeps access to his own scan, since an operator may scan a company
+        outside his own (accepted); sudo and the superuser are not filtered.
+
+        Requirements: FR-DGQ-0071, BR-DGQ-0011
+        """
+        domain = super()._access_domain(operation)
+        if operation == 'create':
+            return domain
+        return domain & (
+            Domain('company_ids', '=', False)
+            | Domain('company_ids', 'in', self.env.companies.ids)
+            | Domain('create_uid', '=', self.env.uid))
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -85,11 +105,26 @@ class DataQualityScan(models.Model):
         Requirements: FR-DGQ-0015, FR-DGQ-0018
         """
         self.check_access('write')
-        self.env.cr.execute(SQL("SELECT pg_advisory_xact_lock(hashtext(%s))", SCAN_SCOPE_LOCK_KEY))
         for scan in self:
             scan._dgq_resolve_scope()
+        self._dgq_lock_scope_rules()
+        for scan in self:
             scan._dgq_refuse_overlap()
         return super()._dgq_enqueue()
+
+    def _dgq_lock_scope_rules(self):
+        """Touch the scope's rule rows so two starts of the same rule cannot both pass.
+
+        A request runs on a snapshot taken before this call, so a plain lock would still let
+        the second start miss the first one's queued scan. Updating the rows both starts share
+        makes the second one fail with a serialization error once the first commits; Odoo then
+        repeats the request on a fresh snapshot, which sees the queued scan.
+
+        Requirements: FR-DGQ-0018
+        """
+        rule_ids = self.sudo().rule_ids.ids  # sudo: the requester may not read every rule
+        self.env.cr.execute(SQL(
+            "UPDATE data_quality_rule SET write_date = write_date WHERE id IN %s", tuple(rule_ids)))
 
     def _dgq_resolve_scope(self):
         """Store the real rules, models and companies: an empty choice means everything allowed.
@@ -132,9 +167,14 @@ class DataQualityScan(models.Model):
             ('company_ids', 'in', self.company_ids.ids),
         ], limit=1)
         if busy:
+            # sudo: the shared rule and company may not be readable by the requester
+            shared_rule = (busy.rule_ids & self.sudo().rule_ids)[:1]
+            shared_company = (busy.company_ids & self.sudo().company_ids)[:1]
             raise UserError(self.env._(
-                "The scan %(name)s is already queued or running for the same rules and companies.",
-                name=busy.name))
+                "A scan of rule %(rule)s for %(company)s is already %(state)s (%(name)s). "
+                "Wait for it to finish or cancel it.",
+                rule=shared_rule.display_name, company=shared_company.display_name,
+                state=dict(busy._fields['state'].selection)[busy.state].lower(), name=busy.name))
 
     # ---- batches ------------------------------------------------------------
 
@@ -182,6 +222,7 @@ class DataQualityScan(models.Model):
         model_name = checkpoint.model_id.model
         rules = self.rule_ids.filtered(
             lambda rule: rule.model_id == checkpoint.model_id and str(rule.id) not in (self.rules_not_run or {}))
+        started = time.monotonic()
         Model = self.env[model_name].sudo()  # sudo: scans read every record of the scope
         names = {'company_id'} & set(Model._fields)
         for rule in rules:
@@ -210,6 +251,9 @@ class DataQualityScan(models.Model):
             'checks_failed': self.checks_failed + failed,
             'checks_not_applicable': self.checks_not_applicable + not_applicable,
         })
+        _logger.info(
+            "dgq scan %s model %s batch up to id %s: %s records in %.2fs",
+            self.id, model_name, checkpoint.last_id, len(records), time.monotonic() - started)
         return len(records)
 
     def _dgq_line_values(self, rule, record, empty_fields):
@@ -240,6 +284,17 @@ class DataQualityScanCheckpoint(models.Model):
     last_id = fields.Integer()
     records_done = fields.Integer()
     done = fields.Boolean()
+
+    @api.model
+    def _access_domain(self, operation):
+        """A checkpoint is as visible as its scan, which is separated by company.
+
+        Requirements: FR-DGQ-0071, BR-DGQ-0011
+        """
+        domain = super()._access_domain(operation)
+        if operation == 'create':
+            return domain
+        return domain & Domain('scan_id', 'any', [])
 
     _scan_model_unique = models.Constraint(
         'UNIQUE(scan_id, model_id)', 'A scan has one checkpoint per model.')
