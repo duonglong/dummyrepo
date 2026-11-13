@@ -72,12 +72,12 @@ def lock_if_running(job):
 
 def queued_count(env, model_name):
     """Number of queued jobs of a kind: the work that remains for the scheduled action."""
+    # the runner is root: it counts the jobs of every user
     return env[model_name].sudo().search_count([('state', '=', 'queued')])
 
 
 def _fail_job(env, model_name, job_id, error):
     """Roll back the batch in progress and set the job failed, in its own commit."""
-    _logger.exception("dgq %s job %s failed", model_name, job_id)
     cron = env['ir.cron']
     cron._rollback_progress()
     env.invalidate_all()
@@ -123,6 +123,7 @@ def run_next_job(env, model_name):
             processed, remaining = job._dgq_run_batch()
             job._dgq_record_batch(processed, remaining)
         except Exception as error:  # noqa: BLE001 (any batch failure fails the job, never the runner)
+            _logger.exception("dgq %s job %s failed", model_name, job_id)
             return _fail_job(env, model_name, job_id, error)
         others = queued_count(env, model_name)
         left = cron._commit_progress(processed, remaining=remaining + others)
