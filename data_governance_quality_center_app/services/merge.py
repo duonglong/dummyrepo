@@ -146,6 +146,7 @@ def field_rows(env, model_name, res_ids, rule_lines=()):
     Requirements: FR-DGQ-0040, FR-DGQ-0042, BR-DGQ-0010
     """
     ids = list(res_ids)
+    # sudo: the comparison shows the records of a group the user may already read
     records = env[model_name].sudo().browse(ids).exists()
     ids = [res_id for res_id in ids if res_id in set(records.ids)]
     match = {name: method for name, method, _weight in rule_lines}

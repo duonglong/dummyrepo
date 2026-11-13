@@ -90,11 +90,11 @@ class DataQualityDuplicateGroup(models.Model):
                         'rule_id': self.rule_id.id, 'res_model': self.res_model,
                         'res_id_a': pair[0], 'res_id_b': pair[1], 'user_id': self.env.user.id})
         Dismissal.create(vals)
-        group = self.sudo()
+        group = self.sudo()  # sudo: the app writes the group, the manager only decides
         if len(remaining) < 2:
             group.state = 'dismissed'
         else:
-            lines.sudo().unlink()
+            lines.sudo().unlink()  # sudo: same reason
 
     def action_dismiss(self):
         """Close the group as not duplicates: its records are not grouped again under the rule.

@@ -95,6 +95,7 @@ class DataQualityMergeWizard(models.TransientModel):
             if not ids or not wizard.kept_res_id:
                 wizard.value_line_ids = [Command.clear()]
                 continue
+            # sudo: managers read the rule of their group; the preview only needs its fields
             rule_lines = wizard.group_id.sudo().rule_id._get_match_lines() if wizard.group_id else []
             others = [res_id for res_id in ids if res_id != wizard.kept_res_id]
             rows = merge.field_rows(self.env, wizard.res_model, [wizard.kept_res_id, *others], rule_lines)
@@ -121,6 +122,7 @@ class DataQualityMergeWizard(models.TransientModel):
         for wizard in self:
             ids = wizard.res_ids or []
             others = [res_id for res_id in ids if res_id != wizard.kept_res_id]
+            # sudo: the manager may not read ir.model, the label is the model's own name
             wizard.link_summary = []
             wizard.archive_names = False
             wizard.reversible = True
