@@ -22,3 +22,7 @@ DUPLICATE_MAX_BLOCK_SIZE = 500
 
 # Longest blocking key stored as is; a longer one is stored as its hash so that it fits the index (ADR-DGQ-009).
 DUPLICATE_MAX_BLOCK_KEY_LENGTH = 200
+
+# Records a merge takes: the smallest and the largest number (FR-DGQ-0042).
+MERGE_MIN_RECORDS = 2
+MERGE_MAX_RECORDS = 10

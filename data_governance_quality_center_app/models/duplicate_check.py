@@ -7,7 +7,7 @@ from odoo.fields import Domain
 from odoo.exceptions import UserError
 
 from ..const import DUPLICATE_MAX_BLOCK_KEY_LENGTH, DUPLICATE_MAX_BLOCK_SIZE, JOB_BATCH_SIZE
-from ..services import matching
+from ..services import matching, merge
 
 _logger = logging.getLogger(__name__)
 
@@ -227,10 +227,12 @@ class DataQualityDuplicateCheck(models.Model):
         # sudo: see _read_values
         records = self.env[rule.model_name].sudo().browse(sorted(values))
         names = {record.id: record.display_name for record in records}
+        links = merge.linked_counts(self.env, rule.model_name, sorted(values))
         for ids, best in components:
             first = ids[0]
             line_values = [Command.create({
                 'sequence': position, 'res_id': res_id, 'record_name': names.get(res_id),
+                'link_count': sum(links[res_id].values()),
                 'score': 100.0 if res_id == first
                 else matching.pair_score(lines, values[first], values[res_id]) or 0.0,
             }) for position, res_id in enumerate(ids)]

@@ -16,6 +16,7 @@
         'views/rule_views.xml',
         'views/audit_views.xml',
         'views/duplicate_views.xml',
+        'views/merge_wizard_views.xml',
         'views/menus.xml',
         'data/model_config_data.xml',
         'data/duplicate_cron.xml',
