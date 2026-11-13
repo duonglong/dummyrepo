@@ -19,6 +19,8 @@
         'views/menus.xml',
         'data/model_config_data.xml',
         'data/duplicate_cron.xml',
+        'views/scan_views.xml',
+        'data/cron_scan.xml',
     ],
     'installable': True,
     'application': True,

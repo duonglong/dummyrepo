@@ -12,6 +12,8 @@
               action="duplicate_check_action" sequence="30" groups="group_dgq_manager"/>
     <menuitem id="menu_dgq_rule" name="Rules" parent="menu_dgq_root"
               action="rule_action" sequence="20" groups="group_dgq_viewer"/>
+    <menuitem id="menu_dgq_scan" name="Scans" parent="menu_dgq_root"
+              action="scan_action" sequence="30" groups="group_dgq_viewer"/>
     <menuitem id="menu_dgq_configuration" name="Configuration" parent="menu_dgq_root"
               sequence="90" groups="group_dgq_admin"/>
     <menuitem id="menu_dgq_model_config" name="Models" parent="menu_dgq_configuration"
