@@ -13,6 +13,7 @@
         'security/security.xml',
         'security/ir.access.csv',
         'views/model_config_views.xml',
+        'views/rule_views.xml',
         'views/audit_views.xml',
         'views/duplicate_views.xml',
         'views/menus.xml',
