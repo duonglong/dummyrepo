@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="rule_view_list" model="ir.ui.view">
+        <field name="name">data.quality.rule.list</field>
+        <field name="model">data.quality.rule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="rule_type"/>
+                <field name="severity" widget="badge"/>
+                <field name="version"/>
+                <field name="company_ids" widget="many2many_tags" optional="show"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="rule_view_form" model="ir.ui.view">
+        <field name="name">data.quality.rule.form</field>
+        <field name="model">data.quality.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Vendor needs a VAT number"/></h1>
+                    </div>
+                    <group>
+                        <group string="What to check">
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="rule_type"/>
+                            <field name="field_ids" widget="many2many_tags"
+                                   invisible="rule_type in ('condition', 'custom')"
+                                   options="{'no_create': True}"/>
+                            <field name="severity"/>
+                            <field name="company_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Status">
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="version"/>
+                            <field name="sequence"/>
+                        </group>
+                    </group>
+                    <group string="Settings">
+                        <group invisible="rule_type != 'pattern'">
+                            <field name="pattern_preset"/>
+                            <field name="pattern" invisible="pattern_preset"/>
+                        </group>
+                        <group invisible="rule_type != 'range'">
+                            <field name="has_min"/>
+                            <field name="min_value" invisible="not has_min"/>
+                            <field name="has_max"/>
+                            <field name="max_value" invisible="not has_max"/>
+                        </group>
+                        <group invisible="rule_type != 'date'">
+                            <field name="date_condition"/>
+                            <field name="date_days"
+                                   invisible="date_condition not in ('not_older', 'not_ahead')"/>
+                            <field name="date_from" invisible="date_condition != 'between'"/>
+                            <field name="date_to" invisible="date_condition != 'between'"/>
+                        </group>
+                        <group invisible="rule_type != 'cross_field'">
+                            <field name="compare_field_id" options="{'no_create': True}"/>
+                            <field name="compare_operator"/>
+                        </group>
+                        <group invisible="rule_type != 'custom'">
+                            <field name="validator_key"/>
+                        </group>
+                        <group invisible="rule_type != 'condition'">
+                            <field name="applies_domain"/>
+                            <field name="condition_domain"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description"/>
+                            <separator string="Advice"/>
+                            <field name="advice"/>
+                        </page>
+                        <page string="Versions" name="versions">
+                            <field name="version_ids" readonly="1">
+                                <list>
+                                    <field name="version"/>
+                                    <field name="date"/>
+                                    <field name="user_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="rule_view_search" model="ir.ui.view">
+        <field name="name">data.quality.rule.search</field>
+        <field name="model">data.quality.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="model_id"/>
+                <filter name="severity_critical" string="Critical" domain="[('severity', '=', 'critical')]"/>
+                <filter name="inactive" string="Switched off" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_model" string="Model" context="{'group_by': 'model_id'}"/>
+                    <filter name="group_type" string="Check Type" context="{'group_by': 'rule_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="rule_action" model="ir.actions.act_window">
+        <field name="name">Rules</field>
+        <field name="res_model">data.quality.rule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

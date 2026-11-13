@@ -5,3 +5,5 @@ from . import model_config
 from . import result_mixin
 from . import audit
 from . import audit_export
+from . import rule
+from . import rule_version
