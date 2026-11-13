@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="correction_view_list" model="ir.ui.view">
+        <field name="name">data.quality.correction.list</field>
+        <field name="model">data.quality.correction</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="field_id"/>
+                <field name="action"/>
+                <field name="rule_id" optional="show"/>
+                <field name="state" widget="badge"/>
+                <field name="author_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="correction_view_form" model="ir.ui.view">
+        <field name="name">data.quality.correction.form</field>
+        <field name="model">data.quality.correction</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_dry_run" type="object" string="Dry run"
+                            class="btn-primary" invisible="not id"/>
+                    <button name="action_approve" type="object" string="Approve"
+                            invisible="state != 'to_approve'"/>
+                    <button name="action_run" type="object" string="Run"
+                            invisible="state not in ('ready', 'approved')"
+                            confirm="The correction changes the values of the records. Run it?"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,ready,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Normalize contact e-mails"/></h1>
+                    </div>
+                    <group>
+                        <group string="What to correct">
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="field_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="rule_id" options="{'no_create': True}"/>
+                            <field name="domain"/>
+                            <field name="company_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="How">
+                            <field name="action"/>
+                            <field name="default_value" invisible="action != 'default'"/>
+                            <field name="text_case" invisible="action != 'text_case'"/>
+                            <field name="link_from_id" invisible="action != 'replace_link'"/>
+                            <field name="link_to_id" invisible="action != 'replace_link'"/>
+                        </group>
+                    </group>
+                    <group string="Approval">
+                        <group>
+                            <field name="needs_approval"/>
+                            <field name="author_id"/>
+                            <field name="protected_authorized"
+                                   groups="data_governance_quality_center_app.group_dgq_admin"/>
+                        </group>
+                        <group>
+                            <field name="approver_id"/>
+                            <field name="approval_date"/>
+                            <field name="last_dry_run_id"/>
+                            <field name="approved_dry_run_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Country and State" name="mappings"
+                              invisible="action != 'country_state'">
+                            <field name="mapping_ids">
+                                <list editable="bottom">
+                                    <field name="source_text"/>
+                                    <field name="country_id"/>
+                                    <field name="state_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Runs" name="runs">
+                            <field name="run_ids" readonly="1">
+                                <list>
+                                    <field name="date_queued"/>
+                                    <field name="kind"/>
+                                    <field name="state"/>
+                                    <field name="count_changed"/>
+                                    <field name="count_unchanged"/>
+                                    <field name="count_skipped"/>
+                                    <field name="count_failed"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="correction_run_view_list" model="ir.ui.view">
+        <field name="name">data.quality.correction.run.list</field>
+        <field name="model">data.quality.correction.run</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="correction_id"/>
+                <field name="kind"/>
+                <field name="state" widget="badge"/>
+                <field name="date_queued"/>
+                <field name="count_changed"/>
+                <field name="count_unchanged"/>
+                <field name="count_skipped"/>
+                <field name="count_failed"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="correction_run_view_form" model="ir.ui.view">
+        <field name="name">data.quality.correction.run.form</field>
+        <field name="model">data.quality.correction.run</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="correction_id"/>
+                            <field name="kind"/>
+                            <field name="user_id"/>
+                            <field name="progress" widget="progressbar"/>
+                        </group>
+                        <group>
+                            <field name="count_changed"/>
+                            <field name="count_unchanged"/>
+                            <field name="count_skipped"/>
+                            <field name="count_failed"/>
+                        </group>
+                    </group>
+                    <field name="log_ids">
+                        <list>
+                            <field name="res_model"/>
+                            <field name="res_id"/>
+                            <field name="field_name"/>
+                            <field name="value_before"/>
+                            <field name="value_after"/>
+                            <field name="state"/>
+                            <field name="reason"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="correction_action" model="ir.actions.act_window">
+        <field name="name">Corrections</field>
+        <field name="res_model">data.quality.correction</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="correction_run_action" model="ir.actions.act_window">
+        <field name="name">Correction Runs</field>
+        <field name="res_model">data.quality.correction.run</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_dgq_correction" name="Corrections" parent="menu_dgq_root"
+              action="correction_action" sequence="60" groups="group_dgq_manager"/>
+    <menuitem id="menu_dgq_correction_run" name="Correction Runs" parent="menu_dgq_root"
+              action="correction_run_action" sequence="65" groups="group_dgq_manager"/>
+</odoo>

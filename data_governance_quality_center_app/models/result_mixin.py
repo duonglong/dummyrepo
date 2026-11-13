@@ -20,7 +20,7 @@ class DataQualityResultMixin(models.AbstractModel):
         Requirements: BR-DGQ-0011
         """
         user_env = self.env(su=False)
-        mixin_class = self.env.registry[self._name]
+        mixin_class = self.env.registry['data.quality.result.mixin']
         return tuple(sorted(
             name for name, model in self.env.registry.items()
             if model._auto and not model._transient and not issubclass(model, mixin_class)
