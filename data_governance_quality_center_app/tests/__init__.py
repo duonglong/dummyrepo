@@ -17,6 +17,7 @@ from . import test_issue_scan
 from . import test_issue_scan_acceptance
 from . import test_issue_workflow_acceptance
 from . import test_issue_bulk_acceptance
+from . import test_issue_bulk
 from . import test_duplicate_rule_acceptance
 from . import test_duplicate_compare_acceptance
 from . import test_duplicate_compare

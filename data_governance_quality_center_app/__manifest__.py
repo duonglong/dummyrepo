@@ -27,6 +27,7 @@
         'data/mail_templates.xml',
         'views/menus.xml',
         'views/correction_views.xml',
+        'views/issue_bulk_views.xml',
         'data/cron_scan.xml',
     ],
     'assets': {
