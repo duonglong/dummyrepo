@@ -1,5 +1,8 @@
+from psycopg2 import IntegrityError
+
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tools import mute_logger
 
 from .acceptance_m2b_helpers import M2BCase, APPROVE, DRY_RUN, REAL_RUN, call_first, choice
 
@@ -354,6 +357,14 @@ class TestCorrectionPolicy(M2BCase):
             self.critical_rule.unlink()
         self.assertEqual(correction.rule_id, self.critical_rule)
         self.assertEqual(correction.state, 'approved')
+
+    def test_a_company_used_by_a_correction_cannot_be_deleted(self):
+        """BR-DGQ-0006: deleting the company must not drop the filter of an approved correction."""
+        company = self.env['res.company'].create({'name': 'Scoped Co'})
+        correction = self.correction('res.partner', 'email', ['trim'], user=False, company_ids=[(6, 0, company.ids)])
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.cr.savepoint():
+            company.unlink()
+        self.assertEqual(correction.company_ids, company)
 
     def test_a_default_for_a_selection_with_computed_choices_is_accepted(self):
         """FR-DGQ-0046: the choices are read from the field, so a time zone is a valid default."""

@@ -68,7 +68,9 @@ class DataQualityCorrection(models.Model):
     domain = fields.Char(
         string='Filter', help="Only records matching this filter are corrected, for example "
         "[('country_id', '=', False)].")
-    company_ids = fields.Many2many('res.company', string='Companies')
+    company_ids = fields.Many2many(
+        'res.company', string='Companies', ondelete='restrict',
+        help="Empty: all your companies. A company used here cannot be deleted.")
     mapping_ids = fields.One2many(
         'data.quality.correction.mapping', 'correction_id', string='Country and State Mappings')
     state = fields.Selection(
