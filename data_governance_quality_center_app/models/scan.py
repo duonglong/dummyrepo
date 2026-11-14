@@ -50,6 +50,9 @@ class DataQualityScan(models.Model):
     checks_not_applicable = fields.Integer(copy=False, readonly=True)
     records_error = fields.Integer(string='Records With Errors', copy=False, readonly=True)
     records_warning = fields.Integer(string='Records With Warnings', copy=False, readonly=True)
+    issues_created = fields.Integer(copy=False, readonly=True)
+    issues_updated = fields.Integer(copy=False, readonly=True)
+    issues_resolved = fields.Integer(copy=False, readonly=True)
 
     # the job progress is written by the app only: shown read-only on screen
     state = fields.Selection(readonly=True)
@@ -295,7 +298,13 @@ class DataQualityScan(models.Model):
         return processed, remaining
 
     def _dgq_check_batch(self, checkpoint):
-        """Read one page of records of the checkpoint's model, check them and move the checkpoint."""
+        """Read one page of records of the checkpoint's model, check them and move the checkpoint.
+
+        The batch starts after the checkpoint's last record, so a resumed scan never checks again a
+        record already saved. Lines, tallies, counts and the checkpoint are written together.
+
+        Requirements: FR-DGQ-0016, FR-DGQ-0017, FR-DGQ-0019
+        """
         model_name = checkpoint.model_id.model
         rules = self.rule_ids.filtered(
             lambda rule: rule.model_id == checkpoint.model_id and str(rule.id) not in (self.rules_not_run or {}))
@@ -328,7 +337,7 @@ class DataQualityScan(models.Model):
                 for res_id, outcome in failing.items())
         self.env['data.quality.scan.line'].create(lines)
         counts = scan_service.batch_counts(
-            rules, records, results, covered, (validation.NOT_APPLICABLE, validation.FAIL))
+            rules, records, results, covered)
         self.env['data.quality.scan.tally']._dgq_add(self, checkpoint.model_id, counts)
         model_rows = [row for (_company, rule_id), row in counts.items() if not rule_id]
         last_id = records[-1:].id or checkpoint.last_id

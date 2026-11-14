@@ -6,7 +6,7 @@ from ..services import validation
 class DataQualityScanLine(models.Model):
     """One failed check of one record in one scan.
 
-    Requirements: FR-DGQ-0015
+    Requirements: FR-DGQ-0015, FR-DGQ-0019
     """
     _name = 'data.quality.scan.line'
     _inherit = ['data.quality.result.mixin']

@@ -54,6 +54,9 @@
                             <field name="checks_passed"/>
                             <field name="checks_failed"/>
                             <field name="checks_not_applicable"/>
+                            <field name="issues_created"/>
+                            <field name="issues_updated"/>
+                            <field name="issues_resolved"/>
                             <field name="user_id"/>
                             <field name="date_queued"/>
                             <field name="date_end"/>

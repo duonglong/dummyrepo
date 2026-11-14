@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..services.scan import TALLY_COUNTERS
+
 
 class DataQualityScanTally(models.Model):
     """Running counts of a scan per model, company and rule: the input of the score.
@@ -46,7 +48,7 @@ class DataQualityScanTally(models.Model):
     def _dgq_add(self, scan, model, batch):
         """Add the counts of one batch to the scan's rows; ``batch`` maps (company id, rule id) to counts.
 
-        Requirements: FR-DGQ-0019
+        Requirements: FR-DGQ-0019, FR-DGQ-0016
         """
         existing = {
             (row.company_id.id, row.rule_id.id): row
@@ -55,8 +57,7 @@ class DataQualityScanTally(models.Model):
         for key, counts in batch.items():
             row = existing.get(key)
             if row:
-                row.write({name: row[name] + value for name, value in counts.items()
-                           if name in self._fields and self._fields[name].type == 'integer'})
+                row.write({name: row[name] + counts[name] for name in TALLY_COUNTERS})
             else:
                 company_id, rule_id = key
                 created.append(dict(counts, scan_id=scan.id, model_id=model.id,
@@ -64,4 +65,4 @@ class DataQualityScanTally(models.Model):
         self.create(created)
 
     _scan_row_unique = models.Constraint(
-        'UNIQUE(scan_id, model_id, company_id, rule_id)', 'A scan has one tally per model, company and rule.')
+        'UNIQUE NULLS NOT DISTINCT (scan_id, model_id, company_id, rule_id)', 'A scan has one tally per model, company and rule.')

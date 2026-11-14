@@ -7,6 +7,7 @@ from ast import literal_eval
 
 from odoo.fields import Domain
 
+from . import validation
 from .validation import CHECKERS
 from .validation.advanced import validator_for
 
@@ -95,36 +96,38 @@ def applicable_records(rule, records):
     return applicable
 
 
-def batch_counts(rules, records, outcomes, covered, status):
+TALLY_COUNTERS = (
+    'records_scanned', 'records_applicable', 'records_failed', 'records_failing', 'records_error', 'records_warning')
+
+
+def batch_counts(rules, records, outcomes, covered):
     """Counts of one batch by (company id, rule id); rule id 0 is the model row.
 
     ``outcomes`` maps a rule to its (record id, rule id) results, ``covered`` is the ids of the
-    records some rule applied to, and ``status`` holds the not-applicable and fail markers.
+    records some rule applied to. The counters are added from batch to batch; ``rule_version`` and
+    ``severity`` only describe the row.
     A record counts once per model row however many rules it fails.
 
     Requirements: FR-DGQ-0019
     """
-    not_applicable, fail = status
     company_of = {
         record.id: record.company_id.id if 'company_id' in record._fields else False for record in records}
     counts = {}
 
     def row(record_id, rule_id):
-        return counts.setdefault((company_of[record_id], rule_id), dict.fromkeys(
-            ('records_scanned', 'records_applicable', 'records_failed', 'records_failing',
-             'records_error', 'records_warning'), 0))
+        return counts.setdefault((company_of[record_id], rule_id), dict.fromkeys(TALLY_COUNTERS, 0))
 
     for record_id in covered:
         row(record_id, 0)['records_scanned'] += 1
     severities = {}
     for rule in rules:
         for (record_id, _rule_id), outcome in outcomes[rule].items():
-            if outcome.status == not_applicable:
+            if outcome.status == validation.NOT_APPLICABLE:
                 continue
             tally = row(record_id, rule.id)
             tally.update(rule_version=rule.version, severity=rule.severity)
             tally['records_applicable'] += 1
-            if outcome.status == fail:
+            if outcome.status == validation.FAIL:
                 tally['records_failed'] += 1
                 severities.setdefault(record_id, set()).add(rule.severity)
     for record_id, kinds in severities.items():
