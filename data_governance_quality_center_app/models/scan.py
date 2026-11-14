@@ -331,10 +331,14 @@ class DataQualityScan(models.Model):
             rules, records, results, covered, (validation.NOT_APPLICABLE, validation.FAIL))
         self.env['data.quality.scan.tally']._dgq_add(self, checkpoint.model_id, counts)
         model_rows = [row for (_company, rule_id), row in counts.items() if not rule_id]
+        last_id = records[-1:].id or checkpoint.last_id
+        # a full batch may be the last one: look for a record after it, so no empty batch follows
+        finished = len(records) < JOB_BATCH_SIZE or not Model.search_count(
+            scan_service.record_domain(Model, self.company_ids, last_id, rules), limit=1)
         checkpoint.write({
-            'last_id': records[-1:].id or checkpoint.last_id,
+            'last_id': last_id,
             'records_done': checkpoint.records_done + len(records),
-            'done': len(records) < JOB_BATCH_SIZE,
+            'done': finished,
         })
         self.write({
             'records_scanned': self.records_scanned + len(covered),
