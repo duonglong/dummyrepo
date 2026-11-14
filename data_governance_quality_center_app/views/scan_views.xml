@@ -49,6 +49,8 @@
                         <group string="Progress">
                             <field name="progress" widget="progressbar"/>
                             <field name="records_scanned"/>
+                            <field name="records_error"/>
+                            <field name="records_warning"/>
                             <field name="checks_passed"/>
                             <field name="checks_failed"/>
                             <field name="checks_not_applicable"/>

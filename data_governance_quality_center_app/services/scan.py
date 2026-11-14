@@ -63,11 +63,21 @@ def not_run_reason(env, rule):
     return False
 
 
-def record_domain(model, companies, last_id):
-    """Domain of the records one batch reads: after the checkpoint, in the scan's companies."""
+def record_domain(model, companies, last_id, rules):
+    """Domain of the records one batch reads: after the checkpoint, in the companies the rules are about.
+
+    A record with no company is read only when a rule is not limited to companies; a rule
+    limited to companies never applies to it.
+
+    Requirements: FR-DGQ-0016
+    """
     domain = Domain('id', '>', last_id)
     if 'company_id' in model._fields:
-        domain &= Domain('company_id', 'in', [False, *companies.ids])
+        if all(rule.company_ids for rule in rules):
+            allowed = companies & rules.company_ids
+            domain &= Domain('company_id', 'in', allowed.ids)
+        else:
+            domain &= Domain('company_id', 'in', [False, *companies.ids])
     return domain
 
 
@@ -83,3 +93,43 @@ def applicable_records(rule, records):
     if rule.applies_domain:
         applicable = applicable.filtered_domain(literal_eval(rule.applies_domain))
     return applicable
+
+
+def batch_counts(rules, records, outcomes, covered, status):
+    """Counts of one batch by (company id, rule id); rule id 0 is the model row.
+
+    ``outcomes`` maps a rule to its (record id, rule id) results, ``covered`` is the ids of the
+    records some rule applied to, and ``status`` holds the not-applicable and fail markers.
+    A record counts once per model row however many rules it fails.
+
+    Requirements: FR-DGQ-0019
+    """
+    not_applicable, fail = status
+    company_of = {
+        record.id: record.company_id.id if 'company_id' in record._fields else False for record in records}
+    counts = {}
+
+    def row(record_id, rule_id):
+        return counts.setdefault((company_of[record_id], rule_id), dict.fromkeys(
+            ('records_scanned', 'records_applicable', 'records_failed', 'records_failing',
+             'records_error', 'records_warning'), 0))
+
+    for record_id in covered:
+        row(record_id, 0)['records_scanned'] += 1
+    severities = {}
+    for rule in rules:
+        for (record_id, _rule_id), outcome in outcomes[rule].items():
+            if outcome.status == not_applicable:
+                continue
+            tally = row(record_id, rule.id)
+            tally.update(rule_version=rule.version, severity=rule.severity)
+            tally['records_applicable'] += 1
+            if outcome.status == fail:
+                tally['records_failed'] += 1
+                severities.setdefault(record_id, set()).add(rule.severity)
+    for record_id, kinds in severities.items():
+        model_row = row(record_id, 0)
+        model_row['records_failing'] += 1
+        model_row['records_error'] += 'critical' in kinds
+        model_row['records_warning'] += 'warning' in kinds
+    return counts

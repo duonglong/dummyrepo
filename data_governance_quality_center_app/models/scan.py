@@ -16,7 +16,7 @@ _logger = logging.getLogger(__name__)
 class DataQualityScan(models.Model):
     """One run of rules over records: scope, state, progress and counts.
 
-    Requirements: FR-DGQ-0015, FR-DGQ-0018, FR-DGQ-0020
+    Requirements: FR-DGQ-0015, FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0019
     """
     _name = 'data.quality.scan'
     _inherit = ['data.quality.job.mixin']
@@ -48,6 +48,8 @@ class DataQualityScan(models.Model):
     checks_passed = fields.Integer(copy=False, readonly=True)
     checks_failed = fields.Integer(copy=False, readonly=True)
     checks_not_applicable = fields.Integer(copy=False, readonly=True)
+    records_error = fields.Integer(string='Records With Errors', copy=False, readonly=True)
+    records_warning = fields.Integer(string='Records With Warnings', copy=False, readonly=True)
 
     # the job progress is written by the app only: shown read-only on screen
     state = fields.Selection(readonly=True)
@@ -62,6 +64,7 @@ class DataQualityScan(models.Model):
 
     line_ids = fields.One2many('data.quality.scan.line', 'scan_id', string='Results')
     checkpoint_ids = fields.One2many('data.quality.scan.checkpoint', 'scan_id', string='Checkpoints')
+    tally_ids = fields.One2many('data.quality.scan.tally', 'scan_id', string='Tallies')
 
     @api.model
     def _access_domain(self, operation):
@@ -268,7 +271,8 @@ class DataQualityScan(models.Model):
         total = 0
         for model in runnable.model_id:
             Model = self.env[model.model].sudo()  # sudo: scans read every record of the scope
-            total += Model.search_count(scan_service.record_domain(Model, self.company_ids, 0))
+            total += Model.search_count(scan_service.record_domain(
+                Model, self.company_ids, 0, runnable.filtered(lambda rule: rule.model_id == model)))
         self.env['data.quality.scan.checkpoint'].create([
             {'scan_id': self.id, 'model_id': model.id} for model in runnable.model_id])
         self.write({'rules_not_run': not_run, 'total_count': total})
@@ -302,14 +306,16 @@ class DataQualityScan(models.Model):
         for rule in rules:
             names |= scan_service.rule_fields(rule)
         records = Model.search_fetch(
-            scan_service.record_domain(Model, self.company_ids, checkpoint.last_id),
+            scan_service.record_domain(Model, self.company_ids, checkpoint.last_id, rules),
             sorted(names), order='id', limit=JOB_BATCH_SIZE)
         lines, passed, failed, not_applicable = [], 0, 0, 0
         covered = set()
+        results = {}
         for rule in rules:
             applicable = scan_service.applicable_records(rule, records)
             covered.update(applicable.ids)
             outcomes = validation.check(rule, applicable, now=now)
+            results[rule] = outcomes
             judged = [outcome for outcome in outcomes.values() if outcome.status != validation.NOT_APPLICABLE]
             failing = {
                 record_id: outcome for (record_id, _rule_id), outcome in outcomes.items()
@@ -321,6 +327,10 @@ class DataQualityScan(models.Model):
                 self._dgq_line_values(rule, records.browse(res_id), outcome)
                 for res_id, outcome in failing.items())
         self.env['data.quality.scan.line'].create(lines)
+        counts = scan_service.batch_counts(
+            rules, records, results, covered, (validation.NOT_APPLICABLE, validation.FAIL))
+        self.env['data.quality.scan.tally']._dgq_add(self, checkpoint.model_id, counts)
+        model_rows = [row for (_company, rule_id), row in counts.items() if not rule_id]
         checkpoint.write({
             'last_id': records[-1:].id or checkpoint.last_id,
             'records_done': checkpoint.records_done + len(records),
@@ -331,6 +341,8 @@ class DataQualityScan(models.Model):
             'checks_passed': self.checks_passed + passed,
             'checks_failed': self.checks_failed + failed,
             'checks_not_applicable': self.checks_not_applicable + not_applicable,
+            'records_error': self.records_error + sum(row['records_error'] for row in model_rows),
+            'records_warning': self.records_warning + sum(row['records_warning'] for row in model_rows),
         })
         _logger.info(
             "dgq scan %s model %s batch up to id %s: %s records in %.2fs",
@@ -350,65 +362,3 @@ class DataQualityScan(models.Model):
             'explanation_code': outcome.code,
             'explanation_params': outcome.params,
         }
-
-
-class DataQualityScanCheckpoint(models.Model):
-    """Where a scan stands in one model.
-
-    Requirements: FR-DGQ-0015
-    """
-    _name = 'data.quality.scan.checkpoint'
-    _description = 'Data Quality Scan Checkpoint'
-
-    scan_id = fields.Many2one('data.quality.scan', required=True, ondelete='cascade', index=True)
-    model_id = fields.Many2one('ir.model', required=True, ondelete='cascade')
-    last_id = fields.Integer()
-    records_done = fields.Integer()
-    done = fields.Boolean()
-
-    @api.model
-    def _access_domain(self, operation):
-        """A checkpoint is as visible as its scan, which is separated by company.
-
-        The ``access`` operator applies the scan's own access rules as the user; ``any`` would
-        not, since Odoo evaluates access domains as superuser.
-
-        Requirements: FR-DGQ-0071, BR-DGQ-0011
-        """
-        domain = super()._access_domain(operation)
-        if operation == 'create':
-            return domain
-        return domain & Domain('scan_id', 'access', 'read')
-
-    _scan_model_unique = models.Constraint(
-        'UNIQUE(scan_id, model_id)', 'A scan has one checkpoint per model.')
-
-
-class DataQualityScanLine(models.Model):
-    """One failed check of one record in one scan.
-
-    Requirements: FR-DGQ-0015
-    """
-    _name = 'data.quality.scan.line'
-    _inherit = ['data.quality.result.mixin']
-    _description = 'Data Quality Scan Result'
-
-    scan_id = fields.Many2one('data.quality.scan', required=True, ondelete='cascade', index=True)
-    rule_id = fields.Many2one('data.quality.rule', required=True, ondelete='restrict')
-    rule_version = fields.Integer()
-    res_id = fields.Many2oneReference(string='Record', model_field='res_model', index=True)
-    severity = fields.Selection([
-        ('info', 'Information'),
-        ('warning', 'Warning'),
-        ('critical', 'Critical'),
-    ])
-    explanation_code = fields.Char()
-    explanation_params = fields.Json()
-    explanation = fields.Text(compute='_compute_explanation')
-
-    @api.depends('explanation_code', 'explanation_params', 'res_model')
-    def _compute_explanation(self):
-        """Render the stored code in the reader's language."""
-        for line in self:
-            line.explanation = validation.explain(
-                self.env, line.explanation_code, line.explanation_params or {}) or False
