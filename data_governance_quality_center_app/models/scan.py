@@ -7,6 +7,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 
 from ..const import JOB_BATCH_SIZE
+from ..services import issues as issue_service
 from ..services import scan as scan_service
 from ..services import validation
 
@@ -303,7 +304,7 @@ class DataQualityScan(models.Model):
         The batch starts after the checkpoint's last record, so a resumed scan never checks again a
         record already saved. Lines, tallies, counts and the checkpoint are written together.
 
-        Requirements: FR-DGQ-0016, FR-DGQ-0017, FR-DGQ-0019
+        Requirements: FR-DGQ-0016, FR-DGQ-0017, FR-DGQ-0019, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023
         """
         model_name = checkpoint.model_id.model
         rules = self.rule_ids.filtered(
@@ -336,6 +337,7 @@ class DataQualityScan(models.Model):
                 self._dgq_line_values(rule, records.browse(res_id), outcome)
                 for res_id, outcome in failing.items())
         self.env['data.quality.scan.line'].create(lines)
+        created, updated, resolved = issue_service.sync_batch(self.env, self, rules, records, results, now)
         counts = scan_service.batch_counts(
             rules, records, results, covered)
         self.env['data.quality.scan.tally']._dgq_add(self, checkpoint.model_id, counts)
@@ -344,6 +346,8 @@ class DataQualityScan(models.Model):
         # a full batch may be the last one: look for a record after it, so no empty batch follows
         finished = len(records) < JOB_BATCH_SIZE or not Model.search_count(
             scan_service.record_domain(Model, self.company_ids, last_id, rules), limit=1)
+        if finished:
+            resolved += issue_service.resolve_deleted(self.env, self, rules, model_name)
         checkpoint.write({
             'last_id': last_id,
             'records_done': checkpoint.records_done + len(records),
@@ -356,6 +360,9 @@ class DataQualityScan(models.Model):
             'checks_not_applicable': self.checks_not_applicable + not_applicable,
             'records_error': self.records_error + sum(row['records_error'] for row in model_rows),
             'records_warning': self.records_warning + sum(row['records_warning'] for row in model_rows),
+            'issues_created': self.issues_created + created,
+            'issues_updated': self.issues_updated + updated,
+            'issues_resolved': self.issues_resolved + resolved,
         })
         _logger.info(
             "dgq scan %s model %s batch up to id %s: %s records in %.2fs",

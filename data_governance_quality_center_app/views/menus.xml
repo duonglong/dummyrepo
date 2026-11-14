@@ -16,6 +16,8 @@
               action="rule_action" sequence="20" groups="group_dgq_viewer"/>
     <menuitem id="menu_dgq_scan" name="Scans" parent="menu_dgq_root"
               action="scan_action" sequence="30" groups="group_dgq_viewer"/>
+    <menuitem id="menu_dgq_issue" name="Issues" parent="menu_dgq_root"
+              action="issue_action" sequence="40" groups="group_dgq_viewer"/>
     <menuitem id="menu_dgq_configuration" name="Configuration" parent="menu_dgq_root"
               sequence="90" groups="group_dgq_admin"/>
     <menuitem id="menu_dgq_model_config" name="Models" parent="menu_dgq_configuration"
