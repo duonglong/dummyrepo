@@ -20,6 +20,16 @@ access_dgq_rule_viewer,data.quality.rule viewer,data.quality.rule,group_dgq_view
 access_dgq_rule_manager,data.quality.rule manager,data.quality.rule,group_dgq_manager,crud,
 access_dgq_rule_version_viewer,data.quality.rule.version viewer,data.quality.rule.version,group_dgq_viewer,r,
 access_dgq_ir_model_fields_viewer,ir.model.fields viewer,ir.model.fields,group_dgq_viewer,r,"[('model_id.dgq_config_ids.status','in',('supported','restricted'))]"
+access_dgq_correction_viewer,data.quality.correction viewer,data.quality.correction,group_dgq_viewer,r,
+access_dgq_correction_manager,data.quality.correction manager,data.quality.correction,group_dgq_manager,crud,
+access_dgq_correction_company,data.quality.correction own companies,data.quality.correction,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
+access_dgq_correction_mapping_viewer,data.quality.correction.mapping viewer,data.quality.correction.mapping,group_dgq_viewer,r,
+access_dgq_correction_mapping_manager,data.quality.correction.mapping manager,data.quality.correction.mapping,group_dgq_manager,crud,
+access_dgq_correction_run_viewer,data.quality.correction.run viewer,data.quality.correction.run,group_dgq_viewer,r,
+access_dgq_correction_run_manager,data.quality.correction.run manager,data.quality.correction.run,group_dgq_manager,cru,
+access_dgq_correction_log_viewer,data.quality.correction.log viewer,data.quality.correction.log,group_dgq_viewer,r,
+access_dgq_correction_run_company,data.quality.correction.run own companies,data.quality.correction.run,,crud,"['|',('correction_id.company_ids','=',False),('correction_id.company_ids','in',company_ids)]"
+access_dgq_correction_mapping_company,data.quality.correction.mapping own companies,data.quality.correction.mapping,,crud,"['|',('correction_id.company_ids','=',False),('correction_id.company_ids','in',company_ids)]"
 access_dgq_duplicate_check_company,data.quality.duplicate.check own companies,data.quality.duplicate.check,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
 access_dgq_merge_wizard_manager,data.quality.merge.wizard manager,data.quality.merge.wizard,group_dgq_manager,crud,
 access_dgq_merge_wizard_value_manager,data.quality.merge.wizard.value manager,data.quality.merge.wizard.value,group_dgq_manager,crud,

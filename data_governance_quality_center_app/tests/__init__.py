@@ -25,6 +25,7 @@ from . import test_merge
 from . import test_correction_policy_acceptance
 from . import test_correction_run_acceptance
 from . import test_rule
+from . import test_correction_policy
 from . import test_validation_basic
 from . import test_validation_basic_scan_acceptance
 from . import test_matching
