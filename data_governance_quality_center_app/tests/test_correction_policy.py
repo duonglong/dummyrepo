@@ -1,7 +1,7 @@
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from .acceptance_m2b_helpers import M2BCase, REAL_RUN, call_first, choice
+from .acceptance_m2b_helpers import M2BCase, DRY_RUN, REAL_RUN, call_first, choice
 
 
 class TestCorrectionPolicy(M2BCase):
@@ -59,7 +59,7 @@ class TestCorrectionPolicy(M2BCase):
         self.assertTrue(correction.protected_authorized)
 
     def test_approval_fields_cannot_be_written_by_a_manager(self):
-        """BR-DGQ-0048: the state and approval fields are set by the buttons only; the author is the creator."""
+        """BR-DGQ-0006, FR-DGQ-0048: the state and approval fields are set by the buttons only; the author is the creator."""
         correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
         self.assertEqual(correction.author_id, self.manager_a)
         for vals in ({'state': 'approved'}, {'approver_id': self.manager_b.id},
@@ -180,6 +180,45 @@ class TestCorrectionPolicy(M2BCase):
         with self.assertRaises(UserError) as caught:
             call_first(correction, REAL_RUN)
         self.assertIn('dry run', str(caught.exception).lower())
+
+    def test_context_defaults_cannot_fill_the_approval_fields(self):
+        """BR-DGQ-0006, FR-DGQ-0048: a default_<field> in the context does not set state or author."""
+        correction = self.correction(
+            'res.partner', 'email', ['trim'], domain_ids=self.padded.ids,
+            rule=self.critical_rule)
+        mine = self.env['data.quality.correction'].with_user(self.manager_a).with_context(
+            default_state='approved', default_author_id=self.manager_b.id,
+            default_approver_id=self.manager_b.id).create({
+                'name': 'Mine', 'model_id': correction.model_id.id, 'field_id': correction.field_id.id,
+                'action': correction.action, 'rule_id': self.critical_rule.id})
+        self.assertEqual(mine.state, 'draft')
+        self.assertEqual(mine.author_id, self.manager_a)
+        self.assertFalse(mine.approver_id)
+
+    def test_a_manager_cannot_write_the_fields_a_run_is_trusted_for(self):
+        """BR-DGQ-0006, FR-DGQ-0071: targets, requesting user and state of a run are set by the app."""
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        Run = self.env['data.quality.correction.run'].with_user(self.manager_a)
+        with self.assertRaises(UserError):
+            Run.create({'correction_id': correction.id, 'kind': 'run', 'res_ids': [self.padded.id]})
+        run = Run.create({'correction_id': correction.id, 'kind': 'dry_run'})
+        for vals in ({'user_id': self.administrator.id}, {'state': 'done'}, {'res_ids': [1]}, {'last_id': 5}):
+            with self.assertRaises(UserError):
+                run.write(vals)
+        run.action_start()
+        self.assertEqual(run.state, 'queued')
+        self.assertEqual(run.user_id, self.manager_a)
+        run.action_cancel()
+        self.assertEqual(run.state, 'cancelled')
+
+    def test_a_filter_is_checked_again_when_a_field_is_marked_after_saving(self):
+        """BR-DGQ-0010: a mark set after the filter was saved stops the dry run, no log line is kept."""
+        correction = self.correction(
+            'res.partner', 'email', ['trim'], domain="[('comment', '=', 'x')]")
+        self.mark_comment_sensitive()
+        with self.assertRaises(ValidationError):
+            call_first(correction, DRY_RUN)
+        self.assertFalse(correction.run_ids.log_ids)
 
     def correction_action(self, words):
         return choice(self.env, 'data.quality.correction', 'action', words)

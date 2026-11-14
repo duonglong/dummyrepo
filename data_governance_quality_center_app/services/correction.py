@@ -163,6 +163,7 @@ def target_ids(correction):
     Requirements: FR-DGQ-0047
     """
     env = correction.env
+    correction._dgq_check_domain()
     # sudo: the engine reads the scope of the correction; each record's access is checked per user
     model = env[correction.model_id.model].sudo().with_context(active_test=False)
     domain = Domain.TRUE
@@ -208,7 +209,7 @@ def run_batch(run):
     Requirements: FR-DGQ-0047, NFR-DGQ-0005
     """
     correction = run.correction_id
-    if not run.res_ids:
+    if not run.last_id:  # the first batch fixes the targets, whatever the run record held
         run.res_ids = target_ids(correction)
     started = time.monotonic()
     first = bisect.bisect_right(run.res_ids, run.last_id)  # the targets are in id order
@@ -277,7 +278,7 @@ def _handle_batch(run, ids):
         except Exception as error:  # noqa: BLE001 (any refusal of the target is logged, the run goes on)
             _logger.warning("dgq correction %s record %s %s: write refused (%s)",
                             correction.id, model_name, record.id, type(error).__name__)
-            line(record, 'failed', str(error), before=before)
+            line(record, 'failed', env._("The write was refused (%s).", type(error).__name__), before=before)
             continue
         line(record, 'changed', before=before, after=after)
     # sudo: nobody creates log lines by hand, the engine writes them

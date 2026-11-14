@@ -19,6 +19,10 @@ GUARDED_FIELDS = (
 )
 
 
+#: the fields a user may give a run; the others are set by the buttons and the engine
+RUN_USER_FIELDS = frozenset({'correction_id', 'kind'})
+
+
 class DataQualityCorrection(models.Model):
     """A repeatable fix of one field of a model, with dry runs and an approval.
 
@@ -141,9 +145,14 @@ class DataQualityCorrection(models.Model):
 
     @api.constrains('domain', 'model_id')
     def _check_domain(self):
+        """The filter is checked when it is saved."""
+        self._dgq_check_domain()
+
+    def _dgq_check_domain(self):
         """The filter is plain domain text on the model that reaches no field a scan may not read.
 
-        It is searched in sudo, so a filter on a sensitive field would show its value.
+        It is searched in sudo, so a filter on a sensitive field would show its value. The marks
+        change after the filter was saved: the engine checks again before every search.
 
         Requirements: BR-DGQ-0009, BR-DGQ-0010
         """
@@ -233,6 +242,11 @@ class DataQualityCorrection(models.Model):
         for vals in vals_list:
             self._dgq_check_authorization(vals)
             self._dgq_check_guarded(vals)
+        if not self.env.su:
+            # a ``default_<field>`` of the context fills the guarded fields later, inside the ORM
+            defaults = {'default_' + name for name in GUARDED_FIELDS}
+            self = self.with_context(
+                {key: value for key, value in self.env.context.items() if key not in defaults})
         return super().create(vals_list)
 
     def write(self, vals):
@@ -355,8 +369,13 @@ class DataQualityCorrectionRun(models.Model):
 
         Requirements: BR-DGQ-0006, FR-DGQ-0048
         """
+        for run in self:
+            run.correction_id._dgq_check_domain()
         for run in self.filtered(lambda r: r.kind == 'run'):
             run.correction_id._dgq_check_real_run_allowed()
+            # the row lock makes two requests start one after the other
+            self.env.cr.execute(
+                "SELECT id FROM data_quality_correction WHERE id = %s FOR UPDATE", [run.correction_id.id])
             # sudo: any queued or running run of the correction counts, whoever started it
             if self.env[run._name].sudo().search_count([
                     ('correction_id', '=', run.correction_id.id), ('kind', '=', 'run'),
@@ -366,11 +385,29 @@ class DataQualityCorrectionRun(models.Model):
 
     def action_start(self):
         self._dgq_check_start()
-        return super().action_start()
+        return super(DataQualityCorrectionRun, self.sudo()).action_start()  # sudo: the app sets the run's fields
 
     def action_resume(self):
         self._dgq_check_start()
-        return super().action_resume()
+        return super(DataQualityCorrectionRun, self.sudo()).action_resume()  # sudo: the app sets the run's fields
+
+    def action_cancel(self):
+        return super(DataQualityCorrectionRun, self.sudo()).action_cancel()  # sudo: the app sets the run's fields
+
+    def _dgq_check_user_fields(self, vals):
+        """A user gives a run its correction and kind only: the engine trusts every other field."""
+        if not self.env.su and set(vals) - RUN_USER_FIELDS:
+            raise UserError(self.env._("A run is started by the buttons of its correction only."))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            self._dgq_check_user_fields(vals)
+        return super().create(vals_list)
+
+    def write(self, vals):
+        self._dgq_check_user_fields(vals)
+        return super().write(vals)
 
     def _dgq_run_batch(self):
         """Process the next batch of targets; a real run stops when its approval is gone.
