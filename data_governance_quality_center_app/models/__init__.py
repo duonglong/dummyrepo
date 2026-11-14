@@ -18,6 +18,8 @@ from . import rule_test
 from . import rule_version
 from . import correction
 from . import correction_mapping
+from . import correction_run
+from . import correction_log
 from . import scan
 from . import scan_checkpoint
 from . import scan_line

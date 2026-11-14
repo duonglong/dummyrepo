@@ -119,6 +119,9 @@
         <field name="arch" type="xml">
             <form create="0" edit="0">
                 <header>
+                    <button name="action_rollback" type="object" string="Roll back"
+                            invisible="kind != 'run' or state != 'done' or rolled_back"
+                            groups="data_governance_quality_center_app.group_dgq_manager"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
@@ -126,6 +129,8 @@
                         <group>
                             <field name="correction_id"/>
                             <field name="kind"/>
+                            <field name="rolled_back" invisible="kind != 'run'"/>
+                            <field name="rollback_of_id" invisible="kind != 'rollback'"/>
                             <field name="dry_run_id" invisible="kind != 'run'"/>
                             <field name="user_id"/>
                             <field name="progress" widget="progressbar"/>
@@ -135,6 +140,8 @@
                             <field name="count_unchanged"/>
                             <field name="count_skipped"/>
                             <field name="count_failed"/>
+                            <field name="count_restored" invisible="kind != 'rollback'"/>
+                            <field name="count_not_restored" invisible="kind != 'rollback'"/>
                         </group>
                     </group>
                     <field name="log_ids">
