@@ -183,7 +183,10 @@ class TestIssueScanAcceptance(AcceptanceCase):
         rule = self.make_rule(
             'res.partner', 'condition', applies_domain="[('is_company', '=', True)]",
             condition_domain="[('vat', '!=', False)]")
-        acme = self.partner('Acme', is_company=True)
+        acme = self.partner('Acme')
+        # Odoo 20 computes is_company from the VAT on create: set it by hand afterwards.
+        acme.is_company = True
+        self.assertTrue(acme.is_company)
         self.run_scan([rule], models=['res.partner'])
         issue = self.issues(acme, rule)
         self.assertEqual(issue.state, 'new')
