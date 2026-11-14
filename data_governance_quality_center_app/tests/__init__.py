@@ -10,7 +10,6 @@ from . import test_audit
 from . import test_rule_acceptance
 from . import test_rule_scan_acceptance
 from . import test_rule_issue_acceptance
-from . import test_validation_basic_acceptance
 from . import test_validation_advanced_acceptance
 from . import test_rule_test_acceptance
 from . import test_scan_start_acceptance
@@ -20,8 +19,14 @@ from . import test_issue_workflow_acceptance
 from . import test_issue_bulk_acceptance
 from . import test_duplicate_rule_acceptance
 from . import test_duplicate_compare_acceptance
+from . import test_duplicate_compare
 from . import test_merge_acceptance
+from . import test_merge
 from . import test_correction_policy_acceptance
 from . import test_correction_run_acceptance
 from . import test_rule
 from . import test_correction_policy
+from . import test_validation_basic
+from . import test_validation_basic_scan_acceptance
+from . import test_matching
+from . import test_scan_start
