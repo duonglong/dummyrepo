@@ -3,30 +3,35 @@
 ``check`` returns, for each (record, rule), an ``Outcome``: passed, failed with an explanation
 code and its parameters, or not applicable. ``explain`` renders a code in the reader's language.
 """
+from odoo import fields
+
 from . import basic
-from .basic import FAIL, NOT_APPLICABLE, PASS, Outcome
+from .basic import FAIL, NOT_APPLICABLE, PASS, Batch, Outcome
 
 # The checks by rule type; the advanced checks add their own entries.
 CHECKERS = dict(basic.CHECKERS)
 EXPLAINERS = [basic.explain]
 
-__all__ = ['CHECKERS', 'FAIL', 'NOT_APPLICABLE', 'PASS', 'Outcome', 'check', 'explain']
+__all__ = ['CHECKERS', 'FAIL', 'NOT_APPLICABLE', 'PASS', 'Batch', 'Outcome', 'check', 'explain']
 
 
-def check(rules, records, today=None):
+def check(rules, records, now=None):
     """Check ``records`` against ``rules`` of their model; return ``{(record id, rule id): Outcome}``.
 
-    A rule whose type has no check here is left out of the answer. ``today`` is the day of the
-    scan; it defaults to the current day in the company's time zone.
+    A rule whose type has no check here is left out of the answer. ``now`` is the moment of the
+    scan in UTC (default: now); each record's day is that moment in its company's time zone.
+    Values of fields that are excluded or sensitive are never put in the parameters.
 
     Requirements: FR-DGQ-0002, FR-DGQ-0003, FR-DGQ-0004, FR-DGQ-0005
     """
+    shown_fields = records.env['data.quality.field.config']._get_usable_field_names(records._name)
+    batch = Batch(now or fields.Datetime.now(), shown_fields)
     outcomes = {}
     for rule in rules:
         checker = CHECKERS.get(rule.rule_type)
         if checker is None:
             continue
-        for record, outcome in checker(rule, records, today=today).items():
+        for record, outcome in checker(rule, records, batch).items():
             outcomes[(record, rule.id)] = outcome
     return outcomes
 
