@@ -62,3 +62,12 @@ ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')
 
 # Skipped issues a bulk action names in its result; the others are only counted (FR-DGQ-0027).
 BULK_SKIPPED_LISTED = 20
+
+# Most frequent values, shapes and linked records a profile keeps for a field (FR-DGQ-0053, FR-DGQ-0055).
+PROFILE_TOP_COUNT = 20
+
+# Days without an update after which a record is stale, unless the profile says otherwise (FR-DGQ-0055).
+PROFILE_STALE_DAYS = 365
+
+# A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
+PROFILE_OUTLIER_FACTOR = 1.5
