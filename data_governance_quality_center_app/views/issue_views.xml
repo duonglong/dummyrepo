@@ -31,12 +31,12 @@
                     </div>
                     <group>
                         <group string="Finding">
-                            <field name="rule_id"/>
-                            <field name="rule_version"/>
-                            <field name="record_name"/>
-                            <field name="severity"/>
-                            <field name="company_id"/>
-                            <field name="explanation"/>
+                            <field name="rule_id" readonly="1"/>
+                            <field name="rule_version" readonly="1"/>
+                            <field name="record_name" readonly="1"/>
+                            <field name="severity" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                            <field name="explanation" readonly="1"/>
                         </group>
                         <group string="Work">
                             <field name="user_id"/>
@@ -45,10 +45,10 @@
                             <field name="ignore_reason" invisible="state != 'ignored'"/>
                         </group>
                         <group string="Found">
-                            <field name="first_found"/>
-                            <field name="first_scan_id"/>
-                            <field name="last_found"/>
-                            <field name="scan_id"/>
+                            <field name="first_found" readonly="1"/>
+                            <field name="first_scan_id" readonly="1"/>
+                            <field name="last_found" readonly="1"/>
+                            <field name="scan_id" readonly="1"/>
                         </group>
                         <group string="Resolution" invisible="state != 'resolved'">
                             <field name="date_resolved"/>
@@ -67,7 +67,7 @@
         <field name="res_model">data.quality.issue</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">A scan raises an issue for each record that fails a rule.</p>
+            <p class="o_view_nocontent_smiling_face">Run a scan to find issues.</p>
         </field>
     </record>
 </odoo>

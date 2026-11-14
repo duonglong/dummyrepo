@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.exceptions import UserError
 
 from .acceptance_helpers import AcceptanceCase
@@ -62,3 +64,28 @@ class TestIssueScan(AcceptanceCase):
         self.assertEqual(issue.state, 'new')
         self.assertFalse(issue.date_resolved)
         self.assertFalse(issue.resolved_by_scan)
+
+    def test_deleted_records_are_resolved_in_chunks(self):
+        """FR-DGQ-0023: more deleted records than one chunk are all resolved, none twice."""
+        gone = self.env['product.template'].concat(*[self.product('Gone %s' % n) for n in range(5)])
+        self.scan()
+        gone.unlink()
+        with patch('odoo.addons.data_governance_quality_center_app.services.issues.JOB_BATCH_SIZE', 2):
+            scan = self.scan()
+        self.assertEqual(scan.issues_resolved, 5)
+        self.assertEqual(
+            self.env['data.quality.issue'].search_count([('rule_id', '=', self.rule.id), ('state', '=', 'resolved')]), 5)
+
+    def test_operator_writes_only_the_work_fields(self):
+        """FR-DGQ-0070: the finding of an issue (company, record, severity, first found) is not written by hand."""
+        desk = self.product('Desk')
+        self.scan()
+        issue = self.issue_of(desk)
+        operator = self.user('operator', company=issue.company_id)
+        for name, value in [
+            ('company_id', self.env.company.id), ('res_id', 1), ('severity', 'info'), ('first_found', '2000-01-01'),
+        ]:
+            with self.subTest(field=name), self.assertRaises(UserError):
+                issue.with_user(operator).write({name: value})
+        issue.with_user(operator).write({'priority': 'urgent', 'deadline': '2030-01-01'})
+        self.assertEqual(issue.priority, 'urgent')

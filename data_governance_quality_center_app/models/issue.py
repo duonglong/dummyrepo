@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from ..const import ISSUE_PRIORITY_BY_SEVERITY, ISSUE_STATE_MOVES
 from ..services import explain
@@ -55,6 +55,8 @@ class DataQualityIssue(models.Model):
     resolution_hours = fields.Float(readonly=True, copy=False)
     resolved_by_scan = fields.Boolean(readonly=True, copy=False)
 
+    _dgq_work_fields = frozenset({'state', 'user_id', 'priority', 'deadline', 'ignore_reason'})
+
     _record_rule_unique = models.Constraint(
         'UNIQUE (rule_id, res_model, res_id)', 'A record has one issue for each rule.')
     _state_company_idx = models.Index('(state, company_id)')
@@ -93,8 +95,18 @@ class DataQualityIssue(models.Model):
         Assigned issue makes it New. Ignoring needs a reason; resolving and reopening keep
         the resolution date and hours.
 
-        Requirements: BR-DGQ-0004
+        A user writes only the work fields: the finding comes from the scan.
+
+        Requirements: BR-DGQ-0004, FR-DGQ-0070
         """
+        if not self.env.su:
+            forbidden = set(vals) - self._dgq_work_fields
+            if forbidden:
+                labels = sorted(
+                    self._fields[name]._description_string(self.env) if name in self._fields else name
+                    for name in forbidden)
+                raise UserError(self.env._(
+                    "These issue fields come from the scan, not from hand: %s.", ", ".join(labels)))
         if not {'state', 'user_id'} & set(vals):
             return super().write(vals)
         for issue in self:
@@ -118,11 +130,11 @@ class DataQualityIssue(models.Model):
             return vals
         if target not in ISSUE_STATE_MOVES[self.state]:
             labels = dict(self._fields['state']._description_selection(self.env))
-            raise UserError(self.env._(
+            raise ValidationError(self.env._(
                 "An issue that is %(state)s can only become: %(allowed)s.",
                 state=labels[self.state], allowed=", ".join(labels[name] for name in ISSUE_STATE_MOVES[self.state])))
         if target == 'ignored' and not (vals.get('ignore_reason') or self.ignore_reason):
-            raise UserError(self.env._("Say why the issue is ignored."))
+            raise ValidationError(self.env._("Say why the issue is ignored."))
         if target == 'resolved':
             now = fields.Datetime.now()
             vals.update(
