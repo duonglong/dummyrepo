@@ -81,6 +81,12 @@
                             <separator string="Advice"/>
                             <field name="advice"/>
                         </page>
+                        <page string="Test" name="test">
+                            <field name="model_name" invisible="1"/>
+                            <field name="test_res_ids" widget="dgq_record_picker"
+                                   invisible="not model_id"/>
+                            <field name="test_report" nolabel="1"/>
+                        </page>
                         <page string="Versions" name="versions">
                             <field name="version_ids" readonly="1">
                                 <list>

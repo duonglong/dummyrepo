@@ -26,6 +26,11 @@
         'views/correction_views.xml',
         'data/cron_scan.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'data_governance_quality_center_app/static/src/record_picker/*',
+        ],
+    },
     'installable': True,
     'application': True,
     'license': 'LGPL-3',

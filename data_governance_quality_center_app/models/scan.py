@@ -7,6 +7,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 
 from ..const import JOB_BATCH_SIZE
+from ..services import explain
 from ..services import scan as scan_service
 from ..services import validation
 
@@ -406,9 +407,13 @@ class DataQualityScanLine(models.Model):
     explanation_params = fields.Json()
     explanation = fields.Text(compute='_compute_explanation')
 
-    @api.depends('explanation_code', 'explanation_params', 'res_model')
+    @api.depends('explanation_code', 'explanation_params', 'res_model', 'rule_id.advice')
+    @api.depends_context('lang')
     def _compute_explanation(self):
-        """Render the stored code in the reader's language."""
+        """Render the stored code in the reader's language, the advice of the rule below it.
+
+        Requirements: FR-DGQ-0013
+        """
         for line in self:
-            line.explanation = validation.explain(
-                self.env, line.explanation_code, line.explanation_params or {}) or False
+            line.explanation = explain.render(
+                self.env, line.explanation_code, line.explanation_params, line.rule_id.advice) or False
