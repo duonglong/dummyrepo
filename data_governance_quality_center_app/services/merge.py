@@ -304,7 +304,7 @@ def _link_entries(env, model_name, kept_id, other_id, ids):
             else:
                 others = [name for name in columns if name != column]
                 if len(others) != 1:
-                    raise _Unrecordable(table)
+                    raise UnrecordableLinks(table)
                 env.cr.execute(SQL(
                     "SELECT t.%s FROM %s t WHERE %s", SQL.identifier(others[0]), SQL.identifier(table), where))
                 found = [row[0] for row in env.cr.fetchall()]
@@ -315,7 +315,7 @@ def _link_entries(env, model_name, kept_id, other_id, ids):
     return entries
 
 
-class _Unrecordable(Exception):
+class UnrecordableLinks(Exception):
     """A table without an id that links more than one other column: its rows cannot be recorded."""
 
 
@@ -332,6 +332,9 @@ def _reference_entries(env, target):
         else:
             where = SQL("t.%s = %s", SQL.identifier(column), '%s,%s' % (target['model'], source))
             kind = 'ref_text'
+        if table == 'ir_attachment':
+            # an image or file held by a binary field belongs to that field, which Odoo's own mover skips
+            where = SQL("%s AND t.res_field IS NULL", where)
         if table in MERGE_ASSOCIATION_TABLES:
             where = SQL("%s AND %s", where, _not_duplicate(env, table, column, kept))
         env.cr.execute(SQL("SELECT t.id FROM %s t WHERE %s", SQL.identifier(table), where))

@@ -7,6 +7,7 @@
         <field name="arch" type="xml">
             <field name="links_to_move" position="after">
                 <field name="is_protected" invisible="1"/>
+                <field name="preview_signature" invisible="1"/>
                 <field name="protected_authorized" invisible="not is_protected"
                        groups="data_governance_quality_center_app.group_dgq_admin"/>
             </field>
@@ -80,6 +81,7 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No merge yet</p>
+            <p>Merge a duplicate group to see it here.</p>
         </field>
     </record>
 
@@ -89,7 +91,8 @@
         <field name="inherit_id" ref="duplicate_group_view_form"/>
         <field name="arch" type="xml">
             <field name="score" position="after">
-                <field name="merge_id" invisible="not merge_id"/>
+                <field name="merge_id" invisible="not merge_id"
+                       groups="data_governance_quality_center_app.group_dgq_manager"/>
             </field>
         </field>
     </record>

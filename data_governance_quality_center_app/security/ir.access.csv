@@ -27,4 +27,4 @@ access_dgq_scan_viewer,data.quality.scan viewer,data.quality.scan,group_dgq_view
 access_dgq_scan_operator,data.quality.scan operator,data.quality.scan,group_dgq_operator,cru,
 access_dgq_scan_line_viewer,data.quality.scan.line viewer,data.quality.scan.line,group_dgq_viewer,r,
 access_dgq_scan_checkpoint_viewer,data.quality.scan.checkpoint viewer,data.quality.scan.checkpoint,group_dgq_viewer,r,
-access_dgq_merge_viewer,data.quality.merge viewer,data.quality.merge,group_dgq_viewer,r,
+access_dgq_merge_manager,data.quality.merge manager,data.quality.merge,group_dgq_manager,r,

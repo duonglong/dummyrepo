@@ -224,12 +224,12 @@ class DataQualityMergeWizard(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Take the state of the records when the preview is saved.
+        """Take the state of the records when the preview is saved, unless the preview already took it.
 
         Requirements: FR-DGQ-0044
         """
         wizards = super().create(vals_list)
-        for wizard in wizards:
+        for wizard in wizards.filtered(lambda wizard: not wizard.preview_signature):
             ids = wizard._trusted_ids()
             wizard.preview_signature = merge.preview_signature(self.env, wizard.res_model, ids) if ids else False
         return wizards
@@ -326,7 +326,6 @@ class DataQualityMergeWizard(models.TransientModel):
         merged_records = records.browse(others)
         names = ', '.join(merged_records.mapped('display_name'))
         moved = merge.move_links(self.env, self.res_model, kept.id, others)
-        # sudo: the app writes the merge; the manager decided and may not edit the records
         kept.sudo().write(written)  # sudo: the app writes; the manager decided and may not edit
         merged_records.sudo().write({'active': False})  # sudo: the app archives; the manager decided
         strategy = merge.strategy_of(self.env, self.res_model)

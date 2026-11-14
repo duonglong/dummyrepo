@@ -158,5 +158,6 @@ class DataQualityDuplicateGroup(models.Model):
             'context': {
                 'default_group_id': self.id, 'default_res_model': self.res_model,
                 'default_res_ids': ids,
+                'default_preview_signature': merge.preview_signature(self.env, self.res_model, ids),
             },
         }
