@@ -30,3 +30,13 @@ MERGE_MAX_RECORDS = 10
 # Technical models whose rows never count as linked documents of a record: followers, messages,
 # activities, user accounts and the like are not what a manager weighs in a merge (FR-DGQ-0040).
 MERGE_TECHNICAL_MODEL_PREFIXES = ('ir.', 'mail.', 'bus.', 'base.', 'res.users', 'res.config', 'res.groups')
+
+# Tables whose rows only link two records: a row that would duplicate one the kept record already
+# has is left on the archived record instead of stopping a merge (FR-DGQ-0043).
+MERGE_ASSOCIATION_TABLES = ('mail_followers',)
+
+# Models whose records are never merged or corrected without an explicit authorization (BR-DGQ-0005).
+PROTECTED_MODELS = (
+    'account.move', 'account.move.line', 'account.payment', 'account.bank.statement.line',
+    'account.tax', 'account.account', 'account.journal',
+)
