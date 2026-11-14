@@ -28,6 +28,9 @@ class DataQualityDuplicateGroup(models.Model):
     ], required=True, default='open', index=True)
     score = fields.Float(string='Highest Score', digits=(5, 1))
     line_ids = fields.One2many('data.quality.duplicate.line', 'group_id', string='Records')
+    merge_id = fields.Many2one(
+        'data.quality.merge', string='Merge', ondelete='set null', readonly=True,
+        help="The merge that closed this group; empty again when it is rolled back.")
     comparison = fields.Html(
         compute='_compute_comparison', sanitize=False,
         help="The records side by side: the matching fields first, then the other filled fields.")
