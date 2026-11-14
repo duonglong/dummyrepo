@@ -102,10 +102,11 @@ def check_pattern(rule, records, batch):
     Requirements: FR-DGQ-0003
     """
     pattern = compiled(rule_pattern(rule))
+    rule_fields = _fields_of(rule, records)
     outcomes = {}
     for record in records:
         outcome = Outcome(NOT_APPLICABLE)
-        for field in _fields_of(rule, records):
+        for field in rule_fields:
             value = record[field.name]
             if is_empty(field, value):
                 continue
@@ -124,10 +125,11 @@ def check_range(rule, records, batch):
 
     Requirements: FR-DGQ-0004
     """
+    rule_fields = _fields_of(rule, records)
     outcomes = {}
     for record in records:
         outcome = Outcome(PASS)
-        for field in _fields_of(rule, records):
+        for field in rule_fields:
             value = record[field.name]
             if rule.has_min and value < rule.min_value:
                 outcome = Outcome(FAIL, 'range_below', dict(
@@ -167,11 +169,12 @@ def check_date(rule, records, batch):
     """
     zones = zone_names(records)
     today_in = {zone: local_day(batch.now, zone) for zone in set(zones.values())}
+    rule_fields = _fields_of(rule, records)
     outcomes = {}
     for record in records:
         zone = zones[record.id]
         outcome = Outcome(NOT_APPLICABLE)
-        for field in _fields_of(rule, records):
+        for field in rule_fields:
             value = record[field.name]
             if not value:
                 continue
