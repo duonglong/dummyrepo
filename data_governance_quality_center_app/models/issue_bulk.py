@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 from ..const import BULK_SKIPPED_LISTED, ISSUE_OPEN_STATES, ISSUE_STATE_MOVES
+from .issue import OPERATOR_GROUP
 
 # The status each bulk action moves the issues to; the other actions change a work field only.
 BULK_TARGET_STATE = {'resolve': 'resolved', 'ignore': 'ignored', 'reopen': 'new'}
@@ -21,7 +22,8 @@ class DataQualityIssueBulk(models.TransientModel):
         ('ignore', 'Ignore'),
         ('reopen', 'Reopen'),
     ], required=True, default='assign')
-    user_id = fields.Many2one('res.users', string='Assign To')
+    user_id = fields.Many2one(
+        'res.users', string='Assign To', domain=lambda self: [('all_group_ids', 'in', self.env.ref(OPERATOR_GROUP).ids)])
     priority = fields.Selection([
         ('low', 'Low'),
         ('normal', 'Normal'),
@@ -51,7 +53,7 @@ class DataQualityIssueBulk(models.TransientModel):
             for name in BULK_WORK_FIELDS[self.action]}
 
     def _can_change(self, issue):
-        """Whether the status of the issue allows this action.
+        """Whether the status of the issue allows this action, and, to assign, its company is visible to the assignee.
 
         Requirements: FR-DGQ-0027
         """
@@ -59,19 +61,30 @@ class DataQualityIssueBulk(models.TransientModel):
             return issue.state in ('resolved', 'ignored')
         if self.action in BULK_TARGET_STATE:
             return BULK_TARGET_STATE[self.action] in ISSUE_STATE_MOVES[issue.state]
-        return issue.state in ISSUE_OPEN_STATES
+        if issue.state not in ISSUE_OPEN_STATES:
+            return False
+        return self.action != 'assign' or self._assignee_sees(issue)
+
+    def _assignee_sees(self, issue):
+        return not issue.company_id or issue.company_id <= self.user_id.company_ids
 
     def _skip_reason(self, issue):
         """Why the issue is left as it is."""
         state = dict(issue._fields['state']._description_selection(self.env))[issue.state]
+        if issue.state in ISSUE_OPEN_STATES and self.action == 'assign':
+            return self.env._(
+                "%(name)s is in the company %(company)s, which %(user)s cannot see",
+                name=issue.display_name, company=issue.company_id.name, user=self.user_id.name)
+        if self.action in BULK_TARGET_STATE and BULK_TARGET_STATE[self.action] == issue.state:
+            return self.env._("%(name)s is already %(state)s", name=issue.display_name, state=state)
         if issue.state in ('resolved', 'ignored'):
             return self.env._("%(name)s is %(state)s: reopen it first", name=issue.display_name, state=state)
         return self.env._("%(name)s is %(state)s: nothing to change", name=issue.display_name, state=state)
 
     def _result_message(self, changed, skipped):
-        lines = [self.env._("%s issues changed.", len(changed))]
+        lines = [self.env._("%s changed.", self.env._("1 issue") if len(changed) == 1 else self.env._("%s issues", len(changed)))]
         if skipped:
-            lines.append(self.env._("%s issues skipped:", len(skipped)))
+            lines.append(self.env._("%s skipped:", self.env._("1 issue") if len(skipped) == 1 else self.env._("%s issues", len(skipped))))
             lines += ["- %s" % self._skip_reason(issue) for issue in skipped[:BULK_SKIPPED_LISTED]]
             if len(skipped) > BULK_SKIPPED_LISTED:
                 lines.append(self.env._("and %s more", len(skipped) - BULK_SKIPPED_LISTED))
