@@ -8,6 +8,7 @@ from ast import literal_eval
 from odoo.fields import Domain
 
 from .validation import CHECKERS
+from .validation.advanced import validator_for
 
 #: rule types the batch can check; other types are reported as not run
 CHECKED_RULE_TYPES = tuple(CHECKERS)
@@ -40,15 +41,17 @@ def filter_blocked_fields(env, rule):
 
 
 def not_run_reason(env, rule):
-    """Why a rule cannot run, or ``False``: its model, a field or a filter field is left out.
+    """Why a rule cannot run, or ``False``: its model, a field or a filter field is left out, or its validator is gone.
 
-    Requirements: FR-DGQ-0020
+    Requirements: FR-DGQ-0020, FR-DGQ-0009
     """
     model_status = env['data.quality.model.config']._get_status(rule.model_name)
     if model_status not in ('supported', 'restricted'):
         return env._("The model %(model)s is excluded from scans.", model=rule.model_id.name)
     if rule.rule_type not in CHECKED_RULE_TYPES:
         return env._("This check type cannot be scanned yet.")
+    if rule.rule_type == 'custom' and not validator_for(env, rule.validator_key, rule.model_name):
+        return env._("The validator is not available for the model %(model)s.", model=rule.model_id.name)
     usable = env['data.quality.field.config']._get_usable_field_names(rule.model_name)
     left_out = sorted(
         {name for name in rule_fields(rule) if name not in usable}

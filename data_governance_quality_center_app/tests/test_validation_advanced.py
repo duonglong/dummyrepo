@@ -1,5 +1,9 @@
+from datetime import date, datetime
 from unittest.mock import patch
 
+from odoo.exceptions import ValidationError
+
+from odoo.addons.data_governance_quality_center_app.services import scan as scan_service
 from odoo.addons.data_governance_quality_center_app.services import validation
 from odoo.addons.data_governance_quality_center_app.services.validation import FAIL, NOT_APPLICABLE, PASS
 
@@ -179,8 +183,52 @@ class TestValidationAdvanced(AcceptanceCase):
     def test_validator_for_another_model_is_not_run(self):
         """FR-DGQ-0009: a validator registered for other models is not run on this model."""
         calls = []
-        self._register('only_products', lambda env, rule, records: calls.append(1) or {}, models=['product.template'])
-        rule = self.make_rule('res.partner', 'custom', company=False, validator_key='only_products')
+        handler = lambda env, rule, records: calls.append(1) or {}  # noqa: E731
+        with patch.object(type(self.env['data.quality.registry']), '_dgq_validators', create=True,
+                          new=lambda this: [dict(key='moved', label='Moved', handler=handler)]):
+            rule = self.make_rule('res.partner', 'custom', company=False, validator_key='moved')
         partner = self.partner('Any')
-        self.assertEqual(self._outcomes(rule, partner)[partner.id].status, NOT_APPLICABLE)
+        with patch.object(type(self.env['data.quality.registry']), '_dgq_validators', create=True,
+                          new=lambda this: [dict(key='moved', label='Moved', handler=handler,
+                                                 models=['product.template'])]):
+            self.assertEqual(self._outcomes(rule, partner)[partner.id].status, NOT_APPLICABLE)
         self.assertFalse(calls)
+
+    def test_link_check_asks_the_database_once_per_batch(self):
+        """FR-DGQ-0006, NFR-DGQ-0001: existence of the linked records is looked up once for the batch."""
+        rule = self.make_rule('res.partner', 'link', ['x_dgq_list'], company=False)
+        lists = self.env['product.pricelist'].create([{'name': 'P%s' % n, 'company_id': False} for n in range(5)])
+        partners = self.env['res.partner'].browse([self.partner('L%s' % n, x_dgq_list=lists[n].id).id for n in range(5)])
+        partners.invalidate_recordset()
+        model = type(self.env['product.pricelist'])
+        original = model.exists
+        with patch.object(model, 'exists', autospec=True, side_effect=original) as exists:
+            outcomes = self._outcomes(rule, *partners)
+        self.assertEqual(exists.call_count, 1)
+        self.assertTrue(all(outcome.status == PASS for outcome in outcomes.values()))
+
+    def test_cross_field_date_against_datetime_uses_the_company_day(self):
+        """FR-DGQ-0008, FR-DGQ-0005: a date-time set against a date counts as its day in the company time zone."""
+        moment = self.ensure_field('res.partner', 'x_dgq_moment', 'datetime', 'DGQ Moment')
+        self.cx.partner_id.tz = 'Asia/Tokyo'
+        for operator, expected in (('<=', PASS), ('>', FAIL)):
+            rule = self.make_rule('res.partner', 'cross_field', ['x_dgq_born_on'], company=False,
+                                  compare_field_id=moment.id, compare_operator=operator)
+            partner = self.partner('Tokyo', x_dgq_born_on=date(2026, 3, 2), x_dgq_moment=datetime(2026, 3, 1, 20, 0))
+            outcome = self._outcomes(rule, partner)[partner.id]
+            self.assertEqual(outcome.status, expected)
+        self.assertIn('2026-03-02', self._explain(outcome))
+        self.assertNotIn('20:00', self._explain(outcome))
+
+    def test_custom_validator_of_another_model_is_refused_and_not_run(self):
+        """FR-DGQ-0009: such a rule cannot be saved; a rule whose validator vanished is listed as not run."""
+        self._register('only_products', lambda env, rule, records: {}, models=['product.template'])
+        with self.assertRaises(ValidationError) as caught:
+            self.make_rule('res.partner', 'custom', company=False, validator_key='only_products')
+        self.assertIn('Contact', str(caught.exception))
+        self._register('any_model', lambda env, rule, records: {})
+        rule = self.make_rule('res.partner', 'custom', company=False, validator_key='any_model')
+        with patch.object(type(self.env['data.quality.registry']), '_dgq_validators',
+                          lambda this: [], create=True):
+            reason = scan_service.not_run_reason(self.env, rule)
+        self.assertIn('not available', reason)

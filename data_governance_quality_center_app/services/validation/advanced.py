@@ -4,7 +4,7 @@ import operator
 from ast import literal_eval
 from datetime import date, datetime
 
-from .basic import FAIL, NOT_APPLICABLE, PASS, Outcome, field_label, is_empty, value_params
+from .basic import FAIL, NOT_APPLICABLE, PASS, Outcome, field_label, is_empty, local_day, value_params, zone_names
 
 _logger = logging.getLogger(__name__)
 
@@ -22,25 +22,26 @@ def _rule_fields(rule, records):
     return [records._fields[name] for name in rule.field_ids.mapped('name')]
 
 
-#: models whose company is only the default of a record that may serve several companies
+#: a user's company is only the default of a person who may serve several companies
 COMPANY_FREE_MODELS = ('res.users',)
 
 
-def _link_failure(record, target):
+def _link_failure(record, target, existing):
     """The explanation code of a link that does not hold for ``record``, or None.
 
-    ``target`` is the linked record read in sudo with archived records visible.
+    ``target`` is the linked record read in sudo with archived records visible; ``existing`` is
+    the batch of linked records that still exist, found with one query.
     """
-    if not target.exists():
+    if target not in existing:
         return 'link_missing'
     if 'active' in target._fields and not target.active:
         return 'link_archived'
     company_field = target._fields.get('company_id')
-    if (company_field is not None and company_field.comodel_name == 'res.company' and target.company_id
-            and target._name not in COMPANY_FREE_MODELS):
-        record_company = record.company_id if 'company_id' in record._fields else record.env['res.company']
-        if record_company and target.company_id != record_company:
-            return 'link_other_company'
+    record_company = record.company_id if 'company_id' in record._fields else record.env['res.company']
+    if (company_field is not None and company_field.comodel_name == 'res.company' and record_company
+            and target._name not in COMPANY_FREE_MODELS
+            and not target.filtered_domain(target._check_company_domain(record_company))):
+        return 'link_other_company'
     return None
 
 
@@ -52,25 +53,23 @@ def check_link(rule, records, batch):
 
     Requirements: FR-DGQ-0006
     """
-    rule_fields = _rule_fields(rule, records)
-    outcomes = {}
-    for record in records:
-        outcome = Outcome(NOT_APPLICABLE)
-        for field in rule_fields:
+    # sudo: a link to an archived or hidden record must still be judged, whatever the user may read
+    scope = records.sudo().with_context(active_test=False)
+    outcomes = dict.fromkeys(records.ids, Outcome(NOT_APPLICABLE))
+    for field in _rule_fields(rule, records):
+        linked = scope.mapped(field.name)
+        existing = linked.exists()
+        for record in scope:
             targets = record[field.name]
-            if not targets:
+            if not targets or outcomes[record.id].status == FAIL:
                 continue
-            outcome = Outcome(PASS)
-            # sudo: a link to an archived or hidden record must still be judged, whatever the user may read
-            for target in targets.sudo().with_context(active_test=False):
-                code = _link_failure(record, target)
+            outcomes[record.id] = Outcome(PASS)
+            for target in targets:
+                code = _link_failure(record, target, existing)
                 if code:
-                    params = value_params(batch, records, field, target.display_name if target.exists() else '')
-                    outcome = Outcome(FAIL, code, params)
+                    name = target.display_name if target in existing else ''
+                    outcomes[record.id] = Outcome(FAIL, code, value_params(batch, records, field, name))
                     break
-            if outcome.status == FAIL:
-                break
-        outcomes[record.id] = outcome
     return outcomes
 
 
@@ -98,35 +97,45 @@ def check_condition(rule, records, batch):
 
 
 def _comparable(value):
-    """A value ready to compare: a link by its id, a date and time by its day when set against a date."""
+    """A value ready to compare: a link by its id."""
     return value.id if hasattr(value, 'ids') else value
 
 
-def _same_kind(first, second):
-    """Bring a date and a date and time to the same kind so that they compare."""
-    if isinstance(first, datetime) and type(second) is date:
-        return first.date(), second
-    if type(first) is date and isinstance(second, datetime):
-        return first, second.date()
+def _by_day(first, second):
+    """Tell whether one value is a date-time and the other a plain date, so that they compare by day."""
+    return {type(first), type(second)} == {date, datetime}
+
+
+def _same_kind(first, second, zone_name):
+    """Bring a date and a date-time to the same kind (the day in the record's time zone) so that they compare."""
+    if not _by_day(first, second):
+        return first, second
+    first, second = [
+        local_day(value, zone_name) if isinstance(value, datetime) else value for value in (first, second)]
     return first, second
 
 
 def check_cross_field(rule, records, batch):
     """Fail a record for which the comparison of its two fields is false; an empty field is not applicable.
 
+    A date set against a date-time is compared by the day of the date-time in the record's
+    company time zone, the way the date checks read a day.
+
     Requirements: FR-DGQ-0008
     """
     other = records._fields[rule.compare_field_id.name]
     compare = COMPARE_OPERATORS[rule.compare_operator]
+    rule_fields = _rule_fields(rule, records)
+    zones = zone_names(records)
     outcomes = {}
     for record in records:
         outcome = Outcome(NOT_APPLICABLE)
         other_value = record[other.name]
-        for field in _rule_fields(rule, records):
+        for field in rule_fields:
             value = record[field.name]
             if is_empty(field, value) or is_empty(other, other_value):
                 continue
-            left, right = _same_kind(_comparable(value), _comparable(other_value))
+            left, right = _same_kind(_comparable(value), _comparable(other_value), zones[record.id])
             if compare(left, right):
                 outcome = Outcome(PASS)
                 continue
@@ -135,7 +144,10 @@ def check_cross_field(rule, records, batch):
                 'operator': rule.compare_operator,
             }
             if field.name in batch.shown_fields and other.name in batch.shown_fields:
-                params.update(value=_display(value), other_value=_display(other_value))
+                by_day = _by_day(value, other_value)
+                params.update(
+                    value=_display(left if by_day else value),
+                    other_value=_display(right if by_day else other_value))
             else:
                 params['value_hidden'] = True
             outcome = Outcome(FAIL, 'cross_field_failed', params)
@@ -153,25 +165,38 @@ def _display(value):
     return value
 
 
+def validator_for(env, key, model_name):
+    """The descriptor of the validator ``key`` an installed module registers for ``model_name``, or None.
+
+    A descriptor with no ``models`` list is offered for every model.
+
+    Requirements: FR-DGQ-0009
+    """
+    descriptor = env['data.quality.registry']._dgq_find('validators', key)
+    if descriptor is None or (descriptor.get('models') and model_name not in descriptor['models']):
+        return None
+    return descriptor
+
+
 def _run_validator(handler, rule, records):
     """The validator's answer ``{record id: reason}`` for ``records``, in a savepoint."""
+    ids = set(records.ids)
     with records.env.cr.savepoint():
         answer = handler(records.env, rule, records) or {}
-    return {record_id: str(reason) for record_id, reason in answer.items() if record_id in records.ids}
+    return {record_id: str(reason) for record_id, reason in answer.items() if record_id in ids}
 
 
 def check_custom(rule, records, batch):
     """Run the validator an installed module registered; its error fails only the record it met.
 
-    A key no installed module registers (or registers for another model) is never run: every
-    record is not applicable. The validator is run on the whole batch; when it raises, it is run
+    A key no installed module registers for the model is never run (the scan lists the rule as
+    not run; here every record is not applicable). The validator is run on the whole batch; when it raises, it is run
     again record by record so that one broken record does not hide the others.
 
     Requirements: FR-DGQ-0009, BR-DGQ-0009
     """
-    descriptor = records.env['data.quality.registry']._dgq_find('validators', rule.validator_key)
-    models = (descriptor or {}).get('models')
-    if descriptor is None or (models and records._name not in models):
+    descriptor = validator_for(records.env, rule.validator_key, records._name)
+    if descriptor is None:
         return dict.fromkeys(records.ids, Outcome(NOT_APPLICABLE))
     handler = descriptor['handler']
     reasons, errors = {}, {}
@@ -182,8 +207,9 @@ def check_custom(rule, records, batch):
             try:
                 reasons.update(_run_validator(handler, rule, record))
             except Exception as error:  # noqa: BLE001
-                _logger.warning("Validator %s failed on %s,%s", rule.validator_key, records._name, record.id,
-                                exc_info=True)
+                # the class only: a foreign validator's message may hold the record's values
+                _logger.warning("Validator %s failed on %s,%s: %s", rule.validator_key, records._name, record.id,
+                                type(error).__name__)
                 errors[record.id] = str(error)
     outcomes = {}
     for record in records:
