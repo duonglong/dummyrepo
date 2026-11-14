@@ -1,12 +1,11 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..const import ISSUE_PRIORITY_BY_SEVERITY, ISSUE_STATE_MOVES
+from ..const import ISSUE_PRIORITY_BY_SEVERITY, ISSUE_STATE_MOVES, NOTIFY_EMAIL_DEFAULT, NOTIFY_EMAIL_PARAMETER
 from ..services import explain
 
 OPERATOR_GROUP = 'data_governance_quality_center_app.group_dgq_operator'
 ASSIGNED_TEMPLATE = 'data_governance_quality_center_app.mail_template_issue_assigned'
-NOTIFY_EMAIL_PARAMETER = 'data_quality.notify_email'
 
 
 class DataQualityIssue(models.Model):
@@ -19,6 +18,8 @@ class DataQualityIssue(models.Model):
     _inherit = ['data.quality.result.mixin', 'mail.thread', 'mail.activity.mixin']
     _description = 'Data Quality Issue'
     _order = 'id desc'
+    # whoever may see an issue may comment on it, as on partners and users (FR-DGQ-0026)
+    _mail_post_access = 'read'
 
     name = fields.Char(compute='_compute_name', store=True)
     rule_id = fields.Many2one('data.quality.rule', required=True, ondelete='restrict', index=True)
@@ -150,7 +151,7 @@ class DataQualityIssue(models.Model):
             allowed = ", ".join(labels[name] for name in ISSUE_STATE_MOVES[self.state])
             if self.state in ('resolved', 'ignored'):
                 raise ValidationError(self.env._(
-                    "A %(state)s issue must first be reopened (New); it can only become: %(allowed)s.",
+                    "This issue is %(state)s: reopen it (New) first; it can only become: %(allowed)s.",
                     state=labels[self.state], allowed=allowed))
             raise ValidationError(self.env._(
                 "An issue that is %(state)s can only become: %(allowed)s.", state=labels[self.state], allowed=allowed))
@@ -185,13 +186,15 @@ class DataQualityIssue(models.Model):
         """
         if not self:
             return
-        template = self.env.ref(ASSIGNED_TEMPLATE).with_context(dgq_issues=self)
-        first = self[0]
+        # the notice is written in the language of the person it is for
+        issues = self.with_context(lang=assignee.lang)
+        template = self.env.ref(ASSIGNED_TEMPLATE).with_context(lang=assignee.lang, dgq_issues=issues)
+        first = issues[0]
         subject = template._render_field('subject', first.ids)[first.id]
         body = template._render_field('body_html', first.ids)[first.id]
         first.message_notify(partner_ids=assignee.partner_id.ids, subject=subject, body=body)
         # sudo: the policy is read for every user, not only administrators
-        sends_email = self.env['ir.config_parameter'].sudo().get_bool(NOTIFY_EMAIL_PARAMETER, True)
+        sends_email = self.env['ir.config_parameter'].sudo().get_bool(NOTIFY_EMAIL_PARAMETER, NOTIFY_EMAIL_DEFAULT)
         if sends_email and assignee.notification_type != 'email' and assignee.email:
             # sudo: an operator may not create outgoing mail; the notice is the app's own
             self.env['mail.mail'].sudo().create({
