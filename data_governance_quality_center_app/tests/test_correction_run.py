@@ -34,8 +34,8 @@ class TestCorrectionRun(M2BCase):
         partners, run = self.country_run(
             ['DE', 'UK', 'Georgia', 'Nowhere'], mappings=[('UK', uk), ('Georgia', us)])
         de, gb, georgia, nowhere = partners
-        self.assertEqual(self.line_of(run, de, 'would_change').value_after, 'Germany')
-        self.assertEqual(self.line_of(run, gb, 'would_change').value_after, uk.name)
+        self.assertEqual(self.line_of(run, de, 'would_change').value_after, self.env.ref('base.de').id)
+        self.assertEqual(self.line_of(run, gb, 'would_change').value_after, uk.id)
         self.assertIn('several', self.line_of(run, georgia, 'skipped').reason)
         self.assertTrue(self.line_of(run, nowhere, 'skipped'))
         self.assertEqual((run.count_changed, run.count_skipped), (2, 2))
@@ -48,7 +48,7 @@ class TestCorrectionRun(M2BCase):
             engine.action_country_state(
                 'california', partner, {'ttype': 'char', 'relation': 'res.country.state', 'field_name': 'state',
                                         'mappings': {}, 'cache': {}}),
-            'California')
+            partner.env.ref('base.state_us_5').id)
 
     def test_accounting_models_are_protected_by_name(self):
         """BR-DGQ-0005: a model of the accounting list is protected, needs approval and is skipped."""

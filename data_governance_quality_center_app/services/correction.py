@@ -156,10 +156,7 @@ def action_country_state(value, record, params):
         raise DgqSkip(env._("No country or state matches this value."))
     if len(found) > 1:
         raise DgqSkip(env._("This value matches several countries or states."))
-    model_name, rec_id = next(iter(found))
-    if params['ttype'] == 'many2one':
-        return rec_id
-    return env[model_name].browse(rec_id).name
+    return next(iter(found))[1]
 
 
 def action_link(value, record, params):
@@ -235,6 +232,19 @@ def target_ids(correction):
     return model._search(domain, order='id').get_result_ids()
 
 
+def target_field_name(correction):
+    """The field a correction writes: a country or state text is standardized into the link of the record.
+
+    Requirements: FR-DGQ-0052
+    """
+    field = correction.field_id
+    if correction.action == 'country_state' and field.ttype in TEXT_TYPES:
+        link = 'state_id' if 'state' in field.name else 'country_id'
+        if link in correction.env[field.model]._fields:
+            return link
+    return field.name
+
+
 def action_params(correction):
     """The settings the action of a correction reads, as plain data."""
     field = correction.field_id
@@ -282,7 +292,7 @@ def _handle_batch(run, ids):
     env = run.env
     correction = run.correction_id
     model_name = correction.model_id.model
-    field_name = correction.field_id.name
+    field_name = target_field_name(correction)
     # sudo: the app writes the corrections; readability is checked for the user just below
     records = env[model_name].sudo().with_context(active_test=False).browse(ids).exists()
     readable = env[model_name].with_user(run.user_id).with_context(active_test=False).search(
@@ -318,7 +328,7 @@ def _handle_batch(run, ids):
             continue
         before = stored_value(record, field_name)
         try:
-            after = handler(record[field_name], record, params)
+            after = handler(record[correction.field_id.name], record, params)
         except DgqSkip as skip:
             line(record, 'skipped', str(skip))
             continue
