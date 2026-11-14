@@ -1,4 +1,5 @@
 from odoo import Command
+from odoo.exceptions import AccessError
 from odoo.tests import Form
 
 from .acceptance_helpers import AcceptanceCase
@@ -72,3 +73,22 @@ class TestRuleTest(AcceptanceCase):
             'test_res_ids': [self.partner('Acme').id]})
         self.assertIn('Acme', rule.test_report)
         self.assertIn('Fail', rule.test_report)
+
+    def test_viewer_and_operator_cannot_read_the_test(self):
+        """FR-DGQ-0070, FR-DGQ-0012: the rule test is for managers; the server refuses the lower levels."""
+        rule = self.make_rule('res.partner', 'required', ['email'])
+        for level in ('viewer', 'operator'):
+            as_user = rule.with_user(self.user(level))
+            for name in ('test_res_ids', 'test_results', 'test_report'):
+                with self.subTest(level=level, field=name), self.assertRaises(AccessError):
+                    as_user.read([name])
+        manager = rule.with_user(self.user('manager'))
+        self.assertTrue(manager.test_results['records'])
+
+    def test_no_read_access_gives_a_reason(self):
+        """FR-DGQ-0012: a manager who cannot read the model's records is told why nothing is tested."""
+        user = self.user('manager')
+        rule = self.env['data.quality.rule'].with_user(user).new({
+            'model_id': self.model('ir.cron').id, 'rule_type': 'required', 'name': 'R',
+            'field_ids': [Command.set([self.fld('ir.cron', 'name').id])]})
+        self.assertTrue(rule.test_results['not_run_reason'])

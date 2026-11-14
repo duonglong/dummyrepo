@@ -8,6 +8,9 @@ from odoo.exceptions import ValidationError
 from ..services import explain, scan as scan_service, validation
 from .rule import DEFINITION_FIELDS
 
+# The rule test is a Manager feature (FR-DGQ-0070): the server refuses the other levels.
+MANAGER_GROUP = 'data_governance_quality_center_app.group_dgq_manager'
+
 # How many records the rule test takes from the model when the manager picks none.
 SAMPLE_SIZE = 20
 STATUS_CLASSES = {
@@ -25,12 +28,13 @@ class DataQualityRuleTest(models.Model):  # sdd-allow: model-split T-008 lists t
     _inherit = 'data.quality.rule'
 
     test_res_ids = fields.Json(
-        string='Records to Test', store=False, copy=False,
+        string='Records to Test', store=False, copy=False, groups=MANAGER_GROUP,
         help="The records to check. Leave empty to check the first %s records of the model." % SAMPLE_SIZE)
     test_results = fields.Json(
-        string='Test Results', compute='_compute_test_results', store=False)
+        string='Test Results', compute='_compute_test_results', store=False, groups=MANAGER_GROUP)
     test_report = fields.Html(
-        string='Test Report', compute='_compute_test_report', store=False, sanitize=False)
+        string='Test Report', compute='_compute_test_report', store=False, sanitize=False,
+        groups=MANAGER_GROUP)
 
     @api.depends(*DEFINITION_FIELDS, 'advice', 'test_res_ids')
     @api.depends_context('lang', 'uid')
@@ -75,14 +79,11 @@ class DataQualityRuleTest(models.Model):  # sdd-allow: model-split T-008 lists t
         """The records of the test: the picked ones, else a sample; only those the user may read."""
         self.ensure_one()
         Model = self.env[self.model_name]
-        if not Model.has_access('read'):
-            return Model
         picked = list(dict.fromkeys(
-            res_id for res_id in self.test_res_ids or [] if isinstance(res_id, int)))
+            res_id for res_id in self.test_res_ids or [] if type(res_id) is int))
         if not picked:
             return Model.search([], limit=SAMPLE_SIZE)
-        records = Model.browse(picked).exists()._filtered_access('read')
-        return records.sorted(lambda record: picked.index(record.id))
+        return Model.browse(picked).exists()._filtered_access('read')
 
     def _dgq_test(self):
         """The result of the test: ``{'not_run_reason': text or False, 'records': [entry, ...]}``.
@@ -93,6 +94,10 @@ class DataQualityRuleTest(models.Model):  # sdd-allow: model-split T-008 lists t
         self.ensure_one()
         if not self.model_id or not self.rule_type:
             return {'not_run_reason': False, 'records': []}
+        if not self.env[self.model_name].has_access('read'):
+            return {
+                'not_run_reason': self.env._("You cannot read the records of this model."),
+                'records': []}
         reason = self._dgq_incomplete_reason()
         if reason:
             return {'not_run_reason': reason, 'records': []}
