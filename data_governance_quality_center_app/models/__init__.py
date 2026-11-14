@@ -14,9 +14,14 @@ from . import merge
 from . import duplicate_line
 from . import duplicate_dismissal
 from . import rule
+from . import rule_test
 from . import rule_version
 from . import correction
 from . import correction_mapping
 from . import correction_run
 from . import correction_log
 from . import scan
+from . import scan_checkpoint
+from . import scan_line
+from . import scan_tally
+from . import issue

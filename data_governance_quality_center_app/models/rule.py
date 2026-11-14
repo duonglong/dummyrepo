@@ -6,6 +6,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
+from ..services.validation.advanced import validator_for
+
 # What a rule checks: a change of one of these raises the version (FR-DGQ-0011).
 # Name, description, advice, sequence and the active switch are not part of the definition.
 DEFINITION_FIELDS = (
@@ -356,17 +358,17 @@ class DataQualityRule(models.Model):
                         "The fields %(first)s and %(second)s cannot be compared with each other.",
                         first=field.display_name, second=rule.compare_field_id.display_name))
 
-    @api.constrains('rule_type', 'validator_key')
+    @api.constrains('rule_type', 'validator_key', 'model_id')
     def _check_validator(self):
-        """A custom rule names a validator that an installed module registers.
+        """A custom rule names a validator that an installed module registers for the rule's model.
 
         Requirements: FR-DGQ-0009, BR-DGQ-0009
         """
-        registry = self.env['data.quality.registry']
         for rule in self.filtered(lambda r: r.rule_type == 'custom'):
-            if not rule.validator_key or not registry._dgq_find('validators', rule.validator_key):
+            if not rule.validator_key or not validator_for(self.env, rule.validator_key, rule.model_name):
                 raise ValidationError(self.env._(
-                    "The custom rule %s needs a validator provided by an installed module.", rule.name))
+                    "The custom rule %(rule)s needs a validator that an installed module provides for the model "
+                    "%(model)s.", rule=rule.name, model=rule.model_id.name))
 
     # ---- versions --------------------------------------------------------
 

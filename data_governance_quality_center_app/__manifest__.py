@@ -22,10 +22,16 @@
         'data/duplicate_cron.xml',
         'data/correction_cron.xml',
         'views/scan_views.xml',
+        'views/issue_views.xml',
         'views/menus.xml',
         'views/correction_views.xml',
         'data/cron_scan.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'data_governance_quality_center_app/static/src/record_picker/*',
+        ],
+    },
     'installable': True,
     'application': True,
     'license': 'LGPL-3',

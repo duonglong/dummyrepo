@@ -40,3 +40,18 @@ PROTECTED_MODELS = (
     'account.move', 'account.move.line', 'account.payment', 'account.bank.statement.line',
     'account.tax', 'account.account', 'account.journal',
 )
+
+# The priority an issue starts with, by the severity of its rule (FR-DGQ-0021).
+ISSUE_PRIORITY_BY_SEVERITY = {'info': 'low', 'warning': 'normal', 'critical': 'high'}
+
+# The statuses an issue may move to, by its current status; any other move is refused (BR-DGQ-0004).
+ISSUE_STATE_MOVES = {
+    'new': ('assigned', 'in_progress', 'resolved', 'ignored'),
+    'assigned': ('in_progress', 'resolved', 'ignored', 'new'),
+    'in_progress': ('resolved', 'ignored', 'assigned'),
+    'resolved': ('new',),
+    'ignored': ('new',),
+}
+
+# The statuses of an issue that a scan may resolve: the work is not finished or set aside (FR-DGQ-0023).
+ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')

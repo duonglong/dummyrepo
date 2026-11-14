@@ -5,12 +5,12 @@ code and its parameters, or not applicable. ``explain`` renders a code in the re
 """
 from odoo import fields
 
-from . import basic
+from . import advanced, basic
 from .basic import FAIL, NOT_APPLICABLE, PASS, Batch, Outcome
 
 # The checks by rule type; the advanced checks add their own entries.
-CHECKERS = dict(basic.CHECKERS)
-EXPLAINERS = [basic.explain]
+CHECKERS = {**basic.CHECKERS, **advanced.CHECKERS}
+EXPLAINERS = [basic.explain, advanced.explain]
 
 __all__ = ['CHECKERS', 'FAIL', 'NOT_APPLICABLE', 'PASS', 'Batch', 'Outcome', 'check', 'explain']
 
@@ -22,7 +22,8 @@ def check(rules, records, now=None):
     scan in UTC (default: now); each record's day is that moment in its company's time zone.
     Values of fields that are excluded or sensitive are never put in the parameters.
 
-    Requirements: FR-DGQ-0002, FR-DGQ-0003, FR-DGQ-0004, FR-DGQ-0005
+    Requirements: FR-DGQ-0002, FR-DGQ-0003, FR-DGQ-0004, FR-DGQ-0005, FR-DGQ-0006, FR-DGQ-0007,
+    FR-DGQ-0008, FR-DGQ-0009
     """
     shown_fields = records.env['data.quality.field.config']._get_usable_field_names(records._name)
     batch = Batch(now or fields.Datetime.now(), shown_fields)

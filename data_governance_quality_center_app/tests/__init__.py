@@ -11,9 +11,9 @@ from . import test_rule_acceptance
 from . import test_rule_scan_acceptance
 from . import test_rule_issue_acceptance
 from . import test_validation_advanced_acceptance
-from . import test_rule_test_acceptance
 from . import test_scan_start_acceptance
 from . import test_scan_run_acceptance
+from . import test_issue_scan
 from . import test_issue_scan_acceptance
 from . import test_issue_workflow_acceptance
 from . import test_issue_bulk_acceptance
@@ -29,6 +29,10 @@ from . import test_rule
 from . import test_correction_policy
 from . import test_validation_basic
 from . import test_validation_basic_scan_acceptance
+from . import test_validation_advanced
 from . import test_matching
 from . import test_scan_start
 from . import test_correction_run
+from . import test_scan_run
+from . import test_rule_test
+from . import test_rule_test_sample_acceptance
