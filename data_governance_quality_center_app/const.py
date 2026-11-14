@@ -22,3 +22,11 @@ DUPLICATE_MAX_BLOCK_SIZE = 500
 
 # Longest blocking key stored as is; a longer one is stored as its hash so that it fits the index (ADR-DGQ-009).
 DUPLICATE_MAX_BLOCK_KEY_LENGTH = 200
+
+# Records a merge takes: the smallest and the largest number (FR-DGQ-0042).
+MERGE_MIN_RECORDS = 2
+MERGE_MAX_RECORDS = 10
+
+# Technical models whose rows never count as linked documents of a record: followers, messages,
+# activities, user accounts and the like are not what a manager weighs in a merge (FR-DGQ-0040).
+MERGE_TECHNICAL_MODEL_PREFIXES = ('ir.', 'mail.', 'bus.', 'base.', 'res.users', 'res.config', 'res.groups')

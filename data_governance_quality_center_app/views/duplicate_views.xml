@@ -107,6 +107,12 @@
         <field name="arch" type="xml">
             <form create="0" edit="0" delete="0">
                 <header>
+                    <button name="action_merge" type="object" string="Merge" class="btn-primary"
+                            invisible="state != 'open'"
+                            groups="data_governance_quality_center_app.group_dgq_manager"/>
+                    <button name="action_dismiss" type="object" string="Not Duplicates"
+                            invisible="state != 'open'"
+                            groups="data_governance_quality_center_app.group_dgq_manager"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
@@ -116,12 +122,24 @@
                         <field name="res_model"/>
                         <field name="score"/>
                     </group>
-                    <field name="line_ids">
-                        <list>
-                            <field name="record_name"/>
-                            <field name="score"/>
-                        </list>
-                    </field>
+                    <notebook>
+                        <page string="Comparison" name="comparison">
+                            <field name="comparison" nolabel="1"/>
+                        </page>
+                        <page string="Records" name="records">
+                            <field name="line_ids">
+                                <list>
+                                    <field name="record_name"/>
+                                    <field name="score"/>
+                                    <field name="link_count"/>
+                                    <button name="action_dismiss" type="object" icon="fa-times"
+                                            string="Not a duplicate of the others"
+                                            invisible="parent.state != 'open'"
+                                            groups="data_governance_quality_center_app.group_dgq_manager"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
