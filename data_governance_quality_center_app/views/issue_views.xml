@@ -23,6 +23,7 @@
         <field name="arch" type="xml">
             <form create="0" delete="0" duplicate="0">
                 <header>
+                    <button name="action_open_record" type="object" string="Open Record" class="btn-primary"/>
                     <field name="state" widget="statusbar" statusbar_visible="new,assigned,in_progress,resolved"/>
                 </header>
                 <sheet>
