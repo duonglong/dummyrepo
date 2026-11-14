@@ -13,6 +13,7 @@ from . import test_rule_issue_acceptance
 from . import test_validation_advanced_acceptance
 from . import test_scan_start_acceptance
 from . import test_scan_run_acceptance
+from . import test_issue_scan
 from . import test_issue_scan_acceptance
 from . import test_issue_workflow_acceptance
 from . import test_issue_bulk_acceptance

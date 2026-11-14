@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="issue_view_list" model="ir.ui.view">
+        <field name="name">data.quality.issue.list</field>
+        <field name="model">data.quality.issue</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" duplicate="0">
+                <field name="name"/>
+                <field name="severity" widget="badge"/>
+                <field name="state" widget="badge"/>
+                <field name="priority"/>
+                <field name="user_id"/>
+                <field name="deadline"/>
+                <field name="last_found"/>
+                <field name="company_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="issue_view_form" model="ir.ui.view">
+        <field name="name">data.quality.issue.form</field>
+        <field name="model">data.quality.issue</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0" duplicate="0">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="new,assigned,in_progress,resolved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="Finding">
+                            <field name="rule_id" readonly="1"/>
+                            <field name="rule_version" readonly="1"/>
+                            <field name="record_name" readonly="1"/>
+                            <field name="severity" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                            <field name="explanation" readonly="1"/>
+                        </group>
+                        <group string="Work">
+                            <field name="user_id"/>
+                            <field name="priority"/>
+                            <field name="deadline"/>
+                            <field name="ignore_reason" invisible="state != 'ignored'"/>
+                        </group>
+                        <group string="Found">
+                            <field name="first_found" readonly="1"/>
+                            <field name="first_scan_id" readonly="1"/>
+                            <field name="last_found" readonly="1"/>
+                            <field name="scan_id" readonly="1"/>
+                        </group>
+                        <group string="Resolution" invisible="state != 'resolved'">
+                            <field name="date_resolved"/>
+                            <field name="resolution_hours" widget="float_time"/>
+                            <field name="resolved_by_scan"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="issue_action" model="ir.actions.act_window">
+        <field name="name">Issues</field>
+        <field name="res_model">data.quality.issue</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Run a scan to find issues.</p>
+        </field>
+    </record>
+</odoo>

@@ -39,3 +39,5 @@ access_dgq_scan_line_viewer,data.quality.scan.line viewer,data.quality.scan.line
 access_dgq_scan_checkpoint_viewer,data.quality.scan.checkpoint viewer,data.quality.scan.checkpoint,group_dgq_viewer,r,
 access_dgq_merge_manager,data.quality.merge manager,data.quality.merge,group_dgq_manager,r,
 access_dgq_scan_tally_viewer,data.quality.scan.tally viewer,data.quality.scan.tally,group_dgq_viewer,r,
+access_dgq_issue_viewer,data.quality.issue viewer,data.quality.issue,group_dgq_viewer,r,
+access_dgq_issue_operator,data.quality.issue operator,data.quality.issue,group_dgq_operator,ru,

@@ -22,6 +22,7 @@
         'data/duplicate_cron.xml',
         'data/correction_cron.xml',
         'views/scan_views.xml',
+        'views/issue_views.xml',
         'views/menus.xml',
         'views/correction_views.xml',
         'data/cron_scan.xml',
