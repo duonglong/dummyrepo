@@ -8,6 +8,7 @@ from odoo.tools import SQL
 
 from ..const import JOB_BATCH_SIZE
 from ..services import scan as scan_service
+from ..services import validation
 
 _logger = logging.getLogger(__name__)
 
@@ -295,6 +296,7 @@ class DataQualityScan(models.Model):
         rules = self.rule_ids.filtered(
             lambda rule: rule.model_id == checkpoint.model_id and str(rule.id) not in (self.rules_not_run or {}))
         started = time.monotonic()
+        now = fields.Datetime.now()
         Model = self.env[model_name].sudo()  # sudo: scans read every record of the scope
         names = {'company_id'} & set(Model._fields)
         for rule in rules:
@@ -303,14 +305,21 @@ class DataQualityScan(models.Model):
             scan_service.record_domain(Model, self.company_ids, checkpoint.last_id),
             sorted(names), order='id', limit=JOB_BATCH_SIZE)
         lines, passed, failed, not_applicable = [], 0, 0, 0
+        covered = set()
         for rule in rules:
-            failing, applicable = scan_service.check_required(rule, records)
-            passed += len(applicable) - len(failing)
+            applicable = scan_service.applicable_records(rule, records)
+            covered.update(applicable.ids)
+            outcomes = validation.check(rule, applicable, now=now)
+            judged = [outcome for outcome in outcomes.values() if outcome.status != validation.NOT_APPLICABLE]
+            failing = {
+                record_id: outcome for (record_id, _rule_id), outcome in outcomes.items()
+                if outcome.status == validation.FAIL}
+            passed += len(judged) - len(failing)
             failed += len(failing)
-            not_applicable += len(records) - len(applicable)
+            not_applicable += len(records) - len(judged)
             lines.extend(
-                self._dgq_line_values(rule, records.browse(res_id), empty)
-                for res_id, empty in failing.items())
+                self._dgq_line_values(rule, records.browse(res_id), outcome)
+                for res_id, outcome in failing.items())
         self.env['data.quality.scan.line'].create(lines)
         checkpoint.write({
             'last_id': records[-1:].id or checkpoint.last_id,
@@ -318,7 +327,7 @@ class DataQualityScan(models.Model):
             'done': len(records) < JOB_BATCH_SIZE,
         })
         self.write({
-            'records_scanned': self.records_scanned + len(records),
+            'records_scanned': self.records_scanned + len(covered),
             'checks_passed': self.checks_passed + passed,
             'checks_failed': self.checks_failed + failed,
             'checks_not_applicable': self.checks_not_applicable + not_applicable,
@@ -328,7 +337,7 @@ class DataQualityScan(models.Model):
             self.id, model_name, checkpoint.last_id, len(records), time.monotonic() - started)
         return len(records)
 
-    def _dgq_line_values(self, rule, record, empty_fields):
+    def _dgq_line_values(self, rule, record, outcome):
         """Values of the result line of one failed check."""
         return {
             'scan_id': self.id,
@@ -338,8 +347,8 @@ class DataQualityScan(models.Model):
             'res_id': record.id,
             'company_id': 'company_id' in record._fields and record.company_id.id or False,
             'severity': rule.severity,
-            'explanation_code': 'required_missing',
-            'explanation_params': {'fields': empty_fields},
+            'explanation_code': outcome.code,
+            'explanation_params': outcome.params,
         }
 
 
@@ -401,13 +410,5 @@ class DataQualityScanLine(models.Model):
     def _compute_explanation(self):
         """Render the stored code in the reader's language."""
         for line in self:
-            params = line.explanation_params or {}
-            if line.explanation_code == 'required_missing':
-                model = self.env.registry.get(line.res_model)
-                labels = [
-                    model._fields[name]._description_string(self.env) if model and name in model._fields
-                    else name
-                    for name in params.get('fields', [])]
-                line.explanation = self.env._("A value is required for: %s", ", ".join(labels))
-            else:
-                line.explanation = line.explanation_code or False
+            line.explanation = validation.explain(
+                self.env, line.explanation_code, line.explanation_params or {}) or False

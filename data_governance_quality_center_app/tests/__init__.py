@@ -29,5 +29,6 @@ from . import test_rule
 from . import test_correction_policy
 from . import test_validation_basic
 from . import test_validation_basic_scan_acceptance
+from . import test_validation_advanced
 from . import test_matching
 from . import test_scan_start
