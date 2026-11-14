@@ -50,6 +50,24 @@ class TestValidationAdvanced(AcceptanceCase):
         self.assertEqual(out[fine.id].status, PASS)
         self.assertEqual(out[empty.id].status, NOT_APPLICABLE)
 
+    def test_link_to_a_user_of_another_default_company_passes(self):
+        """FR-DGQ-0006: a user's company is only a default, so it does not cross a record's company."""
+        rule = self.make_rule('res.partner', 'link', ['user_id'], company=False)
+        user = self.user('operator', login='dgq_m2b_sales', company=self.cy)
+        acme = self.partner('Acme', user_id=user.id)
+        self.assertEqual(self._outcomes(rule, acme)[acme.id].status, PASS)
+
+    def test_scan_counts_only_the_records_a_rule_applies_to(self):
+        """FR-DGQ-0007: a record outside every rule's scope is not counted as scanned."""
+        rule = self.make_rule(
+            'res.partner', 'condition', applies_domain="[('name', '=', 'Inside')]",
+            condition_domain="[('vat', '!=', False)]")
+        before = self.run_scan([rule], models=['res.partner']).records_scanned
+        self.partner('Inside')
+        self.partner('Outside')
+        scan = self.run_scan([rule], models=['res.partner'])
+        self.assertEqual(scan.records_scanned - before, 1)
+
     def test_link_to_a_deleted_record_fails(self):
         """FR-DGQ-0006: a link whose target row is gone fails."""
         rule = self.make_rule('res.partner', 'link', ['user_id'], company=False)

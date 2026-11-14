@@ -22,6 +22,10 @@ def _rule_fields(rule, records):
     return [records._fields[name] for name in rule.field_ids.mapped('name')]
 
 
+#: models whose company is only the default of a record that may serve several companies
+COMPANY_FREE_MODELS = ('res.users',)
+
+
 def _link_failure(record, target):
     """The explanation code of a link that does not hold for ``record``, or None.
 
@@ -32,7 +36,8 @@ def _link_failure(record, target):
     if 'active' in target._fields and not target.active:
         return 'link_archived'
     company_field = target._fields.get('company_id')
-    if company_field is not None and company_field.comodel_name == 'res.company' and target.company_id:
+    if (company_field is not None and company_field.comodel_name == 'res.company' and target.company_id
+            and target._name not in COMPANY_FREE_MODELS):
         record_company = record.company_id if 'company_id' in record._fields else record.env['res.company']
         if record_company and target.company_id != record_company:
             return 'link_other_company'
