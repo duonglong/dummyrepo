@@ -17,4 +17,6 @@ from . import rule
 from . import rule_version
 from . import correction
 from . import correction_mapping
+from . import correction_run
+from . import correction_log
 from . import scan

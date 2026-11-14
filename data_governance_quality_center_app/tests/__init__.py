@@ -30,3 +30,4 @@ from . import test_validation_basic
 from . import test_validation_basic_scan_acceptance
 from . import test_matching
 from . import test_scan_start
+from . import test_correction_run

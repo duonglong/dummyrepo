@@ -17,6 +17,7 @@ from odoo.tools.mail import email_normalize
 from odoo.addons.phone_validation.tools import phone_validation
 
 from ..const import JOB_BATCH_SIZE
+from . import validation
 
 _logger = logging.getLogger(__name__)
 
@@ -24,6 +25,13 @@ TEXT_TYPES = ('char', 'text', 'html')
 DEFAULT_VALUE_TYPES = ('char', 'text', 'integer', 'float', 'selection')
 LINK_TYPES = ('many2one',)
 COUNTRY_MODELS = ('res.country', 'res.country.state')
+#: the accounting models are protected by name (BR-DGQ-0005); the administrator adds more by marking a model restricted
+ACCOUNTING_MODELS = frozenset({
+    'account.move', 'account.move.line', 'account.payment', 'account.bank.statement.line',
+    'account.tax', 'account.account', 'account.journal',
+})
+#: the states of an issue that is still to be worked on
+OPEN_ISSUE_STATES = ('new', 'assigned', 'in_progress')
 TEXT_CASES = {
     'upper': str.upper,
     'lower': str.lower,
@@ -89,24 +97,69 @@ def action_text_case(value, record, params):
     return TEXT_CASES[params['text_case']](value) if value else value
 
 
+def _norm(text):
+    return (text or '').strip().casefold()
+
+
+def _country_candidates(env, spelling, cache):
+    """The countries whose name (in the user's language or in English) or code is the spelling."""
+    if 'countries' not in cache:
+        cache['countries'] = []
+        for lang in {env.lang or 'en_US', 'en_US'}:
+            for country in env['res.country'].with_context(lang=lang).search([]):
+                cache['countries'].append((_norm(country.name), _norm(country.code), country.id))
+    ids = {rec_id for name, code, rec_id in cache['countries'] if spelling in (name, code)}
+    return {('res.country', rec_id) for rec_id in ids}
+
+
+def _state_candidates(env, spelling, country, cache):
+    """The states of the record's country (of any country when it has none) named or coded as the spelling."""
+    key = ('states', country.id)
+    if key not in cache:
+        domain = [('country_id', '=', country.id)] if country else []
+        cache[key] = [(_norm(state.name), _norm(state.code), state.id)
+                      for state in env['res.country.state'].search(domain)]
+    return {('res.country.state', rec_id) for name, code, rec_id in cache[key] if spelling in (name, code)}
+
+
+def _mapping_candidates(spelling, relation, mappings):
+    """The country or state the mapping entries of the manager give for the spelling."""
+    found = set()
+    for country, state in mappings.get(spelling, ()):
+        target = state if relation == 'res.country.state' else country if relation == 'res.country' else (state or country)
+        if target:
+            found.add((target._name, target.id))
+    return found
+
+
 def action_country_state(value, record, params):
-    """Replace a local spelling of a country or state by the one of the mapping."""
+    """Set a country or state only from one certain match by name, code or mapping entry.
+
+    A text field holds a state when its name says state, else a country; a link holds what it
+    links to. No match and several matches are skipped with the reason.
+
+    Requirements: FR-DGQ-0052
+    """
     if not value:
         return value
-    spelling = (value.display_name if hasattr(value, 'display_name') else value).strip().lower()
-    mapping = params['mappings'].get(spelling)
-    if not mapping:
-        raise DgqSkip(record.env._("No mapping for this country or state."))
-    country, state = mapping
-    if params['relation'] == 'res.country.state':
-        target = state or False
-    elif params['relation'] == 'res.country':
-        target = country
+    env = record.env
+    spelling = _norm(value.name if hasattr(value, 'name') else value)
+    relation = params['relation'] or ('res.country.state' if 'state' in params['field_name'] else 'res.country')
+    cache = params['cache']
+    country = record.country_id if 'country_id' in record._fields and record._name != 'res.country' else env['res.country']
+    found = _mapping_candidates(spelling, relation, params['mappings'])
+    if relation == 'res.country.state':
+        found |= _state_candidates(env, spelling, country, cache)
     else:
-        target = (state or country).name
-    if not target:
-        raise DgqSkip(record.env._("No mapping for this country or state."))
-    return target.id if hasattr(target, 'id') else target
+        found |= _country_candidates(env, spelling, cache)
+    if not found:
+        raise DgqSkip(env._("No country or state matches this value."))
+    if len(found) > 1:
+        raise DgqSkip(env._("This value matches several countries or states."))
+    model_name, rec_id = next(iter(found))
+    if params['ttype'] == 'many2one':
+        return rec_id
+    return env[model_name].browse(rec_id).name
 
 
 def action_link(value, record, params):
@@ -174,7 +227,7 @@ def target_ids(correction):
             return []
         # sudo: the issues of the rule, whoever asked
         issues = env['data.quality.issue'].sudo().search([
-            ('rule_id', '=', correction.rule_id.id), ('state', 'in', ('open', 'assigned')),
+            ('rule_id', '=', correction.rule_id.id), ('state', 'in', OPEN_ISSUE_STATES),
             ('res_model', '=', model._name)])
         domain &= Domain('id', 'in', issues.mapped('res_id'))
     if correction.company_ids and 'company_id' in model._fields:
@@ -187,8 +240,10 @@ def action_params(correction):
     field = correction.field_id
     mappings = {}
     for mapping in correction.mapping_ids:
-        mappings[mapping.source_text.strip().lower()] = (mapping.country_id, mapping.state_id)
+        mappings.setdefault(_norm(mapping.source_text), []).append((mapping.country_id, mapping.state_id))
     return {
+        'cache': {},
+        'field_name': field.name,
         'ttype': field.ttype,
         'relation': field.relation,
         'default_value': correction.default_value,
@@ -233,12 +288,13 @@ def _handle_batch(run, ids):
     readable = env[model_name].with_user(run.user_id).with_context(active_test=False).search(
         [('id', 'in', records.ids)]).ids
     hide_values = correction._dgq_is_sensitive()
-    protected = correction._dgq_is_protected() and not correction.protected_authorized
+    protected = (correction._dgq_is_protected() or model_name in ACCOUNTING_MODELS) and not correction.protected_authorized
     handler = env['data.quality.registry']._dgq_find('correction_actions', correction.action)['handler']
     params = action_params(correction)
     real = run.kind == 'run'
     counts = dict.fromkeys(('changed', 'unchanged', 'skipped', 'failed'), 0)
     logs = []
+    changed = []
 
     def line(record, state, reason=False, before=None, after=None):
         if hide_values and state in ('would_change', 'changed', 'failed'):
@@ -279,9 +335,11 @@ def _handle_batch(run, ids):
         except Exception as error:  # noqa: BLE001 (any refusal of the target is logged, the run goes on)
             _logger.warning("dgq correction %s record %s %s: write refused (%s)",
                             correction.id, model_name, record.id, type(error).__name__)
-            line(record, 'failed', env._("The write was refused (%s).", type(error).__name__), before=before)
+            reason = type(error).__name__ if hide_values else str(error) or type(error).__name__
+            line(record, 'failed', env._("The write was refused: %s", reason), before=before)
             continue
         line(record, 'changed', before=before, after=after)
+        changed.append(record.id)
     # sudo: nobody creates log lines by hand, the engine writes them
     env['data.quality.correction.log'].sudo().create(logs)
     run.write({
@@ -290,3 +348,84 @@ def _handle_batch(run, ids):
         'count_skipped': run.count_skipped + counts['skipped'],
         'count_failed': run.count_failed + counts['failed'],
     })
+    if changed:
+        _resolve_issues(correction, records.browse(changed))
+
+
+def _resolve_issues(correction, records):
+    """Mark Resolved the open issues of the correction's rule whose record now passes the rule.
+
+    Requirements: FR-DGQ-0049
+    """
+    env = correction.env
+    rule = correction.rule_id
+    if not rule or 'data.quality.issue' not in env:
+        return
+    # sudo: the issues of the rule, whoever ran the correction; the app sets their state
+    issues = env['data.quality.issue'].sudo().search([
+        ('rule_id', '=', rule.id), ('res_model', '=', records._name),
+        ('res_id', 'in', records.ids), ('state', 'in', OPEN_ISSUE_STATES)])
+    if not issues:
+        return
+    outcomes = validation.check(rule.sudo(), records)  # sudo: the rule is read by the app
+    passing = {res_id for (res_id, rule_id), outcome in outcomes.items() if outcome.status != validation.FAIL}
+    issues.filtered(lambda issue: issue.res_id in passing).write({'state': 'resolved'})
+
+
+def rollback_batch(run):
+    """Restore the next batch of values the rolled back run changed; return ``(processed, remaining)``.
+
+    A value is put back only while the field still holds what the run wrote (BR-DGQ-0007); any
+    other value is listed as not restored with the reason. Each value is logged.
+
+    Requirements: BR-DGQ-0007, FR-DGQ-0050
+    """
+    env = run.env
+    if not run.last_id:
+        # sudo: the log of the rolled back run is read by the app
+        run.res_ids = env['data.quality.correction.log'].sudo().search(
+            [('run_id', '=', run.rollback_of_id.id), ('state', '=', 'changed')], order='id').ids
+    targets = run.res_ids or []
+    first = bisect.bisect_right(targets, run.last_id)
+    batch = targets[first:first + JOB_BATCH_SIZE]
+    counts = dict.fromkeys(('restored', 'not_restored'), 0)
+    logs = []
+    originals = env['data.quality.correction.log'].sudo().browse(batch).exists()  # sudo: the app reads its own log
+    for original in originals:
+        # sudo: the app puts the value back, as it wrote it
+        record = env[original.res_model].sudo().with_context(active_test=False).browse(original.res_id).exists()
+        state, reason, current = 'restored', False, None
+        if not record:
+            state, reason = 'not_restored', env._("The record no longer exists.")
+        elif original.value_before is None and original.value_after is None:
+            state, reason = 'not_restored', env._("The values of this field were not kept.")
+        else:
+            current = stored_value(record, original.field_name)
+            if current != original.value_after:
+                state, reason = 'not_restored', env._("The value changed since the correction.")
+            else:
+                try:
+                    with env.cr.savepoint():
+                        record.write({original.field_name: original.value_before})
+                except Exception as error:  # noqa: BLE001 (any refusal of the target is listed, the rollback goes on)
+                    _logger.warning("dgq rollback run %s record %s %s: write refused (%s)",
+                                    run.id, original.res_model, original.res_id, type(error).__name__)
+                    state, reason = 'not_restored', env._("The write was refused: %s", str(error) or type(error).__name__)
+        counts[state] += 1
+        logs.append({
+            'run_id': run.id, 'res_model': original.res_model, 'res_id': original.res_id,
+            'company_id': original.company_id.id, 'field_name': original.field_name,
+            'value_before': current, 'value_after': original.value_before if state == 'restored' else None,
+            'state': state, 'reason': reason, 'user_id': run.user_id.id,
+            'date': fields.Datetime.now(),
+        })
+        if state == 'restored':
+            original.restored = True
+    env['data.quality.correction.log'].sudo().create(logs)  # sudo: nobody creates log lines by hand
+    run.write({
+        'count_restored': run.count_restored + counts['restored'],
+        'count_not_restored': run.count_not_restored + counts['not_restored'],
+    })
+    if batch:
+        run.last_id = batch[-1]
+    return len(batch), len(targets) - first - len(batch)
