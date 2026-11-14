@@ -1,0 +1,246 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * data_governance_quality_center_app
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 20.0\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s has the value '%(value)s', which does not match the expected format %(pattern)s."
+msgstr "%(field)s a la valeur « %(value)s », qui ne correspond pas au format attendu %(pattern)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, below the minimum of %(limit)s."
+msgstr "%(field)s vaut %(value)s, en dessous du minimum de %(limit)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, above the maximum of %(limit)s."
+msgstr "%(field)s vaut %(value)s, au-dessus du maximum de %(limit)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, which is in the future."
+msgstr "%(field)s est %(value)s, ce qui est dans le futur."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, which is in the past."
+msgstr "%(field)s est %(value)s, ce qui est dans le passé."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, which is older than the limit of %(days)s days."
+msgstr "%(field)s est %(value)s, ce qui dépasse la limite de %(days)s jours."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, which is more than %(days)s days ahead."
+msgstr "%(field)s est %(value)s, ce qui est à plus de %(days)s jours dans le futur."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is %(value)s, outside the dates from %(start)s to %(end)s."
+msgstr "%(field)s est %(value)s, en dehors des dates du %(start)s au %(end)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s does not match the expected format %(pattern)s."
+msgstr "%(field)s ne correspond pas au format attendu %(pattern)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is below the minimum of %(limit)s."
+msgstr "%(field)s est en dessous du minimum de %(limit)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is above the maximum of %(limit)s."
+msgstr "%(field)s est au-dessus du maximum de %(limit)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is in the future."
+msgstr "%(field)s est dans le futur."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is in the past."
+msgstr "%(field)s est dans le passé."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is older than the limit of %(days)s days."
+msgstr "%(field)s dépasse la limite de %(days)s jours."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is more than %(days)s days ahead."
+msgstr "%(field)s est à plus de %(days)s jours dans le futur."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(field)s is outside the dates from %(start)s to %(end)s."
+msgstr "%(field)s est en dehors des dates du %(start)s au %(end)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/basic.py:0
+#, python-format
+msgid "%(fields)s is empty."
+msgstr "%(fields)s est vide."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "The record is in the scope of the rule but does not meet its condition."
+msgstr "L'enregistrement relève de la règle mais ne remplit pas sa condition."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s is %(value)s and %(other)s is %(other_value)s, but %(field)s must be %(operator)s %(other)s."
+msgstr "%(field)s vaut %(value)s et %(other)s vaut %(other_value)s, mais %(field)s doit être %(operator)s %(other)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s points to a record that no longer exists."
+msgstr "%(field)s pointe vers un enregistrement qui n'existe plus."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s points to an archived record."
+msgstr "%(field)s pointe vers un enregistrement archivé."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s points to a record that belongs to another company."
+msgstr "%(field)s pointe vers un enregistrement d'une autre société."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "equal to"
+msgstr "égal à"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "different from"
+msgstr "différent de"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "greater than"
+msgstr "supérieur à"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "greater than or equal to"
+msgstr "supérieur ou égal à"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "lower than"
+msgstr "inférieur à"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+msgid "lower than or equal to"
+msgstr "inférieur ou égal à"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "The validator failed: %(error)s"
+msgstr "Le validateur a échoué : %(error)s"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s must be %(operator)s %(other)s."
+msgstr "%(field)s doit être %(operator)s %(other)s."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s points to %(value)s, which is archived."
+msgstr "%(field)s pointe vers %(value)s, qui est archivé."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
+#, python-format
+msgid "%(field)s points to %(value)s, which belongs to another company."
+msgstr "%(field)s pointe vers %(value)s, qui appartient à une autre société."
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/rule_test.py:0
+msgid "Pass"
+msgstr "Réussi"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/rule_test.py:0
+msgid "Fail"
+msgstr "Échec"
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/rule_test.py:0
+msgid "Not applicable"
+msgstr "Non applicable"
