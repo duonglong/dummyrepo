@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="data_governance_quality_center_app.Dashboard">
+        <div class="o_action o_dgq_dashboard p-3 overflow-auto">
+            <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+                <t t-foreach="state.figures.companies" t-as="company" t-key="company.id">
+                    <label class="d-flex gap-1 align-items-center">
+                        <input type="checkbox" t-att-checked="state.companyIds.includes(company.id)"
+                               t-on-change="() => this.toggleCompany(company.id)"/>
+                        <span t-out="company.name"/>
+                    </label>
+                </t>
+                <input type="date" class="form-control w-auto" t-att-value="state.date" t-on-change="onDateChange"/>
+            </div>
+            <t t-if="!state.figures.has_scan">
+                <p class="text-muted">No scan has run yet.</p>
+                <button t-if="state.figures.can_start_scan" class="btn btn-primary"
+                        t-on-click="() => this.env.services.action.doAction('data_governance_quality_center_app.scan_action')">
+                    Start a scan
+                </button>
+            </t>
+            <t t-else="">
+                <div class="d-flex flex-wrap gap-4 mb-4">
+                    <div><div class="fs-1 fw-bold" t-out="formatScore(state.figures.score)"/><div>Score</div></div>
+                    <div><div class="fs-3" t-out="state.figures.records_scanned"/><div>Scanned</div></div>
+                    <div><div class="fs-3 text-danger" t-out="state.figures.records_error"/><div>Errors</div></div>
+                    <div><div class="fs-3 text-warning" t-out="state.figures.records_warning"/><div>Warnings</div></div>
+                    <div><div class="fs-3" t-out="state.figures.open_issues"/><div>Open issues</div></div>
+                    <div><div class="fs-3 text-danger" t-out="state.figures.critical_issues"/><div>Critical</div></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <h5>By model</h5>
+                        <div t-foreach="state.figures.by_model" t-as="row" t-key="row.id" class="d-flex justify-content-between">
+                            <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>By company</h5>
+                        <div t-foreach="state.figures.by_company" t-as="row" t-key="row.id" class="d-flex justify-content-between">
+                            <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Lowest scores</h5>
+                        <div t-foreach="state.figures.lowest_models" t-as="row" t-key="row.id" class="d-flex justify-content-between">
+                            <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                        </div>
+                    </div>
+                </div>
+                <h5 class="mt-4">Latest issues</h5>
+                <div t-foreach="state.figures.recent_issues" t-as="issue" t-key="issue.id" class="d-flex gap-3">
+                    <span t-out="issue.name"/><span class="text-muted" t-out="issue.last_found"/>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

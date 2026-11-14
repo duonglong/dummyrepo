@@ -62,3 +62,11 @@ ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')
 
 # Skipped issues a bulk action names in its result; the others are only counted (FR-DGQ-0027).
 BULK_SKIPPED_LISTED = 20
+
+# The weight of a failed check by the severity of its rule, each a system parameter 'data_quality.weight_<severity>' (BR-DGQ-0001).
+SEVERITY_WEIGHT_DEFAULTS = {'info': 1, 'warning': 3, 'critical': 10}
+SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
+
+# Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
+DASHBOARD_LOWEST_MODELS = 5
+DASHBOARD_RECENT_ISSUES = 10
