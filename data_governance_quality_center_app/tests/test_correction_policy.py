@@ -1,7 +1,7 @@
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from .acceptance_m2b_helpers import M2BCase, DRY_RUN, REAL_RUN, call_first, choice
+from .acceptance_m2b_helpers import M2BCase, APPROVE, DRY_RUN, REAL_RUN, call_first, choice
 
 
 class TestCorrectionPolicy(M2BCase):
@@ -219,6 +219,131 @@ class TestCorrectionPolicy(M2BCase):
         with self.assertRaises(ValidationError):
             call_first(correction, DRY_RUN)
         self.assertFalse(correction.run_ids.log_ids)
+
+    def test_a_user_without_write_on_runs_cannot_start_resume_or_cancel_them(self):
+        """BR-DGQ-0006, FR-DGQ-0048, FR-DGQ-0071: viewers and managers of another company are refused."""
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        self.dry_run(correction)
+        run = self.env['data.quality.correction.run'].with_user(self.manager_a).create(
+            {'correction_id': correction.id, 'kind': 'run'})
+        viewer = self.user('viewer', login='dgq_m2b_run_viewer', company=self.cx)
+        outsider = self.user('manager', login='dgq_m2b_run_outsider', company=self.cy)
+        outsider.write({'company_ids': [Command.set([self.cy.id])], 'company_id': self.cy.id})
+        with self.assertRaises(AccessError):
+            run.with_user(viewer).action_start()
+        with self.assertRaises(AccessError):
+            run.with_user(viewer).action_cancel()
+        with self.assertRaises(AccessError):
+            run.with_user(outsider).action_cancel()
+        run.sudo().state = 'failed'  # sudo: run fields no user writes
+        with self.assertRaises(AccessError):
+            run.with_user(viewer).action_resume()
+        self.assertEqual(run.sudo().state, 'failed')  # sudo: run fields no user writes
+
+    def test_a_viewer_cannot_press_the_buttons_of_a_correction(self):
+        """BR-DGQ-0006, FR-DGQ-0048: a viewer who is not the author still cannot dry-run, approve or run."""
+        correction = self.correction('res.partner', 'email', ['trim'], rule=self.critical_rule,
+                                     domain_ids=self.padded.ids)
+        viewer = self.user('viewer', login='dgq_m2b_button_viewer', company=self.cx)
+        with self.assertRaises(AccessError):
+            call_first(correction.with_user(viewer), DRY_RUN)
+        self.dry_run(correction)
+        self.assertEqual(correction.state, 'to_approve')
+        for names in (APPROVE, REAL_RUN):
+            with self.assertRaises(AccessError):
+                call_first(correction.with_user(viewer), names)
+        self.assertEqual(correction.state, 'to_approve')
+
+    def test_a_run_keeps_its_kind_and_correction(self):
+        """BR-DGQ-0006, FR-DGQ-0048: a run that ran for real stays a real run of its correction."""
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        other = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        dry = self.dry_run(correction)
+        run = self.real_run(correction)
+        for record, vals in ((run, {'kind': 'dry_run'}), (dry, {'kind': 'run'}),
+                             (dry, {'correction_id': other.id})):
+            with self.assertRaises(UserError):
+                record.with_user(self.manager_a).write(vals)
+        with self.assertRaises(UserError):
+            correction.with_user(self.manager_a).unlink()
+
+    def test_context_defaults_cannot_fill_the_engine_fields_of_a_run(self):
+        """BR-DGQ-0006, FR-DGQ-0048: context defaults give a run nothing but its correction and kind."""
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        self.dry_run(correction)
+        run = self.env['data.quality.correction.run'].with_user(self.manager_a).with_context(
+            default_state='queued', default_user_id=self.administrator.id, default_last_id=1,
+            default_res_ids=[1], default_count_changed=7,
+        ).create({'correction_id': correction.id, 'kind': 'run'})
+        self.assertEqual(run.state, 'draft')
+        self.assertFalse(run.user_id)
+        self.assertFalse(run.last_id)
+        self.assertFalse(run.res_ids)
+        self.assertFalse(run.count_changed)
+
+    def test_context_defaults_cannot_authorize_protected_records(self):
+        """BR-DGQ-0006: only an administrator authorizes protected records, also through a context default."""
+        mine = self.correction(
+            'res.partner', 'email', ['trim'], domain_ids=self.padded.ids
+        ).with_user(self.manager_a).with_context(default_protected_authorized=True).copy(
+            {'name': 'Mine'})
+        self.assertFalse(mine.protected_authorized)
+        Correction = self.env['data.quality.correction'].with_user(self.manager_a).with_context(
+            default_protected_authorized=True)
+        fresh = Correction.create({
+            'name': 'Fresh', 'model_id': mine.model_id.id, 'field_id': mine.field_id.id,
+            'action': mine.action})
+        self.assertFalse(fresh.protected_authorized)
+
+    def test_an_old_real_run_cannot_go_on_after_the_correction_changed(self):
+        """FR-DGQ-0048: a real run is bound to the dry run it started after; a newer one refuses it."""
+        other = self.partner('Other', email=' other@b.com ')
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        self.dry_run(correction)
+        call_first(correction, REAL_RUN)
+        run = correction.run_ids.filtered(lambda r: r.kind == 'run')
+        run.sudo().write({'state': 'failed', 'last_id': self.padded.id - 1})  # sudo: run fields no user writes
+        correction.write({'domain': str([('id', 'in', other.ids)])})
+        self.dry_run(correction)
+        self.assertEqual(correction.state, 'ready')
+        for method in ('action_resume', 'action_start'):
+            with self.assertRaises(UserError, msg=method) as caught:
+                getattr(run, method)()
+            self.assertIn('start a new run', str(caught.exception))
+            run.sudo().state = 'cancelled'  # sudo: run fields no user writes
+        run.sudo().state = 'queued'  # sudo: run fields no user writes
+        self.drain_job(run)
+        self.assertEqual(run.sudo().state, 'failed')  # sudo: run fields no user writes
+        self.padded.invalidate_recordset()
+        self.assertEqual(self.padded.email, ' ACME@Mail.COM ')
+
+    def test_the_first_batch_takes_the_targets_from_the_correction(self):
+        """FR-DGQ-0047: targets stored on a run before it started are replaced by the filter's records."""
+        other = self.partner('Other', email=' other@b.com ')
+        correction = self.correction('res.partner', 'email', ['trim'], domain_ids=self.padded.ids)
+        run = self.env['data.quality.correction.run'].with_user(self.manager_a).create(
+            {'correction_id': correction.id, 'kind': 'dry_run'})
+        run.sudo().res_ids = [self.padded.id, other.id]  # sudo: run fields no user writes
+        run.action_start()
+        self.drain_job(run)
+        self.assertEqual(run.sudo().log_ids.mapped('res_id'), [self.padded.id])  # sudo: run fields no user writes
+
+    def test_a_refused_write_on_a_sensitive_field_keeps_its_reason(self):
+        """BR-DGQ-0010: the values of a sensitive field are hidden, the reason a write failed is kept."""
+        grand = self.partner('Grand')
+        self.padded.parent_id = grand
+        child = self.partner('Child', parent_id=self.padded.id)
+        self.env['data.quality.field.config'].create({
+            'field_id': self.fld('res.partner', 'parent_id').id, 'status': 'sensitive'})
+        correction = self.correction(
+            'res.partner', 'parent_id', ['replace', 'link'], domain_ids=self.padded.ids,
+            link_from_id=grand.id, link_to_id=child.id)
+        self.dry_run(correction)
+        self.approve(correction, self.manager_b)
+        line = self.real_run(correction).sudo().log_ids  # sudo: run fields no user writes
+        self.assertEqual(line.state, 'failed')
+        self.assertIn('ValidationError', line.reason)
+        self.assertFalse(line.value_before)
 
     def correction_action(self, words):
         return choice(self.env, 'data.quality.correction', 'action', words)

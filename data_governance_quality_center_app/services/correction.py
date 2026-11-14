@@ -111,7 +111,7 @@ def action_country_state(value, record, params):
 
 def action_link(value, record, params):
     """Replace a link to one record by a link to another."""
-    return params['link_to'] if value == params['link_from'] else value
+    return params['link_to'] if params['link_from'] and value.id == params['link_from'] else value
 
 
 def builtin_actions(env):
@@ -242,7 +242,7 @@ def _handle_batch(run, ids):
     def line(record, state, reason=False, before=None, after=None):
         if hide_values and state in ('would_change', 'changed', 'failed'):
             before = after = None
-            reason = env._("The field is sensitive: its values are not kept.")
+            reason = reason or env._("The field is sensitive: its values are not kept.")
         counts[{'would_change': 'changed'}.get(state, state)] += 1
         logs.append({
             'run_id': run.id, 'res_model': model_name, 'res_id': record.id,

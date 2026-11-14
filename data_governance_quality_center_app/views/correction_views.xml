@@ -126,6 +126,7 @@
                         <group>
                             <field name="correction_id"/>
                             <field name="kind"/>
+                            <field name="dry_run_id" invisible="kind != 'run'"/>
                             <field name="user_id"/>
                             <field name="progress" widget="progressbar"/>
                         </group>
