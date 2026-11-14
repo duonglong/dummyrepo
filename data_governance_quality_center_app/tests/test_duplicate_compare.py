@@ -1,4 +1,5 @@
-from odoo.exceptions import AccessError, ValidationError
+from odoo import Command
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 from .acceptance_m2b_helpers import M2BCase, call_first, DISMISS
 from ..services import merge
@@ -97,3 +98,64 @@ class TestDuplicateCompare(M2BCase):
         wizard = self.open_preview(group=self.group)
         with self.assertRaises(ValidationError):
             wizard.kept_res_id = other.id
+
+    def test_preview_refuses_a_model_outside_the_group(self):
+        """FR-DGQ-0042, BR-DGQ-0010: a forged model with a group is refused before any read."""
+        params = self.env['ir.config_parameter'].sudo().search([], limit=2)
+        with self.assertRaises(ValidationError):
+            self.env['data.quality.merge.wizard'].with_user(self.manager_a).create({
+                'group_id': self.group.id, 'res_model': 'ir.config_parameter',
+                'res_ids': params.ids, 'kept_res_id': params[0].id})
+
+    def test_preview_refuses_a_record_outside_the_group(self):
+        """FR-DGQ-0042: an id that is not a line of the group is refused."""
+        other = self.partner('Somebody Else')
+        with self.assertRaises(ValidationError):
+            self.env['data.quality.merge.wizard'].with_user(self.manager_a).create({
+                'group_id': self.group.id, 'res_model': 'res.partner',
+                'res_ids': [self.acme.id, other.id], 'kept_res_id': self.acme.id})
+
+    def test_preview_refuses_a_field_that_cannot_be_compared(self):
+        """FR-DGQ-0042, BR-DGQ-0010: a value line naming a binary field is refused."""
+        wizard = self.open_preview(group=self.group)
+        with self.assertRaises(ValidationError):
+            wizard.write({'value_line_ids': [Command.create({
+                'field_name': 'image_1920', 'source_res_id': self.acme.id})]})
+
+    def test_followers_and_messages_are_not_linked_documents(self):
+        """FR-DGQ-0040: followers of a contact do not change the record kept."""
+        self.link_bank(self.acme, 'X-1')
+        followers = self.partner('Follower One') | self.partner('Follower Two')
+        self.acme_two.message_subscribe(partner_ids=followers.ids)
+        wizard = self.open_preview(group=self.group)
+        self.assertEqual(wizard.kept_res_id, self.acme.id)
+
+    def test_preview_lists_the_links_that_move(self):
+        """FR-DGQ-0042: the text names each kind of linked document with its number."""
+        self.link_bank(self.acme, 'KEEP-1')
+        self.link_bank(self.acme, 'KEEP-2')
+        self.link_bank(self.acme_two, 'MOVE-1')
+        wizard = self.open_preview(group=self.group)
+        self.assertTrue(wizard.links_to_move.endswith(': 1'), wizard.links_to_move)
+
+    def test_a_closed_group_cannot_be_changed(self):
+        """FR-DGQ-0041: setting aside or merging a dismissed group is refused."""
+        third = self.partner('Acme Limited', email='info@acme.com')
+        group = self.make_group(self.rule, self.acme | self.acme_two | third)
+        group.sudo().state = 'dismissed'
+        with self.assertRaises(UserError):
+            group.line_ids[:1].with_user(self.manager_a).action_dismiss()
+        with self.assertRaises(UserError):
+            group.with_user(self.manager_a).action_merge()
+        self.assertEqual(len(group.line_ids), 3)
+
+    def test_scores_are_refreshed_when_the_first_record_leaves(self):
+        """FR-DGQ-0041: the first record set aside, the new first record scores 100."""
+        third = self.partner('Acme Limited', email='info@acme.com')
+        group = self.make_group(self.rule, self.acme | self.acme_two | third)
+        first = group.line_ids.sorted(lambda line: (line.sequence, line.id))[0]
+        first.with_user(self.manager_a).action_dismiss()
+        group.invalidate_recordset()
+        lines = group.line_ids.sorted(lambda line: (line.sequence, line.id))
+        self.assertEqual(lines[0].score, 100.0)
+        self.assertEqual(group.score, lines[1].score)

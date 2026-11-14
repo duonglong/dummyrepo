@@ -1,5 +1,5 @@
 from odoo import Command, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 from ..const import MERGE_MAX_RECORDS, MERGE_MIN_RECORDS
 from ..services import merge
@@ -31,6 +31,9 @@ class DataQualityMergeWizard(models.TransientModel):
     link_summary = fields.Json(
         compute='_compute_summary',
         help="The linked documents of each kind that move to the record kept.")
+    links_to_move = fields.Text(
+        string='Linked Documents To Move', compute='_compute_summary',
+        help="One line per kind of linked document with the number that moves to the record kept.")
     archive_names = fields.Char(
         string='To Be Archived', compute='_compute_summary',
         help="The records that are archived once the merge is confirmed.")
@@ -53,19 +56,60 @@ class DataQualityMergeWizard(models.TransientModel):
                     "Set aside the records that are not duplicates first.",
                     min=MERGE_MIN_RECORDS, max=MERGE_MAX_RECORDS, count=count))
 
+    def _trusted_ids(self):
+        """Return the ids among ``res_ids`` that the preview may read, in the order given.
+
+        With a group the model and the records are the group's own, read as the user; without one
+        the model must be a real model and every record readable by the user. Anything else is
+        left out, so a forged model or id is never read.
+        """
+        self.ensure_one()
+        ids = list(self.res_ids or [])
+        if self.group_id:
+            if self.res_model != self.group_id.res_model:
+                return []
+            allowed = set(self.group_id.line_ids.mapped('res_id'))
+            return [res_id for res_id in ids if res_id in allowed]
+        if self.res_model not in self.env:
+            return []
+        records = self.env[self.res_model].browse(ids)
+        try:
+            records.check_access('read')
+        except AccessError:
+            return []
+        return ids
+
+    @api.constrains('res_model', 'res_ids', 'group_id')
+    def _check_records_are_readable(self):
+        """The records to merge are those of the group, or records the user may read.
+
+        Requirements: FR-DGQ-0042, BR-DGQ-0010
+        """
+        for wizard in self:
+            if len(wizard._trusted_ids()) != len(wizard.res_ids or []):
+                raise ValidationError(self.env._("These records cannot be merged from this group."))
+
     @api.constrains('kept_res_id', 'value_line_ids')
     def _check_choices(self):
-        """The record kept and the source of every value are among the records to merge."""
+        """The record kept and the source of every value are among the records to merge; a value
+        line names a field the comparison may show.
+
+        Requirements: FR-DGQ-0042, BR-DGQ-0010
+        """
         for wizard in self:
             ids = set(wizard.res_ids or [])
             chosen = {wizard.kept_res_id, *wizard.value_line_ids.mapped('source_res_id')} - {0}
             if not chosen <= ids:
                 raise ValidationError(self.env._("The record kept and the sources must be among the records to merge."))
+            if wizard.value_line_ids and wizard.res_model:
+                allowed = set(merge.comparable_fields(self.env, wizard.res_model))
+                if not set(wizard.value_line_ids.mapped('field_name')) <= allowed:
+                    raise ValidationError(self.env._("A value line names a field that cannot be compared."))
 
     def _links_per_record(self):
         """Return the number of linked documents of each record: ``{id: count}``."""
         self.ensure_one()
-        counts = merge.linked_counts(self.env, self.res_model, self.res_ids or [])
+        counts = merge.linked_counts(self.env, self.res_model, self._trusted_ids())
         return {res_id: sum(per_model.values()) for res_id, per_model in counts.items()}
 
     @api.depends('res_ids', 'res_model')
@@ -75,7 +119,7 @@ class DataQualityMergeWizard(models.TransientModel):
         Requirements: FR-DGQ-0042
         """
         for wizard in self:
-            ids = wizard.res_ids or []
+            ids = wizard._trusted_ids()
             if not ids or wizard.kept_res_id in ids:
                 continue
             links = wizard._links_per_record()
@@ -91,8 +135,8 @@ class DataQualityMergeWizard(models.TransientModel):
         Requirements: FR-DGQ-0042
         """
         for wizard in self:
-            ids = wizard.res_ids or []
-            if not ids or not wizard.kept_res_id:
+            ids = wizard._trusted_ids()
+            if not ids or wizard.kept_res_id not in ids:
                 wizard.value_line_ids = [Command.clear()]
                 continue
             # sudo: managers read the rule of their group; the preview only needs its fields
@@ -120,25 +164,28 @@ class DataQualityMergeWizard(models.TransientModel):
         Requirements: FR-DGQ-0042, BR-DGQ-0008
         """
         for wizard in self:
-            ids = wizard.res_ids or []
+            ids = wizard._trusted_ids()
             others = [res_id for res_id in ids if res_id != wizard.kept_res_id]
-            # sudo: the manager may not read ir.model, the label is the model's own name
             wizard.link_summary = []
+            wizard.links_to_move = False
             wizard.archive_names = False
             wizard.reversible = True
             wizard.irreversible_reason = False
             if not ids or not wizard.res_model:
                 continue
-            # sudo: the manager may not read every merged model, the names are the records' own
-            records = self.env[wizard.res_model].sudo().browse(others).exists()
+            records = self.env[wizard.res_model].browse(others).exists()
             wizard.archive_names = ', '.join(records.mapped('display_name'))
             moving = {}
             for per_model in merge.linked_counts(self.env, wizard.res_model, others).values():
                 for model_name, count in per_model.items():
                     moving[model_name] = moving.get(model_name, 0) + count
-            wizard.link_summary = [
-                {'model': model_name, 'label': self.env['ir.model'].sudo()._get(model_name).name, 'count': count}
+            # sudo: the manager may not read ir.model, the label is the model's own name
+            labels = {name: self.env['ir.model'].sudo()._get(name).name for name in moving}
+            summary = [
+                {'model': model_name, 'label': labels[model_name], 'count': count}
                 for model_name, count in sorted(moving.items())]
+            wizard.link_summary = summary
+            wizard.links_to_move = '\n'.join('%s: %s' % (entry['label'], entry['count']) for entry in summary)
             reason = merge.irreversible_reason(self.env, wizard.res_model, wizard.kept_res_id, others)
             wizard.reversible = not reason
             wizard.irreversible_reason = reason
@@ -171,6 +218,8 @@ class DataQualityMergeWizardValue(models.TransientModel):
         Requirements: FR-DGQ-0042
         """
         for line in self:
-            # sudo: the value was read for the preview by the same rules as the comparison
-            source = line.env[line.res_model].sudo().browse(line.source_res_id).exists() if line.res_model else False
-            line.value_display = merge.display_value(source, line.field_name) if source and line.field_name else False
+            wizard = line.wizard_id
+            trusted = line.res_model and line.source_res_id in wizard._trusted_ids() and (
+                line.field_name in merge.comparable_fields(line.env, line.res_model))
+            source = line.env[line.res_model].browse(line.source_res_id).exists() if trusted else False
+            line.value_display = merge.display_value(source, line.field_name) if source else False

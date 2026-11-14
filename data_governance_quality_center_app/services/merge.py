@@ -6,6 +6,7 @@ foreign keys of the database, like Odoo's own contact merge, so a count holds fo
 from odoo.models import MAGIC_COLUMNS
 from odoo.tools import SQL
 
+from ..const import MERGE_TECHNICAL_MODEL_PREFIXES
 from .matching import field_score
 
 
@@ -31,16 +32,18 @@ def foreign_keys(env, table):
 
 def _document_models(env):
     """Return ``{table: model name}`` of the business models whose rows count as linked documents."""
+    excluded = ('data.quality.', *MERGE_TECHNICAL_MODEL_PREFIXES)
     return {
         model._table: name for name, model in env.registry.items()
-        if model._auto and not model._transient and not name.startswith('data.quality.')
+        if model._auto and not model._transient and not name.startswith(excluded)
     }
 
 
 def linked_counts(env, model_name, res_ids):
     """Count, per record, the documents that link to it: ``{id: {model name: count}}``.
 
-    Only rows of business models count (relation tables, messages and followers do not); a row
+    Only rows of business models count (relation tables, messages, followers, activities and user
+    accounts do not); a row
     of the same model that is itself one of the records is left out, it is not a document.
 
     Requirements: FR-DGQ-0040, FR-DGQ-0042
@@ -146,8 +149,7 @@ def field_rows(env, model_name, res_ids, rule_lines=()):
     Requirements: FR-DGQ-0040, FR-DGQ-0042, BR-DGQ-0010
     """
     ids = list(res_ids)
-    # sudo: the comparison shows the records of a group the user may already read
-    records = env[model_name].sudo().browse(ids).exists()
+    records = env[model_name].browse(ids).exists()
     ids = [res_id for res_id in ids if res_id in set(records.ids)]
     match = {name: method for name, method, _weight in rule_lines}
     rows = []

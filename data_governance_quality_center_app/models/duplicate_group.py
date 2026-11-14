@@ -1,9 +1,9 @@
 from markupsafe import Markup
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 
-from ..services import merge
+from ..services import matching, merge
 
 
 class DataQualityDuplicateGroup(models.Model):
@@ -71,15 +71,46 @@ class DataQualityDuplicateGroup(models.Model):
                 'data_governance_quality_center_app.group_dgq_manager'):
             raise AccessError(self.env._("Only a data quality manager can do this."))
 
+    def _check_open(self):
+        """Refuse the action on a group that is closed: its decision stays as it was taken."""
+        self.ensure_one()
+        if self.state != 'open':
+            state_label = dict(self._fields['state']._description_selection(self.env))[self.state]
+            raise UserError(self.env._(
+                "This group is %s: only an open group can be changed.", state_label))
+
+    def _rescore(self):
+        """Score the records of the group again against its new first record and refresh its score.
+
+        The score of the group is the highest score of a record against the first one.
+        """
+        self.ensure_one()
+        lines = self.line_ids.sorted(lambda line: (line.sequence, line.id))
+        match_lines = self.rule_id._get_match_lines()
+        names = [name for name, _method, _weight in match_lines]
+        # sudo: the app rescores its own groups, the manager only decided who leaves
+        records = self.env[self.res_model].sudo().browse(lines.mapped('res_id'))
+        values = {data['id']: data for data in records.read(names, load='')}
+        first = values.get(lines[0].res_id, {})
+        scores = {}
+        for line in lines:
+            scores[line.id] = 100.0 if line == lines[0] else matching.pair_score(
+                match_lines, first, values.get(line.res_id, {})) or 0.0
+            line.sudo().score = scores[line.id]  # sudo: same reason
+        self.sudo().score = max((score for line_id, score in scores.items() if line_id != lines[0].id), default=0.0)
+
     def _dismiss_records(self, lines):
         """Set the records of ``lines`` aside from the others of the group and close a group left too small."""
         self.ensure_one()
         self._check_manager()
+        self._check_open()
         # sudo: managers decide on groups but the results are written by the app
         Dismissal = self.env['data.quality.duplicate.dismissal'].sudo()
         remaining = self.line_ids - lines
+        group_ids = self.line_ids.mapped('res_id')
         known = {
-            (d.res_id_a, d.res_id_b) for d in Dismissal.search([('rule_id', '=', self.rule_id.id)])}
+            (d.res_id_a, d.res_id_b) for d in Dismissal.search([
+                ('rule_id', '=', self.rule_id.id), ('res_id_a', 'in', group_ids), ('res_id_b', 'in', group_ids)])}
         vals = []
         for line in lines:
             for other in self.line_ids - line:
@@ -95,6 +126,7 @@ class DataQualityDuplicateGroup(models.Model):
             group.state = 'dismissed'
         else:
             lines.sudo().unlink()  # sudo: same reason
+            self._rescore()
 
     def action_dismiss(self):
         """Close the group as not duplicates: its records are not grouped again under the rule.
@@ -112,6 +144,7 @@ class DataQualityDuplicateGroup(models.Model):
         """
         self.ensure_one()
         self._check_manager()
+        self._check_open()
         ids = self.line_ids.sorted(lambda line: (line.sequence, line.id)).mapped('res_id')
         return {
             'type': 'ir.actions.act_window',
