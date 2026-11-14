@@ -23,3 +23,7 @@ access_dgq_ir_model_fields_viewer,ir.model.fields viewer,ir.model.fields,group_d
 access_dgq_duplicate_check_company,data.quality.duplicate.check own companies,data.quality.duplicate.check,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
 access_dgq_merge_wizard_manager,data.quality.merge.wizard manager,data.quality.merge.wizard,group_dgq_manager,crud,
 access_dgq_merge_wizard_value_manager,data.quality.merge.wizard.value manager,data.quality.merge.wizard.value,group_dgq_manager,crud,
+access_dgq_scan_viewer,data.quality.scan viewer,data.quality.scan,group_dgq_viewer,r,
+access_dgq_scan_operator,data.quality.scan operator,data.quality.scan,group_dgq_operator,cru,
+access_dgq_scan_line_viewer,data.quality.scan.line viewer,data.quality.scan.line,group_dgq_viewer,r,
+access_dgq_scan_checkpoint_viewer,data.quality.scan.checkpoint viewer,data.quality.scan.checkpoint,group_dgq_viewer,r,

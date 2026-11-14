@@ -14,3 +14,4 @@ from . import duplicate_line
 from . import duplicate_dismissal
 from . import rule
 from . import rule_version
+from . import scan

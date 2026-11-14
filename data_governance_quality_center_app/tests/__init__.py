@@ -26,3 +26,4 @@ from . import test_correction_policy_acceptance
 from . import test_correction_run_acceptance
 from . import test_matching
 from . import test_rule
+from . import test_scan_start
