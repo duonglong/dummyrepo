@@ -5,6 +5,7 @@
     'category': 'Productivity',
     'depends': [
         'mail',
+        'mail_tracking',
         'product',
         'base_import',
         'phone_validation',
@@ -23,6 +24,7 @@
         'data/correction_cron.xml',
         'views/scan_views.xml',
         'views/issue_views.xml',
+        'data/mail_templates.xml',
         'views/menus.xml',
         'views/correction_views.xml',
         'data/cron_scan.xml',

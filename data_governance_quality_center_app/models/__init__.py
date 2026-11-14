@@ -25,3 +25,4 @@ from . import scan_checkpoint
 from . import scan_line
 from . import scan_tally
 from . import issue
+from . import settings

@@ -36,3 +36,4 @@ from . import test_correction_run
 from . import test_scan_run
 from . import test_rule_test
 from . import test_rule_test_sample_acceptance
+from . import test_issue_workflow

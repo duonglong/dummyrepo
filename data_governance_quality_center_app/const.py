@@ -41,6 +41,10 @@ PROTECTED_MODELS = (
     'account.tax', 'account.account', 'account.journal',
 )
 
+# The system parameter holding whether assignment notices are also e-mailed, and its default (FR-DGQ-0028, FR-DGQ-0076).
+NOTIFY_EMAIL_PARAMETER = 'data_quality.notify_email'
+NOTIFY_EMAIL_DEFAULT = True
+
 # The priority an issue starts with, by the severity of its rule (FR-DGQ-0021).
 ISSUE_PRIORITY_BY_SEVERITY = {'info': 'low', 'warning': 'normal', 'critical': 'high'}
 

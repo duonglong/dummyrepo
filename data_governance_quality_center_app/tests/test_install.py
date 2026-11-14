@@ -18,6 +18,6 @@ class TestInstall(DGQTestCase):
         manifest = Manifest.for_addon('data_governance_quality_center_app')
         depends = set(manifest['depends'])
         self.assertEqual(
-            depends, {'mail', 'product', 'base_import', 'phone_validation'})
+            depends, {'mail', 'mail_tracking', 'product', 'base_import', 'phone_validation'})
         self.assertNotIn('queue_job', depends)
         self.assertEqual(manifest['license'], 'LGPL-3')

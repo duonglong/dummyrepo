@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_template_issue_assigned" model="mail.template">
+        <field name="name">Data quality: issues assigned</field>
+        <field name="model_id" ref="model_data_quality_issue"/>
+        <field name="subject">Data quality issues assigned to you ({{ len(ctx['dgq_issues']) }})</field>
+        <field name="body_html" type="html">
+            <p>The following data quality issues were assigned to you:</p>
+            <ul>
+                <li t-foreach="ctx['dgq_issues']" t-as="issue">
+                    <t t-out="issue.name"/>
+                    <t t-if="issue.deadline"> (deadline <t t-out="issue.deadline"/>)</t>
+                    <t t-if="issue.explanation"> - <t t-out="issue.explanation"/></t>
+                </li>
+            </ul>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+</odoo>
