@@ -19,3 +19,6 @@ from . import rule_version
 from . import correction
 from . import correction_mapping
 from . import scan
+from . import scan_checkpoint
+from . import scan_line
+from . import scan_tally
