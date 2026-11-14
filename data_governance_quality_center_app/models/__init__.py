@@ -10,8 +10,11 @@ from . import duplicate_rule_field
 from . import duplicate_check
 from . import duplicate_key
 from . import duplicate_group
+from . import merge
 from . import duplicate_line
 from . import duplicate_dismissal
 from . import rule
 from . import rule_version
+from . import correction
+from . import correction_mapping
 from . import scan
