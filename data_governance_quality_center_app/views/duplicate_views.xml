@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="duplicate_rule_view_list" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.rule.list</field>
+        <field name="model">data.quality.duplicate.rule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="threshold"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="duplicate_rule_view_form" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.rule.form</field>
+        <field name="model">data.quality.duplicate.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_run_check" type="object" string="Run Check" class="btn-primary"
+                            invisible="not id"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="active" invisible="1"/>
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="model_name" invisible="1"/>
+                            <field name="domain" widget="domain" options="{'model': 'model_name'}"/>
+                        </group>
+                        <group>
+                            <field name="threshold"/>
+                            <field name="company_id" groups="base.group_multi_company"
+                                   options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Matching Fields" name="fields">
+                            <field name="field_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="field_id" options="{'no_create': True}"/>
+                                    <field name="method"/>
+                                    <field name="weight"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Checks" name="checks" groups="data_governance_quality_center_app.group_dgq_manager">
+                            <field name="check_ids" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="duplicate_rule_action" model="ir.actions.act_window">
+        <field name="name">Duplicate Rules</field>
+        <field name="res_model">data.quality.duplicate.rule</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="duplicate_check_view_list" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.check.list</field>
+        <field name="model">data.quality.duplicate.check</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="rule_id"/>
+                <field name="state"/>
+                <field name="phase"/>
+                <field name="progress" widget="progressbar"/>
+                <field name="groups_found"/>
+                <field name="blocks_skipped"/>
+                <field name="date_queued"/>
+                <field name="error_message"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="duplicate_check_action" model="ir.actions.act_window">
+        <field name="name">Duplicate Checks</field>
+        <field name="res_model">data.quality.duplicate.check</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="duplicate_group_view_list" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.group.list</field>
+        <field name="model">data.quality.duplicate.group</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0">
+                <field name="name"/>
+                <field name="rule_id"/>
+                <field name="res_model"/>
+                <field name="score"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="duplicate_group_view_form" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.group.form</field>
+        <field name="model">data.quality.duplicate.group</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="rule_id"/>
+                        <field name="res_model"/>
+                        <field name="score"/>
+                    </group>
+                    <field name="line_ids">
+                        <list>
+                            <field name="record_name"/>
+                            <field name="score"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="duplicate_group_view_search" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.group.search</field>
+        <field name="model">data.quality.duplicate.group</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="rule_id"/>
+                <filter name="open" string="Open" domain="[('state', '=', 'open')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="duplicate_group_action" model="ir.actions.act_window">
+        <field name="name">Duplicate Groups</field>
+        <field name="res_model">data.quality.duplicate.group</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+</odoo>
