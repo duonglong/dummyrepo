@@ -59,3 +59,6 @@ ISSUE_STATE_MOVES = {
 
 # The statuses of an issue that a scan may resolve: the work is not finished or set aside (FR-DGQ-0023).
 ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')
+
+# Skipped issues a bulk action names in its result; the others are only counted (FR-DGQ-0027).
+BULK_SKIPPED_LISTED = 20

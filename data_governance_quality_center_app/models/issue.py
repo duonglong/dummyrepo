@@ -58,7 +58,7 @@ class DataQualityIssue(models.Model):
     ignore_reason = fields.Text()
 
     date_resolved = fields.Datetime(readonly=True, copy=False)
-    resolution_hours = fields.Float(readonly=True, copy=False)
+    resolution_hours = fields.Float(readonly=True, copy=False, aggregator='avg')
     resolved_by_scan = fields.Boolean(readonly=True, copy=False)
 
     _dgq_work_fields = frozenset({'state', 'user_id', 'priority', 'deadline', 'ignore_reason'})
