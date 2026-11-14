@@ -16,6 +16,7 @@ from odoo.tools.mail import email_normalize
 
 from odoo.addons.phone_validation.tools import phone_validation
 
+from .. import const
 from ..const import JOB_BATCH_SIZE
 from . import validation
 
@@ -25,11 +26,6 @@ TEXT_TYPES = ('char', 'text', 'html')
 DEFAULT_VALUE_TYPES = ('char', 'text', 'integer', 'float', 'selection')
 LINK_TYPES = ('many2one',)
 COUNTRY_MODELS = ('res.country', 'res.country.state')
-#: the accounting models are protected by name (BR-DGQ-0005); the administrator adds more by marking a model restricted
-ACCOUNTING_MODELS = frozenset({
-    'account.move', 'account.move.line', 'account.payment', 'account.bank.statement.line',
-    'account.tax', 'account.account', 'account.journal',
-})
 #: the states of an issue that is still to be worked on
 OPEN_ISSUE_STATES = ('new', 'assigned', 'in_progress')
 TEXT_CASES = {
@@ -113,12 +109,16 @@ def _country_candidates(env, spelling, cache):
 
 
 def _state_candidates(env, spelling, country, cache):
-    """The states of the record's country (of any country when it has none) named or coded as the spelling."""
+    """The states of the record's country named or coded as the spelling; none when the record has no country.
+
+    Requirements: FR-DGQ-0052
+    """
+    if not country:
+        return set()
     key = ('states', country.id)
     if key not in cache:
-        domain = [('country_id', '=', country.id)] if country else []
         cache[key] = [(_norm(state.name), _norm(state.code), state.id)
-                      for state in env['res.country.state'].search(domain)]
+                      for state in env['res.country.state'].search([('country_id', '=', country.id)])]
     return {('res.country.state', rec_id) for name, code, rec_id in cache[key] if spelling in (name, code)}
 
 
@@ -136,7 +136,8 @@ def action_country_state(value, record, params):
     """Set a country or state only from one certain match by name, code or mapping entry.
 
     A text field holds a state when its name says state, else a country; a link holds what it
-    links to. No match and several matches are skipped with the reason.
+    links to. A link gets the id of the match; a text with no link on its model gets the name.
+    No match and several matches are skipped with the reason.
 
     Requirements: FR-DGQ-0052
     """
@@ -156,7 +157,8 @@ def action_country_state(value, record, params):
         raise DgqSkip(env._("No country or state matches this value."))
     if len(found) > 1:
         raise DgqSkip(env._("This value matches several countries or states."))
-    return next(iter(found))[1]
+    model_name, rec_id = next(iter(found))
+    return rec_id if params['write_link'] else env[model_name].browse(rec_id).name
 
 
 def action_link(value, record, params):
@@ -192,6 +194,14 @@ def stored_value(record, field_name):
     """A field value as plain data: a link is its id."""
     value = record[field_name]
     return value.id if hasattr(value, 'id') else value
+
+
+def same_value(left, right):
+    """Tell whether two stored values are equal, the empty ones (False, None and '') being one value.
+
+    A Json column keeps every empty value as NULL and reads it back as False.
+    """
+    return (left or None) == (right or None)
 
 
 def parse_domain(model, text):
@@ -256,6 +266,7 @@ def action_params(correction):
         'field_name': field.name,
         'ttype': field.ttype,
         'relation': field.relation,
+        'write_link': target_field_name(correction) != field.name or field.ttype in LINK_TYPES,
         'default_value': correction.default_value,
         'text_case': correction.text_case,
         'link_from': correction.link_from_id,
@@ -298,7 +309,7 @@ def _handle_batch(run, ids):
     readable = env[model_name].with_user(run.user_id).with_context(active_test=False).search(
         [('id', 'in', records.ids)]).ids
     hide_values = correction._dgq_is_sensitive()
-    protected = (correction._dgq_is_protected() or model_name in ACCOUNTING_MODELS) and not correction.protected_authorized
+    protected = correction._dgq_is_protected() and not correction.protected_authorized
     handler = env['data.quality.registry']._dgq_find('correction_actions', correction.action)['handler']
     params = action_params(correction)
     real = run.kind == 'run'
@@ -307,7 +318,8 @@ def _handle_batch(run, ids):
     changed = []
 
     def line(record, state, reason=False, before=None, after=None):
-        if hide_values and state in ('would_change', 'changed', 'failed'):
+        masked = hide_values and state in ('would_change', 'changed', 'failed')
+        if masked:
             before = after = None
             reason = reason or env._("The field is sensitive: its values are not kept.")
         counts[{'would_change': 'changed'}.get(state, state)] += 1
@@ -316,7 +328,7 @@ def _handle_batch(run, ids):
             'company_id': record.company_id.id if 'company_id' in record._fields else False,
             'field_name': field_name, 'value_before': before, 'value_after': after,
             'state': state, 'reason': reason, 'user_id': run.user_id.id,
-            'date': fields.Datetime.now(),
+            'date': fields.Datetime.now(), 'masked': masked,
         })
 
     for record in records:
@@ -401,17 +413,22 @@ def rollback_batch(run):
     counts = dict.fromkeys(('restored', 'not_restored'), 0)
     logs = []
     originals = env['data.quality.correction.log'].sudo().browse(batch).exists()  # sudo: the app reads its own log
+    records = {}
+    for model_name in set(originals.mapped('res_model')):
+        # sudo: the app puts the value back, as it wrote it; one read of the batch per model
+        found = env[model_name].sudo().with_context(active_test=False).browse(
+            originals.filtered(lambda log: log.res_model == model_name).mapped('res_id')).exists()
+        records.update({(model_name, rec.id): rec for rec in found})
     for original in originals:
-        # sudo: the app puts the value back, as it wrote it
-        record = env[original.res_model].sudo().with_context(active_test=False).browse(original.res_id).exists()
+        record = records.get((original.res_model, original.res_id))
         state, reason, current = 'restored', False, None
         if not record:
             state, reason = 'not_restored', env._("The record no longer exists.")
-        elif original.value_before is None and original.value_after is None:
+        elif original.masked:
             state, reason = 'not_restored', env._("The values of this field were not kept.")
         else:
             current = stored_value(record, original.field_name)
-            if current != original.value_after:
+            if not same_value(current, original.value_after):
                 state, reason = 'not_restored', env._("The value changed since the correction.")
             else:
                 try:

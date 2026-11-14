@@ -27,3 +27,6 @@ class DataQualityCorrectionLog(models.Model):
     restored = fields.Boolean(
         string='Restored', readonly=True,
         help="The rollback put the value before back.")
+    masked = fields.Boolean(
+        string='Values Not Kept', readonly=True,
+        help="The field is sensitive: the line keeps no value, so it cannot be rolled back.")

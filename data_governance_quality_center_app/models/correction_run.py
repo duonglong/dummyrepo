@@ -108,6 +108,9 @@ class DataQualityCorrectionRun(models.Model):
             raise UserError(self.env._("Only a finished run can be rolled back."))
         # sudo: a rollback of any user counts, and the app creates the rollback run
         runs = self.sudo()
+        # the row lock makes two requests roll back one after the other
+        self.env.cr.execute("SELECT id FROM data_quality_correction_run WHERE id = %s FOR UPDATE", [self.id])
+        runs.invalidate_recordset(['rolled_back'])
         if runs.rolled_back or runs.search_count([
                 ('rollback_of_id', '=', self.id), ('state', 'in', ('queued', 'running'))]):
             raise UserError(self.env._("This run was already rolled back or is being rolled back."))

@@ -3,6 +3,7 @@ from unittest.mock import patch
 from odoo import Command
 from odoo.exceptions import UserError
 
+from odoo.addons.data_governance_quality_center_app import const
 from odoo.addons.data_governance_quality_center_app.services import correction as engine
 
 from .acceptance_m2b_helpers import M2BCase, ROLLBACK, call_first
@@ -47,13 +48,13 @@ class TestCorrectionRun(M2BCase):
         self.assertEqual(
             engine.action_country_state(
                 'california', partner, {'ttype': 'char', 'relation': 'res.country.state', 'field_name': 'state',
-                                        'mappings': {}, 'cache': {}}),
+                                        'mappings': {}, 'cache': {}, 'write_link': True}),
             partner.env.ref('base.state_us_5').id)
 
     def test_accounting_models_are_protected_by_name(self):
         """BR-DGQ-0005: a model of the accounting list is protected, needs approval and is skipped."""
         partner = self.partner('Ref', ref=' R1 ')
-        with patch.object(engine, 'ACCOUNTING_MODELS', frozenset({'res.partner'})):
+        with patch.object(const, 'PROTECTED_MODELS', ('res.partner',)):
             correction = self.correction('res.partner', 'ref', ['trim'], domain_ids=partner.ids)
             self.assertTrue(correction.needs_approval)
             self.dry_run(correction)
@@ -101,3 +102,45 @@ class TestCorrectionRun(M2BCase):
         with patch.object(Partner, 'write', refuse):
             run = self.real_run(correction)
         self.assertIn('Refused by the test', self.line_of(run, partner, 'failed').reason)
+
+    def test_a_state_text_of_a_record_without_country_is_skipped(self):
+        """FR-DGQ-0052: with no country on the record no state is guessed, so 'Georgia' is skipped."""
+        partner = self.partner('Stateless', city='Georgia')
+        correction = self.correction('res.partner', 'city', ['country'], domain_ids=partner.ids)
+        params = engine.action_params(correction)
+        params['relation'] = 'res.country.state'
+        with self.assertRaises(engine.DgqSkip):
+            engine.action_country_state('Georgia', partner, params)
+
+    def test_a_country_text_of_a_model_without_country_link_is_written_as_a_name(self):
+        """FR-DGQ-0052: a text field of a model with no country link keeps text, never an id."""
+        industry = self.env['res.partner.industry'].create({'name': 'X', 'full_name': 'germany'})
+        correction = self.correction('res.partner.industry', 'full_name', ['country'], domain_ids=industry.ids)
+        run = self.dry_run(correction)
+        self.assertEqual(self.line_of(run, industry, 'would_change').value_after, 'Germany')
+
+    def test_rollback_of_a_sensitive_field_keeps_no_value(self):
+        """BR-DGQ-0007: a masked line is listed as not restored and no rollback line holds a value."""
+        partner = self.partner('Sensitive', ref=' R1 ')
+        correction = self.correction('res.partner', 'ref', ['trim'], domain_ids=partner.ids)
+        with patch.object(type(correction), '_dgq_is_sensitive', lambda self: True):
+            self.dry_run(correction)
+            self.approve(correction, self.manager_b)
+            run = self.real_run(correction)
+            self.assertTrue(self.line_of(run, partner, 'changed').masked)
+            rollback = self.rollback(run)
+        self.assertEqual((rollback.count_restored, rollback.count_not_restored), (0, 1))
+        line = self.line_of(rollback, partner, 'not_restored')
+        self.assertFalse(line.value_before or line.value_after)
+        self.assertEqual(partner.ref, 'R1')
+
+    def test_rollback_of_a_trim_to_an_empty_value_restores_the_spaces(self):
+        """BR-DGQ-0007: an emptied value is stored as NULL and still counts as the value the run wrote."""
+        partner = self.partner('Blank', ref='   ')
+        correction = self.correction('res.partner', 'ref', ['trim'], domain_ids=partner.ids)
+        self.dry_run(correction)
+        run = self.real_run(correction)
+        rollback = self.rollback(run)
+        self.assertEqual((rollback.count_restored, rollback.count_not_restored), (1, 0))
+        partner.invalidate_recordset()
+        self.assertEqual(partner.ref, '   ')
