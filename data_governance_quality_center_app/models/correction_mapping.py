@@ -17,7 +17,7 @@ class DataQualityCorrectionMapping(models.Model):
     source_text = fields.Char(string='Spelling', required=True)
     country_id = fields.Many2one('res.country', string='Country', ondelete='restrict')
     state_id = fields.Many2one(
-        'res.country.state', string='State', ondelete='cascade',
+        'res.country.state', string='State', ondelete='restrict',
         domain="[('country_id', '=?', country_id)]")
 
     @api.model_create_multi

@@ -53,7 +53,7 @@ class DataQualityCorrection(models.Model):
         'ir.model.fields', string='Field', required=True, ondelete='cascade',
         domain="[('model_id', '=', model_id), ('store', '=', True)]")
     rule_id = fields.Many2one(
-        'data.quality.rule', string='Rule', ondelete='set null',
+        'data.quality.rule', string='Rule', ondelete='restrict',
         domain="[('model_id', '=', model_id)]",
         help="The correction fixes the records this rule found.")
     action = fields.Selection(
@@ -145,7 +145,7 @@ class DataQualityCorrection(models.Model):
                 raise ValidationError(self.env._(
                     "Standardize country and state applies to country and state links only."))
             if correction.action == 'default' and field.ttype == 'selection' and (
-                    correction.default_value not in field.selection_ids.mapped('value')):
+                    correction.default_value not in self.env[field.model]._fields[field.name].get_values(self.env)):
                 raise ValidationError(self.env._(
                     "The default value is not one of the choices of %s.", field.display_name))
             if correction.action == 'replace_link' and field.ttype == 'many2one':

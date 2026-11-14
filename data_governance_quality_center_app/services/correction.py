@@ -212,14 +212,15 @@ def run_batch(run):
     if not run.last_id:  # the first batch fixes the targets, whatever the run record held
         run.res_ids = target_ids(correction)
     started = time.monotonic()
-    first = bisect.bisect_right(run.res_ids, run.last_id)  # the targets are in id order
-    batch = run.res_ids[first:first + JOB_BATCH_SIZE]
+    targets = run.res_ids or []  # no target is stored as an empty value
+    first = bisect.bisect_right(targets, run.last_id)  # the targets are in id order
+    batch = targets[first:first + JOB_BATCH_SIZE]
     if batch:
         _handle_batch(run, batch)
         run.last_id = batch[-1]
     _logger.info("dgq correction %s run %s (%s): %s records in %.2fs", correction.id, run.id,
                  run.kind, len(batch), time.monotonic() - started)
-    return len(batch), len(run.res_ids) - first - len(batch)
+    return len(batch), len(targets) - first - len(batch)
 
 
 def _handle_batch(run, ids):

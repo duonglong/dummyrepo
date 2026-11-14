@@ -345,5 +345,22 @@ class TestCorrectionPolicy(M2BCase):
         self.assertIn('ValidationError', line.reason)
         self.assertFalse(line.value_before)
 
+    def test_a_rule_used_by_a_correction_cannot_be_deleted(self):
+        """BR-DGQ-0006, FR-DGQ-0048: deleting the rule must not widen an approved correction to the whole model."""
+        correction = self.correction('res.partner', 'email', ['trim'], rule=self.critical_rule)
+        self.dry_run(correction)
+        self.approve(correction, self.manager_b)
+        with self.assertRaises(Exception), self.cr.savepoint():
+            self.critical_rule.unlink()
+        self.assertEqual(correction.rule_id, self.critical_rule)
+        self.assertEqual(correction.state, 'approved')
+
+    def test_a_default_for_a_selection_with_computed_choices_is_accepted(self):
+        """FR-DGQ-0046: the choices are read from the field, so a time zone is a valid default."""
+        correction = self.correction('res.partner', 'tz', ['default'], default_value='Europe/Paris')
+        self.assertEqual(correction.state, 'draft')
+        with self.assertRaises(ValidationError):
+            self.correction('res.partner', 'tz', ['default'], default_value='Not/AZone')
+
     def correction_action(self, words):
         return choice(self.env, 'data.quality.correction', 'action', words)
