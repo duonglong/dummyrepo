@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import UserError
 
 from .acceptance_m3_helpers import M3Case, csv_file
@@ -16,8 +17,16 @@ class TestImportRunAcceptance(M3Case):
     listed as not imported are left untested, for the design names no place for that list; the
     findings of those rows stay in the session.
 
-    Requirements: FR-DGQ-0060
+    The operator also holds Odoo's contact creation group: FR-DGQ-0060 says the import goes through
+    Odoo's own import with all its usual rules, run as the session's user, so a user who may not
+    create contacts imports none (FR-DGQ-0071).
+
+    Requirements: FR-DGQ-0060, FR-DGQ-0062
     """
+
+    def setUp(self):
+        super().setUp()
+        self.operator.write({'group_ids': [Command.link(self.env.ref('base.group_partner_manager').id)]})
 
     def file_with(self, errors, warnings, total=200):
         rows = [['Imp %03d' % n, 'imp%s@example.com' % n, 'Belgium'] for n in range(total)]
@@ -79,3 +88,30 @@ class TestImportRunAcceptance(M3Case):
         session = self.checked_session('warning', 2, 5)
         self.assertEqual(self.imported(), 0)
         self.assertEqual(session.import_state, 'not_imported')
+
+    def test_history_shows_the_checked_and_imported_file_to_a_manager(self):
+        """SC-DGQ-0062-1 (FR-DGQ-0062): the operator checked 'contacts_nov.csv' in strict mode and imported it.
+
+        A manager of the same company finds the session with the file, Contact, strict, the user,
+        the dates, the counts and imported.
+        """
+        rule = self.make_rule(
+            'res.partner', 'pattern', ['email'], name='E-mail format', pattern=EMAIL_PATTERN, severity='warning')
+        session = self.check_file(self.make_session(
+            self.file_with(0, 3, total=20), 'contacts_nov.csv', mode='strict', rules=[rule]))
+        session.action_import()
+        self.drain_job(session)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        seen = self.env['data.quality.import.session'].with_user(self.manager_a).search(
+            [('id', '=', session.id)])
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen.file_name, 'contacts_nov.csv')
+        self.assertEqual(seen.model_id.model, 'res.partner')
+        self.assertEqual(seen.mode, 'strict')
+        self.assertEqual(seen.user_id, self.operator)
+        self.assertTrue(seen.date_checked)
+        self.assertEqual((seen.row_count, seen.error_count, seen.warning_count), (20, 0, 3))
+        self.assertEqual(seen.import_state, 'imported')
+        self.assertEqual(seen.imported_count, 20)
+        self.assertTrue(seen.date_imported)

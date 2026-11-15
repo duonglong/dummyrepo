@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="report_wizard_view_form" model="ir.ui.view">
+        <field name="name">data.quality.report.wizard.form</field>
+        <field name="model">data.quality.report.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <group>
+                        <field name="company_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        <field name="file_format"/>
+                    </group>
+                    <group>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                        <field name="period"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_export" type="object" string="Export" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="report_wizard_action" model="ir.actions.act_window">
+        <field name="name">Quality Report</field>
+        <field name="res_model">data.quality.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    <menuitem id="menu_dgq_report" name="Quality Report" parent="menu_dgq_root"
+              action="report_wizard_action" sequence="45" groups="group_dgq_viewer"/>
+
+    <record id="action_report_quality" model="ir.actions.report">
+        <field name="name">Quality Report</field>
+        <field name="model">data.quality.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">data_governance_quality_center_app.report_quality</field>
+    </record>
+
+    <template id="report_quality">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <t t-foreach="docs" t-as="wizard">
+                    <t t-set="data" t-value="wizard._report_data()"/>
+                    <div class="page">
+                        <h2>Quality Report</h2>
+                        <p>
+                            <t t-out="', '.join(data['companies'])"/>,
+                            <span t-field="wizard.date_from"/> - <span t-field="wizard.date_to"/>
+                        </p>
+                        <div class="row mb-3">
+                            <div class="col-4"><strong>Score</strong>
+                                <div class="fs-3"><t t-if="data['score'] is None">-</t><t t-else="" t-out="'%.1f' % data['score']"/></div></div>
+                            <div class="col-4"><strong>Open issues</strong>
+                                <div class="fs-3" t-out="data['open_issues']"/></div>
+                            <div class="col-4"><strong>Average resolution (hours)</strong>
+                                <div class="fs-3" t-out="'%.1f' % data['average_resolution_hours']"/></div>
+                        </div>
+                        <h4>Scores by company</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['by_company']" t-as="row">
+                                <td t-out="row['name']"/>
+                                <td><t t-if="row['score'] is None">-</t><t t-else="" t-out="'%.1f' % row['score']"/></td>
+                            </tr>
+                        </table>
+                        <h4>Scores by model</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['by_model']" t-as="row">
+                                <td t-out="row['name']"/>
+                                <td><t t-if="row['score'] is None">-</t><t t-else="" t-out="'%.1f' % row['score']"/></td>
+                            </tr>
+                        </table>
+                        <h4>Scores by rule</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['by_rule']" t-as="row">
+                                <td t-out="row['name']"/>
+                                <td t-out="row['model']"/>
+                                <td><t t-if="row['score'] is None">-</t><t t-else="" t-out="'%.1f' % row['score']"/></td>
+                            </tr>
+                        </table>
+                        <h4>Trend</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['trend']" t-as="row">
+                                <td t-out="row['period']"/>
+                                <td><t t-if="row['score'] is None">-</t><t t-else="" t-out="'%.1f' % row['score']"/></td>
+                            </tr>
+                        </table>
+                        <h4>Open issues by severity</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['issues_by_severity']" t-as="row">
+                                <td t-out="row['severity']"/><td t-out="row['count']"/>
+                            </tr>
+                        </table>
+                        <h4>Issues by status</h4>
+                        <table class="table table-sm">
+                            <tr t-foreach="data['issues_by_status']" t-as="row">
+                                <td t-out="row['state']"/><td t-out="row['count']"/>
+                            </tr>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
