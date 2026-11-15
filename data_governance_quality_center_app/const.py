@@ -63,6 +63,14 @@ ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')
 # Skipped issues a bulk action names in its result; the others are only counted (FR-DGQ-0027).
 BULK_SKIPPED_LISTED = 20
 
+# The weight of a failed check by the severity of its rule, each a system parameter 'data_quality.weight_<severity>' (BR-DGQ-0001).
+SEVERITY_WEIGHT_DEFAULTS = {'info': 1, 'warning': 3, 'critical': 10}
+SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
+
+# Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
+DASHBOARD_LOWEST_MODELS = 5
+DASHBOARD_RECENT_ISSUES = 10
+
 # Most frequent values, shapes and linked records a profile keeps for a field (FR-DGQ-0053, FR-DGQ-0055).
 PROFILE_TOP_COUNT = 20
 
@@ -72,10 +80,13 @@ PROFILE_STALE_DAYS = 365
 # A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
 PROFILE_OUTLIER_FACTOR = 1.5
 
-# The weight of a failed check by the severity of its rule, each a system parameter 'data_quality.weight_<severity>' (BR-DGQ-0001).
-SEVERITY_WEIGHT_DEFAULTS = {'info': 1, 'warning': 3, 'critical': 10}
-SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
+# Largest import file and most data rows a check takes (FR-DGQ-0058).
+IMPORT_MAX_BYTES = 20 * 1024 * 1024
+IMPORT_MAX_ROWS = 100000
 
-# Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
-DASHBOARD_LOWEST_MODELS = 5
-DASHBOARD_RECENT_ISSUES = 10
+# Rule types an import check evaluates on the rows of a file: they read the values of the row only.
+# A link rule and a custom validator need saved records: the check names them as not checked (FR-DGQ-0059).
+IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross_field')
+
+# Longest cell value kept with a finding.
+IMPORT_VALUE_MAX_LENGTH = 255
