@@ -226,27 +226,25 @@ class DataQualityIssue(models.Model):
             'target': 'current',
         }
 
-    def _dgq_escalate(self, user):
-        """Raise the priority of each issue by one level, note it, and tell the user once about all of them.
+    def _dgq_escalate(self, users):
+        """Raise the priority of each issue by one level, note it, and tell each user once about all of them.
 
         The deadline escalated for is kept on the issue, so the same deadline is never escalated twice.
+        Issues of the same priority and deadline are written together.
 
         Requirements: FR-DGQ-0067
         """
         levels = [level for level, _label in self._fields['priority'].selection]
+        for (priority, deadline), issues in self.grouped(lambda issue: (issue.priority, issue.deadline)).items():
+            position = levels.index(priority) if priority else 0
+            issues.write({'priority': levels[min(position + 1, len(levels) - 1)], 'escalated_deadline': deadline})
         for issue in self:
-            position = levels.index(issue.priority) if issue.priority else 0
-            issue.write({
-                'priority': levels[min(position + 1, len(levels) - 1)],
-                'escalated_deadline': issue.deadline,
-            })
             issue.message_post(
                 body=self.env._("Escalated: the deadline %s has passed.", issue.deadline),
                 subtype_xmlid='mail.mt_note')
-        if not user:
-            return
-        issues = self.with_context(lang=user.lang)
-        template = self.env.ref(ESCALATED_TEMPLATE).with_context(lang=user.lang, dgq_issues=issues)
-        subject = template._render_field('subject', issues[:1].ids)[issues[:1].id]
-        body = template._render_field('body_html', issues[:1].ids)[issues[:1].id]
-        self.env['mail.thread'].message_notify(partner_ids=user.partner_id.ids, subject=subject, body=body)
+        for user in users:
+            issues = self.with_context(lang=user.lang)
+            template = self.env.ref(ESCALATED_TEMPLATE).with_context(lang=user.lang, dgq_issues=issues)
+            subject = template._render_field('subject', issues[:1].ids)[issues[:1].id]
+            body = template._render_field('body_html', issues[:1].ids)[issues[:1].id]
+            self.env['mail.thread'].message_notify(partner_ids=user.partner_id.ids, subject=subject, body=body)

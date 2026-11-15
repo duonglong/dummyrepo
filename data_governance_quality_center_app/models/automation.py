@@ -294,6 +294,12 @@ class DataQualityAutomation(models.Model):
         self._dgq_escalate_uncovered(automations.team_id, today)
 
     @api.model
+    def _dgq_admins(self):
+        """The data quality administrators: told of failed runs and of late issues that have no team."""
+        # sudo: the app looks up whom to tell, whatever the runner may read of the users
+        return self.env['res.users'].sudo().search([('all_group_ids', 'in', self.env.ref(ADMIN_GROUP).ids)])
+
+    @api.model
     def _dgq_escalation_delay(self):
         """The days of the settings an open issue waits after its deadline (one day until it is set)."""
         # sudo: the delay is read for every user, not only administrators
@@ -303,6 +309,8 @@ class DataQualityAutomation(models.Model):
     def _dgq_escalate_uncovered(self, covered_teams, today):
         """Escalate the late issues of teams that no automation covers, and of no team, with the settings' delay.
 
+        A team's leader is told; an issue with no team has no leader, so the administrators are told.
+
         Requirements: FR-DGQ-0067
         """
         limit = fields.Date.subtract(today, days=self._dgq_escalation_delay())
@@ -311,7 +319,13 @@ class DataQualityAutomation(models.Model):
             ('deadline', '!=', False), ('deadline', '<=', limit)])
         issues = late.filtered(lambda issue: issue.escalated_deadline != issue.deadline)
         for team, team_issues in issues.grouped('team_id').items():
-            team_issues._dgq_escalate(team.leader_id)
+            try:
+                with self.env.cr.savepoint():
+                    team_issues._dgq_escalate(team.leader_id if team else self._dgq_admins())
+            except Exception:  # noqa: BLE001 - one team must not stop the escalation of the others
+                _logger.exception("Escalation of the issues of team %s failed", team.id)
+            if not self.env['ir.cron']._commit_progress(1):
+                return
 
     def _dgq_escalate_team_issues(self, today):
         """Escalate the team's late issues not yet escalated for their deadline, and record it in the history.
@@ -409,7 +423,8 @@ class DataQualityAutomation(models.Model):
         try:
             with self.env.cr.savepoint():
                 run = Run.create({
-                    'automation_id': self.id, 'date_start': fields.Datetime.now(), 'state': 'running'})
+                    'automation_id': self.id, 'date_start': fields.Datetime.now(), 'state': 'running',
+                    'sends_summary': self.send_email})
                 scan = self.env['data.quality.scan'].create(self._dgq_scan_values(run, res_model, res_ids))
                 scan._dgq_enqueue()
                 run.scan_id = scan
@@ -469,6 +484,9 @@ class DataQualityAutomationRun(models.Model):
     corrections_applied = fields.Integer(readonly=True)
     retry_count = fields.Integer(readonly=True)
     message = fields.Char(readonly=True)
+    sends_summary = fields.Boolean(
+        readonly=True, help="Whether the automation sent e-mails when the run started: the summary then "
+                            "replaces the assignment notice for the whole run.")
     correction_run_ids = fields.One2many(
         'data.quality.correction.run', 'automation_run_id', string='Correction Runs')
 
@@ -530,23 +548,48 @@ class DataQualityAutomationRun(models.Model):
         """
         self.ensure_one()
         self.write({'state': 'done', 'date_end': fields.Datetime.now()})
+        self._dgq_follow_up_safely()
+
+    def _dgq_follow_up_safely(self):
+        """Send the run's e-mails and activities; when they fail, the skipped assignment notices go out instead.
+
+        A notice that cannot be sent never undoes the scan: the error is logged and noted on the run.
+
+        Requirements: FR-DGQ-0066
+        """
+        self.ensure_one()
         try:
             with self.env.cr.savepoint():
                 self._dgq_follow_up()
         except Exception:  # noqa: BLE001 - a notice that cannot be sent never undoes the scan
             _logger.exception("Automation run %s could not send its e-mails and activities", self.id)
             self.message = self.env._("The e-mails and activities could not be created. See the server log.")
+            self._dgq_send_skipped_notices()
+
+    def _dgq_send_skipped_notices(self):
+        """Send the assignment notices the summary was meant to replace, for a summary that could not be sent."""
+        if not self.sends_summary:
+            return
+        try:
+            with self.env.cr.savepoint():
+                for user, issues in self._dgq_new_assigned_issues().grouped('user_id').items():
+                    if user.email:
+                        issues._dgq_notify_assignee(user)
+        except Exception:  # noqa: BLE001 - logged; the run keeps its result
+            _logger.exception("Automation run %s could not send the assignment notices either", self.id)
 
     def _dgq_fail(self, message, notify=True):
-        """Mark the run failed with the reason and, unless ``notify`` is off, tell the administrators.
+        """Mark the run failed with the reason, follow up the issues it assigned and, unless ``notify`` is off,
+        tell the administrators.
 
-        Requirements: FR-DGQ-0069
+        Requirements: FR-DGQ-0066, FR-DGQ-0069
         """
         self.ensure_one()
         self.write({'state': 'failed', 'date_end': fields.Datetime.now(), 'message': message})
+        self._dgq_follow_up_safely()
         if not notify:
             return
-        admins = self.env['res.users'].search([('all_group_ids', 'in', self.env.ref(ADMIN_GROUP).ids)])
+        admins = self.automation_id._dgq_admins()
         if not admins:
             return
         template = self.env.ref(FAILED_TEMPLATE)
@@ -618,16 +661,23 @@ class DataQualityAutomationRun(models.Model):
         """
         self.ensure_one()
         automation = self.automation_id
-        if not (automation.send_email or automation.create_activity):
+        if not (self.sends_summary or automation.create_activity):
             return
-        issues = self.env['data.quality.issue'].search([
-            ('first_scan_id', '=', self.scan_id.id), ('state', 'in', ISSUE_OPEN_STATES),
-            ('user_id', '!=', False)])
+        issues = self._dgq_new_assigned_issues()
         if automation.create_activity:
             self._dgq_create_activities(issues)
-        if automation.send_email:
+        if self.sends_summary:
             for user, assigned in issues.grouped('user_id').items():
                 self._dgq_send_summary(user, assigned)
+
+    def _dgq_new_assigned_issues(self):
+        """The issues first found by the run's scan that are still open and have an assignee."""
+        self.ensure_one()
+        if not self.scan_id:
+            return self.env['data.quality.issue']
+        return self.env['data.quality.issue'].search([
+            ('first_scan_id', '=', self.scan_id.id), ('state', 'in', ISSUE_OPEN_STATES),
+            ('user_id', '!=', False)])
 
     def _dgq_create_activities(self, issues):
         """One to-do per issue for its assignee, due on its deadline (today when it has none)."""
@@ -673,6 +723,6 @@ class DataQualityAutomationRun(models.Model):
         takers = issues.filtered(lambda issue: team._dgq_can_take(user, issue))
         if takers:
             # the summary e-mail replaces the assignment notice, for a person it can reach
-            summary_replaces_notice = automation.send_email and user.email
+            summary_replaces_notice = self.sends_summary and user.email
             takers.with_context(dgq_no_assign_notice=bool(summary_replaces_notice)).write({'user_id': user.id})
             self.issues_assigned += len(takers)

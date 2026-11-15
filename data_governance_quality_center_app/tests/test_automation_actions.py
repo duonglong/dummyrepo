@@ -9,7 +9,7 @@ from .acceptance_m3_helpers import M3Case
 class TestAutomationActions(M3Case):
     """Unit tests of T-026 beside its acceptance tests: retries, corrections scope, escalation history.
 
-    Requirements: FR-DGQ-0067, FR-DGQ-0068, FR-DGQ-0069
+    Requirements: FR-DGQ-0066, FR-DGQ-0067, FR-DGQ-0068, FR-DGQ-0069
     """
 
     def setUp(self):
@@ -249,7 +249,13 @@ class TestAutomationActions(M3Case):
         automation = self.make_automation('Follow up', rules=[rule], team_id=self.team, send_email=True)
         base = self.baseline()
         self.run_once(automation)
-        self.assertGreaterEqual(self.notices(self.lee, base), 1)
+        self.env.flush_all()
+        messages = self.env['mail.message'].sudo().search_count([
+            ('id', '>', base['mail.message']), ('partner_ids', 'in', self.lee.partner_id.ids)])
+        self.assertEqual(messages, 1, 'one assignment notice for the one batch')
+        self.assertFalse(self.env['mail.mail'].sudo().search([
+            ('id', '>', base['mail.mail']), ('recipient_ids', 'in', self.lee.partner_id.ids)]),
+            'no summary e-mail for a person without an address')
 
     def test_an_approval_for_automatic_use_given_at_creation_is_audited(self):
         """FR-DGQ-0068: a correction created already approved for automatic use leaves an audit entry."""
@@ -257,3 +263,118 @@ class TestAutomationActions(M3Case):
         entry = self.env['data.quality.audit'].sudo().search([
             ('event', '=', 'correction_approved'), ('res_id', '=', correction.id)])
         self.assertEqual(len(entry), 1)
+
+    # ---- the follow-up of a run that does not end done (FR-DGQ-0066) ---------
+
+    def follow_up_automation(self, rules, **vals):
+        self.lee.write({'email': 'lee.unit@example.com', 'notification_type': 'inbox'})
+        return self.make_automation(
+            'Follow up', rules=rules, team_id=self.team, send_email=True, create_activity=True, **vals)
+
+    def assert_followed_up(self, rule, base):
+        issues = self.issues_of(rule).filtered(lambda issue: issue.state in ('new', 'assigned', 'in_progress'))
+        self.assertTrue(issues)
+        self.assertEqual(issues.mapped('user_id'), self.lee)
+        self.assertEqual(len(self.mails_to(self.lee, base)), 1, 'one summary e-mail')
+        activities = self.env['mail.activity'].sudo().search([
+            ('res_model', '=', 'data.quality.issue'), ('res_id', 'in', issues.ids)])
+        self.assertEqual(len(activities), len(issues), 'one to-do per open issue')
+
+    def test_a_run_whose_correction_fails_still_sends_the_follow_up(self):
+        """FR-DGQ-0066: the issues assigned by a run whose approved correction fails get the summary and to-dos."""
+        rule, trim = self.vendor_rule(), self.trim_rule()
+        self.vendors(2)
+        self.env['res.partner'].create({'name': '  Padded  ', 'company_id': self.cx.id})
+        correction = self.correction('res.partner', 'name', ['trim'], rule=trim)
+        self.dry_run(correction)
+        correction.with_user(self.manager_b).write({'auto_approved': True})
+        automation = self.follow_up_automation([rule, trim], correction_ids=[correction])
+        base = self.baseline()
+        CorrectionRun = type(self.env['data.quality.correction.run'])
+
+        def boom(this):
+            raise RuntimeError('simulated failure')
+
+        with patch.object(CorrectionRun, '_dgq_run_batch', boom):
+            self.run_once(automation)
+        run = automation.sudo().run_ids
+        self.assertEqual(run.state, 'failed')
+        self.assert_followed_up(rule, base)
+
+    def test_a_scan_that_fails_for_good_after_an_assigned_batch_sends_the_follow_up(self):
+        """FR-DGQ-0066: a run that fails after a batch assigned issues still tells the assignee."""
+        rule = self.vendor_rule()
+        self.vendors(4)
+        automation = self.follow_up_automation([rule])
+        stop, _busy = automation.sudo()._dgq_launch()
+        self.assertFalse(stop)
+        run = automation.sudo().run_ids
+        run.retry_count = 3
+        base = self.baseline()
+        Scan = type(self.env['data.quality.scan'])
+        original, calls = Scan._dgq_run_batch, []
+
+        def second_batch_fails(this):
+            calls.append(this.id)
+            if len(calls) > 1:
+                raise RuntimeError('simulated failure')
+            return original(this)
+
+        with patch('odoo.addons.data_governance_quality_center_app.models.scan.JOB_BATCH_SIZE', 2), \
+                patch.object(Scan, '_dgq_run_batch', second_batch_fails):
+            self.drain_all()
+        self.assertEqual(run.state, 'failed')
+        self.assert_followed_up(rule, base)
+
+    def test_turning_e_mails_off_during_a_run_keeps_the_summary_of_its_start(self):
+        """FR-DGQ-0066: the choice to send the summary is taken when the run starts, so no assignee is left untold."""
+        rule = self.vendor_rule()
+        self.vendors(4)
+        automation = self.follow_up_automation([rule])
+        stop, _busy = automation.sudo()._dgq_launch()
+        self.assertFalse(stop)
+        base = self.baseline()
+        Scan = type(self.env['data.quality.scan'])
+        original = Scan._dgq_run_batch
+
+        def turn_e_mails_off_after_a_batch(this):
+            result = original(this)
+            automation.sudo().write({'send_email': False})
+            return result
+
+        with patch('odoo.addons.data_governance_quality_center_app.models.scan.JOB_BATCH_SIZE', 2), \
+                patch.object(Scan, '_dgq_run_batch', turn_e_mails_off_after_a_batch):
+            self.drain_all()
+        self.assertEqual(automation.sudo().run_ids.state, 'done')
+        mails = self.mails_to(self.lee, base)
+        self.assertEqual(len(mails), 1)
+        self.assertIn('4 new data quality issues', mails.subject)
+
+    def test_a_summary_that_cannot_be_sent_falls_back_to_the_assignment_notice(self):
+        """FR-DGQ-0066: when the summary fails, the assignees whose notice was skipped get it after all."""
+        rule = self.vendor_rule()
+        self.vendors(2)
+        automation = self.follow_up_automation([rule])
+        Run = type(self.env['data.quality.automation.run'])
+
+        def broken(this, user, issues):
+            raise RuntimeError('mail server down')
+
+        base = self.baseline()
+        with patch.object(Run, '_dgq_send_summary', broken):
+            self.run_once(automation)
+        self.env.flush_all()
+        messages = self.env['mail.message'].sudo().search_count([
+            ('id', '>', base['mail.message']), ('partner_ids', 'in', self.lee.partner_id.ids)])
+        self.assertEqual(messages, 1, 'the assignment notice is sent once')
+
+    def test_an_overdue_issue_without_team_is_escalated_to_the_administrators(self):
+        """FR-DGQ-0067: an issue with no team has no leader, so the data quality administrators are told."""
+        rule = self.vendor_rule()
+        issue = self.issue_for(rule, self.vendors(1))
+        issue.write({'deadline': fields.Date.add(fields.Date.today(), days=-2)})
+        base = self.baseline()
+        self.advance(1)
+        issue.invalidate_recordset()
+        self.assertEqual(issue.escalated_deadline, issue.deadline)
+        self.assertGreater(self.notices(self.administrator, base), 0)
