@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="import_session_view_list" model="ir.ui.view">
+        <field name="name">data.quality.import.session.list</field>
+        <field name="model">data.quality.import.session</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="file_name"/>
+                <field name="model_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="mode"/>
+                <field name="state" widget="badge"/>
+                <field name="row_count"/>
+                <field name="error_count"/>
+                <field name="warning_count"/>
+                <field name="import_state" widget="badge"/>
+                <field name="date_checked"/>
+                <field name="user_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="import_session_view_form" model="ir.ui.view">
+        <field name="name">data.quality.import.session.form</field>
+        <field name="model">data.quality.import.session</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_start" type="object" string="Check" class="btn-primary"
+                            invisible="state not in ('draft', 'cancelled')"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_resume" type="object" string="Resume" class="btn-primary"
+                            invisible="state != 'failed'"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state not in ('queued', 'running')"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="File">
+                            <field name="model_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="company_id" readonly="state != 'draft'" groups="base.group_multi_company"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="file" filename="file_name" readonly="state != 'draft'"/>
+                            <field name="file_name" readonly="state != 'draft'"/>
+                            <field name="mode" readonly="state != 'draft'"/>
+                            <field name="rule_ids" widget="many2many_tags" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="duplicate_field_ids" widget="many2many_tags" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Result">
+                            <field name="progress" widget="progressbar"/>
+                            <field name="row_count"/>
+                            <field name="error_count"/>
+                            <field name="warning_count"/>
+                            <field name="error_row_count"/>
+                            <field name="date_checked"/>
+                            <field name="user_id"/>
+                        </group>
+                    </group>
+                    <group invisible="not error_message">
+                        <field name="error_message"/>
+                    </group>
+                    <field name="row_ids" readonly="1">
+                        <list>
+                            <field name="row_number"/>
+                            <field name="column"/>
+                            <field name="severity" widget="badge"
+                                   decoration-danger="severity == 'error'" decoration-warning="severity == 'warning'"/>
+                            <field name="message"/>
+                            <field name="value" optional="hide"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="import_session_action" model="ir.actions.act_window">
+        <field name="name">Import Checks</field>
+        <field name="res_model">data.quality.import.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Check an import file before importing it</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_dgq_import_check" name="Import Checks" parent="menu_dgq_root"
+              action="import_session_action" sequence="47" groups="group_dgq_operator"/>
+
+    <record id="ir_cron_dgq_import" model="ir.cron">
+        <field name="name">Data Quality: import checks</field>
+        <field name="model_id" ref="model_data_quality_import_session"/>
+        <field name="state">code</field>
+        <field name="code">model._dgq_run_next()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>

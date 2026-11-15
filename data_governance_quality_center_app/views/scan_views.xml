@@ -10,6 +10,7 @@
                 <field name="progress" widget="progressbar"/>
                 <field name="records_scanned"/>
                 <field name="checks_failed"/>
+                <field name="is_illustrative" widget="boolean" optional="show"/>
                 <field name="user_id"/>
                 <field name="date_queued"/>
             </list>
@@ -34,6 +35,7 @@
                     <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done"/>
                 </header>
                 <sheet>
+                    <widget name="web_ribbon" title="Illustrative" bg_color="text-bg-warning" invisible="not is_illustrative"/>
                     <div class="oe_title">
                         <h1><field name="name"/></h1>
                     </div>

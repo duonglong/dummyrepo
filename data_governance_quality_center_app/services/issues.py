@@ -17,9 +17,10 @@ def sync_batch(env, scan, rules, records, results, now):
 
     ``results`` maps each rule to its outcomes by (record id, rule id). A failing record gets its
     issue created, updated or reopened; a record with an open issue that no longer fails, or that
-    the rule no longer applies to, has the issue resolved.
+    the rule no longer applies to, has the issue resolved. Every issue the scan touches takes the
+    scan's illustrative flag, so a demo issue a live scan finds again counts as a live finding.
 
-    Requirements: BR-DGQ-0003, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023
+    Requirements: BR-DGQ-0003, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023, FR-DGQ-0080
     """
     Issue = env['data.quality.issue'].sudo()  # sudo: the app writes issues, whoever started the scan
     created = updated = resolved = 0
@@ -31,7 +32,9 @@ def sync_batch(env, scan, rules, records, results, now):
         found = {
             issue.res_id: issue for issue in Issue.search([
                 ('rule_id', '=', rule.id), ('res_model', '=', records._name), ('res_id', 'in', list(failing))])}
-        shared = {'scan_id': scan.id, 'rule_version': rule.version, 'severity': rule.severity, 'last_found': now}
+        shared = {
+            'scan_id': scan.id, 'rule_version': rule.version, 'severity': rule.severity, 'last_found': now,
+            'is_illustrative': scan.is_illustrative}
         new_values = []
         refreshed = defaultdict(lambda: Issue)
         for record_id, outcome in failing.items():
@@ -57,7 +60,7 @@ def sync_batch(env, scan, rules, records, results, now):
             ('rule_id', '=', rule.id), ('res_model', '=', records._name),
             ('res_id', 'in', records.ids), ('state', 'in', ISSUE_OPEN_STATES)])
         closing = open_issues.filtered(lambda issue: issue.res_id not in failing)
-        closing.write({'state': 'resolved', 'resolved_by_scan': True, 'scan_id': scan.id})
+        closing.write(_closed_by(scan))
         for issue in closing:
             notes[issue] = env._(
                 "Resolved by scan %s: the record passes the rule or the rule no longer applies.", scan.name)
@@ -71,7 +74,7 @@ def resolve_deleted(env, scan, rules, model_name):
 
     One NOT EXISTS query finds a chunk of them, so no more than a batch is read at a time.
 
-    Requirements: FR-DGQ-0023
+    Requirements: FR-DGQ-0023, FR-DGQ-0080
     """
     Issue = env['data.quality.issue'].sudo()  # sudo: the app writes issues, whoever started the scan
     table = env[model_name]._table
@@ -93,10 +96,15 @@ def resolve_deleted(env, scan, rules, model_name):
         gone = Issue.browse(row[0] for row in env.cr.fetchall())
         if not gone:
             return resolved
-        gone.write({'state': 'resolved', 'resolved_by_scan': True, 'scan_id': scan.id})
+        gone.write(_closed_by(scan))
         gone._message_log_batch(bodies={
             issue.id: env._("Resolved by scan %s: the record no longer exists.", scan.name) for issue in gone})
         resolved += len(gone)
+
+
+def _closed_by(scan):
+    """The values of an issue the scan resolves: the scan's illustrative flag goes with them."""
+    return {'state': 'resolved', 'resolved_by_scan': True, 'scan_id': scan.id, 'is_illustrative': scan.is_illustrative}
 
 
 def _company_of(record):
