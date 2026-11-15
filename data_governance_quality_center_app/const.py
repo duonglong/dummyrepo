@@ -70,3 +70,12 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 # Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
+
+# Most frequent values, shapes and linked records a profile keeps for a field (FR-DGQ-0053, FR-DGQ-0055).
+PROFILE_TOP_COUNT = 20
+
+# Days without an update after which a record is stale, unless the profile says otherwise (FR-DGQ-0055).
+PROFILE_STALE_DAYS = 365
+
+# A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
+PROFILE_OUTLIER_FACTOR = 1.5

@@ -54,3 +54,6 @@ access_dgq_automation_admin,data.quality.automation admin,data.quality.automatio
 access_dgq_automation_company,data.quality.automation own companies,data.quality.automation,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
 access_dgq_automation_run_admin,data.quality.automation.run admin,data.quality.automation.run,group_dgq_admin,r,
 access_dgq_automation_run_company,data.quality.automation.run own companies,data.quality.automation.run,,r,"['|',('automation_id.company_ids','=',False),('automation_id.company_ids','in',company_ids)]"
+access_dgq_profile_viewer,data.quality.profile viewer,data.quality.profile,group_dgq_viewer,r,
+access_dgq_profile_operator,data.quality.profile operator,data.quality.profile,group_dgq_operator,cru,
+access_dgq_profile_line_viewer,data.quality.profile.line viewer,data.quality.profile.line,group_dgq_viewer,r,

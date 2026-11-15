@@ -41,6 +41,7 @@ from . import test_issue_workflow
 from . import test_score_snapshot_acceptance
 from . import test_dashboard_layout_acceptance
 from . import test_profile_acceptance
+from . import test_profile
 from . import test_import_check_acceptance
 from . import test_import_run_acceptance
 from . import test_automation_acceptance

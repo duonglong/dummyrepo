@@ -26,9 +26,10 @@ from . import scan_line
 from . import scan_tally
 from . import issue
 from . import issue_bulk
+from . import settings
 from . import score_snapshot
 from . import dashboard
-from . import settings
 from . import team
 from . import automation
 from . import event_queue
+from . import profile
