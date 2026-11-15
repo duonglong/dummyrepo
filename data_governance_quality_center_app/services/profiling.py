@@ -28,61 +28,66 @@ def _source(env, model_name, company):
     return model, query, SQL("FROM %s %s", query.from_clause, where)
 
 
+def _and(query, condition):
+    """Add a condition to the source: the joiner and the condition in brackets, so an OR stays inside."""
+    return SQL("%s (%s)", SQL("AND") if query.where_clause else SQL("WHERE"), condition)
+
+
 def _is_empty(model, field_name, value):
-    """SQL condition: the value is empty (null; also blank for text, false for a checkbox)."""
+    """SQL condition: the value is empty (null; also blank for text, ``false`` is a value of a checkbox)."""
     ttype = model._fields[field_name].type
     if ttype in TEXT_TYPES or ttype == 'html':
         return SQL("(%s IS NULL OR btrim(%s) = '')", value, value)
-    if ttype == 'boolean':
-        return SQL("%s IS NOT TRUE", value)
     return SQL("%s IS NULL", value)
 
 
 def count_records(env, model_name, company):
-    """Number of active records of the company."""
+    """Number of active records of the company.
+
+    Requirements: FR-DGQ-0053
+    """
     _model, _query, source = _source(env, model_name, company)
     env.cr.execute(SQL("SELECT COUNT(*) %s", source))
     return env.cr.fetchone()[0]
 
 
 def count_stale(env, model_name, company, days):
-    """Number of active records of the company not updated for more than ``days`` days."""
+    """Number of active records of the company not updated for more than ``days`` days.
+
+    Requirements: FR-DGQ-0055
+    """
     model, query, source = _source(env, model_name, company)
     if not model._log_access:
         return 0
     limit = fields.Datetime.now() - timedelta(days=days)
-    glue = SQL("AND") if query.where_clause else SQL("WHERE")
-    env.cr.execute(SQL(
-        "SELECT COUNT(*) %s %s %s < %s", source, glue, model._field_to_sql(model._table, 'write_date', query), limit))
+    written = model._field_to_sql(model._table, 'write_date', query)
+    env.cr.execute(SQL("SELECT COUNT(*) %s %s", source, _and(query, SQL("%s < %s", written, limit))))
     return env.cr.fetchone()[0]
 
 
 def _top(env, query, source, value, filled, limit=PROFILE_TOP_COUNT):
     """The ``limit`` most frequent values with their counts: ``[(value, count)]``."""
-    glue = SQL("AND") if query.where_clause else SQL("WHERE")
     env.cr.execute(SQL(
-        "SELECT %s, COUNT(*) AS n %s %s %s GROUP BY 1 ORDER BY n DESC, 1 LIMIT %s",
-        value, source, glue, filled, limit))
+        "SELECT %s, COUNT(*) AS n %s %s GROUP BY 1 ORDER BY n DESC, 1 LIMIT %s",
+        value, source, _and(query, filled), limit))
     return env.cr.fetchall()
 
 
 def _quartile_stats(env, query, source, value):
     """Minimum, maximum, mean, median and unusual count of a number column."""
     number = SQL("CAST(%s AS double precision)", value)
-    glue = SQL("AND") if query.where_clause else SQL("WHERE")
     env.cr.execute(SQL(
         "SELECT MIN(%(n)s), MAX(%(n)s), AVG(%(n)s),"
         " percentile_cont(0.25) WITHIN GROUP (ORDER BY %(n)s),"
         " percentile_cont(0.5) WITHIN GROUP (ORDER BY %(n)s),"
-        " percentile_cont(0.75) WITHIN GROUP (ORDER BY %(n)s) %(source)s %(glue)s %(n)s IS NOT NULL",
-        n=number, source=source, glue=glue))
+        " percentile_cont(0.75) WITHIN GROUP (ORDER BY %(n)s) %(source)s %(where)s",
+        n=number, source=source, where=_and(query, SQL("%s IS NOT NULL", number))))
     low, high, mean, first, median, third = env.cr.fetchone()
     if low is None:
         return {'min_value': 0.0, 'max_value': 0.0, 'mean_value': 0.0, 'median_value': 0.0, 'outlier_count': 0}
     spread = (third - first) * PROFILE_OUTLIER_FACTOR
-    env.cr.execute(SQL(
-        "SELECT COUNT(*) %s %s %s < %s OR %s > %s",
-        source, glue, number, first - spread, number, third + spread))
+    unusual = SQL("%s < %s OR %s > %s", number, first - spread, number, third + spread)
+    env.cr.execute(SQL("SELECT COUNT(*) %s %s", source, _and(query, unusual)))
     return {
         'min_value': low, 'max_value': high, 'mean_value': mean, 'median_value': median,
         'outlier_count': env.cr.fetchone()[0],
@@ -100,8 +105,8 @@ def _unused_choices(env, model, field, query, source, value):
     declared = model._fields[field].selection
     if not isinstance(declared, (list, tuple)):
         return []
-    glue = SQL("AND") if query.where_clause else SQL("WHERE")
-    env.cr.execute(SQL("SELECT DISTINCT %s %s %s %s IS NOT NULL", value, source, glue, value))
+    env.cr.execute(SQL(
+        "SELECT DISTINCT %s %s %s", value, source, _and(query, SQL("%s IS NOT NULL", value))))
     used = {row[0] for row in env.cr.fetchall()}
     return [key for key, _label in declared if key not in used]
 
@@ -129,7 +134,8 @@ def profile_field(env, model_name, field, company):
     if ttype == 'many2one':
         names = env[python_field.comodel_name].sudo()  # sudo: names of linked records, not their data
         rows = _top(env, query, source, value, filled)
-        links = [[names.browse(row[0]).display_name, row[1]] for row in rows]
+        linked = names.browse([row[0] for row in rows])
+        links = [[record.display_name, row[1]] for record, row in zip(linked, rows)]
         values.update(top_values=links, link_distribution=links, link_empty_share=share)
     else:
         text = SQL("CAST(%s AS text)", value)

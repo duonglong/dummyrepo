@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 from ..const import PROFILE_STALE_DAYS
 from ..services import profiling
@@ -30,6 +30,8 @@ class DataQualityProfile(models.Model):
     field_ids = fields.Many2many(
         'ir.model.fields', string='Fields', copy=False,
         help="The fields to profile. Leave empty to profile every field that is not excluded or sensitive.")
+    allowed_field_ids = fields.Many2many(
+        'ir.model.fields', compute='_compute_allowed_field_ids', string='Fields Offered')
     stale_days = fields.Integer(
         string='Stale After (days)', default=PROFILE_STALE_DAYS,
         help="A record not updated for more than this many days is stale.")
@@ -57,6 +59,12 @@ class DataQualityProfile(models.Model):
                 "%(model)s, %(company)s, %(date)s",
                 model=profile.model_id.name or '', company=profile.company_id.name or '',
                 date=fields.Date.to_string(profile.create_date or fields.Date.today()))
+
+    @api.depends('model_id')
+    def _compute_allowed_field_ids(self):
+        """The fields the picker offers: stored in a column, not excluded or sensitive."""
+        for profile in self:
+            profile.allowed_field_ids = profile._usable_fields() if profile.res_model else False
 
     @api.constrains('field_ids', 'model_id')
     def _check_fields(self):
@@ -118,18 +126,19 @@ class DataQualityProfile(models.Model):
         Requirements: FR-DGQ-0053
         """
         for profile in self:
+            if profile.state not in ('draft', 'failed', 'cancelled'):
+                raise UserError(self.env._("Only a draft, failed or cancelled job can be started."))
+            if not profile.field_ids:
+                # the default list is fixed at the start, so the checkpoint index stays stable
+                profile.field_ids = profile._usable_fields()
             profile.sudo().line_ids.unlink()  # sudo: the lines are written by the app only
         self.write({'next_field_index': 0, 'record_count': 0, 'stale_count': 0,
                     'done_count': 0, 'total_count': 0})
         return super().action_start()
 
-    def _profiled_fields(self):
-        """The fields to profile, in a stable order: those chosen, or every usable stored one."""
+    def _usable_fields(self):
+        """Every stored field of the model that is not excluded or sensitive, in a stable order."""
         self.ensure_one()
-        # sudo: the job reads the field list as the app, whoever started it
-        chosen = self.sudo().field_ids
-        if chosen:
-            return chosen.sorted('id')
         model = self.env[self.res_model]
         usable = self.env['data.quality.field.config']._get_usable_field_names(self.res_model)
         names = sorted(
@@ -140,13 +149,27 @@ class DataQualityProfile(models.Model):
         return self.env['ir.model.fields'].sudo().search(
             [('model', '=', self.res_model), ('name', 'in', names)], order='id')
 
+    def _check_still_allowed(self, field):
+        """Refuse the model or the field when a mark set after the profile was saved forbids it.
+
+        Requirements: FR-DGQ-0053, BR-DGQ-0010
+        """
+        if self.model_id not in self.env['data.quality.rule']._dgq_marked_models():
+            raise UserError(self.env._(
+                "%s is no longer marked as supported in the data quality settings.", self.model_id.name))
+        if field not in self._usable_fields():
+            raise UserError(self.env._(
+                "The field %(field)s is now excluded or sensitive and cannot be profiled. "
+                "Remove it from the profile and start again.", field=field.display_name))
+
     def _dgq_run_batch(self):
         """Compute the line of the next field; return ``(processed, remaining)``.
 
         Requirements: FR-DGQ-0053, FR-DGQ-0054, FR-DGQ-0055
         """
         self.ensure_one()
-        fields_to_profile = self._profiled_fields()
+        # sudo: the job reads the field list as the app, whoever started it
+        fields_to_profile = self.sudo().field_ids.sorted('id') or self._usable_fields()
         index = self.next_field_index
         if index == 0:
             self.write({
@@ -158,6 +181,7 @@ class DataQualityProfile(models.Model):
         if index >= len(fields_to_profile):
             return 0, 0
         field = fields_to_profile[index]
+        self._check_still_allowed(field)
         values = profiling.profile_field(self.env, self.res_model, field.name, self.company_id)
         # sudo: the lines are written by the app only; a resumed job replaces the line of its field
         self.sudo().line_ids.filtered(lambda line: line.field_id == field).unlink()

@@ -40,8 +40,9 @@
                                    options="{'no_create': True, 'no_open': True}"/>
                             <field name="company_id" readonly="state != 'draft'"
                                    options="{'no_create': True, 'no_open': True}"/>
+                            <field name="allowed_field_ids" invisible="1"/>
                             <field name="field_ids" widget="many2many_tags" readonly="state != 'draft'"
-                                   domain="[('model_id', '=', model_id), ('store', '=', True)]"
+                                   domain="[('id', 'in', allowed_field_ids)]"
                                    options="{'no_create': True}"/>
                             <field name="stale_days" readonly="state != 'draft'"/>
                             <field name="compare_profile_id" options="{'no_create': True}"/>

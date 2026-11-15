@@ -44,3 +44,61 @@ class TestProfile(M3Case):
             self.env['data.quality.profile'].with_user(self.operator).create({
                 'model_id': self.model('res.partner').id, 'company_id': self.cx.id,
                 'field_ids': [(6, 0, field.ids)]})
+
+    def test_unusual_numbers_leave_out_other_companies_and_archived_records(self):
+        """FR-DGQ-0054: a huge weight of another company or of an archived product is not counted."""
+        self.isolate('product.template')
+        Product = self.env['product.template']
+        for n, weight in enumerate((4, 5, 5, 6, 7)):
+            Product.create({'name': 'Light %s' % n, 'weight': weight, 'company_id': self.cx.id})
+        Product.create({'name': 'Other', 'weight': 5000, 'company_id': self.cy.id})
+        Product.create({'name': 'Old', 'weight': 6000, 'company_id': self.cx.id, 'active': False})
+        profile = self.run_profile(self.make_profile('product.template', ['weight']))
+        self.assertEqual(self.line(profile, 'weight').outlier_count, 0)
+
+    def test_a_field_marked_sensitive_after_saving_is_not_profiled(self):
+        """FR-DGQ-0053: the mark is checked when the job runs; the job fails and stores no line."""
+        self.isolate('res.partner')
+        self.env['res.partner'].create({'name': 'Secret', 'function': 'Boss', 'company_id': self.cx.id})
+        profile = self.make_profile('res.partner', ['function'])
+        self.env['data.quality.field.config'].sudo().create(
+            {'field_id': self.fld('res.partner', 'function').id, 'status': 'excluded'})
+        profile.action_start()
+        self.drain_job(profile)
+        profile.invalidate_recordset()
+        self.assertEqual(profile.state, 'failed')
+        self.assertFalse(profile.sudo().line_ids)
+
+    def test_a_model_excluded_after_saving_is_not_profiled(self):
+        """FR-DGQ-0053: a model no longer marked supported stops the job."""
+        self.isolate('res.partner')
+        profile = self.make_profile('res.partner', ['name'])
+        self.env['data.quality.model.config'].sudo().search(
+            [('model_id', '=', self.model('res.partner').id)]).write({'status': 'excluded'})
+        profile.action_start()
+        self.drain_job(profile)
+        profile.invalidate_recordset()
+        self.assertEqual(profile.state, 'failed')
+        self.assertFalse(profile.sudo().line_ids)
+
+    def test_the_default_field_list_is_fixed_at_the_start(self):
+        """FR-DGQ-0053: starting with no field chosen stores the list the checkpoint indexes."""
+        self.isolate('res.partner')
+        profile = self.make_profile('res.partner', [])
+        profile.action_start()
+        self.assertIn(self.fld('res.partner', 'email'), profile.field_ids)
+
+    def test_starting_a_running_profile_keeps_its_lines(self):
+        """FR-DGQ-0053: the state is checked before any line is deleted."""
+        self.isolate('res.partner')
+        profile = self.run_profile(self.make_profile('res.partner', ['name']))
+        with self.assertRaises(UserError):
+            profile.action_start()
+        self.assertEqual(len(profile.sudo().line_ids), 1)
+
+    def test_an_unticked_checkbox_is_a_filled_value(self):
+        """FR-DGQ-0053: only a missing value is empty for a checkbox."""
+        self.isolate('res.partner')
+        self.env['res.partner'].create({'name': 'Box', 'employee': False, 'company_id': self.cx.id})
+        profile = self.run_profile(self.make_profile('res.partner', ['employee']))
+        self.assertEqual(self.line(profile, 'employee').empty_count, 0)
