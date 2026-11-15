@@ -55,4 +55,5 @@ from . import test_sample_data
 from . import test_uninstall
 from . import test_settings_purge
 from . import test_automation
+from . import test_profile_compare
 from . import test_trend

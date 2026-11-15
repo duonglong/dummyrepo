@@ -2,7 +2,7 @@ from odoo import http
 from odoo.exceptions import AccessError
 from odoo.http import request
 
-from ..services import export, report
+from ..services import export, profile_compare, report
 
 
 class DataQualityXlsx(http.Controller):
@@ -22,6 +22,22 @@ class DataQualityXlsx(http.Controller):
         return request.make_response(content, headers=[
             ('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
             ('Content-Disposition', 'attachment; filename="audit_trail.xlsx"'),
+        ])
+
+    @http.route('/data_quality/xlsx/profile/<int:profile_id>', type='http', auth='user')
+    def profile_xlsx(self, profile_id):
+        """Download a finished profile, read as the user (same exclusions as the profile).
+
+        Requirements: FR-DGQ-0057
+        """
+        profile = request.env['data.quality.profile'].browse(profile_id).exists()
+        if not profile:
+            return request.not_found()
+        profile.check_access('read')
+        profile._check_exportable()
+        return request.make_response(profile_compare.profile_xlsx(profile), headers=[
+            ('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+            ('Content-Disposition', 'attachment; filename="profile_%s.xlsx"' % profile.res_model),
         ])
 
     @http.route('/data_quality/xlsx/report/<int:wizard_id>', type='http', auth='user')

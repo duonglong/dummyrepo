@@ -58,6 +58,8 @@ access_dgq_automation_run_company,data.quality.automation.run own companies,data
 access_dgq_profile_viewer,data.quality.profile viewer,data.quality.profile,group_dgq_viewer,r,
 access_dgq_profile_operator,data.quality.profile operator,data.quality.profile,group_dgq_operator,cru,
 access_dgq_profile_line_viewer,data.quality.profile.line viewer,data.quality.profile.line,group_dgq_viewer,r,
+access_dgq_profile_compare_wizard_viewer,data.quality.profile.compare.wizard viewer,data.quality.profile.compare.wizard,group_dgq_viewer,crud,
+access_dgq_profile_compare_line_viewer,data.quality.profile.compare.line viewer,data.quality.profile.compare.line,group_dgq_viewer,crud,
 access_dgq_import_session_operator,data.quality.import.session own,data.quality.import.session,group_dgq_operator,cru,"[('user_id', '=', user.id)]"
 access_dgq_import_session_manager,data.quality.import.session manager,data.quality.import.session,group_dgq_manager,crud,
 access_dgq_import_row_operator,data.quality.import.row own,data.quality.import.row,group_dgq_operator,r,"[('session_id.user_id', '=', user.id)]"
