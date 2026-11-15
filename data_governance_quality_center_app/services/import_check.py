@@ -8,9 +8,11 @@ import csv
 import datetime
 import hashlib
 import io
+from ast import literal_eval
 from collections import namedtuple
 
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Command, Domain
 from odoo.models import MAGIC_COLUMNS
 
 from ..const import IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, IMPORT_RULE_TYPES, IMPORT_VALUE_MAX_LENGTH
@@ -30,8 +32,13 @@ Column = namedtuple('Column', 'position header field id_kind')
 # rows: [(row number, mapped cells)]; repeats: {row number: (first row number, first column)}.
 LoadedFile = namedtuple('LoadedFile', 'columns rows repeats')
 
-# The file of the check in progress: reading a large file for each batch would take longer than the batches.
-_LOADED = {}
+# Reading a large file for each batch would take longer than the batches: the file is kept on the cursor's
+# cache, which ends with the request or the scheduled action that read it.
+FILE_CACHE_KEY = 'dgq_import_check_file'
+# Field types the native converter cannot turn into the value of one cell.
+UNREADABLE_TYPES = ('one2many', 'properties')
+LINK_TYPES = ('many2one', 'many2many')
+LINK_SEPARATOR = ','
 
 
 def file_checksum(session):
@@ -40,22 +47,23 @@ def file_checksum(session):
 
 
 def load_file(session):
-    """Read, validate and map the file of a session; the last one read is kept for the next batch.
+    """Read, validate and map the file of a session; the file is kept for the next batch of the same call.
 
     Raises ``UserError`` for a file that is missing, too large, empty, unreadable or too long.
 
     Requirements: FR-DGQ-0058
     """
-    key = (session.env.cr.dbname, session.id, session.file_checksum, tuple(session.duplicate_field_ids.ids))
-    if _LOADED.get('key') != key:
-        _LOADED.clear()
-        _LOADED.update(key=key, loaded=_read_file(session))
-    return _LOADED['loaded']
+    cache = session.env.cr.cache.setdefault(FILE_CACHE_KEY, {})
+    key = (session.file_checksum, tuple(session.duplicate_field_ids.ids))
+    kept = cache.get(session.id)
+    if kept is None or kept[0] != key:
+        kept = cache[session.id] = (key, _read_file(session))
+    return kept[1]
 
 
-def forget_file():
-    """Release the file kept in memory."""
-    _LOADED.clear()
+def forget_file(session):
+    """Release the file of a session kept in memory."""
+    session.env.cr.cache.get(FILE_CACHE_KEY, {}).pop(session.id, None)
 
 
 def _read_file(session):
@@ -152,7 +160,7 @@ def _find_repeats(session, columns, numbers, data):
     Requirements: FR-DGQ-0059
     """
     names = set(session.duplicate_field_ids.mapped('name'))
-    keyed = [column for column in columns if column.field.name in names and not column.id_kind]
+    keyed = [column for column in columns if column.field.name in names]
     if not keyed:
         return {}
     seen, repeats = {}, {}
@@ -184,7 +192,7 @@ def match_link(env, field, value, id_kind):
     """
     comodel = env[field.comodel_name]
     if id_kind == 'id':
-        found = env.ref(value, raise_if_not_found=False)
+        found = env.ref(value if '.' in value else f'__import__.{value}', raise_if_not_found=False)
         return (1, found.id) if found is not None and found._name == comodel._name else (0, False)
     if id_kind == '.id':
         found = comodel.browse(int(value)).exists() if value.isdigit() else comodel
@@ -219,21 +227,29 @@ class BatchCheck:
             self.by_field.setdefault(column.field.name, column)
         self.required = required_fields(self.model)
         self.lookups = {}
+        self.converters = {}
         self.findings = []
+        self.rules, self.skipped = self._split_rules()
+        self.rule_reads = {rule: self._fields_read(rule) for rule in self.rules}
+        absent = set().union(*self.rule_reads.values()) - set(self.by_field)
+        # a field the file has no column for is judged as the import would create it: with its default
+        # sudo: a default may read a record the user may not
+        self.defaults = self.model.sudo().default_get(sorted(absent & set(self.model._fields)))
 
     def run(self, first, size):
         records, origin = [], {}
         if not first:
             self._check_missing_columns()
+            self._check_skipped_rules()
         for number, cells in self.loaded.rows[first:first + size]:
-            values = self._read_row(number, cells)
+            values, unread = self._read_row(number, cells)
             if number in self.loaded.repeats:
                 earlier, column = self.loaded.repeats[number]
                 self._add(number, column, 'error', self.env._("Repeats row %(row)s.", row=earlier), cells)
             # sudo: the row is judged as the scans judge records, whatever the user may read
-            record = self.model.sudo().new(values)
+            record = self.model.sudo().new(dict(self.defaults, **values))
             records.append(record)
-            origin[record.id] = (number, cells)
+            origin[record.id] = (number, cells, unread)
         # sudo: see above
         self._check_rules(self.model.sudo().concat(*records), origin)
         return self.findings
@@ -261,8 +277,12 @@ class BatchCheck:
                     field=field._description_string(self.env)), field_name=field.name)
 
     def _read_row(self, number, cells):
-        """The values of one row for its in-memory record; the empty required fields and bad links are findings."""
-        values = {}
+        """The values of one row for its in-memory record and the fields it could not give.
+
+        An empty required field, a bad link and a bad value are findings; the field of a bad value is
+        left out of the record and of every rule that reads it, so no rule judges it as empty.
+        """
+        values, unread = {}, set()
         model = self.model
         if 'company_id' in model._fields:
             values['company_id'] = self.session.company_id.id
@@ -276,39 +296,70 @@ class BatchCheck:
                     self._add(number, column, 'error', self.env._(
                         "%(field)s is required.", field=field._description_string(self.env)), cells)
                 continue
-            self._read_cell(number, column, cells, text, values)
-        return values
+            if field.type in LINK_TYPES:
+                read = self._read_links(number, column, cells, text, values)
+            else:
+                read = self._read_value(number, column, cells, text, values)
+            if not read:
+                unread.add(field.name)
+        return values, unread
 
-    def _read_cell(self, number, column, cells, text, values):
+    def _read_value(self, number, column, cells, text, values):
+        """Convert a cell as the native import does; False when the cell gives no value."""
         field = column.field
-        label = field._description_string(self.env)
+        converter = self._converter(field)
+        if converter is None:
+            return False
         try:
-            if field.type == 'many2one':
-                count, found = self._link(field, text, column.id_kind)
+            value, warnings = converter(text)
+        except ValueError as error:
+            self._add(number, column, 'error', self._native_message(field, error), cells)
+            return False
+        for warning in warnings:
+            self._add(number, column, 'warning', self._native_message(field, warning), cells)
+        values[field.name] = value
+        return True
+
+    def _converter(self, field):
+        """The native converter of the text of a cell into the value of a field, or None."""
+        if field.name not in self.converters:
+            self.converters[field.name] = None if field.type in UNREADABLE_TYPES else self.env[
+                'ir.fields.converter'].to_field(self.model, field, str, savepoint=None)
+        return self.converters[field.name]
+
+    def _native_message(self, field, error):
+        return str(error.args[0]) % {'field': field._description_string(self.env)}
+
+    def _read_links(self, number, column, cells, text, values):
+        """Match the link values of a cell, one for a many-to-one, comma separated for a many-to-many.
+
+        Requirements: FR-DGQ-0059
+        """
+        field = column.field
+        names = [text] if field.type == 'many2one' else [part.strip() for part in text.split(LINK_SEPARATOR)]
+        names = [name for name in names if name]
+        found = []
+        try:
+            for name in names:
+                count, record_id = self._link(field, name, column.id_kind)
                 if count == 1:
-                    values[field.name] = found
+                    found.append(record_id)
                 elif count:
                     self._add(number, column, 'error', self.env._(
                         "'%(value)s' matches several records of %(model)s.",
-                        value=text, model=self.env[field.comodel_name]._description), cells)
+                        value=name, model=self.env[field.comodel_name]._description), cells)
                 else:
                     self._add(number, column, 'error', self.env._(
                         "No record of %(model)s matches '%(value)s'.",
-                        value=text, model=self.env[field.comodel_name]._description), cells)
-            elif field.type in ('char', 'text'):
-                values[field.name] = text
-            elif field.type == 'integer':
-                values[field.name] = int(text)
-            elif field.type in ('float', 'monetary'):
-                values[field.name] = float(text)
-            elif field.type in ('date', 'datetime'):
-                values[field.name] = text
+                        value=name, model=self.env[field.comodel_name]._description), cells)
         except AccessError:
             self._add(number, column, 'error', self.env._(
                 "You are not allowed to link to records of %s.", self.env[field.comodel_name]._description), cells)
-        except ValueError:
-            self._add(number, column, 'error', self.env._("%(field)s has the invalid value '%(value)s'.",
-                                                          field=label, value=text), cells)
+            return False
+        if len(found) < len(names):
+            return False
+        values[field.name] = found[0] if field.type == 'many2one' else [Command.set(found)]
+        return True
 
     def _link(self, field, text, id_kind):
         key = (field.name, text, id_kind)
@@ -316,25 +367,50 @@ class BatchCheck:
             self.lookups[key] = match_link(self.link_env, field, text, id_kind)
         return self.lookups[key]
 
-    def _rules(self):
-        """The rules of the session an import row can be checked against."""
+    def _split_rules(self):
+        """The rules of the session split into those a row is checked against and those it cannot be, with why."""
         session = self.session
         # sudo: the check runs as the app; a rule of the model applies whoever uploaded the file
         rules = session.sudo().rule_ids or self.env['data.quality.rule'].sudo().search(
             [('model_id', '=', session.model_id.id)])
-        return rules.filtered(lambda rule: (
-            rule.rule_type in IMPORT_RULE_TYPES
-            and (not rule.company_ids or session.company_id in rule.company_ids)
-            and scan_service.rule_fields(rule) <= set(self.by_field)
-            and not scan_service.not_run_reason(self.env, rule)))
+        rules = rules.filtered(lambda rule: not rule.company_ids or session.company_id in rule.company_ids)
+        checked, skipped = self.env['data.quality.rule'], {}
+        for rule in rules:
+            if rule.rule_type not in IMPORT_RULE_TYPES:
+                skipped[rule] = self.env._("this kind of check cannot be run on a file")
+            elif reason := scan_service.not_run_reason(self.env, rule):
+                skipped[rule] = reason
+            else:
+                checked |= rule
+        return checked, skipped
+
+    def _check_skipped_rules(self):
+        """A rule the file cannot be checked against is named, so a clean result never hides it."""
+        for rule, reason in self.skipped.items():
+            self._add(HEADER_ROW, None, 'warning', self.env._(
+                "%(rule)s was not checked: %(reason)s.", rule=rule.name, reason=reason))
+
+    @staticmethod
+    def _fields_read(rule):
+        """The fields a rule reads: its own, the compared one and those of its two filters."""
+        names = set(scan_service.rule_fields(rule))
+        for text in (rule.applies_domain, rule.condition_domain):
+            if text:
+                names |= {condition.field_expr.split('.')[0]
+                          for condition in Domain(literal_eval(text)).iter_conditions()}
+        return names
 
     def _check_rules(self, records, origin):
         """A failure of a critical rule is an error, of any other rule a warning.
 
+        A row whose value for a field the rule reads could not be read is not judged by that rule.
+
         Requirements: FR-DGQ-0059
         """
-        for rule in self._rules():
-            applicable = scan_service.applicable_records(rule, records)
+        for rule in self.rules:
+            reads = self.rule_reads[rule]
+            applicable = scan_service.applicable_records(rule, records).filtered(
+                lambda record: not origin[record.id][2] & reads)
             if not applicable:
                 continue
             severity = 'error' if rule.severity == 'critical' else 'warning'
@@ -342,9 +418,9 @@ class BatchCheck:
                 if outcome.status != validation.FAIL:
                     continue
                 params = outcome.params or {}
-                names = params.get('fields') or [params.get('field')] or []
+                names = params.get('fields') or [params.get('field')]
                 reason = validation.explain(self.env, outcome.code, params)
                 message = self.env._("%(rule)s: %(reason)s", rule=rule.name, reason=reason)
-                number, cells = origin[record_id]
+                number, cells, _unread = origin[record_id]
                 for name in [name for name in names if name] or [False]:
                     self._add(number, self.by_field.get(name), severity, message, cells, field_name=name or '')

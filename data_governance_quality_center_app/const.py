@@ -68,7 +68,7 @@ IMPORT_MAX_BYTES = 20 * 1024 * 1024
 IMPORT_MAX_ROWS = 100000
 
 # Rule types an import check evaluates on the rows of a file: they read the values of the row only.
-# A link rule needs saved records and a custom validator may too; links are matched by the check itself (FR-DGQ-0059).
+# A link rule and a custom validator need saved records: the check names them as not checked (FR-DGQ-0059).
 IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross_field')
 
 # Longest cell value kept with a finding.

@@ -84,7 +84,7 @@ class DataQualityImportSession(models.Model):
     def _compute_file_type(self):
         for session in self:
             extension = (session.file_name or '').rsplit('.', 1)[-1].lower()
-            session.file_type = extension if extension in ('csv', 'xlsx') else session.file_type
+            session.file_type = extension if extension in ('csv', 'xlsx') else False
 
     @api.constrains('model_id')
     def _check_model_is_marked(self):
@@ -135,11 +135,12 @@ class DataQualityImportSession(models.Model):
 
         Requirements: FR-DGQ-0058
         """
-        if self.filtered(lambda session: session.state not in START_STATES):
-            return super().action_start()  # refuses a job that is already moving
         for session in self:
+            if session.state not in START_STATES:
+                raise UserError(self.env._("Only a draft, failed or cancelled check can be started."))
             session.write({'file_checksum': import_check.file_checksum(session) if session.file else False})
             loaded = import_check.load_file(session)
+            import_check.forget_file(session)
             # sudo: the findings are written by the app only
             session.sudo().row_ids.unlink()
             session.write({
@@ -178,7 +179,7 @@ class DataQualityImportSession(models.Model):
         super()._dgq_record_batch(processed, remaining)
         if not remaining:
             self.write({'date_checked': fields.Datetime.now()})
-            import_check.forget_file()
+            import_check.forget_file(self)
 
 
 class DataQualityImportRow(models.Model):
