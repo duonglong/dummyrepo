@@ -108,6 +108,17 @@ class DataQualityDashboard(models.AbstractModel):
         groups = Snapshot._read_group(domain, ['company_id', 'model_id'], ['id:max'])
         return Snapshot.browse([latest for _company, _model, latest in groups])
 
+    @api.model
+    def _figure_is_illustrative(self, companies, end, model_id=None):
+        """Whether the figures of the companies (and model) as of the end instant come from a demo snapshot.
+
+        Requirements: FR-DGQ-0080
+        """
+        snapshots = self._latest_snapshots(companies, end)
+        if model_id:
+            snapshots = snapshots.filtered(lambda snap: snap.model_id.id == model_id)
+        return any(snapshots.mapped('is_illustrative'))
+
     @staticmethod
     def _with_score(row):
         value = scoring.score(row['applicable_weight'], row['failed_weight'])
@@ -115,6 +126,10 @@ class DataQualityDashboard(models.AbstractModel):
 
     @api.model
     def _recent_issues(self, companies, end):
+        """The latest issues found before the end instant, each saying whether it is a demo issue.
+
+        Requirements: FR-DGQ-0032, FR-DGQ-0080
+        """
         domain = [('company_id', 'in', [False, *companies.ids])]
         if end:
             domain.append(('last_found', '<', end))
@@ -131,15 +146,12 @@ class DataQualityDashboard(models.AbstractModel):
             raise AccessError(self.env._("You are not allowed to open the quality dashboard."))
 
     @api.model
-    def _chosen_companies(self, company_ids):
-        allowed = self.env.companies
-        return allowed.filtered(lambda company: company.id in company_ids) if company_ids else allowed
-
-    @api.model
     def get_trend(self, company_ids=None, model_id=None, period='week', date_from=None, date_to=None):
         """The score per day, week or month for the chosen companies and model, from the last snapshot of each period.
 
-        Requirements: FR-DGQ-0034
+        Each point says whether a demo snapshot is behind it (``is_illustrative``).
+
+        Requirements: FR-DGQ-0034, FR-DGQ-0080
         """
         self._check_viewer()
         if period not in TREND_PERIODS:
@@ -179,7 +191,9 @@ class DataQualityDashboard(models.AbstractModel):
         before.check_access('read')
         if (before.company_id, before.model_id) != (after.company_id, after.model_id):
             raise UserError(self.env._("Both snapshots must be of the same model and company."))
-        return dict(trend.explain_change(self.env, before, after), model=after.model_id.name, company=after.company_id.name)
+        return dict(
+            trend.explain_change(self.env, before, after), model=after.model_id.name, company=after.company_id.name,
+            is_illustrative=before.is_illustrative or after.is_illustrative)
 
     @api.model
     def drill_down(self, figure, company_ids=None, model_id=None, date=None, severity=None):
@@ -187,9 +201,10 @@ class DataQualityDashboard(models.AbstractModel):
 
         Figures are ``open_issues``, ``critical_issues``, ``severity`` (with ``severity``), ``model`` (with
         ``model_id``) and ``records_error`` or ``records_warning``, which open the records of the model when
-        one is given. The lists respect the user's own access.
+        one is given. The lists respect the user's own access. Demo issues are listed only while the
+        figure itself comes from a demo snapshot, so the list holds what the figure counts.
 
-        Requirements: FR-DGQ-0036
+        Requirements: FR-DGQ-0036, FR-DGQ-0080
         """
         self._check_viewer()
         companies = self._chosen_companies(company_ids)
@@ -206,6 +221,8 @@ class DataQualityDashboard(models.AbstractModel):
             domain.append(('severity', '=', severity))
         if model_id:
             domain.append(('res_model', '=', self.env['ir.model'].browse(model_id).model))
+        if not self._figure_is_illustrative(companies, end, model_id):
+            domain.append(('is_illustrative', '=', False))
         if figure in ('records_error', 'records_warning') and model_id:
             groups = self.env['data.quality.issue']._read_group(
                 domain, ['res_id'], order='res_id', limit=DRILL_DOWN_RECORD_LIMIT + 1)

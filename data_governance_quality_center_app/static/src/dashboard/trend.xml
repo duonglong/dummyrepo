@@ -22,12 +22,14 @@
             <div t-foreach="state.points" t-as="point" t-key="point.period" class="d-flex gap-3">
                 <span t-out="point.period"/>
                 <span t-out="formatScore(point.score)"/>
+                <span t-if="point.is_illustrative" class="badge text-bg-warning">Illustrative</span>
                 <button t-if="point.previous_snapshot_id and point.score !== null" class="btn btn-link p-0"
                         t-on-click="() => this.explain(point)">Why?</button>
             </div>
             <div t-if="state.explanation" class="mt-2">
                 <div class="fw-bold">
                     <span t-out="formatScore(state.explanation.score_before)"/> → <span t-out="formatScore(state.explanation.score_after)"/>
+                    <span t-if="state.explanation.is_illustrative" class="badge text-bg-warning ms-2">Illustrative</span>
                 </div>
                 <div t-foreach="state.explanation.causes" t-as="cause" t-key="cause_index" class="d-flex gap-3">
                     <span t-out="causeLabel(cause.kind)"/>

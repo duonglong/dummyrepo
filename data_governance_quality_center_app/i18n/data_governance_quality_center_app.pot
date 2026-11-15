@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 20.0+e\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-15 01:44+0000\n"
-"PO-Revision-Date: 2026-11-15 01:44+0000\n"
+"POT-Creation-Date: 2026-11-15 19:15+0000\n"
+"PO-Revision-Date: 2026-11-15 19:15+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -151,6 +151,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "%(field)s is required."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
 msgid "%(field)s must be %(operator)s %(other)s."
 msgstr ""
@@ -193,6 +199,18 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "%(model)s (first %(limit)s)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid "%(model)s, %(company)s, %(date)s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/issue_bulk.py:0
 msgid "%(name)s is %(state)s: nothing to change"
 msgstr ""
@@ -213,6 +231,18 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/issue_bulk.py:0
 msgid "%(name)s is in the company %(company)s, which %(user)s cannot see"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "%(rule)s was not checked: %(reason)s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "%(rule)s: %(reason)s"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -285,6 +315,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid "%s is no longer marked as supported in the data quality settings."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/duplicate_rule.py:0
 msgid "%s is not a model that can be checked for duplicates."
 msgstr ""
@@ -296,6 +332,24 @@ msgid ""
 "%s is not marked as supported in the data quality settings and cannot be "
 "checked by a rule. A data quality administrator can mark it in Data Quality "
 "> Configuration > Models."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid ""
+"%s is not marked as supported in the data quality settings and cannot be "
+"profiled. A data quality administrator can mark it in Data Quality > "
+"Configuration > Models."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/import_session.py:0
+msgid ""
+"%s is not marked as supported in the data quality settings and its import "
+"files cannot be checked. A data quality administrator can mark it in Data "
+"Quality > Configuration > Models."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -317,9 +371,21 @@ msgid "%s linked documents"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "%s s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/issue_bulk.py:0
 msgid "%s skipped:"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "'%(value)s' matches several records of %(model)s."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -343,9 +409,31 @@ msgid ""
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "<strong>Average resolution (hours)</strong>"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "<strong>Open issues</strong>"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "<strong>Score</strong>"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/services/jobs.py:0
 msgid "A batch failed (%s). See the server log."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_automation__watched_field_ids
+msgid ""
+"A change checks the record only when one of these fields is written. Leave "
+"empty for any field."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -382,6 +470,18 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_field_config_field_unique
 msgid "A field can only carry one mark."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "A file may be at most %(size)s MB."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "A file may hold at most %(rows)s rows."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -440,6 +540,14 @@ msgid "A pair holds two records, the smaller id first."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid ""
+"A profile can only be compared with another profile of the same model and "
+"company."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_rule__pattern_preset
 msgid "A ready-made pattern; leave empty to type your own pattern."
 msgstr ""
@@ -467,8 +575,28 @@ msgid "A record has one issue for each rule."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__event__write
+msgid "A record is changed"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__event__create
+msgid "A record is created"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__event__both
+msgid "A record is created or changed"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_duplicate_line_record_unique
 msgid "A record is in a group once."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile__stale_days
+msgid "A record not updated for more than this many days is stale."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -476,6 +604,11 @@ msgstr ""
 msgid ""
 "A record of the 'Applies To' filter passes when it matches this filter, for "
 "example [('vat', '!=', False)]."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_event_queue_record_unique
+msgid "A record waits once for each automation."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -522,6 +655,11 @@ msgid ""
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_team_assignment_team_model_unique
+msgid "A team names one person for each model."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_rule__validator_key
 msgid "A validator provided by an installed module."
 msgstr ""
@@ -530,6 +668,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/wizard/merge_wizard.py:0
 msgid "A value line names a field that cannot be compared."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_dashboard_layout_user_widget_unique
+msgid "A widget has one place per user."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -544,9 +687,11 @@ msgid "Action Needed"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__active
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__active
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__active
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__active
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__active
 msgid "Active"
 msgstr ""
 
@@ -576,6 +721,16 @@ msgid "Activity Type Icon"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.actions.act_window,help:data_governance_quality_center_app.team_action
+msgid "Add a team to hand new issues to"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.actions.act_window,help:data_governance_quality_center_app.automation_action
+msgid "Add an automation to scan on a schedule or after a save"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:res.groups,name:data_governance_quality_center_app.group_dgq_admin
 msgid "Administrator"
 msgstr ""
@@ -589,6 +744,18 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__value_after
 msgid "After"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.xml:0
+msgid "All companies"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.xml:0
+msgid "All models"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -609,6 +776,11 @@ msgstr ""
 msgid ""
 "An administrator's explicit authorization to merge records of a protected "
 "model."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile__compare_profile_id
+msgid "An earlier profile of the same model and company."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -663,6 +835,8 @@ msgid "Approved On"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.duplicate_rule_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.rule_view_form
 msgid "Archived"
@@ -685,6 +859,7 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__user_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__user_id
 msgid "Assigned To"
 msgstr ""
 
@@ -717,6 +892,12 @@ msgid "Audit Trail"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "Audit entries"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/audit.py:0
 msgid "Audit entries cannot be changed."
@@ -744,8 +925,37 @@ msgid "Authorize Protected Records"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__automation_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__automation_id
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__trigger__automation
 msgid "Automation"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__automation_run_id
+msgid "Automation Run"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.act_window,name:data_governance_quality_center_app.automation_action
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_automation
+msgid "Automations"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__mean_value
+msgid "Average"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+msgid "Average resolution (hours)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_base
+msgid "Base"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -774,6 +984,12 @@ msgid "Blocks of records with the same key that were too large to compare."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "Both snapshots must be of the same model and company."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__phase__groups
 msgid "Building groups"
 msgstr ""
@@ -784,6 +1000,12 @@ msgid "Bulk Issue Action"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__trigger__event
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_search
+msgid "Business event"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__link_to_id
 msgid "By Link To Record"
 msgstr ""
@@ -791,13 +1013,20 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__by_company
 msgid "By company"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__by_model
 msgid "By model"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__file_type__csv
+msgid "CSV"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -809,6 +1038,9 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_export_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_purge_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.import_session_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.profile_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.scan_view_form
 msgid "Cancel"
 msgstr ""
@@ -816,7 +1048,9 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__cancelled
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__cancelled
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__cancelled
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__cancelled
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__cancelled
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__cancelled
 msgid "Cancelled"
 msgstr ""
@@ -856,6 +1090,8 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__check_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_key__check_id
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__job_kind__check
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.import_session_view_form
 msgid "Check"
 msgstr ""
 
@@ -863,6 +1099,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__rule_type
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.rule_view_search
 msgid "Check Type"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.actions.act_window,help:data_governance_quality_center_app.import_session_action
+msgid "Check an import file before importing it"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -899,6 +1140,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "Choose a CSV or XLSX file to check."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/issue_bulk.py:0
 msgid "Choose the deadline to set."
 msgstr ""
@@ -910,31 +1157,64 @@ msgid "Choose the user to assign the issues to."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/retention.py:0
+msgid "Cleanup removed %(count)s %(what)s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.issue_bulk_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.merge_wizard_view_form
 msgid "Close"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "Closed issues"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__column
+msgid "Column"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__column_mapping
+msgid "Column Mapping"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__company_ids
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__company_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__company_ids
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__company_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__company_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__company_ids
 msgid "Companies"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__company_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__company_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__company_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__company_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_result_mixin__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__company_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__company_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__company_id
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.issue_analysis_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
@@ -942,6 +1222,7 @@ msgid "Company"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__compare_profile_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__compare_field_id
 msgid "Compare With"
 msgstr ""
@@ -1046,10 +1327,13 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__create_uid
@@ -1057,13 +1341,19 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__create_uid
@@ -1071,16 +1361,21 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__create_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__create_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__create_uid
 msgid "Created by"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__create_date
@@ -1088,13 +1383,19 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__create_date
@@ -1102,6 +1403,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__create_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__create_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__create_date
 msgid "Created on"
 msgstr ""
 
@@ -1119,6 +1422,11 @@ msgid "Critical"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_weight_critical
+msgid "Critical weight"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_rule__rule_type__cross_field
 msgid "Cross-field"
 msgstr ""
@@ -1126,6 +1434,12 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_rule__rule_type__custom
 msgid "Custom validator"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__interval__daily
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__res_config_settings__dgq_scan_frequency__daily
+msgid "Daily"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1142,12 +1456,23 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_root
 #: model:res.groups.privilege,name:data_governance_quality_center_app.res_groups_privilege_dgq
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.res_config_settings_view_form
 msgid "Data Quality"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model,name:data_governance_quality_center_app.model_data_quality_audit
 msgid "Data Quality Audit Entry"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_automation
+msgid "Data Quality Automation"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_automation_run
+msgid "Data Quality Automation Run"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1173,6 +1498,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model,name:data_governance_quality_center_app.model_data_quality_dashboard
 msgid "Data Quality Dashboard"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_dashboard_layout
+msgid "Data Quality Dashboard Layout"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1211,8 +1541,23 @@ msgid "Data Quality Duplicate Rule Field"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_event_queue
+msgid "Data Quality Event Queue"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model,name:data_governance_quality_center_app.model_data_quality_field_config
 msgid "Data Quality Field Mark"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_import_session
+msgid "Data Quality Import Check"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_import_row
+msgid "Data Quality Import Finding"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1246,8 +1591,23 @@ msgid "Data Quality Model Mark"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_profile
+msgid "Data Quality Profile"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_profile_line
+msgid "Data Quality Profile Line"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model,name:data_governance_quality_center_app.model_data_quality_result_mixin
 msgid "Data Quality Result Access"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_retention
+msgid "Data Quality Retention"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1286,8 +1646,38 @@ msgid "Data Quality Score Snapshot"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_team
+msgid "Data Quality Team"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_team_assignment
+msgid "Data Quality Team Assignment"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_event_queue_ir_actions_server
+msgid "Data Quality: check queued records"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_cleanup_ir_actions_server
+msgid "Data Quality: daily cleanup"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_duplicate_check_ir_actions_server
 msgid "Data Quality: duplicate checks"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_import_ir_actions_server
+msgid "Data Quality: import checks"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_profile_ir_actions_server
+msgid "Data Quality: profiles"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1298,6 +1688,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_scan_ir_actions_server
 msgid "Data Quality: run scans"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.server,name:data_governance_quality_center_app.ir_cron_dgq_automation_ir_actions_server
+msgid "Data Quality: start due automations"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1328,22 +1723,37 @@ msgid "Date"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__date_checked
+msgid "Date Checked"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__date_condition
 msgid "Date Condition"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__date_end
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__date_end
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__date_end
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__date_end
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__date_end
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__date_end
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__date_end
 msgid "Date End"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__date_imported
+msgid "Date Imported"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__date_queued
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__date_queued
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__date_queued
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__date_queued
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__date_queued
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__date_queued
 msgid "Date Queued"
 msgstr ""
@@ -1354,16 +1764,35 @@ msgid "Date Resolved"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__date_start
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__date_start
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__date_start
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__date_start
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__date_start
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__date_start
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__date_start
 msgid "Date Start"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Day"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__monthday
+msgid "Day of the Month"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__date_days
 msgid "Days"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_escalation_days
+msgid "Days an issue stays overdue before it is escalated."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1375,6 +1804,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__default_value
 msgid "Default Value"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_scan_frequency
+msgid "Default scan frequency"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1404,11 +1838,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__display_name
@@ -1416,7 +1853,10 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__display_name
@@ -1424,8 +1864,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_registry__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_result_mixin__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_retention__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__display_name
@@ -1433,16 +1877,26 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__display_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_ir_model__display_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__display_name
 msgid "Display Name"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__distinct_count
+msgid "Distinct Values"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_checkpoint__done
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation_run__state__done
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__done
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__done
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__done
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__done
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__done
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__done
 msgid "Done"
 msgstr ""
@@ -1450,16 +1904,26 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__done_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__done_count
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__done_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__done_count
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__done_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__done_count
 msgid "Done Count"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+msgid "Down"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction__state__draft
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__draft
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__draft
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__draft
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__draft
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__draft
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__draft
 msgid "Draft"
 msgstr ""
@@ -1473,6 +1937,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.actions.act_window,name:data_governance_quality_center_app.duplicate_check_action
 msgid "Duplicate Checks"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__duplicate_field_ids
+msgid "Duplicate Fields"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1513,6 +1982,21 @@ msgid "Email address"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__empty_count
+msgid "Empty"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__empty_share
+msgid "Empty (%)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__link_empty_share
+msgid "Empty Links (%)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_audit_export__company_ids
 msgid "Empty: all your companies."
 msgstr ""
@@ -1550,9 +2034,21 @@ msgid "Equal to"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_row__severity__error
+msgid "Error"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__error_count
+msgid "Error Count"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__error_message
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__error_message
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__error_message
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__error_message
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__error_message
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__error_message
 msgid "Error Message"
 msgstr ""
@@ -1564,12 +2060,24 @@ msgid "Errors"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_escalation_days
+msgid "Escalate after (days)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__event
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__event
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__event
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__trigger__event
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
 msgid "Event"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/res_config_settings.py:0
+msgid "Every severity weight must be a positive whole number."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1622,6 +2130,7 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_export_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_view_list
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_wizard_view_form
 msgid "Export"
 msgstr ""
 
@@ -1642,11 +2151,17 @@ msgid "Fail"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__count_failed
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation_run__state__failed
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_log__state__failed
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__failed
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__failed
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__import_state__failed
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__failed
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__failed
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__failed
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__failed
 msgid "Failed"
 msgstr ""
@@ -1657,25 +2172,70 @@ msgid "Failed Weight"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Failed in the last"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Failures changed"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__field_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__field_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__field_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__field_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__field_label
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__field_id
 msgid "Field"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.actions.act_window,name:data_governance_quality_center_app.field_config_action
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__field_names
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__field_ids
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_field_config
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
 msgid "Fields"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__allowed_field_ids
+msgid "Fields Offered"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__line_ids
+msgid "Fields Profiled"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__field_ids
 msgid "Fields to Check"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__file
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.import_session_view_form
+msgid "File"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__file_checksum
+msgid "File Checksum"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__file_name
+msgid "File Name"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__file_type
+msgid "File Type"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1695,6 +2255,11 @@ msgid "Finding candidates"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__row_ids
+msgid "Findings"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__first_found
 msgid "First Found"
 msgstr ""
@@ -1707,6 +2272,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__first_scan_id
 msgid "First Scan"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_report_wizard__date_from
+msgid "First day of the trend and of the resolution time."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1726,6 +2296,7 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__file_format
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__file_format
 msgid "Format"
 msgstr ""
 
@@ -1735,7 +2306,13 @@ msgid "Found"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__4
+msgid "Friday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__date_from
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__date_from
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__date_from
 msgid "From"
 msgstr ""
@@ -1800,11 +2377,25 @@ msgid "Has Score"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.actions.client,name:data_governance_quality_center_app.health_action
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_health
+msgid "Health"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__heartbeat
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__heartbeat
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__heartbeat
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__heartbeat
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__heartbeat
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__heartbeat
 msgid "Heartbeat"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Held"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1816,6 +2407,22 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__score
 msgid "Highest Score"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__run_ids
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_form
+msgid "History"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__hour
+msgid "Hour"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__interval__hourly
+msgid "Hourly"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1836,10 +2443,38 @@ msgid "How many entries the purge would delete now."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_weight_critical
+msgid ""
+"How much a failed critical check counts in the quality score. A positive "
+"whole number."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_weight_info
+msgid ""
+"How much a failed information check counts in the quality score. A positive "
+"whole number, at most the warning weight."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_weight_warning
+msgid ""
+"How much a failed warning check counts in the quality score. A positive "
+"whole number, at most the critical weight."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__weight
 msgid ""
 "How much this field counts in the similarity, from 1 to 10. A field of "
 "weight 3 counts three times as much as one of weight 1."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_scan_frequency
+msgid ""
+"How often a new scheduled scan runs when its schedule does not say "
+"otherwise."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1851,11 +2486,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__id
@@ -1863,7 +2501,10 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__id
@@ -1871,8 +2512,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_registry__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_result_mixin__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_retention__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__id
@@ -1880,6 +2525,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_ir_model__id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__id
 msgid "ID"
@@ -1922,8 +2569,46 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-javascript
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.xml:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.issue_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.scan_view_form
 msgid "Illustrative"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__job_kind__import
+msgid "Import"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.act_window,name:data_governance_quality_center_app.import_session_action
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_import_check
+msgid "Import Checks"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__import_state
+msgid "Import State"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "Import files"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__import_state__imported
+msgid "Imported"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__imported_count
+msgid "Imported Count"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1940,6 +2625,16 @@ msgstr ""
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan_tally__severity__info
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_score_snapshot__severity__info
 msgid "Information"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_weight_info
+msgid "Information weight"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__interval
+msgid "Interval"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -1986,13 +2681,24 @@ msgid "Issue resolved"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
 #: model:ir.actions.act_window,name:data_governance_quality_center_app.issue_action
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__issue_ids
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__issues
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_issue
 msgid "Issues"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__issues_assigned
+msgid "Issues Assigned"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__issues_created
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__issues_created
 msgid "Issues Created"
 msgstr ""
@@ -2023,6 +2729,28 @@ msgid "Issues Updated"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Issues by status"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__job_kind
+msgid "Job Kind"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_issue_retention_days
+msgid "Keep closed issues (days)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_scan_line_retention_days
+msgid "Keep scan details (days)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__kind
 msgid "Kind"
 msgstr ""
@@ -2049,6 +2777,11 @@ msgid "Last Key"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__last_run
+msgid "Last Run"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__scan_id
 msgid "Last Scan"
 msgstr ""
@@ -2056,10 +2789,13 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__write_uid
@@ -2067,13 +2803,19 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__write_uid
@@ -2081,16 +2823,21 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__write_uid
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__write_uid
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__write_uid
 msgid "Last Updated by"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_purge__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__write_date
@@ -2098,13 +2845,19 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue_bulk__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule_version__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__write_date
@@ -2112,7 +2865,15 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__write_date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__write_date
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__write_date
 msgid "Last Updated on"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Last cleanup"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2122,8 +2883,36 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Last run"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Last scans"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
 msgid "Latest issues"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+msgid "Layout"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__leader_id
+msgid "Leader"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_automation__company_ids
+msgid "Leave empty for all companies."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2181,6 +2970,7 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__lowest
 msgid "Lowest scores"
 msgstr ""
 
@@ -2206,8 +2996,19 @@ msgid "Material Symbols icon e.g. checklist"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__max_value
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__max_value
 msgid "Maximum"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__median_value
+msgid "Median"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__member_ids
+msgid "Members"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2272,6 +3073,11 @@ msgid "Merges of this model cannot be undone."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__message
+msgid "Message"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__message_has_error
 msgid "Message Delivery error"
 msgstr ""
@@ -2287,11 +3093,19 @@ msgid "Method"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__min_value
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__min_value
 msgid "Minimum"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__mode
+msgid "Mode"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: model:ir.model,name:data_governance_quality_center_app.model_ir_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__model_id
@@ -2301,17 +3115,24 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__model_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__model_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__res_model
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__model_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__model_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__model_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__res_model
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_result_mixin__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__model_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_checkpoint__model_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__res_model
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__model_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__model_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__model_id
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.field_config_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.issue_analysis_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
@@ -2322,9 +3143,34 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.actions.act_window,name:data_governance_quality_center_app.model_config_action
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__model_ids
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__model_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__model_ids
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_model_config
 msgid "Models"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__0
+msgid "Monday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_report_wizard__period__month
+msgid "Month"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__interval__monthly
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__res_config_settings__dgq_scan_frequency__monthly
+msgid "Monthly"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__top_values
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__top_values_text
+msgid "Most Frequent Values"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2345,12 +3191,15 @@ msgid "My Activity Deadline"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__name
 msgid "Name"
 msgstr ""
 
@@ -2380,8 +3229,35 @@ msgid "Next Activity Type"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__next_field_index
+msgid "Next Field Index"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__next_row
+msgid "Next Row"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__next_run
+msgid "Next Run"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Next run"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:res.groups.privilege,placeholder:data_governance_quality_center_app.res_groups_privilege_dgq
 msgid "No"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "No column of the file matches a field of %s."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2396,9 +3272,21 @@ msgid "No merge yet"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "No record of %(model)s matches '%(value)s'."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
 msgid "No scan has run yet."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/automation.py:0
+msgid "None of the rules chosen for this automation is switched on."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2444,6 +3332,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_rule__compare_operator__!=
 msgid "Not equal to"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__import_state__not_imported
+msgid "Not imported"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2511,13 +3404,26 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "Only CSV and XLSX files can be checked."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/duplicate_group.py:0
 msgid "Only a data quality manager can do this."
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/import_session.py:0
+msgid "Only a draft, failed or cancelled check can be started."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/job_mixin.py:0
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
 msgid "Only a draft, failed or cancelled job can be started."
 msgstr ""
 
@@ -2563,6 +3469,12 @@ msgid ""
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/import_session.py:0
+msgid "Only the check of a file is available."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_duplicate_rule__domain
 msgid ""
 "Only the records matching this filter are compared, for example contacts of "
@@ -2589,8 +3501,18 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-javascript
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
 msgid "Open issues"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Open issues by severity"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2600,7 +3522,13 @@ msgid "Operator"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__options
+msgid "Options"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_audit_export__file_format__pdf
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_report_wizard__file_format__pdf
 msgid "PDF"
 msgstr ""
 
@@ -2629,6 +3557,12 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__pattern_preset
 msgid "Pattern Preset"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+msgid "Period"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2680,9 +3614,27 @@ msgid "Products with several variants cannot be merged."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__profile_id
+msgid "Profile"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.actions.act_window,help:data_governance_quality_center_app.profile_action
+msgid "Profile a model to see where its data stands"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.act_window,name:data_governance_quality_center_app.profile_action
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_profile
+msgid "Profiling"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__progress
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__progress
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__progress
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__progress
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__progress
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__progress
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.scan_view_form
 msgid "Progress"
@@ -2711,9 +3663,32 @@ msgid "Purged %(count)s entries older than %(date)s"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.actions.act_window,name:data_governance_quality_center_app.report_wizard_action
+#: model:ir.actions.report,name:data_governance_quality_center_app.action_report_quality
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_report
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Quality Report"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model,name:data_governance_quality_center_app.model_data_quality_report_wizard
+msgid "Quality Report Dialog"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+msgid "Quality report"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__queued
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__queued
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__queued
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__queued
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__queued
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__queued
 msgid "Queued"
 msgstr ""
@@ -2730,6 +3705,11 @@ msgid "Reason"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__recent
+msgid "Recent issues"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__record_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__res_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__res_id
@@ -2737,6 +3717,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__res_id
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
 msgid "Record"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__record_count
+msgid "Record Count"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2766,6 +3751,8 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__line_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard__res_ids
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__res_ids
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__records
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.duplicate_group_view_form
 msgid "Records"
 msgstr ""
@@ -2826,6 +3813,12 @@ msgid "Records With Warnings"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Records added or removed"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/wizard/merge_wizard.py:0
 msgid "Records of different companies cannot be merged."
@@ -2835,6 +3828,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/wizard/merge_wizard.py:0
 msgid "Records of this model cannot be archived, so they cannot be merged."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__link_distribution
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__link_distribution_text
+msgid "Records per Linked Record"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2859,6 +3858,12 @@ msgid "Reopened by scan %s: the record fails the rule again."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "Repeats row %(row)s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__link_from_id
 msgid "Replace Link To Record"
 msgstr ""
@@ -2872,7 +3877,9 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__user_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__user_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__user_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__user_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__user_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__user_id
 msgid "Requested by"
 msgstr ""
@@ -2884,7 +3891,19 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_key__res_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__res_id
 msgid "Res"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_event_queue__res_model
+msgid "Res Model"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+msgid "Reset"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2913,6 +3932,13 @@ msgid "Resolved By Scan"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_issue_retention_days
+msgid ""
+"Resolved and Ignored issues closed longer ago than this are deleted by the "
+"daily cleanup."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/services/issues.py:0
 msgid "Resolved by scan %s: the record no longer exists."
@@ -2924,6 +3950,11 @@ msgstr ""
 msgid ""
 "Resolved by scan %s: the record passes the rule or the rule no longer "
 "applies."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__user_id
+msgid "Responsible"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -2946,6 +3977,8 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__state
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.import_session_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.profile_view_form
 msgid "Result"
 msgstr ""
 
@@ -2961,8 +3994,20 @@ msgid "Results"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.import_session_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.profile_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.scan_view_form
 msgid "Resume"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.res_config_settings_view_form
+msgid "Retention"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_audit__event__cleanup
+msgid "Retention cleanup"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3013,6 +4058,23 @@ msgid "Rolled Back On"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__row_number
+msgid "Row"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__row_count
+msgid "Row Count"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__error_row_count
+msgid "Rows With Errors"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__rule_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__rule_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_dismissal__rule_id
@@ -3036,6 +4098,14 @@ msgid "Rule Version"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Rule added"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_audit__event__rule_changed
 msgid "Rule changed"
 msgstr ""
@@ -3051,7 +4121,21 @@ msgid "Rule deleted"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Rule removed"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+msgid "Rule switched off"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.actions.act_window,name:data_governance_quality_center_app.rule_action
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__rule_ids
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__rule_ids
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__rule_ids
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_duplicate_rules
 #: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_rule
@@ -3077,6 +4161,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__run_id
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__kind__run
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.correction_view_form
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.profile_view_form
 msgid "Run"
 msgstr ""
 
@@ -3103,9 +4188,14 @@ msgid "Run a scan to find issues."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation_run__state__running
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_run__state__running
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_duplicate_check__state__running
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__state__running
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_job_mixin__state__running
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_profile__state__running
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan__state__running
 msgid "Running"
 msgstr ""
@@ -3127,6 +4217,12 @@ msgid "Sample scan of the demo data: its figures are not live metrics."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__5
+msgid "Saturday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__scan_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_checkpoint__scan_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__scan_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_tally__scan_id
@@ -3137,6 +4233,19 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_audit__event__scan_ended
 msgid "Scan ended"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "Scan lines"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_res_config_settings__dgq_scan_line_retention_days
+msgid ""
+"Scan result lines and import files older than this are deleted by the daily "
+"cleanup. Scan totals and scores stay."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3163,15 +4272,36 @@ msgid "Scans"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.res_config_settings_view_form
+msgid "Scans and follow-up"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__trigger__schedule
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_search
+msgid "Schedule"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Scheduled tasks"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.profile_view_form
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.scan_view_form
 msgid "Scope"
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-javascript
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__score
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__score
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__score
 msgid "Score"
 msgstr ""
 
@@ -3179,6 +4309,37 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/duplicate_group.py:0
 msgid "Score %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_report_wizard__date_to
+msgid "Scores and issues are those of the end of this day."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Scores by company"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Scores by model"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Scores by rule"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.res_config_settings_view_form
+msgid "Scoring"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3198,10 +4359,16 @@ msgid "Sensitive"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__sequence
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_line__sequence
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule_field__sequence
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__sequence
 msgid "Sequence"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__session_id
+msgid "Session"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3236,6 +4403,15 @@ msgid "Settings"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/res_config_settings.py:0
+msgid "Settings changed: %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__severity
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__severity
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__severity
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan_line__severity
@@ -3245,14 +4421,41 @@ msgid "Severity"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.res_config_settings_view_form
+msgid "Severity weights"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__skip_reason
+msgid "Skip Reason"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__count_skipped
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation_run__state__skipped
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_correction_log__state__skipped
 msgid "Skipped"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.js:0
+msgid "Snapshots"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__source_text
 msgid "Spelling"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__stale_days
+msgid "Stale After (days)"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__stale_count
+msgid "Stale Count"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3294,19 +4497,24 @@ msgid "Started By"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation_run__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_mapping__state_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_group__state
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge__state
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__state
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__state
 msgid "State"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_field_config__status
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__status
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.rule_view_form
@@ -3324,6 +4532,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid "Stopped: %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/services/jobs.py:0
 msgid "Stopped: server restart or timeout."
 msgstr ""
@@ -3332,6 +4546,29 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/correction_run.py:0
 msgid "Stopped: the correction changed. %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__mode__strict
+msgid "Strict"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__mode
+msgid ""
+"Strict refuses the import while any error remains; warnings only imports the"
+" rows without errors."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+msgid "Summary"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__6
+msgid "Sunday"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3364,9 +4601,30 @@ msgid "Targets"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "Task"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__team_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_issue__team_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team_assignment__team_id
+msgid "Team"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.actions.act_window,name:data_governance_quality_center_app.team_action
+#: model:ir.ui.menu,name:data_governance_quality_center_app.menu_dgq_team
+msgid "Teams"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_rule__model_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__field_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__field_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_model_config__model_name
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__field_name
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__model_name
 msgid "Technical Name"
 msgstr ""
@@ -3402,6 +4660,12 @@ msgstr ""
 msgid ""
 "The companies whose records are scanned. Leave empty for all your allowed "
 "companies."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_row__company_id
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__company_id
+msgid "The company the checked records would belong to."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3468,6 +4732,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/automation.py:0
+msgid "The day of the month must be between 1 and 28."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/correction.py:0
 msgid "The default value does not fit %s."
 msgstr ""
@@ -3502,6 +4772,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/res_config_settings.py:0
+msgid "The escalation delay and the retention periods must be at least 1 day."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/rule.py:0
 msgid "The field %(field)s (%(type)s) does not fit the check type %(check)s."
 msgstr ""
@@ -3513,6 +4789,24 @@ msgid ""
 "The field %(field)s cannot be checked on %(model)s: it is not a stored field"
 " of the model, or it is excluded or sensitive. A data quality administrator "
 "can mark a field as allowed in Data Quality > Configuration > Fields."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid ""
+"The field %(field)s cannot be profiled on %(model)s: it is not stored in the"
+" model's own table, or it is excluded or sensitive. A data quality "
+"administrator can mark a field as allowed in Data Quality > Configuration > "
+"Fields."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/profile.py:0
+msgid ""
+"The field %(field)s is now excluded or sensitive and cannot be profiled. "
+"Create a new profile without this field."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3555,6 +4849,37 @@ msgid ""
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile__field_ids
+msgid ""
+"The fields to profile. Leave empty to profile every field that is not "
+"excluded or sensitive."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "The file cannot be read: %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "The file has a header but no row to check."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "The file has no column for the required field %(field)s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "The file is empty."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/rule.py:0
 msgid ""
@@ -3593,6 +4918,42 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/duplicate_rule.py:0
 msgid "The filter of the rule is not valid: %s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "The health page is for administrators."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/automation.py:0
+msgid "The hour must be between 0 and 23."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_automation__hour
+msgid ""
+"The hour of the day, from 0 to 23, in the time zone of the responsible user."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_scan__res_ids
+msgid ""
+"The ids of the records an event scan checks; empty for a scan of the whole "
+"scope."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__next_row
+msgid "The index of the next row to check."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/res_config_settings.py:0
+msgid "The information weight cannot exceed the warning weight."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3647,8 +5008,22 @@ msgid "The model %(model)s is excluded from scans."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__model_id
+msgid ""
+"The model the file is meant for. Only the models marked supported or "
+"restricted are offered."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_field_config__model_id
 msgid "The model this field belongs to"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile__model_id
+msgid ""
+"The model to profile. Only the models marked supported or restricted are "
+"offered."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3687,8 +5062,27 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "The period must be day, week or month."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/services/correction.py:0
 msgid "The phone number cannot be normalized."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile__company_id
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_profile_line__company_id
+msgid "The profile counts the records of this company."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__rule_ids
+msgid ""
+"The quality rules the rows must pass. Leave empty to use every active rule "
+"of the model."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3787,6 +5181,11 @@ msgid "The records to replace and to link must exist in %s."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_report_wizard__company_ids
+msgid "The report covers these companies, among the ones you work with."
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_correction_log__restored
 msgid "The rollback put the value before back."
 msgstr ""
@@ -3808,6 +5207,18 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/correction.py:0
 msgid "The rule must be a rule of %s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/import_session.py:0
+msgid "The rules and the duplicate fields must belong to %s."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_automation__rule_ids
+msgid ""
+"The rules to check. Leave empty for every active rule of the chosen models."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3836,6 +5247,11 @@ msgstr ""
 msgid ""
 "The similarity, from 50 to 100, from which two records are shown as likely "
 "duplicates. With fuzzy matching a low value gives more false matches."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.constraint,message:data_governance_quality_center_app.constraint_data_quality_profile_stale_days_positive
+msgid "The stale limit must be at least one day."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -3898,6 +5314,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/models/res_config_settings.py:0
+msgid "The warning weight cannot exceed the critical weight."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/models/duplicate_rule_field.py:0
 msgid "The weight of %(field)s must be between %(min)s and %(max)s."
 msgstr ""
@@ -3912,6 +5334,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/scan.py:0
 msgid "There is no active rule to scan in this scope."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "There is no earlier snapshot to compare with."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4034,6 +5462,11 @@ msgid "Threshold"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__3
+msgid "Thursday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__date
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__date
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
@@ -4047,6 +5480,7 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit_export__date_to
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__date_to
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_rule__date_to
 msgid "To"
 msgstr ""
@@ -4070,9 +5504,31 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__total_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_duplicate_check__total_count
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__total_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_job_mixin__total_count
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile__total_count
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_scan__total_count
 msgid "Total Count"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/report.py:0
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.xml:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_dashboard_layout__widget__trend
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_quality
+msgid "Trend"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_report_wizard__period
+msgid "Trend by"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__trigger
+msgid "Trigger"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4082,9 +5538,24 @@ msgid "Trim spaces"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__1
+msgid "Tuesday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/registry.py:0
 msgid "Two %(kind)s extensions share the same key: %(keys)s"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_import_session__duplicate_field_ids
+msgid "Two rows with the same values in these fields are repeats."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__field_type
+msgid "Type"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4095,6 +5566,35 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_run__count_unchanged
 msgid "Unchanged"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "Unknown figure."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard.py:0
+msgid "Unknown widget."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__unused_choices
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__unused_choices_text
+msgid "Unused Choices"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__outlier_count
+msgid "Unusual Values"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
+msgid "Up"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4111,6 +5611,7 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_audit__user_id
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_correction_log__user_id
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__user_id
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.audit_view_search
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.report_audit
 msgid "User"
@@ -4127,6 +5628,11 @@ msgid "Validator"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_row__value
+msgid "Value"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__value_display
 msgid "Value After"
 msgstr ""
@@ -4139,6 +5645,12 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_merge_wizard_value__kept_value
 msgid "Value Now"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__shapes
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_profile_line__shapes_text
+msgid "Value Shapes"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4187,8 +5699,14 @@ msgid "Viewer"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__visible
+msgid "Visible"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.js:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_row__severity__warning
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_issue__severity__warning
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_rule__severity__warning
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_scan_line__severity__warning
@@ -4198,14 +5716,57 @@ msgid "Warning"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_import_session__warning_count
+msgid "Warning Count"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_res_config_settings__dgq_weight_warning
+msgid "Warning weight"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #. odoo-javascript
 #: code:addons/data_governance_quality_center_app/static/src/dashboard/dashboard.xml:0
 msgid "Warnings"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__mode__warning
+msgid "Warnings only"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__watched_field_ids
+msgid "Watched Fields"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_rule__pattern_preset__url
 msgid "Web address"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__weekday__2
+msgid "Wednesday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.js:0
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_report_wizard__period__week
+msgid "Week"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_automation__weekday
+msgid "Weekday"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_automation__interval__weekly
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__res_config_settings__dgq_scan_frequency__weekly
+msgid "Weekly"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4216,6 +5777,11 @@ msgstr ""
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_score_snapshot__weights_used
 msgid "Weights Used"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_form
+msgid "What"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4236,8 +5802,18 @@ msgid "What to correct"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_form
+msgid "When"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model:ir.model.fields,help:data_governance_quality_center_app.field_data_quality_merge_wizard__reversible
 msgid "Whether the merge can be undone while the merged records still exist."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_team__assignment_ids
+msgid "Who Gets What"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4257,6 +5833,17 @@ msgid "Why this merge cannot be rolled back; empty when it can."
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/dashboard/trend.xml:0
+msgid "Why?"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model:ir.model.fields,field_description:data_governance_quality_center_app.field_data_quality_dashboard_layout__widget
+msgid "Widget"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.issue_view_form
 msgid "Work"
 msgstr ""
@@ -4268,13 +5855,27 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_audit_export__file_format__xlsx
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_import_session__file_type__xlsx
+#: model:ir.model.fields.selection,name:data_governance_quality_center_app.selection__data_quality_report_wizard__file_format__xlsx
 msgid "XLSX"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "You are not allowed to link to records of %s."
 msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/models/dashboard.py:0
 msgid "You are not allowed to open the quality dashboard."
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/models/dashboard_layout.py:0
+msgid "You can only change your own dashboard layout."
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4303,13 +5904,35 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/services/retention.py:0
+msgid "closed issues"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-javascript
+#: code:addons/data_governance_quality_center_app/static/src/health/health.xml:0
+msgid "days"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
 msgid "different from"
 msgstr ""
 
 #. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.automation_view_form
+msgid "e.g. Nightly contacts"
+msgstr ""
+
+#. module: data_governance_quality_center_app
 #: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.correction_view_form
 msgid "e.g. Normalize contact e-mails"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#: model_terms:ir.ui.view,arch_db:data_governance_quality_center_app.team_view_form
+msgid "e.g. Purchasing"
 msgstr ""
 
 #. module: data_governance_quality_center_app
@@ -4337,6 +5960,12 @@ msgstr ""
 
 #. module: data_governance_quality_center_app
 #. odoo-python
+#: code:addons/data_governance_quality_center_app/services/retention.py:0
+msgid "import files"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
 #: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
 msgid "lower than"
 msgstr ""
@@ -4345,4 +5974,16 @@ msgstr ""
 #. odoo-python
 #: code:addons/data_governance_quality_center_app/services/validation/advanced.py:0
 msgid "lower than or equal to"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/retention.py:0
+msgid "scan lines"
+msgstr ""
+
+#. module: data_governance_quality_center_app
+#. odoo-python
+#: code:addons/data_governance_quality_center_app/services/import_check.py:0
+msgid "this kind of check cannot be run on a file"
 msgstr ""

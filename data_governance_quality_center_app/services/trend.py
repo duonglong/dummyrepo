@@ -34,9 +34,10 @@ def trend_points(env, snapshots, period):
     scan of some models only does not move the line. A period without any snapshot between
     the first and the last one is listed with no score, so a gap shows as a gap and no value
     is guessed. The ``snapshot_id`` of a point is that of the one snapshot behind it, empty
-    when several models or companies make the figure.
+    when several models or companies make the figure. ``is_illustrative`` is on when a demo
+    snapshot is behind the point.
 
-    Requirements: FR-DGQ-0034
+    Requirements: FR-DGQ-0034, FR-DGQ-0080
     """
     if period not in TREND_PERIODS:
         period = 'day'
@@ -57,6 +58,7 @@ def trend_points(env, snapshots, period):
                 sum(snap.applicable_weight for snap in group), sum(snap.failed_weight for snap in group)),
             'snapshot_id': snapshot_id,
             'previous_snapshot_id': earlier if snapshot_id else False,
+            'is_illustrative': any(snap.is_illustrative for snap in group),
         })
         if snapshot_id:
             earlier = snapshot_id

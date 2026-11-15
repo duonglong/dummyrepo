@@ -15,24 +15,32 @@ def _scored(totals):
 
 
 def _rule_rows(env, companies, end):
-    """The latest score of every rule over the chosen companies, on or before ``end``: name, model and score."""
+    """The latest score of every rule over the chosen companies, on or before ``end``: name, model and score.
+
+    Returns the rows and whether a demo snapshot is among those read.
+    """
     Snapshot = env['data.quality.score.snapshot']
     domain = Domain('company_id', 'in', companies.ids) & Domain('rule_id', '!=', False)
     if end:
         domain &= Domain('date', '<', end)
     groups = Snapshot._read_group(domain, ['company_id', 'model_id', 'rule_id'], ['id:max'])
+    latest = Snapshot.browse([snapshot_id for *_keys, snapshot_id in groups])
     totals = {}
-    for snap in Snapshot.browse([latest for *_keys, latest in groups]):
+    for snap in latest:
         weights = totals.setdefault((snap.rule_id.name, snap.model_id.sudo().name), [0, 0])  # sudo: a viewer may not read ir.model
         weights[0] += snap.applicable_weight
         weights[1] += snap.failed_weight
-    return [
+    rows = [
         {'name': name, 'model': model, 'score': score}
         for (name, model), score in sorted(_scored(totals), key=lambda item: item[0])]
+    return rows, any(latest.mapped('is_illustrative'))
 
 
 def _trend_rows(env, companies, start, end, period):
-    """One score per period between the dates: the latest snapshot of each company and model in the period."""
+    """One score per period between the dates: the latest snapshot of each company and model in the period.
+
+    Returns the rows and whether a demo snapshot is among those read.
+    """
     Snapshot = env['data.quality.score.snapshot']
     domain = Domain('company_id', 'in', companies.ids) & Domain('rule_id', '=', False)
     if start:
@@ -47,16 +55,18 @@ def _trend_rows(env, companies, start, end, period):
         weights = totals.setdefault(day, [0, 0])
         weights[0] += snap.applicable_weight
         weights[1] += snap.failed_weight
-    return [{'period': day.isoformat(), 'score': score} for day, score in sorted(_scored(totals))]
+    rows = [{'period': day.isoformat(), 'score': score} for day, score in sorted(_scored(totals))]
+    return rows, any(latest.mapped('is_illustrative'))
 
 
 def report_data(env, company_ids, date_from, date_to, period):
     """The figures of the quality report, the ones the dashboard shows plus rules, trend, statuses and resolution time.
 
     The figures come from the same snapshots and issues as the dashboard, within the user's own
-    access (the dashboard method refuses a user below viewer level).
+    access (the dashboard method refuses a user below viewer level). ``is_illustrative`` is on when
+    any snapshot or issue behind a figure comes from the demo data.
 
-    Requirements: FR-DGQ-0078
+    Requirements: FR-DGQ-0078, FR-DGQ-0080
     """
     dashboard = env['data.quality.dashboard']
     figures = dashboard.get_figures(company_ids=company_ids, date=date_to)
@@ -76,15 +86,20 @@ def report_data(env, company_ids, date_from, date_to, period):
     if end:
         resolved &= Domain('date_resolved', '<', end)
     (average,) = Issue._read_group(resolved, [], ['resolution_hours:avg'])[0]
+    by_rule, rules_illustrative = _rule_rows(env, companies, end)
+    trend_rows, trend_illustrative = _trend_rows(env, companies, start, end, period)
     return {
+        'is_illustrative': (
+            figures['is_illustrative'] or rules_illustrative or trend_illustrative
+            or bool(Issue.search_count(issue_domain & Domain('is_illustrative', '=', True), limit=1))),
         'companies': companies.mapped('name'),
         'date_from': date_from, 'date_to': date_to,
         'score': figures['score'],
         'open_issues': figures['open_issues'],
         'by_company': figures['by_company'],
         'by_model': figures['by_model'],
-        'by_rule': _rule_rows(env, companies, end),
-        'trend': _trend_rows(env, companies, start, end, period),
+        'by_rule': by_rule,
+        'trend': trend_rows,
         'issues_by_severity': [
             {'severity': severities[severity], 'count': count} for severity, count in figures['issues_by_severity'].items()],
         'issues_by_status': [{'state': labels[state], 'count': count} for state, count in by_status],
@@ -112,9 +127,9 @@ def _rounded(score):
 
 
 def report_xlsx(env, data):
-    """The XLSX bytes of the report: one sheet with a table per figure.
+    """The XLSX bytes of the report: one sheet with a table per figure, under an 'Illustrative' mark for demo figures.
 
-    Requirements: FR-DGQ-0078
+    Requirements: FR-DGQ-0078, FR-DGQ-0080
     """
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(
@@ -139,6 +154,9 @@ def report_xlsx(env, data):
          [[row['state'], row['count']] for row in data['issues_by_status']]),
     ]
     row = 0
+    if data['is_illustrative']:
+        sheet.write_string(row, 0, env._("Illustrative"), workbook.add_format({'bold': True}))
+        row = 2
     for title, header, rows in tables:
         row = _table(workbook, sheet, row, title, header, rows)
     workbook.close()
