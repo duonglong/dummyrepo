@@ -31,7 +31,9 @@
         'views/dashboard_views.xml',
         'data/cron_scan.xml',
         'data/cron_automation.xml',
+        'data/automation_mail_templates.xml',
         'views/automation_views.xml',
+        'views/automation_run_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

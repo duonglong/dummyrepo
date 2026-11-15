@@ -12,7 +12,7 @@ RUN_USER_FIELDS = frozenset({'correction_id', 'kind'})
 class DataQualityCorrectionRun(models.Model):
     """One dry run or real run of a correction, with its counts and its log.
 
-    Requirements: FR-DGQ-0047, FR-DGQ-0050
+    Requirements: FR-DGQ-0047, FR-DGQ-0050, FR-DGQ-0068
     """
     _name = 'data.quality.correction.run'
     _inherit = ['data.quality.job.mixin']
@@ -41,6 +41,9 @@ class DataQualityCorrectionRun(models.Model):
         ondelete='set null', index=True)
     rolled_back = fields.Boolean(string='Rolled Back', readonly=True, copy=False)
     log_ids = fields.One2many('data.quality.correction.log', 'run_id', string='Log')
+    automation_run_id = fields.Many2one(
+        'data.quality.automation.run', string='Automation Run', readonly=True, copy=False,
+        ondelete='set null', index='btree_not_null')
 
     def _dgq_check_real_run(self, new_run=True):
         """Raise when this real run may not go on: the correction's checks, then the dry run it is bound to.
@@ -137,7 +140,11 @@ class DataQualityCorrectionRun(models.Model):
         """No field of a run is written by a user: the buttons and the engine write them."""
         if not self.env.su and vals:
             raise UserError(self.env._("A run is started by the buttons of its correction only."))
-        return super().write(vals)
+        result = super().write(vals)
+        if vals.get('state') in ('done', 'failed', 'cancelled'):
+            for run in self.filtered('automation_run_id'):
+                run.automation_run_id.sudo()._dgq_correction_ended()  # sudo: the run is the app's own record
+        return result
 
     def _dgq_run_batch(self):
         """Process the next batch of targets; a real run stops when its approval is gone.

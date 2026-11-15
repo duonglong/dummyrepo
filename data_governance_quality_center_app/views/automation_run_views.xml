@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="automation_run_view_list" model="ir.ui.view">
+        <field name="name">data.quality.automation.run.list</field>
+        <field name="model">data.quality.automation.run</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" decoration-danger="state == 'failed'" decoration-muted="state == 'skipped'">
+                <field name="automation_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state" widget="badge"/>
+                <field name="scan_id"/>
+                <field name="issues_created"/>
+                <field name="issues_assigned"/>
+                <field name="issues_escalated"/>
+                <field name="corrections_applied"/>
+                <field name="retry_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="automation_run_view_form" model="ir.ui.view">
+        <field name="name">data.quality.automation.run.form</field>
+        <field name="model">data.quality.automation.run</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="automation_id"/>
+                            <field name="state" widget="badge"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="scan_id"/>
+                        </group>
+                        <group>
+                            <field name="issues_created"/>
+                            <field name="issues_assigned"/>
+                            <field name="issues_escalated"/>
+                            <field name="corrections_applied"/>
+                            <field name="retry_count"/>
+                        </group>
+                    </group>
+                    <group invisible="not message and not skip_reason">
+                        <field name="message" invisible="not message"/>
+                        <field name="skip_reason" invisible="not skip_reason"/>
+                    </group>
+                    <field name="correction_run_ids" invisible="not correction_run_ids">
+                        <list>
+                            <field name="correction_id"/>
+                            <field name="state" widget="badge"/>
+                            <field name="count_changed"/>
+                            <field name="count_failed"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="automation_run_view_search" model="ir.ui.view">
+        <field name="name">data.quality.automation.run.search</field>
+        <field name="model">data.quality.automation.run</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="automation_id"/>
+                <filter name="failed" string="Failed" domain="[('state', '=', 'failed')]"/>
+                <filter name="done" string="Done" domain="[('state', '=', 'done')]"/>
+                <filter name="skipped" string="Skipped" domain="[('state', '=', 'skipped')]"/>
+                <group>
+                    <filter name="by_automation" string="Automation" context="{'group_by': 'automation_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="automation_run_action" model="ir.actions.act_window">
+        <field name="name">Automation History</field>
+        <field name="res_model">data.quality.automation.run</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No automation has run yet</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_dgq_automation_run" name="Automation History" parent="menu_dgq_configuration"
+              action="automation_run_action" sequence="45" groups="group_dgq_admin"/>
+</odoo>

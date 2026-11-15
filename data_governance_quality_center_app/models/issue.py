@@ -6,13 +6,14 @@ from ..services import explain
 
 OPERATOR_GROUP = 'data_governance_quality_center_app.group_dgq_operator'
 ASSIGNED_TEMPLATE = 'data_governance_quality_center_app.mail_template_issue_assigned'
+ESCALATED_TEMPLATE = 'data_governance_quality_center_app.mail_template_issue_escalated'
 
 
 class DataQualityIssue(models.Model):
     """The work item for one record failing one rule: one per pair, reopened rather than doubled.
 
     Requirements: BR-DGQ-0003, BR-DGQ-0004, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023, FR-DGQ-0024,
-    FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0030
+    FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0030, FR-DGQ-0067
     """
     _name = 'data.quality.issue'
     _inherit = ['data.quality.result.mixin', 'mail.thread', 'mail.activity.mixin']
@@ -56,6 +57,8 @@ class DataQualityIssue(models.Model):
     user_id = fields.Many2one('res.users', string='Assigned To', ondelete='set null', tracking=True)
     team_id = fields.Many2one('data.quality.team', string='Team', ondelete='set null', index='btree_not_null')
     deadline = fields.Date(tracking=True)
+    escalated_deadline = fields.Date(
+        readonly=True, copy=False, help="The deadline for which the issue was escalated.")
     ignore_reason = fields.Text()
 
     date_resolved = fields.Datetime(readonly=True, copy=False)
@@ -222,3 +225,28 @@ class DataQualityIssue(models.Model):
             'views': [(False, 'form')],
             'target': 'current',
         }
+
+    def _dgq_escalate(self, user):
+        """Raise the priority of each issue by one level, note it, and tell the user once about all of them.
+
+        The deadline escalated for is kept on the issue, so the same deadline is never escalated twice.
+
+        Requirements: FR-DGQ-0067
+        """
+        levels = [level for level, _label in self._fields['priority'].selection]
+        for issue in self:
+            position = levels.index(issue.priority) if issue.priority else 0
+            issue.write({
+                'priority': levels[min(position + 1, len(levels) - 1)],
+                'escalated_deadline': issue.deadline,
+            })
+            issue.message_post(
+                body=self.env._("Escalated: the deadline %s has passed.", issue.deadline),
+                subtype_xmlid='mail.mt_note')
+        if not user:
+            return
+        issues = self.with_context(lang=user.lang)
+        template = self.env.ref(ESCALATED_TEMPLATE).with_context(lang=user.lang, dgq_issues=issues)
+        subject = template._render_field('subject', issues[:1].ids)[issues[:1].id]
+        body = template._render_field('body_html', issues[:1].ids)[issues[:1].id]
+        self.env['mail.thread'].message_notify(partner_ids=user.partner_id.ids, subject=subject, body=body)

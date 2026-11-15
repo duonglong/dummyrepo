@@ -70,3 +70,9 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 # Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
+
+# Times a failed automation run is tried again at its next due times before it is marked failed (FR-DGQ-0069).
+AUTOMATION_RETRIES = 3
+
+# Days after its deadline that an open issue waits before it is escalated, unless the automation says otherwise (FR-DGQ-0067).
+ESCALATION_DEFAULT_DAYS = 1
