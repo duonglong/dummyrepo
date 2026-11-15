@@ -28,11 +28,13 @@
         'views/menus.xml',
         'views/correction_views.xml',
         'views/issue_bulk_views.xml',
+        'views/dashboard_views.xml',
         'data/cron_scan.xml',
     ],
     'assets': {
         'web.assets_backend': [
             'data_governance_quality_center_app/static/src/record_picker/*',
+            'data_governance_quality_center_app/static/src/dashboard/*',
         ],
     },
     'installable': True,
