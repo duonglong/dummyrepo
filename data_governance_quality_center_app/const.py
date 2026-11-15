@@ -71,6 +71,22 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
 
+# Days scan result lines and import files are kept, and days a Resolved or Ignored issue is kept (BR-DGQ-0013, FR-DGQ-0077).
+SCAN_LINE_RETENTION_DAYS = 90
+ISSUE_RETENTION_DAYS = 365
+SCAN_LINE_RETENTION_PARAMETER = 'data_quality.scan_line_retention_days'
+ISSUE_RETENTION_PARAMETER = 'data_quality.issue_retention_days'
+
+# Days a failed run stays on the health page (FR-DGQ-0079).
+HEALTH_FAILED_DAYS = 7
+
+# Scans the health page lists with their duration (FR-DGQ-0079).
+HEALTH_LAST_SCANS = 5
+
+# Settings keys the scheduled scans and the escalation read (FR-DGQ-0076).
+SCAN_FREQUENCY_PARAMETER = 'data_quality.scan_frequency'
+ESCALATION_DAYS_PARAMETER = 'data_quality.escalation_days'
+
 # Most frequent values, shapes and linked records a profile keeps for a field (FR-DGQ-0053, FR-DGQ-0055).
 PROFILE_TOP_COUNT = 20
 
@@ -90,3 +106,11 @@ IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross
 
 # Longest cell value kept with a finding.
 IMPORT_VALUE_MAX_LENGTH = 255
+
+# Space between the default sequences, so a person can slot a widget in between (FR-DGQ-0037).
+DASHBOARD_WIDGET_STEP = 10
+
+# The periods of the score trend (FR-DGQ-0034).
+TREND_PERIODS = ('day', 'week', 'month')
+# Records listed behind a figure of records (FR-DGQ-0036).
+DRILL_DOWN_RECORD_LIMIT = 1000

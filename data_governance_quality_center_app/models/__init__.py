@@ -27,10 +27,12 @@ from . import scan_tally
 from . import issue
 from . import issue_bulk
 from . import import_session
-from . import settings
 from . import score_snapshot
+from . import dashboard_layout
 from . import dashboard
 from . import team
 from . import automation
 from . import event_queue
 from . import profile
+from . import res_config_settings
+from . import retention
