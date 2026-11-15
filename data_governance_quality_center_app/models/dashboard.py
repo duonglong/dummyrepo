@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 from ..const import (
-    DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, DASHBOARD_WIDGET_STEP, DASHBOARD_WIDGETS,
+    DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, DASHBOARD_WIDGET_STEP,
     DRILL_DOWN_RECORD_LIMIT, ISSUE_OPEN_STATES, SEVERITY_WEIGHT_DEFAULTS, TREND_PERIODS)
 from ..services import scoring, trend
 
@@ -90,7 +90,7 @@ class DataQualityDashboard(models.AbstractModel):
         Requirements: FR-DGQ-0033
         """
         Snapshot = self.env['data.quality.score.snapshot']
-        domain = [('company_id', 'in', companies.ids), ('rule_id', '=', False)]
+        domain = [('company_id', 'in', companies.ids), ('rule_id', '=', False), ('severity', '=', False)]
         if end:
             domain.append(('date', '<', end))
         groups = Snapshot._read_group(domain, ['company_id', 'model_id'], ['id:max'])
@@ -195,17 +195,26 @@ class DataQualityDashboard(models.AbstractModel):
         if model_id:
             domain.append(('res_model', '=', self.env['ir.model'].browse(model_id).model))
         if figure in ('records_error', 'records_warning') and model_id:
-            groups = self.env['data.quality.issue']._read_group(domain, ['res_id'], limit=DRILL_DOWN_RECORD_LIMIT)
+            groups = self.env['data.quality.issue']._read_group(
+                domain, ['res_id'], order='res_id', limit=DRILL_DOWN_RECORD_LIMIT + 1)
             model = self.env['ir.model'].browse(model_id)
+            cut = len(groups) > DRILL_DOWN_RECORD_LIMIT
             return {
-                'type': 'ir.actions.act_window', 'name': model.name, 'res_model': model.model,
+                'type': 'ir.actions.act_window',
+                'name': self.env._("%(model)s (first %(limit)s)", model=model.name, limit=DRILL_DOWN_RECORD_LIMIT)
+                if cut else model.name, 'res_model': model.model,
                 'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')],
-                'domain': [('id', 'in', [res_id for (res_id,) in groups])],
+                'domain': [('id', 'in', [res_id for (res_id,) in groups[:DRILL_DOWN_RECORD_LIMIT]])],
             }
         return {
             'type': 'ir.actions.act_window', 'name': name, 'res_model': 'data.quality.issue',
             'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')], 'domain': domain,
         }
+
+    @api.model
+    def _widgets(self):
+        """The widgets of the dashboard in their default order, as (key, translated label)."""
+        return self.env['data.quality.dashboard.layout']._fields['widget']._description_selection(self.env)
 
     @api.model
     def get_layout(self):
@@ -219,10 +228,10 @@ class DataQualityDashboard(models.AbstractModel):
         lines = {line.widget: line for line in self.env['data.quality.dashboard.layout'].search(
             [('user_id', '=', self.env.uid)])}
         layout = []
-        for index, (widget, label) in enumerate(DASHBOARD_WIDGETS):
+        for index, (widget, label) in enumerate(self._widgets()):
             line = lines.get(widget)
             layout.append({
-                'widget': widget, 'label': self.env._(label),
+                'widget': widget, 'label': label,
                 'sequence': line.sequence if line else index * DASHBOARD_WIDGET_STEP,
                 'visible': line.visible if line else True, '_default': index})
         layout.sort(key=lambda item: (item['sequence'], item['_default']))
@@ -236,7 +245,7 @@ class DataQualityDashboard(models.AbstractModel):
         """
         self._check_viewer()
         Layout = self.env['data.quality.dashboard.layout']
-        known = {widget for widget, _label in DASHBOARD_WIDGETS}
+        known = {widget for widget, _label in self._widgets()}
         lines = {line.widget: line for line in Layout.search([('user_id', '=', self.env.uid)])}
         for index, item in enumerate(widgets):
             if item['widget'] not in known:

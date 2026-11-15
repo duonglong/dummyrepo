@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import tagged
@@ -154,3 +156,51 @@ class TestTrend(M3Case):
         """FR-DGQ-0037: only the dashboard's widgets have a place."""
         with self.assertRaises(UserError):
             self.dashboard.save_layout([{'widget': 'nonsense', 'visible': True}])
+
+    def test_a_default_user_cannot_put_a_line_into_another_persons_layout(self):
+        """FR-DGQ-0037: a context default for the owner is judged like a value."""
+        with self.assertRaises(AccessError):
+            self.env['data.quality.dashboard.layout'].with_user(self.viewer).with_context(
+                default_user_id=self.operator.id).create({'widget': 'recent', 'visible': False})
+
+    def test_a_line_cannot_be_handed_to_another_person(self):
+        """FR-DGQ-0037: writing the owner of one's own line is refused."""
+        line = self.env['data.quality.dashboard.layout'].with_user(self.viewer).create({'widget': 'recent'})
+        with self.assertRaises(AccessError):
+            line.write({'user_id': self.operator.id})
+        self.assertEqual(line.user_id, self.viewer)
+
+    def test_the_trend_carries_models_scanned_earlier_like_the_dashboard(self):
+        """FR-DGQ-0034: a week with a scan of one model only scores the same as the dashboard on its last day."""
+        self.snap(100, 30, '2026-10-28 10:00:00')
+        self.snap(100, 5, '2026-10-29 10:00:00', model='product.template')
+        self.snap(100, 20, '2026-11-04 10:00:00')  # week 45: Contact only
+        points = self.dashboard.get_trend(period='week')['points']
+        figures = self.dashboard.get_figures(date='2026-11-08')
+        self.assertEqual(len(points), 2)
+        self.assertAlmostEqual(points[0]['score'], 100 * (1 - 35 / 200))
+        self.assertAlmostEqual(points[1]['score'], figures['score'])
+        self.assertAlmostEqual(points[1]['score'], 100 * (1 - 25 / 200))
+        self.assertFalse(points[1]['snapshot_id'])
+
+    def test_the_trend_of_a_company_and_model_has_a_snapshot_to_explain(self):
+        """FR-DGQ-0035: scoped to one company and model a point names its one snapshot."""
+        first = self.snap(100, 30, '2026-10-28 10:00:00')
+        self.snap(100, 5, '2026-10-29 10:00:00', model='product.template')
+        points = self.dashboard.get_trend(
+            company_ids=[self.cx.id], model_id=self.model('res.partner').id, period='week')['points']
+        self.assertEqual([p['snapshot_id'] for p in points], [first.id])
+
+    def test_a_cut_list_of_records_says_so(self):
+        """FR-DGQ-0036: the list of records behind a figure names its limit when it is cut."""
+        rule = self.make_rule('res.partner', 'required', ['name'], severity='critical')
+        partners = self.env['res.partner'].create([{'name': 'P%s' % i} for i in range(3)])
+        for partner in partners:
+            self.env['data.quality.issue'].create({
+                'rule_id': rule.id, 'res_model': 'res.partner', 'res_id': partner.id,
+                'severity': 'critical', 'company_id': self.cx.id})
+        model_id = self.model('res.partner').id
+        with patch('odoo.addons.data_governance_quality_center_app.models.dashboard.DRILL_DOWN_RECORD_LIMIT', 2):
+            action = self.dashboard.drill_down('records_error', model_id=model_id)
+        self.assertEqual(action['domain'], [('id', 'in', sorted(partners.ids)[:2])])
+        self.assertIn('first 2', action['name'])

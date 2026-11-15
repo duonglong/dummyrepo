@@ -27,33 +27,33 @@ def next_period(start, period):
 
 
 def trend_points(env, snapshots, period):
-    """The score of each period of the snapshots, using the last snapshot of each model and company in it.
+    """The score of each period that holds a snapshot, as the dashboard scores the same date.
 
-    A period without a snapshot between the first and the last one is listed with no score, so
-    a gap shows as a gap and no value is guessed. The ``snapshot_id`` of a point is that of the
-    one snapshot behind it, empty when several models or companies make the figure.
+    The score of a period is the weighted sum over the latest snapshot of every company and
+    model at the end of that period: one scanned in an earlier period counts again, so a
+    scan of some models only does not move the line. A period without any snapshot between
+    the first and the last one is listed with no score, so a gap shows as a gap and no value
+    is guessed. The ``snapshot_id`` of a point is that of the one snapshot behind it, empty
+    when several models or companies make the figure.
 
     Requirements: FR-DGQ-0034
     """
     if period not in TREND_PERIODS:
         period = 'day'
-    last = {}  # (period start, company id, model id) -> snapshot
+    scanned = {}  # period start -> {(company id, model id): last snapshot of that period}
     for snap in snapshots.sorted(lambda snap: (snap.date, snap.id)):
-        day = _local_day(env, snap.date)
-        last[(period_start(day, period), snap.company_id.id, snap.model_id.id)] = snap
-    by_period = {}
-    for (start, _company, _model), snap in last.items():
-        by_period.setdefault(start, []).append(snap)
-    if not by_period:
+        start = period_start(_local_day(env, snap.date), period)
+        scanned.setdefault(start, {})[(snap.company_id.id, snap.model_id.id)] = snap
+    if not scanned:
         return []
-    points, start = [], min(by_period)
-    while start <= max(by_period):
-        group = by_period.get(start, [])
-        applicable = sum(snap.applicable_weight for snap in group)
-        failed = sum(snap.failed_weight for snap in group)
+    points, current, start = [], {}, min(scanned)
+    while start <= max(scanned):
+        current.update(scanned.get(start, {}))
+        group = list(current.values()) if start in scanned else []
         points.append({
             'period': start.isoformat(),
-            'score': scoring.score(applicable, failed),
+            'score': scoring.score(
+                sum(snap.applicable_weight for snap in group), sum(snap.failed_weight for snap in group)),
             'snapshot_id': group[0].id if len(group) == 1 else False,
         })
         start = next_period(start, period)

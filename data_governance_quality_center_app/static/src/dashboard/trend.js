@@ -4,19 +4,32 @@ import { useService } from "@web/core/utils/hooks";
 
 export class DgqTrend extends Component {
     static template = "data_governance_quality_center_app.Trend";
-    static props = { companyIds: { type: Array } };
+    static props = {
+        companyIds: { type: Array },
+        companies: { type: Array },
+        models: { type: Array },
+        date: { type: String },
+    };
 
     setup() {
         this.orm = useService("orm");
-        this.state = useState({ period: "week", points: [], explanation: null });
-        onWillStart(() => this.load(this.props.companyIds));
-        onWillUpdateProps((next) => this.load(next.companyIds));
+        this.state = useState({
+            period: "week",
+            companyId: 0,
+            modelId: 0,
+            points: [],
+            explanation: null,
+        });
+        onWillStart(() => this.load(this.props));
+        onWillUpdateProps((next) => this.load(next));
     }
 
-    async load(companyIds) {
+    async load(props) {
         const result = await this.orm.call("data.quality.dashboard", "get_trend", [], {
-            company_ids: companyIds,
+            company_ids: this.state.companyId ? [this.state.companyId] : props.companyIds,
+            model_id: this.state.modelId || false,
             period: this.state.period,
+            date_to: props.date || false,
         });
         this.state.points = result.points;
         this.state.explanation = null;
@@ -24,7 +37,16 @@ export class DgqTrend extends Component {
 
     async setPeriod(period) {
         this.state.period = period;
-        await this.load(this.props.companyIds);
+        await this.load(this.props);
+    }
+
+    async setScope(field, ev) {
+        this.state[field] = parseInt(ev.target.value, 10);
+        await this.load(this.props);
+    }
+
+    periodLabel(period) {
+        return { day: _t("Day"), week: _t("Week"), month: _t("Month") }[period];
     }
 
     async explain(point) {

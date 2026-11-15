@@ -37,7 +37,8 @@
                         <div t-if="item.widget == 'score'" class="d-flex flex-wrap gap-4 mb-4">
                             <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-1 fw-bold" t-out="formatScore(state.figures.score)"/><div>Score</div></div>
                         </div>
-                        <DgqTrend t-elif="item.widget == 'trend'" companyIds="state.companyIds"/>
+                        <DgqTrend t-elif="item.widget == 'trend'" companyIds="state.companyIds" companies="state.figures.companies"
+                                  models="state.figures.by_model" date="state.date"/>
                         <div t-elif="item.widget == 'records'" class="d-flex flex-wrap gap-4 mb-4">
                             <div><div class="fs-3" t-out="state.figures.records_scanned"/><div>Scanned</div></div>
                             <div role="button" t-on-click="() => this.drill('records_error')"><div class="fs-3 text-danger" t-out="state.figures.records_error"/><div>Errors</div></div>
@@ -61,7 +62,8 @@
                         </div>
                         <div t-elif="item.widget == 'by_company'" class="mb-4">
                             <h5>By company</h5>
-                            <div t-foreach="state.figures.by_company" t-as="row" t-key="row.id" class="d-flex justify-content-between">
+                            <div t-foreach="state.figures.by_company" t-as="row" t-key="row.id" class="d-flex justify-content-between"
+                                 role="button" t-on-click="() => this.drill('open_issues', {company_ids: [row.id]})">
                                 <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
                             </div>
                         </div>
