@@ -79,3 +79,14 @@ PROFILE_STALE_DAYS = 365
 
 # A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
 PROFILE_OUTLIER_FACTOR = 1.5
+
+# Largest import file and most data rows a check takes (FR-DGQ-0058).
+IMPORT_MAX_BYTES = 20 * 1024 * 1024
+IMPORT_MAX_ROWS = 100000
+
+# Rule types an import check evaluates on the rows of a file: they read the values of the row only.
+# A link rule and a custom validator need saved records: the check names them as not checked (FR-DGQ-0059).
+IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross_field')
+
+# Longest cell value kept with a finding.
+IMPORT_VALUE_MAX_LENGTH = 255
