@@ -86,3 +86,31 @@ HEALTH_LAST_SCANS = 5
 # Settings keys the scheduled scans and the escalation read (FR-DGQ-0076).
 SCAN_FREQUENCY_PARAMETER = 'data_quality.scan_frequency'
 ESCALATION_DAYS_PARAMETER = 'data_quality.escalation_days'
+
+# Most frequent values, shapes and linked records a profile keeps for a field (FR-DGQ-0053, FR-DGQ-0055).
+PROFILE_TOP_COUNT = 20
+
+# Days without an update after which a record is stale, unless the profile says otherwise (FR-DGQ-0055).
+PROFILE_STALE_DAYS = 365
+
+# A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
+PROFILE_OUTLIER_FACTOR = 1.5
+
+# Largest import file and most data rows a check takes (FR-DGQ-0058).
+IMPORT_MAX_BYTES = 20 * 1024 * 1024
+IMPORT_MAX_ROWS = 100000
+
+# Rule types an import check evaluates on the rows of a file: they read the values of the row only.
+# A link rule and a custom validator need saved records: the check names them as not checked (FR-DGQ-0059).
+IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross_field')
+
+# Longest cell value kept with a finding.
+IMPORT_VALUE_MAX_LENGTH = 255
+
+# Space between the default sequences, so a person can slot a widget in between (FR-DGQ-0037).
+DASHBOARD_WIDGET_STEP = 10
+
+# The periods of the score trend (FR-DGQ-0034).
+TREND_PERIODS = ('day', 'week', 'month')
+# Records listed behind a figure of records (FR-DGQ-0036).
+DRILL_DOWN_RECORD_LIMIT = 1000

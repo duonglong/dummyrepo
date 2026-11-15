@@ -64,15 +64,19 @@ def not_run_reason(env, rule):
     return False
 
 
-def record_domain(model, companies, last_id, rules):
+def record_domain(model, companies, last_id, rules, res_ids=None):
     """Domain of the records one batch reads: after the checkpoint, in the companies the rules are about.
+
+    An event scan names its records in ``res_ids``: only those are read.
 
     A record with no company is read only when a rule is not limited to companies; a rule
     limited to companies never applies to it.
 
-    Requirements: FR-DGQ-0016
+    Requirements: FR-DGQ-0016, FR-DGQ-0064
     """
     domain = Domain('id', '>', last_id)
+    if res_ids:
+        domain &= Domain('id', 'in', res_ids)
     if 'company_id' in model._fields:
         if all(rule.company_ids for rule in rules):
             allowed = companies & rules.company_ids

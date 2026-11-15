@@ -28,12 +28,16 @@
         'views/menus.xml',
         'views/correction_views.xml',
         'views/issue_bulk_views.xml',
+        'views/import_check_views.xml',
+        'views/profile_views.xml',
         'views/dashboard_views.xml',
         'data/cron_scan.xml',
         'data/cron_cleanup.xml',
         'views/health_views.xml',
         'views/report_views.xml',
         'views/res_config_settings_views.xml',
+        'data/cron_automation.xml',
+        'views/automation_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

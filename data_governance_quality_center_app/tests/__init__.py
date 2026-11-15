@@ -47,6 +47,10 @@ from . import test_automation_acceptance
 from . import test_automation_actions_acceptance
 from . import test_scoring
 from . import test_dashboard
+from . import test_profile
+from . import test_import_check
 from . import test_settings_purge_acceptance
 from . import test_sample_data_acceptance
 from . import test_settings_purge
+from . import test_automation
+from . import test_trend
