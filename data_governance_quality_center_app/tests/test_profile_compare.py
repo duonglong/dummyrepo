@@ -146,6 +146,32 @@ class TestProfileCompare(M3Case):
                 profile.sudo().compare_profile_id = other  # sudo: the constraint is the guard
         new.sudo().compare_profile_id = old
 
+    def test_dialog_shows_no_figures_against_an_unfinished_earlier_profile(self):
+        """FR-DGQ-0056: opened with Form (never saved), the dialog gives no rows for a draft or later base.
+
+        The Compare button is left to the screen review.
+        """
+        self.isolate('res.partner')
+        self._contacts(1, 1, 'h')
+        old = self._profile()
+        new = self._profile()
+        draft = self.make_profile('res.partner', ['email'])
+        new.sudo().compare_profile_id = old
+        action = new.action_compare()
+        with Form(self.env[action['res_model']].with_context(**action['context'])) as form:
+            self.assertEqual(form.compare_profile_id, old)
+            self.assertTrue(len(form.line_ids))
+        self.assertEqual(profile_compare.compare_profiles(self.env, new, draft), [])
+        self.assertEqual(profile_compare.compare_profiles(self.env, old, new), [])
+        self.assertEqual(profile_compare.compare_profiles(self.env, draft, old), [])
+        early_draft = self.make_profile('res.partner', ['email'])
+        later = self._profile()
+        later.sudo().compare_profile_id = early_draft  # the constraint accepts it; the dialog does not
+        action = later.action_compare()
+        form = Form(self.env[action['res_model']].with_context(**action['context']))  # never saved, as on screen
+        self.assertFalse(form.compare_profile_id)
+        self.assertFalse(len(form.line_ids))
+
     def test_comparison_reads_the_lines_as_the_user(self):
         """FR-DGQ-0056: a viewer of another company gets no figures of a profile of company X."""
         self.isolate('res.partner')

@@ -21,15 +21,20 @@ class DataQualityProfileCompareWizard(models.TransientModel):
         'data.quality.profile', string='Earlier Profile', required=True, ondelete='cascade',
         domain="[('model_id', '=', model_id), ('company_id', '=', company_id), "
                "('state', '=', 'done'), ('id', '<', profile_id)]",
-        default=lambda self: self.env['data.quality.profile'].browse(
-            self.env.context.get('active_id')).compare_profile_id.id
-        if self.env.context.get('active_model') == 'data.quality.profile' else False,
+        default=lambda self: self._default_compare_profile(),
         help="A finished profile of the same model and company, made before the profile.")
     model_id = fields.Many2one(related='profile_id.model_id')
     company_id = fields.Many2one(related='profile_id.company_id')
     line_ids = fields.One2many(
         'data.quality.profile.compare.line', 'wizard_id', string='Fields',
         compute='_compute_line_ids', store=True, readonly=True)
+
+    def _default_compare_profile(self):
+        """The earlier profile chosen on the profile, when it is a finished one."""
+        if self.env.context.get('active_model') != 'data.quality.profile':
+            return False
+        earlier = self.env['data.quality.profile'].browse(self.env.context.get('active_id')).compare_profile_id
+        return earlier.id if earlier.state == 'done' else False
 
     @api.constrains('profile_id', 'compare_profile_id')
     def _check_profiles(self):
@@ -54,7 +59,7 @@ class DataQualityProfileCompareWizard(models.TransientModel):
         """
         for wizard in self:
             lines = [(5, 0, 0)]
-            if wizard.profile_id and wizard.compare_profile_id:
+            if wizard.profile_id and wizard.compare_profile_id:  # no rows unless both are finished, earlier first
                 lines += [(0, 0, row) for row in profile_compare.compare_profiles(
                     self.env, wizard.profile_id, wizard.compare_profile_id)]
             wizard.line_ids = lines

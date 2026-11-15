@@ -40,7 +40,7 @@ class DataQualityProfile(models.Model):
     compare_profile_id = fields.Many2one(
         'data.quality.profile', string='Compare With', copy=False, ondelete='set null',
         domain="[('model_id', '=', model_id), ('company_id', '=', company_id), "
-               "('state', '=', 'done'), ('id', '!=', id)]",
+               "('state', '=', 'done')] + ([('id', '<', id)] if id else [])",
         help="A finished, earlier profile of the same model and company.")
     next_field_index = fields.Integer(copy=False)
     line_ids = fields.One2many('data.quality.profile.line', 'profile_id', string='Fields Profiled')

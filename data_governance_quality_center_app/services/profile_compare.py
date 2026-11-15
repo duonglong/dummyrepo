@@ -39,6 +39,15 @@ def _shape_changes(env, old, new):
     return '; '.join(parts)
 
 
+def can_compare(profile, earlier):
+    """Whether both profiles are finished and ``earlier`` was made before ``profile``.
+
+    Requirements: FR-DGQ-0056
+    """
+    return (profile.state == 'done' and earlier.state == 'done' and earlier.id < profile.id
+            and (profile.model_id, profile.company_id) == (earlier.model_id, earlier.company_id))
+
+
 def compare_profiles(env, profile, earlier):
     """Compare ``profile`` with the ``earlier`` profile of the same model and company, per field.
 
@@ -46,9 +55,12 @@ def compare_profiles(env, profile, earlier):
     (``changed``, ``same``, ``added`` for a field only in ``profile``, ``dropped`` for a field only
     in ``earlier``) and, for a field in both, the empty share and distinct values of each profile
     with their change (later minus earlier) and the texts of the changed shapes and number statistics.
+    Nothing is returned unless ``can_compare``: an unfinished or later profile gives no figures.
 
     Requirements: FR-DGQ-0056
     """
+    if not can_compare(profile, earlier):
+        return []
     new_lines = {line.field_name: line for line in profile.line_ids}
     old_lines = {line.field_name: line for line in earlier.line_ids}
     rows = []
