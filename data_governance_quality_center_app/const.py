@@ -70,3 +70,18 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 # Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
+
+# Days scan result lines and import files are kept, and days a Resolved or Ignored issue is kept (BR-DGQ-0013, FR-DGQ-0077).
+SCAN_LINE_RETENTION_DAYS = 90
+ISSUE_RETENTION_DAYS = 365
+SCAN_LINE_RETENTION_PARAMETER = 'data_quality.scan_line_retention_days'
+ISSUE_RETENTION_PARAMETER = 'data_quality.issue_retention_days'
+
+# Days a failed run stays on the health page (FR-DGQ-0079).
+HEALTH_FAILED_DAYS = 7
+
+# Scans the health page lists with their duration (FR-DGQ-0079).
+HEALTH_LAST_SCANS = 5
+
+# Default days before an overdue issue is escalated (FR-DGQ-0076).
+ESCALATION_DAYS = 1

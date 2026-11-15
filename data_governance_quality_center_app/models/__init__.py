@@ -28,4 +28,6 @@ from . import issue
 from . import issue_bulk
 from . import score_snapshot
 from . import dashboard
-from . import settings
+from . import res_config_settings
+from . import retention
+from . import import_session

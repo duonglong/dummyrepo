@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.data.quality</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Data Quality" name="data_governance_quality_center_app"
+                     groups="data_governance_quality_center_app.group_dgq_admin">
+                    <block title="Scoring">
+                        <setting string="Severity weights" help="How much a failed check counts in the score, by severity.">
+                            <div class="content-group">
+                                <div class="row mt8">
+                                    <label for="dgq_weight_info" class="col-lg-4"/>
+                                    <field name="dgq_weight_info"/>
+                                </div>
+                                <div class="row">
+                                    <label for="dgq_weight_warning" class="col-lg-4"/>
+                                    <field name="dgq_weight_warning"/>
+                                </div>
+                                <div class="row">
+                                    <label for="dgq_weight_critical" class="col-lg-4"/>
+                                    <field name="dgq_weight_critical"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Scans and follow-up">
+                        <setting>
+                            <field name="dgq_scan_frequency"/>
+                        </setting>
+                        <setting>
+                            <field name="dgq_escalation_days"/>
+                        </setting>
+                        <setting>
+                            <field name="dgq_notify_email"/>
+                        </setting>
+                    </block>
+                    <block title="Retention">
+                        <setting>
+                            <field name="dgq_scan_line_retention_days"/>
+                        </setting>
+                        <setting>
+                            <field name="dgq_issue_retention_days"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
