@@ -201,7 +201,7 @@ class M3Case(M2BCase):
         with Form(Session) as form:
             form.model_id = self.model(model_name)
             form.company_id = company or self.cx
-            form.file = base64.b64encode(content)
+            form.file = base64.b64encode(content).decode()
             form.file_name = file_name
             form.mode = mode
             for rule in rules:
