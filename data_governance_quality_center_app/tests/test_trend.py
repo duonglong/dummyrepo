@@ -204,3 +204,16 @@ class TestTrend(M3Case):
             action = self.dashboard.drill_down('records_error', model_id=model_id)
         self.assertEqual(action['domain'], [('id', 'in', sorted(partners.ids)[:2])])
         self.assertIn('first 2', action['name'])
+
+    def test_a_point_is_explained_against_the_point_before_it(self):
+        """FR-DGQ-0035: with several scans in a week, a point names the last snapshot of the earlier point."""
+        week_44 = self.snap(100, 30, '2026-10-29 10:00:00', score=70.0)
+        self.snap(100, 25, '2026-11-02 10:00:00', score=75.0)
+        week_45 = self.snap(100, 20, '2026-11-05 10:00:00', score=80.0)
+        points = self.dashboard.get_trend(
+            company_ids=[self.cx.id], model_id=self.model('res.partner').id, period='week')['points']
+        self.assertEqual([p['previous_snapshot_id'] for p in points], [False, week_44.id])
+        result = self.dashboard.explain_change(points[1]['snapshot_id'], points[1]['previous_snapshot_id'])
+        self.assertEqual(points[1]['snapshot_id'], week_45.id)
+        self.assertAlmostEqual(result['score_before'], 70.0)
+        self.assertAlmostEqual(result['score_after'], 80.0)

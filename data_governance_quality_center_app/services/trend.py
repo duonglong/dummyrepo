@@ -46,16 +46,20 @@ def trend_points(env, snapshots, period):
         scanned.setdefault(start, {})[(snap.company_id.id, snap.model_id.id)] = snap
     if not scanned:
         return []
-    points, current, start = [], {}, min(scanned)
+    points, current, start, earlier = [], {}, min(scanned), False
     while start <= max(scanned):
         current.update(scanned.get(start, {}))
         group = list(current.values()) if start in scanned else []
+        snapshot_id = group[0].id if len(group) == 1 else False
         points.append({
             'period': start.isoformat(),
             'score': scoring.score(
                 sum(snap.applicable_weight for snap in group), sum(snap.failed_weight for snap in group)),
-            'snapshot_id': group[0].id if len(group) == 1 else False,
+            'snapshot_id': snapshot_id,
+            'previous_snapshot_id': earlier if snapshot_id else False,
         })
+        if snapshot_id:
+            earlier = snapshot_id
         start = next_period(start, period)
     return points
 

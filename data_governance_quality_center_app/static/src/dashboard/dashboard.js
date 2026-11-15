@@ -40,6 +40,11 @@ export class DgqDashboard extends Component {
         await this.load();
     }
 
+    async drillRecords(figure) {
+        const models = this.state.figures.by_model;
+        await this.drill(figure, models.length === 1 ? { model_id: models[0].id } : {});
+    }
+
     async drill(figure, extra = {}) {
         const action = await this.orm.call("data.quality.dashboard", "drill_down", [], {
             figure,

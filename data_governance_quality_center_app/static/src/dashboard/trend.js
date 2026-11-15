@@ -52,6 +52,7 @@ export class DgqTrend extends Component {
     async explain(point) {
         this.state.explanation = await this.orm.call("data.quality.dashboard", "explain_change", [
             point.snapshot_id,
+            point.previous_snapshot_id,
         ]);
     }
 

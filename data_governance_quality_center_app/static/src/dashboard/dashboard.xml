@@ -41,8 +41,8 @@
                                   models="state.figures.by_model" date="state.date"/>
                         <div t-elif="item.widget == 'records'" class="d-flex flex-wrap gap-4 mb-4">
                             <div><div class="fs-3" t-out="state.figures.records_scanned"/><div>Scanned</div></div>
-                            <div role="button" t-on-click="() => this.drill('records_error')"><div class="fs-3 text-danger" t-out="state.figures.records_error"/><div>Errors</div></div>
-                            <div role="button" t-on-click="() => this.drill('records_warning')"><div class="fs-3 text-warning" t-out="state.figures.records_warning"/><div>Warnings</div></div>
+                            <div role="button" t-on-click="() => this.drillRecords('records_error')"><div class="fs-3 text-danger" t-out="state.figures.records_error"/><div>Errors</div></div>
+                            <div role="button" t-on-click="() => this.drillRecords('records_warning')"><div class="fs-3 text-warning" t-out="state.figures.records_warning"/><div>Warnings</div></div>
                         </div>
                         <div t-elif="item.widget == 'issues'" class="d-flex flex-wrap gap-4 mb-4">
                             <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-3" t-out="state.figures.open_issues"/><div>Open issues</div></div>
