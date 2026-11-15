@@ -42,6 +42,11 @@ class DataQualityScan(models.Model):
     company_ids = fields.Many2many(
         'res.company', string='Companies', copy=False,
         help="The companies whose records are scanned. Leave empty for all your allowed companies.")
+    res_ids = fields.Json(
+        string='Records', copy=False, readonly=True,
+        help="The ids of the records an event scan checks; empty for a scan of the whole scope.")
+    automation_run_id = fields.Many2one(
+        'data.quality.automation.run', string='Automation Run', copy=False, readonly=True, ondelete='set null')
     rules_not_run = fields.Json(string='Rules Not Run', copy=False, readonly=True)
     rules_not_run_text = fields.Text(compute='_compute_rules_not_run_text')
 
@@ -125,15 +130,21 @@ class DataQualityScan(models.Model):
     def write(self, vals):
         """A user changes only the scope, and only while every scan is draft.
 
-        A queued or running scan keeps the scope its overlap and not-run checks were made on.
+        A queued or running scan keeps the scope its overlap and not-run checks were made on. When a scan
+        started by an automation ends, its run records the outcome and hands the new issues to the team.
 
-        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0070
+        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0065, FR-DGQ-0070
         """
         if not self.env.su:
             self._dgq_check_user_values(set(vals))
             if any(scan.state != 'draft' for scan in self):
                 raise UserError(self.env._("The scope of a scan can only be changed while it is a draft."))
-        return super().write(vals)
+        result = super().write(vals)
+        if vals.get('state') in ('done', 'failed', 'cancelled'):
+            for scan in self.filtered('automation_run_id'):
+                # sudo: the run is the app's own record
+                scan.automation_run_id.sudo()._dgq_close(scan)
+        return result
 
     @api.model
     def _dgq_check_user_values(self, names):
@@ -276,7 +287,8 @@ class DataQualityScan(models.Model):
         for model in runnable.model_id:
             Model = self.env[model.model].sudo()  # sudo: scans read every record of the scope
             total += Model.search_count(scan_service.record_domain(
-                Model, self.company_ids, 0, runnable.filtered(lambda rule: rule.model_id == model)))
+                Model, self.company_ids, 0, runnable.filtered(lambda rule: rule.model_id == model),
+                self.res_ids))
         self.env['data.quality.scan.checkpoint'].create([
             {'scan_id': self.id, 'model_id': model.id} for model in runnable.model_id])
         self.write({'rules_not_run': not_run, 'total_count': total})
@@ -316,7 +328,7 @@ class DataQualityScan(models.Model):
         for rule in rules:
             names |= scan_service.rule_fields(rule)
         records = Model.search_fetch(
-            scan_service.record_domain(Model, self.company_ids, checkpoint.last_id, rules),
+            scan_service.record_domain(Model, self.company_ids, checkpoint.last_id, rules, self.res_ids),
             sorted(names), order='id', limit=JOB_BATCH_SIZE)
         lines, passed, failed, not_applicable = [], 0, 0, 0
         covered = set()
@@ -345,7 +357,7 @@ class DataQualityScan(models.Model):
         last_id = records[-1:].id or checkpoint.last_id
         # a full batch may be the last one: look for a record after it, so no empty batch follows
         finished = len(records) < JOB_BATCH_SIZE or not Model.search_count(
-            scan_service.record_domain(Model, self.company_ids, last_id, rules), limit=1)
+            scan_service.record_domain(Model, self.company_ids, last_id, rules, self.res_ids), limit=1)
         if finished:
             resolved += issue_service.resolve_deleted(self.env, self, rules, model_name)
         checkpoint.write({

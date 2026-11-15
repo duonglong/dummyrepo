@@ -29,6 +29,8 @@
         'views/correction_views.xml',
         'views/issue_bulk_views.xml',
         'data/cron_scan.xml',
+        'data/cron_automation.xml',
+        'views/automation_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
