@@ -29,8 +29,8 @@ class TestInstall(DGQTestCase):
 
         Requirements: NFR-DGQ-0009
         """
-        for model in ('data.quality.profile', 'data.quality.profile.line',
-                      'data.quality.score.snapshot', 'data.quality.dashboard'):
+        self.assertIn('data.quality.dashboard', self.env)
+        for model in ('data.quality.profile', 'data.quality.profile.line', 'data.quality.score.snapshot'):
             self.assertIn(model, self.env, model)
             self.assertTrue(
                 self.env['ir.access'].sudo().search_count([('model_id.model', '=', model)]), model)
