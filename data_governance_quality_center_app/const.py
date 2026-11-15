@@ -74,5 +74,8 @@ DASHBOARD_RECENT_ISSUES = 10
 # Times a failed automation run is tried again at its next due times before it is marked failed (FR-DGQ-0069).
 AUTOMATION_RETRIES = 3
 
-# Days after its deadline that an open issue waits before it is escalated, unless the automation says otherwise (FR-DGQ-0067).
-ESCALATION_DEFAULT_DAYS = 1
+# The system parameter of the settings that holds the days an open issue waits after its deadline before it is escalated (FR-DGQ-0067).
+ESCALATION_DAYS_PARAMETER = 'data_quality.escalation_days'
+
+# The group of the data quality administrators.
+ADMIN_GROUP = 'data_governance_quality_center_app.group_dgq_admin'

@@ -2,10 +2,9 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .. import const
+from ..const import ADMIN_GROUP
 from ..services import audit
 from ..services import correction as engine
-
-ADMIN_GROUP = 'data_governance_quality_center_app.group_dgq_admin'
 
 #: what a correction does: a change of any of these needs a new dry run and a new approval
 DEFINITION_FIELDS = (
@@ -246,13 +245,16 @@ class DataQualityCorrection(models.Model):
     def _dgq_back_to_draft(self):
         """Put corrections that are not in draft back to draft: a new definition needs new proof.
 
-        Requirements: FR-DGQ-0048
+        The approval for automatic use goes too: a manager approved the earlier definition.
+
+        Requirements: FR-DGQ-0048, FR-DGQ-0068
         """
-        changed = self.filtered(lambda correction: correction.state != 'draft' or correction.last_dry_run_id)
+        changed = self.filtered(
+            lambda correction: correction.state != 'draft' or correction.last_dry_run_id or correction.auto_approved)
         if changed:
             changed.sudo().write({  # sudo: the reset is the app's, users may not write these fields
                 'state': 'draft', 'approver_id': False, 'approval_date': False,
-                'approved_dry_run_id': False, 'last_dry_run_id': False,
+                'approved_dry_run_id': False, 'last_dry_run_id': False, 'auto_approved': False,
             })
 
     def _dgq_check_authorization(self, vals):

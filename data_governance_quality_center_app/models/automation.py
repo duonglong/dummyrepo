@@ -6,13 +6,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 
-from ..const import AUTOMATION_RETRIES, ESCALATION_DEFAULT_DAYS, ISSUE_OPEN_STATES
+from ..const import ADMIN_GROUP, AUTOMATION_RETRIES, ESCALATION_DAYS_PARAMETER, ISSUE_OPEN_STATES
 from ..services import audit, events
 from .scan import ScanBusy
 
 _logger = logging.getLogger(__name__)
 
-ADMIN_GROUP = 'data_governance_quality_center_app.group_dgq_admin'
 SUMMARY_TEMPLATE = 'data_governance_quality_center_app.mail_template_automation_summary'
 FAILED_TEMPLATE = 'data_governance_quality_center_app.mail_template_automation_failed'
 TODO_ACTIVITY = 'mail.mail_activity_data_todo'
@@ -74,8 +73,9 @@ class DataQualityAutomation(models.Model):
         string='Deadline (days)',
         help="New issues are due this many days after they are found. Leave 0 to set no deadline.")
     escalation_days = fields.Integer(
-        string='Escalate After (days)', default=ESCALATION_DEFAULT_DAYS,
-        help="An open issue of the team that is this many days past its deadline is escalated, once for each deadline.")
+        string='Escalate After (days)',
+        help="An open issue of the team that is this many days past its deadline is escalated, once for each deadline. "
+             "Leave 0 for the delay of the settings.")
     escalation_user_id = fields.Many2one(
         'res.users', string='Escalate To', ondelete='set null',
         help="Who is told about an overdue issue. Leave empty for the team leader.")
@@ -102,15 +102,15 @@ class DataQualityAutomation(models.Model):
 
     @api.constrains('deadline_days', 'escalation_days')
     def _check_follow_up(self):
-        """A deadline is not in the past and an issue is escalated after at least one day.
+        """A deadline is not in the past and the escalation delay is not negative (0 is the settings' delay).
 
         Requirements: FR-DGQ-0066, FR-DGQ-0067
         """
         for automation in self:
             if automation.deadline_days < 0:
                 raise ValidationError(self.env._("The deadline cannot be a negative number of days."))
-            if automation.escalation_days < 1:
-                raise ValidationError(self.env._("Issues are escalated after at least one day."))
+            if automation.escalation_days < 0:
+                raise ValidationError(self.env._("The escalation delay cannot be a negative number of days."))
 
     @api.constrains('correction_ids')
     def _check_corrections(self):
@@ -144,7 +144,22 @@ class DataQualityAutomation(models.Model):
             self._dgq_plan()
         if WATCH_FIELDS & set(vals):
             self._dgq_watch(notify=True)
+        if SCHEDULE_FIELDS & set(vals):
+            self._dgq_close_unreachable_runs()
         return result
+
+    def _dgq_close_unreachable_runs(self):
+        """Fail the runs waiting for a retry of an automation that no longer runs on a schedule.
+
+        Only a schedule resumes a failed scan, so these runs would stay running for ever.
+
+        Requirements: FR-DGQ-0069
+        """
+        stopped = self.filtered(lambda automation: not automation.active or automation.trigger != 'schedule')
+        waiting = self.env['data.quality.automation.run'].sudo().search([  # sudo: the app closes its own runs
+            ('automation_id', 'in', stopped.ids), ('state', '=', 'running'), ('scan_id.state', '=', 'failed')])
+        for run in waiting:
+            run._dgq_fail(self.env._("The automation no longer runs on a schedule."), notify=False)
 
     @api.model
     def _register_hook(self):
@@ -226,9 +241,11 @@ class DataQualityAutomation(models.Model):
         due = self.sudo().search([('trigger', '=', 'schedule'), ('next_run', '<=', now)])  # sudo: the scheduled action is the app
         for automation in due:
             automation.write({'last_run': now, 'next_run': automation._dgq_next_run(now)})
-            waiting = automation.run_ids.filtered(lambda run: run.state == 'running' and run.scan_id.state == 'failed')
+            waiting = self.env['data.quality.automation.run'].search([
+                ('automation_id', '=', automation.id), ('state', '=', 'running'),
+                ('scan_id.state', '=', 'failed')], limit=1)
             if waiting:
-                automation._dgq_retry(waiting[0])
+                automation._dgq_retry(waiting)
             else:
                 stop, _busy = automation._dgq_launch_safely()
                 if stop:
@@ -237,7 +254,10 @@ class DataQualityAutomation(models.Model):
                 break
 
     def _dgq_retry(self, run):
-        """Resume the scan of a failed run from its checkpoint; a refusal is noted on the run.
+        """Resume the scan of a failed run from its checkpoint.
+
+        A busy scope is noted on the run and tried again, without using a retry. Any other refusal
+        uses one retry, and the run fails when none is left, as a scan that fails again does.
 
         Requirements: FR-DGQ-0069
         """
@@ -245,20 +265,53 @@ class DataQualityAutomation(models.Model):
         try:
             with self.env.cr.savepoint():
                 run.scan_id.action_resume()
+        except ScanBusy as busy:
+            run.message = busy.args[0]
         except UserError as refusal:
-            run.message = refusal.args[0]
-            return
-        run.message = False
+            run._dgq_attempt_refused(refusal.args[0])
+        else:
+            run.message = False
 
     @api.model
     def _dgq_escalate_overdue(self):
-        """Escalate the open issues of each team that are past their deadline by the escalation delay.
+        """Escalate the open issues that are past their deadline by the escalation delay.
+
+        Each automation with a team escalates the issues of its team with its own delay and user;
+        the other overdue issues use the delay of the settings and their team's leader.
 
         Requirements: FR-DGQ-0067
         """
         today = fields.Date.today()
-        for automation in self.sudo().search([('team_id', '!=', False)]):  # sudo: the scheduled action is the app
-            automation._dgq_escalate_team_issues(today)
+        automations = self.sudo().search([('team_id', '!=', False)])  # sudo: the scheduled action is the app
+        for automation in automations:
+            try:
+                with self.env.cr.savepoint():
+                    automation._dgq_escalate_team_issues(today)
+            except Exception:  # noqa: BLE001 - one team must not stop the escalation of the others
+                _logger.exception("Escalation of the team of automation %s failed", automation.id)
+            if not self.env['ir.cron']._commit_progress(1):
+                return
+        self._dgq_escalate_uncovered(automations.team_id, today)
+
+    @api.model
+    def _dgq_escalation_delay(self):
+        """The days of the settings an open issue waits after its deadline (one day until it is set)."""
+        # sudo: the delay is read for every user, not only administrators
+        return self.env['ir.config_parameter'].sudo().get_int(ESCALATION_DAYS_PARAMETER, 1)
+
+    @api.model
+    def _dgq_escalate_uncovered(self, covered_teams, today):
+        """Escalate the late issues of teams that no automation covers, and of no team, with the settings' delay.
+
+        Requirements: FR-DGQ-0067
+        """
+        limit = fields.Date.subtract(today, days=self._dgq_escalation_delay())
+        late = self.env['data.quality.issue'].sudo().search([  # sudo: the app escalates for the team
+            ('team_id', 'not in', covered_teams.ids), ('state', 'in', ISSUE_OPEN_STATES),
+            ('deadline', '!=', False), ('deadline', '<=', limit)])
+        issues = late.filtered(lambda issue: issue.escalated_deadline != issue.deadline)
+        for team, team_issues in issues.grouped('team_id').items():
+            team_issues._dgq_escalate(team.leader_id)
 
     def _dgq_escalate_team_issues(self, today):
         """Escalate the team's late issues not yet escalated for their deadline, and record it in the history.
@@ -266,7 +319,7 @@ class DataQualityAutomation(models.Model):
         Requirements: FR-DGQ-0067, FR-DGQ-0069
         """
         self.ensure_one()
-        limit = fields.Date.subtract(today, days=self.escalation_days)
+        limit = fields.Date.subtract(today, days=self.escalation_days or self._dgq_escalation_delay())
         late = self.env['data.quality.issue'].sudo().search([  # sudo: the app escalates for the team
             ('team_id', '=', self.team_id.id), ('state', 'in', ISSUE_OPEN_STATES),
             ('deadline', '!=', False), ('deadline', '<=', limit)])
@@ -437,15 +490,38 @@ class DataQualityAutomationRun(models.Model):
             automation.retry_count = 0
             if not self._dgq_start_corrections(scan):
                 self._dgq_finish()
-        elif (scan.state == 'failed' and automation.trigger == 'schedule'
-                and self.retry_count < AUTOMATION_RETRIES):
-            self.retry_count += 1
-            automation.retry_count = self.retry_count
+        elif scan.state == 'failed' and automation.trigger == 'schedule' and self._dgq_count_attempt():
             self.message = self.env._("The scan failed: retry %(count)s of %(total)s at the next due time.",
                                       count=self.retry_count, total=AUTOMATION_RETRIES)
         else:
             automation.retry_count = self.retry_count
-            self._dgq_fail(scan.error_message or self.env._("The scan ended without finishing."))
+            if scan.state == 'cancelled':
+                self._dgq_fail(self.env._("The scan was cancelled."), notify=False)
+            else:
+                self._dgq_fail(scan.error_message or self.env._("The scan ended without finishing."))
+
+    def _dgq_count_attempt(self):
+        """Use one of the retries of the run; false when none is left.
+
+        Requirements: FR-DGQ-0069
+        """
+        self.ensure_one()
+        if self.retry_count >= AUTOMATION_RETRIES:
+            return False
+        self.retry_count += 1
+        self.automation_id.retry_count = self.retry_count
+        return True
+
+    def _dgq_attempt_refused(self, reason):
+        """The resume of the run's scan was refused: it uses a retry, and the run fails when none is left.
+
+        Requirements: FR-DGQ-0069
+        """
+        self.ensure_one()
+        if self._dgq_count_attempt():
+            self.message = reason
+        else:
+            self._dgq_fail(reason)
 
     def _dgq_finish(self):
         """Close a run whose scan and corrections are over, then send its e-mails and activities.
@@ -461,13 +537,15 @@ class DataQualityAutomationRun(models.Model):
             _logger.exception("Automation run %s could not send its e-mails and activities", self.id)
             self.message = self.env._("The e-mails and activities could not be created. See the server log.")
 
-    def _dgq_fail(self, message):
-        """Mark the run failed with the reason and tell the administrators.
+    def _dgq_fail(self, message, notify=True):
+        """Mark the run failed with the reason and, unless ``notify`` is off, tell the administrators.
 
         Requirements: FR-DGQ-0069
         """
         self.ensure_one()
         self.write({'state': 'failed', 'date_end': fields.Datetime.now(), 'message': message})
+        if not notify:
+            return
         admins = self.env['res.users'].search([('all_group_ids', 'in', self.env.ref(ADMIN_GROUP).ids)])
         if not admins:
             return
