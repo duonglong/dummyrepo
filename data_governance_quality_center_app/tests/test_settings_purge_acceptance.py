@@ -54,6 +54,7 @@ class TestSettingsPurgeAcceptance(M3Case):
         self.env.invalidate_all()
 
     def age(self, record, days, column='create_date'):
+        self.env.flush_all()  # a pending ORM write must not overwrite the SQL date afterwards
         self.env.cr.execute(
             "UPDATE %s SET %s = now() at time zone 'utc' - interval '%s days' WHERE id = %%s"
             % (record._table, column, days), (record.id,))

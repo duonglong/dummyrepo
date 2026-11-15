@@ -54,6 +54,7 @@ class DataQualityIssue(models.Model):
         ('urgent', 'Urgent'),
     ], tracking=True)
     user_id = fields.Many2one('res.users', string='Assigned To', ondelete='set null', tracking=True)
+    team_id = fields.Many2one('data.quality.team', string='Team', ondelete='set null', index='btree_not_null')
     deadline = fields.Date(tracking=True)
     ignore_reason = fields.Text()
 
