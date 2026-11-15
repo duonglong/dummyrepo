@@ -26,4 +26,5 @@ from . import scan_line
 from . import scan_tally
 from . import issue
 from . import issue_bulk
+from . import import_session
 from . import settings

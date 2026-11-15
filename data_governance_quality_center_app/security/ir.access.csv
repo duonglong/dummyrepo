@@ -42,3 +42,7 @@ access_dgq_scan_tally_viewer,data.quality.scan.tally viewer,data.quality.scan.ta
 access_dgq_issue_viewer,data.quality.issue viewer,data.quality.issue,group_dgq_viewer,r,
 access_dgq_issue_operator,data.quality.issue operator,data.quality.issue,group_dgq_operator,ru,
 access_dgq_issue_bulk_operator,data.quality.issue.bulk operator,data.quality.issue.bulk,group_dgq_operator,crud,
+access_dgq_import_session_operator,data.quality.import.session own,data.quality.import.session,group_dgq_operator,cru,"[('user_id', '=', user.id)]"
+access_dgq_import_session_manager,data.quality.import.session manager,data.quality.import.session,group_dgq_manager,crud,
+access_dgq_import_row_operator,data.quality.import.row own,data.quality.import.row,group_dgq_operator,r,"[('session_id.user_id', '=', user.id)]"
+access_dgq_import_row_manager,data.quality.import.row manager,data.quality.import.row,group_dgq_manager,r,

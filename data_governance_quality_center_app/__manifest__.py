@@ -28,6 +28,7 @@
         'views/menus.xml',
         'views/correction_views.xml',
         'views/issue_bulk_views.xml',
+        'views/import_check_views.xml',
         'data/cron_scan.xml',
     ],
     'assets': {

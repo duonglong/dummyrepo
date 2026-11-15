@@ -62,3 +62,14 @@ ISSUE_OPEN_STATES = ('new', 'assigned', 'in_progress')
 
 # Skipped issues a bulk action names in its result; the others are only counted (FR-DGQ-0027).
 BULK_SKIPPED_LISTED = 20
+
+# Largest import file and most data rows a check takes (FR-DGQ-0058).
+IMPORT_MAX_BYTES = 20 * 1024 * 1024
+IMPORT_MAX_ROWS = 100000
+
+# Rule types an import check evaluates on the rows of a file: they read the values of the row only.
+# A link rule needs saved records and a custom validator may too; links are matched by the check itself (FR-DGQ-0059).
+IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross_field')
+
+# Longest cell value kept with a finding.
+IMPORT_VALUE_MAX_LENGTH = 255
