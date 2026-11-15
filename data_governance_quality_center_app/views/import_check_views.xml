@@ -14,7 +14,9 @@
                 <field name="error_count"/>
                 <field name="warning_count"/>
                 <field name="import_state" widget="badge"/>
+                <field name="imported_count"/>
                 <field name="date_checked"/>
+                <field name="date_imported"/>
                 <field name="user_id"/>
             </list>
         </field>
@@ -32,6 +34,11 @@
                     <button name="action_resume" type="object" string="Resume" class="btn-primary"
                             invisible="state != 'failed'"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_import" type="object" string="Import" class="btn-primary"
+                            invisible="state != 'done' or job_kind != 'check' or import_state == 'imported'"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_download_error_report" type="object" string="Error Report"
+                            invisible="state != 'done' or job_kind != 'check' or not (error_count or warning_count)"/>
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('queued', 'running')"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
@@ -59,6 +66,10 @@
                             <field name="warning_count"/>
                             <field name="error_row_count"/>
                             <field name="date_checked"/>
+                            <field name="import_state"/>
+                            <field name="imported_count" invisible="import_state == 'not_imported'"/>
+                            <field name="date_imported" invisible="not date_imported"/>
+                            <field name="job_kind" invisible="1"/>
                             <field name="user_id"/>
                         </group>
                     </group>

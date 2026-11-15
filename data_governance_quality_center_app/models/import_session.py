@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from ..const import JOB_BATCH_SIZE
-from ..services import import_check
+from ..services import import_check, import_run
 
 START_STATES = ('draft', 'failed', 'cancelled')
 
@@ -67,7 +67,9 @@ class DataQualityImportSession(models.Model):
     warning_count = fields.Integer(copy=False, readonly=True)
     error_row_count = fields.Integer(string='Rows With Errors', copy=False, readonly=True)
     imported_count = fields.Integer(copy=False, readonly=True)
-    next_row = fields.Integer(copy=False, help="The index of the next row to check.")
+    import_after_check = fields.Boolean(
+        copy=False, readonly=True, help="The file changed after the check: it is checked again, then imported.")
+    next_row = fields.Integer(copy=False, help="The index of the next row to check or to import.")
     row_ids = fields.One2many('data.quality.import.row', 'session_id', string='Findings')
 
     # job state and progress are written by the app only
@@ -138,26 +140,77 @@ class DataQualityImportSession(models.Model):
         for session in self:
             if session.state not in START_STATES:
                 raise UserError(self.env._("Only a draft, failed or cancelled check can be started."))
-            session.write({'file_checksum': import_check.file_checksum(session) if session.file else False})
-            loaded = import_check.load_file(session)
-            import_check.forget_file(session)
-            # sudo: the findings are written by the app only
-            session.sudo().row_ids.unlink()
-            session.write({
-                'next_row': 0, 'row_count': 0, 'error_count': 0, 'warning_count': 0, 'error_row_count': 0,
-                'done_count': 0, 'total_count': len(loaded.rows), 'date_checked': False,
-                'column_mapping': {column.header: column.field.name for column in loaded.columns},
-            })
+            session._dgq_reset_check()
         return super().action_start()
 
-    def _dgq_run_batch(self):
-        """Check the next rows of the file; return ``(processed, remaining)``.
+    def _dgq_reset_check(self):
+        """Read the file, refuse it when it cannot be checked, and clear the findings of an earlier check."""
+        self.ensure_one()
+        self.write({'file_checksum': import_check.file_checksum(self) if self.file else False})
+        loaded = import_check.load_file(self)
+        import_check.forget_file(self)
+        # sudo: the findings are written by the app only
+        self.sudo().row_ids.unlink()
+        self.write({
+            'job_kind': 'check', 'import_state': 'not_imported', 'import_after_check': False,
+            'imported_count': 0, 'date_imported': False,
+            'next_row': 0, 'row_count': 0, 'error_count': 0, 'warning_count': 0, 'error_row_count': 0,
+            'done_count': 0, 'total_count': len(loaded.rows), 'date_checked': False,
+            'column_mapping': {column.header: column.field.name for column in loaded.columns},
+        })
 
-        Requirements: FR-DGQ-0058, FR-DGQ-0059, NFR-DGQ-0003
+    def action_import(self):
+        """Import the checked file, or check it again first when it changed since the check.
+
+        A strict session refuses while any row has an error; a warnings-only session leaves those rows out.
+
+        Requirements: FR-DGQ-0060
+        """
+        for session in self:
+            if session.state != 'done' or session.job_kind != 'check':
+                raise UserError(self.env._("Only a file whose check has finished can be imported."))
+            if session.import_state == 'imported':
+                raise UserError(self.env._("This file has been imported already."))
+            if not session.file_changed_since_check():
+                if message := import_run.refusal(session):
+                    raise UserError(message)
+        for session in self:
+            if session.file_changed_since_check():
+                session._dgq_reset_check()
+                session.import_after_check = True
+                session._dgq_enqueue()
+            else:
+                session._dgq_queue_import(self.env.user)
+        return True
+
+    def file_changed_since_check(self):
+        """Whether the file of the session is no longer the one that was checked."""
+        self.ensure_one()
+        return bool(self.file) and import_check.file_checksum(self) != self.file_checksum
+
+    def _dgq_queue_import(self, user):
+        """Queue the import of the rows without errors, from the first one."""
+        self.write({
+            'job_kind': 'import', 'import_after_check': False, 'next_row': 0, 'done_count': 0, 'total_count': 0,
+            'imported_count': 0, 'error_message': False, 'state': 'queued', 'user_id': user.id,
+            'date_queued': fields.Datetime.now(),
+        })
+        self._dgq_trigger_cron()
+
+    def action_download_error_report(self):
+        """Open the download of the error report of the check."""
+        self.ensure_one()
+        self.check_access('read')
+        return {'type': 'ir.actions.act_url', 'url': f'/data_quality/import/{self.id}/error_report', 'target': 'self'}
+
+    def _dgq_run_batch(self):
+        """Check, or import, the next rows of the file; return ``(processed, remaining)``.
+
+        Requirements: FR-DGQ-0058, FR-DGQ-0059, FR-DGQ-0060, NFR-DGQ-0003
         """
         self.ensure_one()
-        if self.job_kind != 'check':
-            raise UserError(self.env._("Only the check of a file is available."))
+        if self.job_kind == 'import':
+            return self._dgq_import_batch()
         loaded = import_check.load_file(self)
         first = self.next_row
         findings = import_check.check_batch(self, loaded, first, JOB_BATCH_SIZE)
@@ -174,12 +227,47 @@ class DataQualityImportSession(models.Model):
         })
         return processed, len(loaded.rows) - first - processed
 
+    def _dgq_import_batch(self):
+        """Import the next rows without errors through the native import; a batch it refuses ends the import."""
+        loaded = import_check.load_file(self)
+        first = self.next_row
+        total, created, errors = import_run.import_batch(self, loaded, first, JOB_BATCH_SIZE)
+        if errors:
+            # sudo: the findings are written by the app only
+            self.env['data.quality.import.row'].sudo().create([{
+                'session_id': self.id, 'row_number': number, 'severity': 'error', 'message': message,
+            } for number, message in errors])
+            self.write({
+                'import_state': 'failed',
+                'error_message': self.env._(
+                    "The import stopped at row %(row)s. %(count)s rows were imported before it.",
+                    row=errors[0][0], count=self.imported_count),
+            })
+            return 0, 0
+        processed = min(JOB_BATCH_SIZE, total - first)
+        self.write({'next_row': first + processed, 'imported_count': self.imported_count + created})
+        return processed, total - first - processed
+
     def _dgq_record_batch(self, processed, remaining):
-        """Store the progress; a finished check is dated and releases the file kept in memory."""
+        """Store the progress; a finished check is dated, and a finished import is marked imported."""
         super()._dgq_record_batch(processed, remaining)
-        if not remaining:
-            self.write({'date_checked': fields.Datetime.now()})
-            import_check.forget_file(self)
+        if remaining:
+            return
+        import_check.forget_file(self)
+        if self.job_kind == 'import':
+            if self.import_state != 'failed':
+                self.write({'import_state': 'imported', 'date_imported': fields.Datetime.now()})
+            return
+        self.write({'date_checked': fields.Datetime.now()})
+        if self.import_after_check:
+            self._dgq_import_after_recheck()
+
+    def _dgq_import_after_recheck(self):
+        """The file was checked again before its import: refuse it as a strict session does, or import it."""
+        if message := import_run.refusal(self):
+            self.write({'import_after_check': False, 'error_message': message})
+        else:
+            self._dgq_queue_import(self.user_id)
 
 
 class DataQualityImportRow(models.Model):

@@ -67,6 +67,15 @@ def forget_file(session):
 
 
 def _read_file(session):
+    reader, options, numbered = read_numbered_rows(session)
+    return _map_columns(session, reader, options, numbered)
+
+
+def read_numbered_rows(session):
+    """The native reader of a session's file, its options and every row of the file with its number (header = 1).
+
+    Raises ``UserError`` for a file that is missing, too large, empty, unreadable or too long.
+    """
     env = session.env
     value = session.file
     if not value:
@@ -96,7 +105,7 @@ def _read_file(session):
         raise UserError(env._("The file has a header but no row to check."))
     if len(numbered) - 1 > IMPORT_MAX_ROWS:
         raise UserError(env._("A file may hold at most %(rows)s rows.", rows=f"{IMPORT_MAX_ROWS:,}"))
-    return _map_columns(session, reader, options, numbered)
+    return reader, options, numbered
 
 
 def _numbered_rows(session, options, rows):
