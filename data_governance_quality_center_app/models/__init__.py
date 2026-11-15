@@ -29,6 +29,7 @@ from . import issue_bulk
 from . import import_session
 from . import settings
 from . import score_snapshot
+from . import dashboard_layout
 from . import dashboard
 from . import team
 from . import automation

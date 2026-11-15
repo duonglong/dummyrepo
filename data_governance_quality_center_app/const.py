@@ -90,3 +90,11 @@ IMPORT_RULE_TYPES = ('required', 'pattern', 'range', 'date', 'condition', 'cross
 
 # Longest cell value kept with a finding.
 IMPORT_VALUE_MAX_LENGTH = 255
+
+# Space between the default sequences, so a person can slot a widget in between (FR-DGQ-0037).
+DASHBOARD_WIDGET_STEP = 10
+
+# The periods of the score trend (FR-DGQ-0034).
+TREND_PERIODS = ('day', 'week', 'month')
+# Records listed behind a figure of records (FR-DGQ-0036).
+DRILL_DOWN_RECORD_LIMIT = 1000

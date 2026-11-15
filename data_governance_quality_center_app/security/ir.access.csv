@@ -61,3 +61,4 @@ access_dgq_import_session_operator,data.quality.import.session own,data.quality.
 access_dgq_import_session_manager,data.quality.import.session manager,data.quality.import.session,group_dgq_manager,crud,
 access_dgq_import_row_operator,data.quality.import.row own,data.quality.import.row,group_dgq_operator,r,"[('session_id.user_id', '=', user.id)]"
 access_dgq_import_row_manager,data.quality.import.row manager,data.quality.import.row,group_dgq_manager,r,
+access_dgq_dashboard_layout_viewer,data.quality.dashboard.layout viewer,data.quality.dashboard.layout,group_dgq_viewer,crud,
