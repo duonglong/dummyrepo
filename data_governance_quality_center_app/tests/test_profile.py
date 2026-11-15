@@ -68,6 +68,8 @@ class TestProfile(M3Case):
         profile.invalidate_recordset()
         self.assertEqual(profile.state, 'failed')
         self.assertFalse(profile.sudo().line_ids)
+        self.assertIn('now excluded or sensitive', profile.error_message)
+        self.assertIn('Create a new profile without this field', profile.error_message)
 
     def test_a_model_excluded_after_saving_is_not_profiled(self):
         """FR-DGQ-0053: a model no longer marked supported stops the job."""
@@ -80,6 +82,7 @@ class TestProfile(M3Case):
         profile.invalidate_recordset()
         self.assertEqual(profile.state, 'failed')
         self.assertFalse(profile.sudo().line_ids)
+        self.assertIn('no longer marked as supported', profile.error_message)
 
     def test_the_default_field_list_is_fixed_at_the_start(self):
         """FR-DGQ-0053: starting with no field chosen stores the list the checkpoint indexes."""
@@ -88,12 +91,17 @@ class TestProfile(M3Case):
         profile.action_start()
         self.assertIn(self.fld('res.partner', 'email'), profile.field_ids)
 
-    def test_starting_a_running_profile_keeps_its_lines(self):
-        """FR-DGQ-0053: the state is checked before any line is deleted."""
+    def test_starting_a_done_profile_keeps_its_lines(self):
+        """FR-DGQ-0053: the state is checked before any line is deleted.
+
+        No assertRaises: it rolls back to a savepoint and would hide a deletion.
+        """
         self.isolate('res.partner')
         profile = self.run_profile(self.make_profile('res.partner', ['name']))
-        with self.assertRaises(UserError):
+        try:
             profile.action_start()
+        except UserError:
+            pass
         self.assertEqual(len(profile.sudo().line_ids), 1)
 
     def test_an_unticked_checkbox_is_a_filled_value(self):

@@ -160,7 +160,7 @@ class DataQualityProfile(models.Model):
         if field not in self._usable_fields():
             raise UserError(self.env._(
                 "The field %(field)s is now excluded or sensitive and cannot be profiled. "
-                "Remove it from the profile and start again.", field=field.display_name))
+                "Create a new profile without this field.", field=field.display_name))
 
     def _dgq_run_batch(self):
         """Compute the line of the next field; return ``(processed, remaining)``.
@@ -181,7 +181,13 @@ class DataQualityProfile(models.Model):
         if index >= len(fields_to_profile):
             return 0, 0
         field = fields_to_profile[index]
-        self._check_still_allowed(field)
+        try:
+            self._check_still_allowed(field)
+        except UserError as refusal:
+            self.write({
+                'state': 'failed', 'date_end': fields.Datetime.now(),
+                'error_message': self.env._("Stopped: %s", refusal)})
+            return 0, 0
         values = profiling.profile_field(self.env, self.res_model, field.name, self.company_id)
         # sudo: the lines are written by the app only; a resumed job replaces the line of its field
         self.sudo().line_ids.filtered(lambda line: line.field_id == field).unlink()
@@ -190,6 +196,11 @@ class DataQualityProfile(models.Model):
             values, profile_id=self.id, field_id=field.id, field_name=field.name))
         self.next_field_index = index + 1
         return 1, len(fields_to_profile) - index - 1
+
+    def _dgq_record_batch(self, processed, remaining):
+        if self.state == 'failed':
+            return
+        super()._dgq_record_batch(processed, remaining)
 
 
 class DataQualityProfileLine(models.Model):
