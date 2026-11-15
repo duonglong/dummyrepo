@@ -71,3 +71,11 @@ PROFILE_STALE_DAYS = 365
 
 # A number is unusual when it lies this many interquartile ranges outside the quartiles (FR-DGQ-0054).
 PROFILE_OUTLIER_FACTOR = 1.5
+
+# The weight of a failed check by the severity of its rule, each a system parameter 'data_quality.weight_<severity>' (BR-DGQ-0001).
+SEVERITY_WEIGHT_DEFAULTS = {'info': 1, 'warning': 3, 'critical': 10}
+SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
+
+# Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
+DASHBOARD_LOWEST_MODELS = 5
+DASHBOARD_RECENT_ISSUES = 10

@@ -27,4 +27,6 @@ from . import scan_tally
 from . import issue
 from . import issue_bulk
 from . import profile
+from . import score_snapshot
+from . import dashboard
 from . import settings

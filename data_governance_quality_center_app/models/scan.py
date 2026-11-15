@@ -9,6 +9,7 @@ from odoo.tools import SQL
 from ..const import JOB_BATCH_SIZE
 from ..services import issues as issue_service
 from ..services import scan as scan_service
+from ..services import scoring
 from ..services import validation
 
 _logger = logging.getLogger(__name__)
@@ -368,6 +369,17 @@ class DataQualityScan(models.Model):
             "dgq scan %s model %s batch up to id %s: %s records in %.2fs",
             self.id, model_name, checkpoint.last_id, len(records), time.monotonic() - started)
         return len(records)
+
+    def _dgq_record_batch(self, processed, remaining):
+        """Store the progress; when the scan is done, store its score snapshots.
+
+        Requirements: FR-DGQ-0031
+        """
+        super()._dgq_record_batch(processed, remaining)
+        if self.state == 'done':
+            snapshots = self.env['data.quality.score.snapshot'].sudo()  # sudo: the app writes its own snapshots
+            if not snapshots.search_count([('scan_id', '=', self.id)], limit=1):
+                snapshots.create(scoring.snapshot_values(self.env, self))
 
     def _dgq_line_values(self, rule, record, outcome):
         """Values of the result line of one failed check."""
