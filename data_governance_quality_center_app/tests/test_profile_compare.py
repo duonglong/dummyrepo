@@ -144,7 +144,7 @@ class TestProfileCompare(M3Case):
         for profile, other in ((old, new), (new, new)):
             with self.assertRaises(ValidationError):
                 profile.sudo().compare_profile_id = other  # sudo: the constraint is the guard
-        new.sudo().compare_profile_id = old
+        new.sudo().compare_profile_id = old  # sudo: set up as a manager would
 
     def test_dialog_shows_no_figures_against_an_unfinished_earlier_profile(self):
         """FR-DGQ-0056: opened with Form (never saved), the dialog gives no rows for a draft or later base.
@@ -156,7 +156,7 @@ class TestProfileCompare(M3Case):
         old = self._profile()
         new = self._profile()
         draft = self.make_profile('res.partner', ['email'])
-        new.sudo().compare_profile_id = old
+        new.sudo().compare_profile_id = old  # sudo: set up as a manager would
         action = new.action_compare()
         with Form(self.env[action['res_model']].with_context(**action['context'])) as form:
             self.assertEqual(form.compare_profile_id, old)
@@ -185,6 +185,25 @@ class TestProfileCompare(M3Case):
             profile_compare.compare_profiles(self.env(user=outsider), new.with_user(outsider), old.with_user(outsider))
         with self.assertRaises(AccessError):
             profile_compare.profile_sections(new.with_user(outsider))
+
+    def test_dialog_computes_the_figures_as_the_user(self):
+        """FR-DGQ-0056, FR-DGQ-0071: the dialog's live update gives an outsider no figures of company X.
+
+        The dialog is filled as the screen's live update does (a new, unsaved record), with the ids of
+        two profiles of another company; reading its lines is refused instead of computed as superuser.
+        """
+        self.isolate('res.partner')
+        self._contacts(1, 1, 'i')
+        old = self._profile()
+        new = self._profile()
+        outsider = new_test_user(self.env, login='dgq_cmp_dialog_outsider',
+                                 groups='base.group_user,data_governance_quality_center_app.group_dgq_viewer')
+        outsider.write({'company_ids': [(6, 0, self.cy.ids)], 'company_id': self.cy.id})
+        # assertRaises(AccessError) empties the cache, as a new request does: the unsaved dialog is
+        # filled inside it, or its own values would be gone too
+        with self.assertRaises(AccessError):
+            self.env['data.quality.profile.compare.wizard'].with_user(outsider).new(
+                {'profile_id': new.id, 'compare_profile_id': old.id}).line_ids.mapped('empty_share_new')
 
     def test_pdf_report_of_an_unfinished_profile_is_refused(self):
         """FR-DGQ-0057: the report data of a draft profile is refused, as the button is."""

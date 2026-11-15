@@ -27,7 +27,8 @@ class DataQualityProfileCompareWizard(models.TransientModel):
     company_id = fields.Many2one(related='profile_id.company_id')
     line_ids = fields.One2many(
         'data.quality.profile.compare.line', 'wizard_id', string='Fields',
-        compute='_compute_line_ids', store=True, readonly=True)
+        compute='_compute_line_ids', store=True, readonly=True,
+        compute_sudo=False)  # the figures are read with the person's own rights (company rule)
 
     def _default_compare_profile(self):
         """The earlier profile chosen on the profile, when it is a finished one."""
@@ -47,7 +48,7 @@ class DataQualityProfileCompareWizard(models.TransientModel):
             if one.model_id != other.model_id or one.company_id != other.company_id:
                 raise ValidationError(self.env._(
                     "A profile can only be compared with another profile of the same model and company."))
-            if one.state != 'done' or other.state != 'done' or other.id >= one.id:
+            if not profile_compare.can_compare(one, other):
                 raise ValidationError(self.env._(
                     "Only finished profiles can be compared, and the other one must be the earlier one."))
 
