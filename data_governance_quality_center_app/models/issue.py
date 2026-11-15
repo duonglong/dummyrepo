@@ -131,7 +131,7 @@ class DataQualityIssue(models.Model):
         for issue in self:
             super(DataQualityIssue, issue).write(issue._dgq_state_values(vals))
         self._track_finalize()
-        if assignee != self.env.user:
+        if assignee != self.env.user and not self.env.context.get('dgq_no_assign_notice'):
             newly_assigned._dgq_notify_assignee(assignee)
         return True
 

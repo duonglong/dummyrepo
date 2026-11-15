@@ -279,7 +279,15 @@ class DataQualityCorrection(models.Model):
             if not self.env.user.has_group(ADMIN_GROUP):
                 allowed.discard('protected_authorized')
             self = self.with_context(context_without_defaults(self.env, allowed))
-        return super().create(vals_list)
+        corrections = super().create(vals_list)
+        corrections.filtered('auto_approved')._dgq_log_automatic_approval()
+        return corrections
+
+    def _dgq_log_automatic_approval(self):
+        """Write the audit entry of an approval for automatic use, whether given on create or on write."""
+        for correction in self:
+            audit.log(self.env, 'correction_approved', correction,
+                      description=self.env._("Approved for automatic use"))
 
     def write(self, vals):
         """A change of what the correction does sends it back to draft and removes its approvals.
@@ -296,9 +304,7 @@ class DataQualityCorrection(models.Model):
                 approved_dry_run_id=False, last_dry_run_id=False, auto_approved=False)
         result = super().write(vals)
         if vals.get('auto_approved'):
-            for correction in self:
-                audit.log(self.env, 'correction_approved', correction,
-                          description=self.env._("Approved for automatic use"))
+            self._dgq_log_automatic_approval()
         return result
 
     def unlink(self):

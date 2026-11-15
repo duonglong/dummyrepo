@@ -672,5 +672,7 @@ class DataQualityAutomationRun(models.Model):
         user = team._dgq_assignee(issues[0].res_model)
         takers = issues.filtered(lambda issue: team._dgq_can_take(user, issue))
         if takers:
-            takers.write({'user_id': user.id})
+            # the summary e-mail replaces the assignment notice, for a person it can reach
+            summary_replaces_notice = automation.send_email and user.email
+            takers.with_context(dgq_no_assign_notice=bool(summary_replaces_notice)).write({'user_id': user.id})
             self.issues_assigned += len(takers)

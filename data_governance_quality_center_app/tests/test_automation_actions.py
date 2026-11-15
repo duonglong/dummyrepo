@@ -227,3 +227,33 @@ class TestAutomationActions(M3Case):
         run = automation.sudo().run_ids
         self.assertEqual(run.state, 'done')
         self.assertIn('No finished dry run.', run.message)
+
+    def test_the_summary_replaces_the_assignment_notice_over_several_batches(self):
+        """FR-DGQ-0066: with the default e-mail policy a person gets the summary only, not a notice per batch."""
+        self.lee.write({'email': 'lee.unit@example.com', 'notification_type': 'inbox'})
+        rule = self.vendor_rule()
+        self.vendors(5)
+        automation = self.make_automation('Follow up', rules=[rule], team_id=self.team, send_email=True)
+        base = self.baseline()
+        with patch('odoo.addons.data_governance_quality_center_app.models.scan.JOB_BATCH_SIZE', 2):
+            self.run_once(automation)
+        self.assertEqual(self.issues_of(rule).mapped('user_id'), self.lee)
+        self.assertEqual(len(self.mails_to(self.lee, base)), 1)
+        self.assertEqual(self.notices(self.lee, base), 1)
+
+    def test_a_person_without_an_address_keeps_the_assignment_notice(self):
+        """FR-DGQ-0066: the summary cannot reach a user with no e-mail, so the in-Odoo notice stays."""
+        self.lee.write({'email': False, 'notification_type': 'inbox'})
+        rule = self.vendor_rule()
+        self.vendors(2)
+        automation = self.make_automation('Follow up', rules=[rule], team_id=self.team, send_email=True)
+        base = self.baseline()
+        self.run_once(automation)
+        self.assertGreaterEqual(self.notices(self.lee, base), 1)
+
+    def test_an_approval_for_automatic_use_given_at_creation_is_audited(self):
+        """FR-DGQ-0068: a correction created already approved for automatic use leaves an audit entry."""
+        correction = self.correction('res.partner', 'name', ['trim'], auto_approved=True)
+        entry = self.env['data.quality.audit'].sudo().search([
+            ('event', '=', 'correction_approved'), ('res_id', '=', correction.id)])
+        self.assertEqual(len(entry), 1)
