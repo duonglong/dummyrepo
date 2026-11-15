@@ -37,8 +37,5 @@ class DataQualityScoreSnapshot(models.Model):
     weights_used = fields.Json()
     is_illustrative = fields.Boolean()
 
-    def init(self):
-        """Indexes of the searches the dashboard makes most (NFR-DGQ-0004)."""
-        self.env.cr.execute(
-            "CREATE INDEX IF NOT EXISTS dgq_snapshot_company_model_date_idx "
-            "ON data_quality_score_snapshot (company_id, model_id, date)")
+    _company_model_date_idx = models.Index('(company_id, model_id, date)')
+    _rule_date_idx = models.Index('(rule_id, date)')

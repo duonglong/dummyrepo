@@ -28,6 +28,12 @@
                     <div><div class="fs-3" t-out="state.figures.open_issues"/><div>Open issues</div></div>
                     <div><div class="fs-3 text-danger" t-out="state.figures.critical_issues"/><div>Critical</div></div>
                 </div>
+                <div class="d-flex flex-wrap gap-4 mb-4">
+                    <div t-foreach="Object.entries(state.figures.issues_by_severity)" t-as="entry" t-key="entry[0]">
+                        <div class="fs-3" t-out="entry[1]"/>
+                        <div t-out="severityLabel(entry[0])"/>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="col-md-4">
                         <h5>By model</h5>
@@ -50,7 +56,7 @@
                 </div>
                 <h5 class="mt-4">Latest issues</h5>
                 <div t-foreach="state.figures.recent_issues" t-as="issue" t-key="issue.id" class="d-flex gap-3">
-                    <span t-out="issue.name"/><span class="text-muted" t-out="issue.last_found"/>
+                    <span t-out="issue.name"/><span class="text-muted" t-out="formatDate(issue.last_found)"/>
                 </div>
             </t>
         </div>

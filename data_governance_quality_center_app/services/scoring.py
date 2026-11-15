@@ -69,12 +69,12 @@ def snapshot_values(env, scan):
         figures['records_failing'] += tally.records_failed
         figures['records_error'] += tally.records_failed if tally.severity == 'critical' else 0
         figures['records_warning'] += tally.records_failed if tally.severity == 'warning' else 0
-    open_issues = open_issue_counts(env, models)
+    open_issues = open_issue_counts(env, models, default_company)
     values = []
     for (model_id, company_id), row in rows.items():
         common = {'scan_id': scan.id, 'model_id': model_id, 'company_id': company_id, 'weights_used': weights}
         model_name = env['ir.model'].browse(model_id).model
-        counts = open_issues.get((model_name, company_id), {})
+        counts = open_issues.get((model_name, company.id or default_company), {})
         values.append(dict(
             common, **_figures(row), **{
                 'issues_open_%s' % severity: counts.get(severity, 0) for severity in weights}))
@@ -97,8 +97,11 @@ def _figures(row):
     }
 
 
-def open_issue_counts(env, models):
+def open_issue_counts(env, models, default_company):
     """Open issues now: {(model name, company id): {severity: n}} and {(rule id, severity): n} per company.
+
+    An issue of a record with no company is counted for the same company as the record's scores
+    (the scan's first company, `default_company`), so figures and scores agree.
 
     Requirements: FR-DGQ-0031
     """
@@ -107,7 +110,7 @@ def open_issue_counts(env, models):
         ['res_model', 'company_id', 'rule_id', 'severity'], ['__count'])
     counts = {}
     for res_model, company, rule, severity, count in groups:
-        by_model = counts.setdefault((res_model, company.id), {})
+        by_model = counts.setdefault((res_model, company.id or default_company), {})
         by_model[severity] = by_model.get(severity, 0) + count
-        by_model[(rule.id, severity)] = count
+        by_model[(rule.id, severity)] = by_model.get((rule.id, severity), 0) + count
     return counts

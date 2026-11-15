@@ -1,4 +1,6 @@
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -33,6 +35,18 @@ export class DgqDashboard extends Component {
     async onDateChange(ev) {
         this.state.date = ev.target.value;
         await this.load();
+    }
+
+    severityLabel(severity) {
+        return {
+            info: _t("Information"),
+            warning: _t("Warning"),
+            critical: _t("Critical"),
+        }[severity];
+    }
+
+    formatDate(value) {
+        return formatDateTime(deserializeDateTime(value));
     }
 
     formatScore(score) {

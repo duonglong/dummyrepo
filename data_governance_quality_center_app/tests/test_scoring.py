@@ -36,3 +36,16 @@ class TestScoring(M3Case):
             ('scan_id', '=', scan.id), ('rule_id', '=', False), ('company_id', '=', self.cx.id)])
         self.assertEqual(snap.weights_used['warning'], 5)
         self.assertEqual((snap.applicable_weight, snap.failed_weight), (5, 5))
+
+    def test_open_issues_of_a_record_with_no_company_count_for_the_scan_company(self):
+        """FR-DGQ-0031: a company-less contact's issue is counted where its score is counted."""
+        rule = self.vendor_rule(severity='critical', company=False)
+        self.isolate('res.partner')
+        contact = self.env['res.partner'].create({'name': 'Shared', 'function': 'DGQVEND', 'company_id': False})
+        scan = self.run_scan([rule], models=['res.partner'])
+        domain = [('scan_id', '=', scan.id), ('company_id', '=', self.cx.id)]
+        snapshot = self.env['data.quality.score.snapshot'].search(domain + [('rule_id', '=', False)])
+        per_rule = self.env['data.quality.score.snapshot'].search(domain + [('rule_id', '=', rule.id)])
+        self.assertTrue(self.issues_of(rule, contact))
+        self.assertEqual(snapshot.issues_open_critical, 1)
+        self.assertEqual(per_rule.issues_open_critical, 1)

@@ -1,7 +1,9 @@
-from odoo import api, fields, models
-from odoo.exceptions import AccessError
+from datetime import datetime, time, timedelta, timezone
 
-from ..const import DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES
+from odoo import api, fields, models
+from odoo.exceptions import AccessError, UserError
+
+from ..const import DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, SEVERITY_WEIGHT_DEFAULTS
 from ..services import scoring
 
 
@@ -17,7 +19,8 @@ class DataQualityDashboard(models.AbstractModel):
     def get_figures(self, company_ids=None, date=None):
         """Every figure of the dashboard for the chosen companies, as of the end of a date.
 
-        Companies the user may not access are never used. For each company and model the latest
+        Only the companies the user works with (the active ones of the company switcher, the set
+        the record rules use) are offered and used. For each company and model the latest
         snapshot taken on or before the date counts; the overall and per-company scores are
         weighted sums of those figures, not averages of scores.
 
@@ -25,13 +28,14 @@ class DataQualityDashboard(models.AbstractModel):
         """
         if not self.env.user.has_group('data_governance_quality_center_app.group_dgq_viewer'):
             raise AccessError(self.env._("You are not allowed to open the quality dashboard."))
-        allowed = self.env.user.company_ids
+        allowed = self.env.companies
         companies = allowed.filtered(lambda company: company.id in company_ids) if company_ids else allowed
-        snapshots = self._latest_snapshots(companies, date)
+        end = self._end_of_day(date)
+        snapshots = self._latest_snapshots(companies, end)
         by_model, by_company = {}, {}
+        open_fields = ['issues_open_%s' % severity for severity in SEVERITY_WEIGHT_DEFAULTS]
         totals = dict.fromkeys(
-            ('applicable_weight', 'failed_weight', 'records_scanned', 'records_error', 'records_warning',
-             'issues_open_info', 'issues_open_warning', 'issues_open_critical'), 0)
+            ['applicable_weight', 'failed_weight', 'records_scanned', 'records_error', 'records_warning', *open_fields], 0)
         for snap in snapshots:
             for name in totals:
                 totals[name] += snap[name]
@@ -53,16 +57,31 @@ class DataQualityDashboard(models.AbstractModel):
             'records_scanned': totals['records_scanned'],
             'records_error': totals['records_error'],
             'records_warning': totals['records_warning'],
-            'open_issues': sum(totals['issues_open_%s' % s] for s in ('info', 'warning', 'critical')),
+            'open_issues': sum(totals[name] for name in open_fields),
             'critical_issues': totals['issues_open_critical'],
-            'issues_by_severity': {s: totals['issues_open_%s' % s] for s in ('info', 'warning', 'critical')},
+            'issues_by_severity': {severity: totals['issues_open_%s' % severity] for severity in SEVERITY_WEIGHT_DEFAULTS},
             'lowest_models': sorted(scored, key=lambda row: (row['score'], row['name']))[:DASHBOARD_LOWEST_MODELS],
-            'recent_issues': self._recent_issues(companies),
+            'recent_issues': self._recent_issues(companies, end),
         }
 
     @api.model
-    def _latest_snapshots(self, companies, date):
-        """The latest model-level snapshot of each company and model on or before the date.
+    def _end_of_day(self, date):
+        """The first instant after the chosen day in the user's time zone, in UTC, or None without a date.
+
+        Requirements: FR-DGQ-0033
+        """
+        if not date:
+            return None
+        try:
+            day = fields.Date.to_date(date)
+        except ValueError:
+            raise UserError(self.env._("The date %s is not valid.", date)) from None
+        local_start = datetime.combine(day + timedelta(days=1), time.min, tzinfo=self.env.tz)
+        return local_start.astimezone(timezone.utc).replace(tzinfo=None)
+
+    @api.model
+    def _latest_snapshots(self, companies, end):
+        """The latest model-level snapshot of each company and model before the end instant.
 
         Snapshots are written in date order, so the highest id of a group is its latest.
 
@@ -70,8 +89,7 @@ class DataQualityDashboard(models.AbstractModel):
         """
         Snapshot = self.env['data.quality.score.snapshot']
         domain = [('company_id', 'in', companies.ids), ('rule_id', '=', False)]
-        if date:
-            end = fields.Datetime.add(fields.Datetime.to_datetime(fields.Date.to_date(date)), days=1)
+        if end:
             domain.append(('date', '<', end))
         groups = Snapshot._read_group(domain, ['company_id', 'model_id'], ['id:max'])
         return Snapshot.browse([latest for _company, _model, latest in groups])
@@ -82,9 +100,12 @@ class DataQualityDashboard(models.AbstractModel):
         return dict(row, score=value, has_score=value is not None)
 
     @api.model
-    def _recent_issues(self, companies):
+    def _recent_issues(self, companies, end):
+        domain = [('company_id', 'in', [False, *companies.ids])]
+        if end:
+            domain.append(('last_found', '<', end))
         issues = self.env['data.quality.issue'].search(
-            [('company_id', 'in', [False, *companies.ids])], order='last_found desc, id desc',
+            domain, order='last_found desc, id desc',
             limit=DASHBOARD_RECENT_ISSUES)
         return [{
             'id': issue.id, 'name': issue.name, 'severity': issue.severity, 'state': issue.state,
