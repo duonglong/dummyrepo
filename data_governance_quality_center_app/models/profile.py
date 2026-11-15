@@ -39,8 +39,9 @@ class DataQualityProfile(models.Model):
     stale_count = fields.Integer(copy=False, readonly=True)
     compare_profile_id = fields.Many2one(
         'data.quality.profile', string='Compare With', copy=False, ondelete='set null',
-        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), ('id', '!=', id)]",
-        help="An earlier profile of the same model and company.")
+        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), "
+               "('state', '=', 'done'), ('id', '!=', id)]",
+        help="A finished, earlier profile of the same model and company.")
     next_field_index = fields.Integer(copy=False)
     line_ids = fields.One2many('data.quality.profile.line', 'profile_id', string='Fields Profiled')
 
@@ -103,7 +104,9 @@ class DataQualityProfile(models.Model):
 
     @api.constrains('compare_profile_id', 'model_id', 'company_id')
     def _check_compare_profile(self):
-        """The profile to compare with is another profile of the same model and company.
+        """The profile to compare with is an earlier profile of the same model and company.
+
+        It may still be running when chosen, so the comparison dialog is what requires it finished.
 
         Requirements: FR-DGQ-0056
         """
@@ -112,6 +115,8 @@ class DataQualityProfile(models.Model):
             if other == profile or other.model_id != profile.model_id or other.company_id != profile.company_id:
                 raise ValidationError(self.env._(
                     "A profile can only be compared with another profile of the same model and company."))
+            if other.id >= profile.id:
+                raise ValidationError(self.env._("The profile to compare with must be an earlier profile."))
 
     @api.onchange('model_id')
     def _onchange_model_id(self):
@@ -187,6 +192,7 @@ class DataQualityProfile(models.Model):
         Requirements: FR-DGQ-0057
         """
         self.ensure_one()
+        self._check_exportable()
         return profile_compare.profile_sections(self)
 
     def get_export_header(self):

@@ -49,9 +49,8 @@ def compare_profiles(env, profile, earlier):
 
     Requirements: FR-DGQ-0056
     """
-    # sudo: the lines are read as the app; the caller was allowed to read both profiles
-    new_lines = {line.field_name: line for line in profile.sudo().line_ids}
-    old_lines = {line.field_name: line for line in earlier.sudo().line_ids}  # sudo: as above
+    new_lines = {line.field_name: line for line in profile.line_ids}
+    old_lines = {line.field_name: line for line in earlier.line_ids}
     rows = []
     for name in sorted(set(new_lines) | set(old_lines)):
         new, old = new_lines.get(name), old_lines.get(name)
@@ -89,8 +88,7 @@ def profile_header(profile):
 def _usable_lines(profile):
     """The lines of the profile whose field is still neither excluded nor sensitive."""
     usable = profile.env['data.quality.field.config']._get_usable_field_names(profile.res_model)
-    # sudo: the lines are read as the app; the caller was allowed to read the profile
-    return profile.sudo().line_ids.filtered(lambda line: line.field_name in usable)
+    return profile.line_ids.filtered(lambda line: line.field_name in usable)
 
 
 def profile_sections(profile):

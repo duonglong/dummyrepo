@@ -32,11 +32,12 @@
                             invisible="state not in ('queued', 'running')"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
                     <button name="action_compare" type="object" string="Compare"
-                            invisible="state != 'done' or not compare_profile_id"/>
+                            invisible="state != 'done' or not compare_profile_id"
+                            groups="data_governance_quality_center_app.group_dgq_viewer"/>
                     <button name="action_export_xlsx" type="object" string="Export XLSX"
-                            invisible="state != 'done'"/>
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
                     <button name="action_export_pdf" type="object" string="Export PDF"
-                            invisible="state != 'done'"/>
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done"/>
                 </header>
                 <sheet>
@@ -100,7 +101,7 @@
                 <group>
                     <field name="model_id" invisible="1"/>
                     <field name="company_id" invisible="1"/>
-                    <field name="profile_id" options="{'no_create': True}"/>
+                    <field name="profile_id" readonly="1"/>
                     <field name="compare_profile_id" options="{'no_create': True}"/>
                 </group>
                 <field name="line_ids" readonly="1">

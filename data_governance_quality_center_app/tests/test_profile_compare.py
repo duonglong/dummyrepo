@@ -2,8 +2,8 @@ import io
 
 import openpyxl
 
-from odoo.exceptions import UserError, ValidationError
-from odoo.tests import Form
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tests import Form, HttpCase, new_test_user, tagged
 
 from odoo.addons.data_governance_quality_center_app.services import profile_compare
 
@@ -128,3 +128,74 @@ class TestProfileCompare(M3Case):
         self.assertIn('/data_quality/xlsx/profile/%s' % done.id, done.action_export_xlsx()['url'])
         self.assertEqual(done.action_export_pdf()['report_name'],
                          'data_governance_quality_center_app.report_profile')
+
+    def test_later_or_unfinished_profile_cannot_be_the_earlier_one(self):
+        """FR-DGQ-0056: only a finished profile made before the profile is its comparison base."""
+        self.isolate('res.partner')
+        self._contacts(1, 1, 'f')
+        old = self._profile()
+        new = self._profile()
+        draft = self.make_profile('res.partner', ['email'])
+        Wizard = self.env['data.quality.profile.compare.wizard'].sudo()  # sudo: set up for the refusals
+        Wizard.create({'profile_id': new.id, 'compare_profile_id': old.id})
+        for profile_id, compare_id in ((old.id, new.id), (new.id, draft.id), (draft.id, old.id)):
+            with self.assertRaises(ValidationError):
+                Wizard.create({'profile_id': profile_id, 'compare_profile_id': compare_id})
+        for profile, other in ((old, new), (new, new)):
+            with self.assertRaises(ValidationError):
+                profile.sudo().compare_profile_id = other  # sudo: the constraint is the guard
+        new.sudo().compare_profile_id = old
+
+    def test_comparison_reads_the_lines_as_the_user(self):
+        """FR-DGQ-0056: a viewer of another company gets no figures of a profile of company X."""
+        self.isolate('res.partner')
+        self._contacts(1, 1, 'g')
+        old = self._profile()
+        new = self._profile()
+        outsider = new_test_user(self.env, login='dgq_cmp_outsider', groups='base.group_user,%s.group_dgq_viewer'
+                                 % 'data_governance_quality_center_app')
+        outsider.write({'company_ids': [(6, 0, self.cy.ids)], 'company_id': self.cy.id})
+        with self.assertRaises(AccessError):
+            profile_compare.compare_profiles(self.env(user=outsider), new.with_user(outsider), old.with_user(outsider))
+        with self.assertRaises(AccessError):
+            profile_compare.profile_sections(new.with_user(outsider))
+
+    def test_pdf_report_of_an_unfinished_profile_is_refused(self):
+        """FR-DGQ-0057: the report data of a draft profile is refused, as the button is."""
+        draft = self.make_profile('res.partner', ['email'])
+        with self.assertRaises(UserError):
+            draft.get_export_sections()
+
+
+@tagged('post_install', '-at_install')
+class TestProfileXlsxRoute(HttpCase):
+    """The XLSX route as a user over HTTP: other company and unfinished profile are refused.
+
+    Requirements: FR-DGQ-0057
+    """
+
+    def setUp(self):
+        super().setUp()
+        module = 'data_governance_quality_center_app'
+        self.company_y = self.env['res.company'].create({'name': 'Route Company Y'})
+        self.viewer = new_test_user(self.env, login='dgq_route_viewer', groups='base.group_user,%s.group_dgq_viewer' % module)
+        self.outsider = new_test_user(self.env, login='dgq_route_outsider', groups='base.group_user,%s.group_dgq_viewer' % module)
+        self.outsider.write({'company_ids': [(6, 0, self.company_y.ids)], 'company_id': self.company_y.id})
+        profile = self.env['data.quality.profile']
+        vals = {'model_id': self.env['ir.model']._get('res.partner').id, 'company_id': self.viewer.company_id.id}
+        self.done = profile.create(vals)
+        self.done.state = 'done'
+        self.draft = profile.create(vals)
+
+    def _get(self, login, profile):
+        self.authenticate(login, login)
+        return self.url_open('/data_quality/xlsx/profile/%s' % profile.id)
+
+    def test_route_serves_a_finished_profile_to_a_viewer_only(self):
+        """SC-DGQ-0057-1: a viewer of the profile's company gets the file; others and drafts do not."""
+        response = self._get('dgq_route_viewer', self.done)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('spreadsheetml', response.headers['Content-Type'])
+        self.assertEqual(self._get('dgq_route_viewer', self.draft).status_code, 422)
+        self.assertEqual(self._get('dgq_route_outsider', self.done).status_code, 403)
+        self.assertEqual(self._get('dgq_route_viewer', self.env['data.quality.profile'].browse(0)).status_code, 404)

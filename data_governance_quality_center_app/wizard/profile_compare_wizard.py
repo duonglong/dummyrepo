@@ -14,15 +14,17 @@ class DataQualityProfileCompareWizard(models.TransientModel):
 
     profile_id = fields.Many2one(
         'data.quality.profile', string='Profile', required=True, ondelete='cascade',
+        domain=[('state', '=', 'done')],
         default=lambda self: self.env.context.get('active_id')
         if self.env.context.get('active_model') == 'data.quality.profile' else False)
     compare_profile_id = fields.Many2one(
         'data.quality.profile', string='Earlier Profile', required=True, ondelete='cascade',
-        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), ('id', '!=', profile_id)]",
+        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), "
+               "('state', '=', 'done'), ('id', '<', profile_id)]",
         default=lambda self: self.env['data.quality.profile'].browse(
             self.env.context.get('active_id')).compare_profile_id.id
         if self.env.context.get('active_model') == 'data.quality.profile' else False,
-        help="An earlier profile of the same model and company.")
+        help="A finished profile of the same model and company, made before the profile.")
     model_id = fields.Many2one(related='profile_id.model_id')
     company_id = fields.Many2one(related='profile_id.company_id')
     line_ids = fields.One2many(
@@ -31,15 +33,18 @@ class DataQualityProfileCompareWizard(models.TransientModel):
 
     @api.constrains('profile_id', 'compare_profile_id')
     def _check_profiles(self):
-        """Both profiles belong to the same model and company and are different.
+        """Both profiles are finished and of the same model and company; the other is the earlier one.
 
         Requirements: FR-DGQ-0056
         """
         for wizard in self:
             one, other = wizard.profile_id, wizard.compare_profile_id
-            if one == other or one.model_id != other.model_id or one.company_id != other.company_id:
+            if one.model_id != other.model_id or one.company_id != other.company_id:
                 raise ValidationError(self.env._(
                     "A profile can only be compared with another profile of the same model and company."))
+            if one.state != 'done' or other.state != 'done' or other.id >= one.id:
+                raise ValidationError(self.env._(
+                    "Only finished profiles can be compared, and the other one must be the earlier one."))
 
     @api.depends('profile_id', 'compare_profile_id')
     def _compute_line_ids(self):
