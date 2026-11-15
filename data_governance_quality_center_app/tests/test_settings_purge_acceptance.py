@@ -203,6 +203,8 @@ class TestSettingsPurgeAcceptance(M3Case):
             self.age(line, 500)
         self.age(scan, 500)
         self.fire_crons()
+        self.assertFalse(self.env['data.quality.scan.line'].sudo().search([('scan_id', '=', scan.id)]),
+                         'the old lines are purged')
         self.assertEqual(Snapshot.search([('scan_id', '=', scan.id)]).ids, before)
 
     def test_cleanup_deletes_the_file_of_an_old_import_check(self):
