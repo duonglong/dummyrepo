@@ -29,3 +29,6 @@ from . import issue_bulk
 from . import score_snapshot
 from . import dashboard
 from . import settings
+from . import team
+from . import automation
+from . import event_queue
