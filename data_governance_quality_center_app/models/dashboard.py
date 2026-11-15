@@ -123,7 +123,7 @@ class DataQualityDashboard(models.AbstractModel):
             limit=DASHBOARD_RECENT_ISSUES)
         return [{
             'id': issue.id, 'name': issue.name, 'severity': issue.severity, 'state': issue.state,
-            'last_found': fields.Datetime.to_string(issue.last_found)} for issue in issues]
+            'is_illustrative': issue.is_illustrative, 'last_found': fields.Datetime.to_string(issue.last_found)} for issue in issues]
 
     @api.model
     def _check_viewer(self):

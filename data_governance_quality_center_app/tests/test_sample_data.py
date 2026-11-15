@@ -1,5 +1,6 @@
 from odoo.tests import tagged
 
+from ..services import scoring
 from .acceptance_m3_helpers import M3Case
 
 
@@ -25,3 +26,26 @@ class TestSampleData(M3Case):
         """Requirements: FR-DGQ-0080 - a live scan is never labelled illustrative."""
         scan = self.make_scan()
         self.assertFalse(scan.is_illustrative)
+
+    def _issue(self, rule, partner, **vals):
+        return self.env['data.quality.issue'].sudo().create(dict({
+            'rule_id': rule.id, 'rule_version': 1, 'res_model': 'res.partner', 'res_id': partner.id,
+            'record_name': partner.name, 'severity': 'warning', 'company_id': self.cx.id}, **vals))
+
+    def test_live_issue_counts_leave_out_illustrative_issues(self):
+        """Requirements: FR-DGQ-0080 - a live figure counts live results only, never a demo issue."""
+        rule = self.env.ref('data_governance_quality_center_app.sample_rule_contact_email')
+        partners = self.env['res.partner'].create([{'name': 'Live P'}, {'name': 'Demo P'}])
+        self._issue(rule, partners[0])
+        self._issue(rule, partners[1], is_illustrative=True)
+        counts = scoring.open_issue_counts(
+            self.env, self.env['ir.model'].sudo().search([('model', '=', 'res.partner')]), self.cx.id)
+        self.assertEqual(counts[('res.partner', self.cx.id)]['warning'], 1)
+
+    def test_recent_issues_say_which_are_illustrative(self):
+        """Requirements: FR-DGQ-0080 - each latest issue row of the dashboard carries its own illustrative flag."""
+        rule = self.env.ref('data_governance_quality_center_app.sample_rule_contact_email')
+        partner = self.env['res.partner'].create({'name': 'Demo Q'})
+        issue = self._issue(rule, partner, is_illustrative=True)
+        rows = self.env['data.quality.dashboard'].sudo()._recent_issues(self.cx, None)
+        self.assertTrue(next(row for row in rows if row['id'] == issue.id)['is_illustrative'])

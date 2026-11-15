@@ -78,7 +78,9 @@
                         <div t-elif="item.widget == 'recent'" class="mb-4">
                             <h5>Latest issues</h5>
                             <div t-foreach="state.figures.recent_issues" t-as="issue" t-key="issue.id" class="d-flex gap-3">
-                                <span t-out="issue.name"/><span class="text-muted" t-out="formatDate(issue.last_found)"/>
+                                <span t-out="issue.name"/>
+                                <span t-if="issue.is_illustrative" class="badge text-bg-warning">Illustrative</span>
+                                <span class="text-muted" t-out="formatDate(issue.last_found)"/>
                             </div>
                         </div>
                     </t>

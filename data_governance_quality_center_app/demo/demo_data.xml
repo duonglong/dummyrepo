@@ -2,7 +2,8 @@
 <odoo>
     <!-- Sample results: every record is marked illustrative, never a live metric. -->
     <record id="demo_partner_no_email" model="res.partner">
-        <field name="name">Sample Contact Without E-mail</field>
+        <field name="name">Sample Contact With Malformed E-mail</field>
+        <field name="email">sample.contact@</field>
     </record>
 
     <record id="demo_scan" model="data.quality.scan">
@@ -24,7 +25,9 @@
         <field name="rule_version">1</field>
         <field name="res_model">res.partner</field>
         <field name="res_id" ref="demo_partner_no_email"/>
-        <field name="record_name">Sample Contact Without E-mail</field>
+        <field name="record_name">Sample Contact With Malformed E-mail</field>
+        <field name="explanation_code">pattern_mismatch</field>
+        <field name="explanation_params" eval="{'model': 'res.partner', 'field': 'email', 'value': 'sample.contact@', 'pattern': r&quot;[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}&quot;}"/>
         <field name="severity">warning</field>
         <field name="company_id" ref="base.main_company"/>
         <field name="scan_id" ref="demo_scan"/>
