@@ -58,13 +58,17 @@ def _scheduled_tasks(env):
 
 
 def _last_cleanup(env):
-    """What the last cleanup that deleted something removed, or None."""
-    entry = env['data.quality.audit'].search([('event', '=', 'cleanup')], order='date desc, id desc', limit=1)
-    if not entry:
+    """What the cleanups of the last day it deleted something removed, added up, or None."""
+    audit = env['data.quality.audit']
+    last = audit.search([('event', '=', 'cleanup')], order='date desc, id desc', limit=1)
+    if not last:
         return None
-    return {
-        'date': fields.Datetime.to_string(entry.date),
-        'deleted': {name: values[1] for name, values in (entry.changes or {}).items()}}
+    day_start = fields.Datetime.to_datetime(last.date.date())
+    deleted = {}
+    for entry in audit.search([('event', '=', 'cleanup'), ('date', '>=', day_start)]):
+        for name, values in (entry.changes or {}).items():
+            deleted[name] = deleted.get(name, 0) + values[1]
+    return {'date': fields.Datetime.to_string(last.date), 'deleted': deleted}
 
 
 def health(env):

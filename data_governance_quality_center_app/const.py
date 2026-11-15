@@ -83,5 +83,6 @@ HEALTH_FAILED_DAYS = 7
 # Scans the health page lists with their duration (FR-DGQ-0079).
 HEALTH_LAST_SCANS = 5
 
-# Default days before an overdue issue is escalated (FR-DGQ-0076).
-ESCALATION_DAYS = 1
+# Settings keys the scheduled scans and the escalation read (FR-DGQ-0076).
+SCAN_FREQUENCY_PARAMETER = 'data_quality.scan_frequency'
+ESCALATION_DAYS_PARAMETER = 'data_quality.escalation_days'

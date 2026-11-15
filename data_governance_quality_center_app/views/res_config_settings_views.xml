@@ -9,7 +9,7 @@
                 <app string="Data Quality" name="data_governance_quality_center_app"
                      groups="data_governance_quality_center_app.group_dgq_admin">
                     <block title="Scoring">
-                        <setting string="Severity weights" help="How much a failed check counts in the score, by severity.">
+                        <setting string="Severity weights">
                             <div class="content-group">
                                 <div class="row mt8">
                                     <label for="dgq_weight_info" class="col-lg-4"/>

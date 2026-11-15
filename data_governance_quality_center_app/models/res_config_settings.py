@@ -2,8 +2,8 @@ from odoo import fields, models
 from odoo.exceptions import ValidationError
 
 from ..const import (
-    ESCALATION_DAYS, ISSUE_RETENTION_DAYS, ISSUE_RETENTION_PARAMETER, NOTIFY_EMAIL_DEFAULT,
-    NOTIFY_EMAIL_PARAMETER, SCAN_LINE_RETENTION_DAYS, SCAN_LINE_RETENTION_PARAMETER,
+    ESCALATION_DAYS_PARAMETER, ISSUE_RETENTION_DAYS, ISSUE_RETENTION_PARAMETER, NOTIFY_EMAIL_DEFAULT,
+    NOTIFY_EMAIL_PARAMETER, SCAN_LINE_RETENTION_DAYS, SCAN_FREQUENCY_PARAMETER, SCAN_LINE_RETENTION_PARAMETER,
     SEVERITY_WEIGHT_DEFAULTS, SEVERITY_WEIGHT_PARAMETER)
 from ..services import audit
 
@@ -29,10 +29,10 @@ class ResConfigSettings(models.TransientModel):
         help="How much a failed critical check counts in the quality score. A positive whole number.")
     dgq_scan_frequency = fields.Selection(
         [('daily', 'Daily'), ('weekly', 'Weekly'), ('monthly', 'Monthly')],
-        string='Default scan frequency', config_parameter='data_quality.scan_frequency', default='daily',
+        string='Default scan frequency', config_parameter=SCAN_FREQUENCY_PARAMETER, default='daily',
         help="How often a new scheduled scan runs when its schedule does not say otherwise.")
     dgq_escalation_days = fields.Integer(
-        string='Escalate after (days)', config_parameter='data_quality.escalation_days', default=ESCALATION_DAYS,
+        string='Escalate after (days)', config_parameter=ESCALATION_DAYS_PARAMETER, default=1,
         help="Days an issue stays overdue before it is escalated.")
     dgq_notify_email = fields.Boolean(
         string='E-mail assignment notices', config_parameter=NOTIFY_EMAIL_PARAMETER,

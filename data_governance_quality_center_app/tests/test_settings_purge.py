@@ -4,12 +4,13 @@ Requirements: FR-DGQ-0076, FR-DGQ-0077, FR-DGQ-0078, FR-DGQ-0079
 """
 import base64
 from datetime import date
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.tests import Form, new_test_user
 from odoo.tools import SQL
 
-from ..services import report
+from ..services import report, retention
 from .acceptance_m3_helpers import M3Case
 
 
@@ -85,7 +86,7 @@ class TestSettingsPurge(M3Case):
     def test_report_counts_issues_by_status_and_averages_resolution_time(self):
         """FR-DGQ-0078: issues by status and the average resolution time of the issues resolved in the dates."""
         issues = self.closed_issues()
-        issues[0].write({'state': 'resolved', 'resolution_hours': 10.0})
+        issues[0].write({'state': 'resolved'})
         self.env.flush_all()
         self.env.cr.execute("UPDATE data_quality_issue SET resolution_hours = 10 WHERE id = %s", (issues[0].id,))
         issues[0].invalidate_recordset()
@@ -114,3 +115,26 @@ class TestSettingsPurge(M3Case):
         health = self.env['data.quality.dashboard'].with_user(self.system).get_health()
         self.assertEqual(health['scans']['queued'], 1)
         self.assertIn(('data.quality.duplicate.check', check.id), [(run['model'], run['id']) for run in health['failed_runs']])
+
+    def test_cleanup_stops_when_the_time_budget_is_spent_and_has_recorded_what_it_deleted(self):
+        """FR-DGQ-0077: a call whose time ran out reports work left, and its deletions are already in the audit trail."""
+        issues = self.closed_issues()
+        issues.write({'state': 'resolved'})
+        for issue in issues:
+            self.age(issue, 400, 'date_resolved')
+        with patch.object(retention, 'JOB_BATCH_SIZE', 1), \
+                patch.object(type(self.env['ir.cron']), '_commit_progress', return_value=0) as progress:
+            counts = retention.purge(self.env)
+        self.assertEqual(counts['issues'], 1, 'one batch, then the call gave way')
+        self.assertEqual(progress.call_args.kwargs, {'remaining': 1})
+        entry = self.env['data.quality.audit'].sudo().search([('event', '=', 'cleanup')])
+        self.assertEqual(entry.changes, {'issues': [False, 1]})
+        retention.purge(self.env)
+        self.assertFalse(issues.exists())
+
+    def test_health_adds_up_the_cleanup_entries_of_the_last_day(self):
+        """FR-DGQ-0079: batches of one cleanup day count together."""
+        audit = self.env['data.quality.audit'].sudo()
+        audit.create([{'event': 'cleanup', 'changes': {'issues': [False, 2]}} for _ in range(2)])
+        health = self.env['data.quality.dashboard'].with_user(self.system).get_health()
+        self.assertEqual(health['last_cleanup']['deleted'], {'issues': 4})
