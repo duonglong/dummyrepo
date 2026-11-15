@@ -32,8 +32,9 @@ class TestImportRunAcceptance(M3Case):
         rows = [['Imp %03d' % n, 'imp%s@example.com' % n, 'Belgium'] for n in range(total)]
         for n in range(errors):
             rows[10 + n][2] = 'Atlantis'  # no such country: an error
+        first_warning = 100 if total > 100 else total - warnings  # always inside the file
         for n in range(warnings):
-            rows[100 + n][1] = 'abc'  # fails the warning rule
+            rows[first_warning + n][1] = 'abc'  # fails the warning rule
         return csv_file(HEADER, rows)
 
     def checked_session(self, mode, errors, warnings):
