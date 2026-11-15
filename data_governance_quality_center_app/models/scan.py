@@ -47,6 +47,8 @@ class DataQualityScan(models.Model):
     company_ids = fields.Many2many(
         'res.company', string='Companies', copy=False,
         help="The companies whose records are scanned. Leave empty for all your allowed companies.")
+    is_illustrative = fields.Boolean(
+        copy=False, readonly=True, help="Sample scan of the demo data: its figures are not live metrics.")
     res_ids = fields.Json(
         string='Records', copy=False, readonly=True,
         help="The ids of the records an event scan checks; empty for a scan of the whole scope.")

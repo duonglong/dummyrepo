@@ -46,7 +46,7 @@
                 <t t-foreach="docs" t-as="wizard">
                     <t t-set="data" t-value="wizard._report_data()"/>
                     <div class="page">
-                        <h2>Quality Report</h2>
+                        <h2>Quality Report <span t-if="data['is_illustrative']" class="badge text-bg-warning">Illustrative</span></h2>
                         <p>
                             <t t-out="', '.join(data['companies'])"/>,
                             <span t-field="wizard.date_from"/> - <span t-field="wizard.date_to"/>
