@@ -51,3 +51,4 @@ from . import test_dashboard
 from . import test_settings_purge_acceptance
 from . import test_sample_data_acceptance
 from . import test_automation
+from . import test_profile_compare

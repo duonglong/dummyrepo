@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from ..const import PROFILE_STALE_DAYS
-from ..services import profiling
+from ..services import profile_compare, profiling
 
 
 class DataQualityProfile(models.Model):
@@ -135,6 +135,67 @@ class DataQualityProfile(models.Model):
         self.write({'next_field_index': 0, 'record_count': 0, 'stale_count': 0,
                     'done_count': 0, 'total_count': 0})
         return super().action_start()
+
+    # ---- compare and export ---------------------------------------------------
+
+    def action_compare(self):
+        """Open the comparison with the earlier profile chosen on the profile.
+
+        Requirements: FR-DGQ-0056
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Compare Profiles"),
+            'res_model': 'data.quality.profile.compare.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'active_model': self._name, 'active_id': self.id},
+        }
+
+    def _check_exportable(self):
+        """Only a finished profile is exported."""
+        for profile in self:
+            if profile.state != 'done':
+                raise UserError(self.env._("Only a finished profile can be exported."))
+
+    def action_export_xlsx(self):
+        """Download the profile as an XLSX file, one sheet per kind of statistic.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        self._check_exportable()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/data_quality/xlsx/profile/%s' % self.id,
+            'target': 'self',
+        }
+
+    def action_export_pdf(self):
+        """Give the profile as a PDF report with the same figures.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        self._check_exportable()
+        return self.env.ref('data_governance_quality_center_app.action_report_profile').report_action(self)
+
+    def get_export_sections(self):
+        """The figures of the profile as ``(title, header, rows)`` sections, for the PDF report.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        return profile_compare.profile_sections(self)
+
+    def get_export_header(self):
+        """The model, company, date and users the exports name, as ``(label, value)`` pairs.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        return profile_compare.profile_header(self)
 
     def _usable_fields(self):
         """Every stored field of the model that is not excluded or sensitive, in a stable order."""
