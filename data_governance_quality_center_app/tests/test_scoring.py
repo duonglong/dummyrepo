@@ -49,3 +49,30 @@ class TestScoring(M3Case):
         self.assertTrue(self.issues_of(rule, contact))
         self.assertEqual(snapshot.issues_open_critical, 1)
         self.assertEqual(per_rule.issues_open_critical, 1)
+
+    def test_each_company_snapshot_shows_the_open_issues_of_its_own_company(self):
+        """FR-DGQ-0031: a scan of two companies keys the issue counts by each row's company."""
+        rule = self.vendor_rule(severity='critical', company=False)
+        self.isolate('res.partner')
+        self.env['res.partner'].create([
+            {'name': 'X one', 'function': 'DGQVEND', 'company_id': self.cx.id},
+            {'name': 'X two', 'function': 'DGQVEND', 'company_id': self.cx.id},
+            {'name': 'Y one', 'function': 'DGQVEND', 'company_id': self.cy.id}])
+        scan = self.run_scan([rule], companies=[self.cx, self.cy], models=['res.partner'])
+        Snapshot = self.env['data.quality.score.snapshot']
+        for company, expected in ((self.cx, 2), (self.cy, 1)):
+            domain = [('scan_id', '=', scan.id), ('company_id', '=', company.id)]
+            self.assertEqual(Snapshot.search(domain + [('rule_id', '=', False)]).issues_open_critical, expected)
+            self.assertEqual(Snapshot.search(domain + [('rule_id', '=', rule.id)]).issues_open_critical, expected)
+
+    def test_a_scan_of_a_model_without_company_field_stores_a_snapshot(self):
+        """FR-DGQ-0031: a model with no company field is scored under the scan's first company."""
+        self.env['data.quality.model.config'].create({
+            'model_id': self.env['ir.model']._get('res.partner.category').id, 'status': 'supported'})
+        rule = self.make_rule('res.partner.category', 'required', ['parent_id'], severity='warning', company=False)
+        self.env['res.partner.category'].create({'name': 'Untidy'})
+        scan = self.run_scan([rule], models=['res.partner.category'])
+        self.assertEqual(scan.state, 'done')
+        snapshot = self.env['data.quality.score.snapshot'].search([
+            ('scan_id', '=', scan.id), ('rule_id', '=', False)])
+        self.assertEqual(snapshot.company_id, self.cx)

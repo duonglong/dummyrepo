@@ -74,7 +74,7 @@ def snapshot_values(env, scan):
     for (model_id, company_id), row in rows.items():
         common = {'scan_id': scan.id, 'model_id': model_id, 'company_id': company_id, 'weights_used': weights}
         model_name = env['ir.model'].browse(model_id).model
-        counts = open_issues.get((model_name, company.id or default_company), {})
+        counts = open_issues.get((model_name, company_id), {})
         values.append(dict(
             common, **_figures(row), **{
                 'issues_open_%s' % severity: counts.get(severity, 0) for severity in weights}))
