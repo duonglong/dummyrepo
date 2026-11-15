@@ -43,6 +43,8 @@ class DataQualityScan(models.Model):
     company_ids = fields.Many2many(
         'res.company', string='Companies', copy=False,
         help="The companies whose records are scanned. Leave empty for all your allowed companies.")
+    is_illustrative = fields.Boolean(
+        copy=False, readonly=True, help="Sample scan of the demo data: its figures are not live metrics.")
     rules_not_run = fields.Json(string='Rules Not Run', copy=False, readonly=True)
     rules_not_run_text = fields.Text(compute='_compute_rules_not_run_text')
 

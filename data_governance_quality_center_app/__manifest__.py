@@ -20,6 +20,7 @@
         'views/merge_wizard_views.xml',
         'views/merge_views.xml',
         'data/model_config_data.xml',
+        'data/sample_rules.xml',
         'data/duplicate_cron.xml',
         'data/correction_cron.xml',
         'views/scan_views.xml',
@@ -30,6 +31,9 @@
         'views/issue_bulk_views.xml',
         'views/dashboard_views.xml',
         'data/cron_scan.xml',
+    ],
+    'demo': [
+        'demo/demo_data.xml',
     ],
     'assets': {
         'web.assets_backend': [

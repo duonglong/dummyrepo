@@ -20,6 +20,7 @@
                 </button>
             </t>
             <t t-else="">
+                <span t-if="state.figures.is_illustrative" class="badge text-bg-warning mb-2">Illustrative</span>
                 <div class="d-flex flex-wrap gap-4 mb-4">
                     <div><div class="fs-1 fw-bold" t-out="formatScore(state.figures.score)"/><div>Score</div></div>
                     <div><div class="fs-3" t-out="state.figures.records_scanned"/><div>Scanned</div></div>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Sample results: every record is marked illustrative, never a live metric. -->
+    <record id="demo_partner_no_email" model="res.partner">
+        <field name="name">Sample Contact Without E-mail</field>
+    </record>
+
+    <record id="demo_scan" model="data.quality.scan">
+        <field name="is_illustrative" eval="True"/>
+        <field name="state">done</field>
+        <field name="company_ids" eval="[Command.set([ref('base.main_company')])]"/>
+        <field name="rule_ids" eval="[Command.set([ref('sample_rule_contact_email')])]"/>
+        <field name="date_end" eval="DateTime.now()"/>
+        <field name="records_scanned">120</field>
+        <field name="checks_passed">108</field>
+        <field name="checks_failed">12</field>
+        <field name="records_warning">12</field>
+        <field name="issues_created">1</field>
+    </record>
+
+    <record id="demo_issue" model="data.quality.issue">
+        <field name="is_illustrative" eval="True"/>
+        <field name="rule_id" ref="sample_rule_contact_email"/>
+        <field name="rule_version">1</field>
+        <field name="res_model">res.partner</field>
+        <field name="res_id" ref="demo_partner_no_email"/>
+        <field name="record_name">Sample Contact Without E-mail</field>
+        <field name="severity">warning</field>
+        <field name="company_id" ref="base.main_company"/>
+        <field name="scan_id" ref="demo_scan"/>
+        <field name="first_scan_id" ref="demo_scan"/>
+    </record>
+
+    <record id="demo_snapshot" model="data.quality.score.snapshot">
+        <field name="is_illustrative" eval="True"/>
+        <field name="scan_id" ref="demo_scan"/>
+        <field name="company_id" ref="base.main_company"/>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="applicable_weight">30</field>
+        <field name="failed_weight">3</field>
+        <field name="score">90.0</field>
+        <field name="has_score" eval="True"/>
+        <field name="records_scanned">120</field>
+        <field name="records_failing">12</field>
+        <field name="records_warning">12</field>
+        <field name="issues_open_warning">1</field>
+        <field name="weights_used" eval="{'info': 1, 'warning': 3, 'critical': 10}"/>
+    </record>
+</odoo>
