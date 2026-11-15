@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="data_governance_quality_center_app.Trend">
+        <div class="mb-4">
+            <div class="d-flex gap-2 align-items-center">
+                <h5 class="mb-0">Trend</h5>
+                <t t-foreach="['day', 'week', 'month']" t-as="period" t-key="period">
+                    <button t-attf-class="btn btn-sm #{state.period === period ? 'btn-primary' : 'btn-light'}"
+                            t-on-click="() => this.setPeriod(period)" t-out="period"/>
+                </t>
+            </div>
+            <div t-foreach="state.points" t-as="point" t-key="point.period" class="d-flex gap-3">
+                <span t-out="point.period"/>
+                <span t-out="formatScore(point.score)"/>
+                <button t-if="point.snapshot_id and point.score !== null" class="btn btn-link p-0"
+                        t-on-click="() => this.explain(point)">Why?</button>
+            </div>
+            <div t-if="state.explanation" class="mt-2">
+                <div t-foreach="state.explanation.causes" t-as="cause" t-key="cause_index" class="d-flex gap-3">
+                    <span t-out="causeLabel(cause.kind)"/>
+                    <span t-out="cause.rule_name"/>
+                    <span t-out="formatPoints(cause.points)"/>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

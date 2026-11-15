@@ -3,14 +3,16 @@ from datetime import datetime, time, timedelta, timezone
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..const import DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, SEVERITY_WEIGHT_DEFAULTS
-from ..services import scoring
+from ..const import (
+    DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, DASHBOARD_WIDGET_STEP, DASHBOARD_WIDGETS,
+    DRILL_DOWN_RECORD_LIMIT, ISSUE_OPEN_STATES, SEVERITY_WEIGHT_DEFAULTS, TREND_PERIODS)
+from ..services import scoring, trend
 
 
 class DataQualityDashboard(models.AbstractModel):
     """The service that answers the dashboard screen: figures from the latest snapshots.
 
-    Requirements: FR-DGQ-0032, FR-DGQ-0033, NFR-DGQ-0004
+    Requirements: FR-DGQ-0032, FR-DGQ-0033, FR-DGQ-0034, FR-DGQ-0035, FR-DGQ-0036, FR-DGQ-0037, NFR-DGQ-0004
     """
     _name = 'data.quality.dashboard'
     _description = 'Data Quality Dashboard'
@@ -110,3 +112,148 @@ class DataQualityDashboard(models.AbstractModel):
         return [{
             'id': issue.id, 'name': issue.name, 'severity': issue.severity, 'state': issue.state,
             'last_found': fields.Datetime.to_string(issue.last_found)} for issue in issues]
+
+    @api.model
+    def _check_viewer(self):
+        if not self.env.user.has_group('data_governance_quality_center_app.group_dgq_viewer'):
+            raise AccessError(self.env._("You are not allowed to open the quality dashboard."))
+
+    @api.model
+    def _chosen_companies(self, company_ids):
+        allowed = self.env.companies
+        return allowed.filtered(lambda company: company.id in company_ids) if company_ids else allowed
+
+    @api.model
+    def get_trend(self, company_ids=None, model_id=None, period='week', date_from=None, date_to=None):
+        """The score per day, week or month for the chosen companies and model, from the last snapshot of each period.
+
+        Requirements: FR-DGQ-0034
+        """
+        self._check_viewer()
+        if period not in TREND_PERIODS:
+            raise UserError(self.env._("The period must be day, week or month."))
+        domain = [('company_id', 'in', self._chosen_companies(company_ids).ids), ('rule_id', '=', False),
+                  ('severity', '=', False)]
+        if model_id:
+            domain.append(('model_id', '=', model_id))
+        if date_from:
+            domain.append(('date', '>=', self._end_of_day(fields.Date.subtract(fields.Date.to_date(date_from), days=1))))
+        if date_to:
+            domain.append(('date', '<', self._end_of_day(date_to)))
+        snapshots = self.env['data.quality.score.snapshot'].search(domain)
+        return {'period': period, 'points': trend.trend_points(self.env, snapshots, period)}
+
+    @api.model
+    def explain_change(self, snapshot_id, previous_id=None):
+        """The causes of the score change from the previous snapshot of the same model and company to this one.
+
+        Without ``previous_id`` the snapshot before it is used. The causes come biggest effect first, each with its points.
+
+        Requirements: FR-DGQ-0035
+        """
+        self._check_viewer()
+        Snapshot = self.env['data.quality.score.snapshot']
+        after = Snapshot.browse(snapshot_id).exists()
+        after.check_access('read')
+        if previous_id:
+            before = Snapshot.browse(previous_id).exists()
+        else:
+            before = Snapshot.search([
+                ('company_id', '=', after.company_id.id), ('model_id', '=', after.model_id.id), ('rule_id', '=', False),
+                ('severity', '=', False), '|', ('date', '<', after.date), '&', ('date', '=', after.date), ('id', '<', after.id),
+            ], limit=1)
+        if not before:
+            raise UserError(self.env._("There is no earlier snapshot to compare with."))
+        before.check_access('read')
+        if (before.company_id, before.model_id) != (after.company_id, after.model_id):
+            raise UserError(self.env._("Both snapshots must be of the same model and company."))
+        return dict(trend.explain_change(self.env, before, after), model=after.model_id.name, company=after.company_id.name)
+
+    @api.model
+    def drill_down(self, figure, company_ids=None, model_id=None, date=None, severity=None):
+        """The window action of the issues, or of the records, behind a figure, filtered as the figure is.
+
+        Figures are ``open_issues``, ``critical_issues``, ``severity`` (with ``severity``), ``model`` (with
+        ``model_id``) and ``records_error`` or ``records_warning``, which open the records of the model when
+        one is given. The lists respect the user's own access.
+
+        Requirements: FR-DGQ-0036
+        """
+        self._check_viewer()
+        companies = self._chosen_companies(company_ids)
+        end = self._end_of_day(date)
+        domain = [('state', 'in', ISSUE_OPEN_STATES), ('company_id', 'in', [False, *companies.ids])]
+        if end:
+            domain.append(('first_found', '<', end))
+        name = self.env._("Open issues")
+        severity = {'critical_issues': 'critical', 'records_error': 'critical', 'records_warning': 'warning'}.get(
+            figure, severity)
+        if figure not in ('open_issues', 'severity', 'model', 'critical_issues', 'records_error', 'records_warning'):
+            raise UserError(self.env._("Unknown figure."))
+        if severity:
+            domain.append(('severity', '=', severity))
+        if model_id:
+            domain.append(('res_model', '=', self.env['ir.model'].browse(model_id).model))
+        if figure in ('records_error', 'records_warning') and model_id:
+            groups = self.env['data.quality.issue']._read_group(domain, ['res_id'], limit=DRILL_DOWN_RECORD_LIMIT)
+            model = self.env['ir.model'].browse(model_id)
+            return {
+                'type': 'ir.actions.act_window', 'name': model.name, 'res_model': model.model,
+                'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')],
+                'domain': [('id', 'in', [res_id for (res_id,) in groups])],
+            }
+        return {
+            'type': 'ir.actions.act_window', 'name': name, 'res_model': 'data.quality.issue',
+            'view_mode': 'list,form', 'views': [(False, 'list'), (False, 'form')], 'domain': domain,
+        }
+
+    @api.model
+    def get_layout(self):
+        """The widgets of the user's dashboard in order, each with its visibility.
+
+        A widget the user never touched keeps its default place and is shown.
+
+        Requirements: FR-DGQ-0037
+        """
+        self._check_viewer()
+        lines = {line.widget: line for line in self.env['data.quality.dashboard.layout'].search(
+            [('user_id', '=', self.env.uid)])}
+        layout = []
+        for index, (widget, label) in enumerate(DASHBOARD_WIDGETS):
+            line = lines.get(widget)
+            layout.append({
+                'widget': widget, 'label': self.env._(label),
+                'sequence': line.sequence if line else index * DASHBOARD_WIDGET_STEP,
+                'visible': line.visible if line else True, '_default': index})
+        layout.sort(key=lambda item: (item['sequence'], item['_default']))
+        return [{key: value for key, value in item.items() if key != '_default'} for item in layout]
+
+    @api.model
+    def save_layout(self, widgets):
+        """Keep the user's order and visibility; ``widgets`` lists the widget keys top to bottom with their visibility.
+
+        Requirements: FR-DGQ-0037
+        """
+        self._check_viewer()
+        Layout = self.env['data.quality.dashboard.layout']
+        known = {widget for widget, _label in DASHBOARD_WIDGETS}
+        lines = {line.widget: line for line in Layout.search([('user_id', '=', self.env.uid)])}
+        for index, item in enumerate(widgets):
+            if item['widget'] not in known:
+                raise UserError(self.env._("Unknown widget."))
+            values = {'sequence': index * DASHBOARD_WIDGET_STEP, 'visible': bool(item['visible'])}
+            if item['widget'] in lines:
+                lines[item['widget']].write(values)
+            else:
+                Layout.create(dict(values, widget=item['widget']))
+        return self.get_layout()
+
+    @api.model
+    def reset_layout(self):
+        """Delete the user's lines, so the default layout shows again.
+
+        Requirements: FR-DGQ-0037
+        """
+        self._check_viewer()
+        self.env['data.quality.dashboard.layout'].search([('user_id', '=', self.env.uid)]).unlink()
+        return self.get_layout()

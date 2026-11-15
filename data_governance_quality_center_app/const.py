@@ -70,3 +70,22 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 # Models with the lowest score and issues the dashboard lists (FR-DGQ-0032).
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
+
+# The widgets of the dashboard in their default order, as (key, label) (FR-DGQ-0037).
+DASHBOARD_WIDGETS = (
+    ('score', 'Score'),
+    ('trend', 'Trend'),
+    ('records', 'Records'),
+    ('issues', 'Issues'),
+    ('by_model', 'By model'),
+    ('by_company', 'By company'),
+    ('lowest', 'Lowest scores'),
+    ('recent', 'Recent issues'),
+)
+# Space between the default sequences, so a person can slot a widget in between (FR-DGQ-0037).
+DASHBOARD_WIDGET_STEP = 10
+
+# The periods of the score trend (FR-DGQ-0034).
+TREND_PERIODS = ('day', 'week', 'month')
+# Records listed behind a figure of records (FR-DGQ-0036).
+DRILL_DOWN_RECORD_LIMIT = 1000

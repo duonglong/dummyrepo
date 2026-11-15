@@ -47,3 +47,4 @@ from . import test_automation_acceptance
 from . import test_automation_actions_acceptance
 from . import test_scoring
 from . import test_dashboard
+from . import test_trend
