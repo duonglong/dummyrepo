@@ -131,9 +131,9 @@ class DataQualityScan(models.Model):
         """A user changes only the scope, and only while every scan is draft.
 
         A queued or running scan keeps the scope its overlap and not-run checks were made on. When a scan
-        started by an automation ends, its run records the outcome and hands the new issues to the team.
+        started by an automation ends, its run records the outcome.
 
-        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0065, FR-DGQ-0070
+        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0063, FR-DGQ-0070
         """
         if not self.env.su:
             self._dgq_check_user_values(set(vals))
@@ -316,7 +316,7 @@ class DataQualityScan(models.Model):
         The batch starts after the checkpoint's last record, so a resumed scan never checks again a
         record already saved. Lines, tallies, counts and the checkpoint are written together.
 
-        Requirements: FR-DGQ-0016, FR-DGQ-0017, FR-DGQ-0019, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023
+        Requirements: FR-DGQ-0016, FR-DGQ-0017, FR-DGQ-0019, FR-DGQ-0021, FR-DGQ-0022, FR-DGQ-0023, FR-DGQ-0065
         """
         model_name = checkpoint.model_id.model
         rules = self.rule_ids.filtered(
@@ -350,6 +350,11 @@ class DataQualityScan(models.Model):
                 for res_id, outcome in failing.items())
         self.env['data.quality.scan.line'].create(lines)
         created, updated, resolved = issue_service.sync_batch(self.env, self, rules, records, results, now)
+        if created and self.automation_run_id:
+            # sudo: the run and the issues are the app's own records, whoever started the scan
+            self.automation_run_id.sudo()._dgq_assign_issues(self.env['data.quality.issue'].sudo().search([
+                ('first_scan_id', '=', self.id), ('res_model', '=', model_name),
+                ('res_id', 'in', records.ids), ('team_id', '=', False)]))
         counts = scan_service.batch_counts(
             rules, records, results, covered)
         self.env['data.quality.scan.tally']._dgq_add(self, checkpoint.model_id, counts)

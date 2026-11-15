@@ -1,7 +1,6 @@
-from collections import defaultdict
-
 from odoo import api, fields, models
 
+from ..const import JOB_BATCH_SIZE
 from ..services import events
 
 
@@ -23,27 +22,45 @@ class DataQualityEventQueue(models.Model):
 
     @api.model
     def _dgq_process(self):
-        """Turn the waiting rows into one event scan for each automation and model.
+        """Turn the waiting rows into event scans, at most one batch of each automation and model.
+
+        The scheduled action works through the groups and commits after each, so the rows that wait
+        for the next run are never more than the work of one run.
+
+        Requirements: FR-DGQ-0064
+        """
+        queue = self.sudo()  # sudo: the runner is the app, the queue has no user access
+        groups = queue._read_group([], ['automation_id', 'res_model'], ['__count'])
+        remaining = sum(count for _automation, _model, count in groups)
+        for automation, res_model, _count in groups:
+            handled = queue._dgq_process_group(automation, res_model)
+            remaining -= handled
+            self.env['ir.cron']._commit_progress(handled, remaining=remaining)
+
+    def _dgq_process_group(self, automation, res_model):
+        """Check the first batch of the rows of one automation and model; return how many rows were handled.
 
         Rows of a record that is gone or of an automation switched off are dropped. A scope that is
         busy keeps its rows for the next run.
 
         Requirements: FR-DGQ-0064
         """
-        groups = defaultdict(lambda: self.browse())
-        for row in self.sudo().search([]):  # sudo: the runner is the app, the queue has no user access
-            groups[(row.automation_id, row.res_model)] |= row
-        for (automation, res_model), rows in groups.items():
-            Model = self.env.get(res_model)
-            if Model is None or not automation.active:
-                rows.unlink()
-                continue
-            # sudo: only the existence of the saved records is looked at
-            existing = Model.sudo().browse(rows.mapped('res_id')).exists()
-            rows.filtered(lambda row: row.res_id not in existing.ids).unlink()
-            rows = rows.filtered(lambda row: row.res_id in existing.ids)
-            if rows and automation._dgq_launch_event(res_model, rows.mapped('res_id')):
-                rows.unlink()
+        rows = self.search(
+            [('automation_id', '=', automation.id), ('res_model', '=', res_model)],
+            order='id', limit=JOB_BATCH_SIZE)
+        Model = self.env.get(res_model)
+        if Model is None or not automation.active:
+            rows.unlink()
+            return len(rows)
+        # sudo: only the existence of the saved records is looked at
+        existing = set(Model.sudo().browse(rows.mapped('res_id')).exists().ids)
+        gone = rows.filtered(lambda row: row.res_id not in existing)
+        gone.unlink()
+        waiting = rows - gone
+        if waiting and automation._dgq_launch_event(res_model, waiting.mapped('res_id')):
+            waiting.unlink()
+            return len(rows)
+        return len(gone)
 
 
 class Base(models.AbstractModel):

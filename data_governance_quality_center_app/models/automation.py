@@ -1,15 +1,14 @@
 import calendar
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 
 from ..services import events
 
 SCHEDULE_FIELDS = {'trigger', 'interval', 'hour', 'weekday', 'monthday', 'user_id', 'active'}
-OPERATOR_GROUP = 'data_governance_quality_center_app.group_dgq_operator'
+WATCH_FIELDS = {'trigger', 'model_ids', 'active'}
 
 
 class DataQualityAutomation(models.Model):
@@ -79,7 +78,7 @@ class DataQualityAutomation(models.Model):
         """Plan the first run of a schedule and start watching the models of an event automation."""
         automations = super().create(vals_list)
         automations._dgq_plan()
-        automations._dgq_watch()
+        automations._dgq_watch(notify=True)
         return automations
 
     def write(self, vals):
@@ -87,7 +86,8 @@ class DataQualityAutomation(models.Model):
         result = super().write(vals)
         if SCHEDULE_FIELDS & set(vals) and 'next_run' not in vals:
             self._dgq_plan()
-        self._dgq_watch()
+        if WATCH_FIELDS & set(vals):
+            self._dgq_watch(notify=True)
         return result
 
     @api.model
@@ -96,10 +96,29 @@ class DataQualityAutomation(models.Model):
         super()._register_hook()
         self.search([('trigger', '=', 'event')])._dgq_watch()
 
-    def _dgq_watch(self):
-        """Tell the save hooks which models to look at (all models of event automations)."""
+    def _dgq_watch(self, notify=False):
+        """Tell the save hooks which models to look at (all models of event automations).
+
+        With ``notify`` the registry is also flagged as changed, so the other server workers load it
+        again and fill their own set of watched models, as the native automations do.
+
+        Requirements: FR-DGQ-0064
+        """
         # sudo: the person saving an automation may not read the model list
         events.watch(self.env, self.sudo().filtered(lambda a: a.trigger == 'event').model_ids.mapped('model'))
+        if notify:
+            self._dgq_notify_workers()
+
+    def _dgq_notify_workers(self):
+        """Flag the registry as changed, so every server worker fills its set of watched models again."""
+        if self.env.registry.ready and not self.env.context.get('import_file'):
+            self.env.transaction.will_change_registry()
+
+    def unlink(self):
+        """Other workers stop queueing the saves of a deleted event automation."""
+        result = super().unlink()
+        self._dgq_notify_workers()
+        return result
 
     def _dgq_plan(self):
         """Set the next due time of the active schedules; clear it for the others."""
@@ -149,20 +168,41 @@ class DataQualityAutomation(models.Model):
         due = self.sudo().search([('trigger', '=', 'schedule'), ('next_run', '<=', now)])  # sudo: the scheduled action is the app
         for automation in due:
             automation.write({'last_run': now, 'next_run': automation._dgq_next_run(now)})
-            run, reason = automation._dgq_launch()
+            _run, reason = automation._dgq_launch()
             if reason:
                 self.env['data.quality.automation.run'].create({
                     'automation_id': automation.id, 'date_start': now, 'date_end': now,
                     'state': 'skipped', 'skip_reason': reason})
+            self.env['ir.cron']._commit_progress(1)  # a failure of the next automation keeps this one
 
     def _dgq_launch_event(self, res_model, res_ids):
         """Start the scan of the waiting records of one model; false when the scope is busy.
 
+        A model the automation no longer covers, or whose rules it did not choose, has nothing to
+        check: the records count as handled and no scan starts.
+
         Requirements: FR-DGQ-0064
         """
         self.ensure_one()
-        run, reason = self._dgq_launch(res_model, res_ids)
+        if not self._dgq_event_rules(res_model):
+            return True
+        _run, reason = self._dgq_launch(res_model, res_ids)
         return not reason
+
+    def _dgq_event_rules(self, res_model):
+        """The rules an event of the model checks: the chosen ones, or every rule of the model when none is chosen.
+
+        Empty when the model is not one of the automation's or none of its chosen rules is about it.
+
+        Requirements: FR-DGQ-0064
+        """
+        self.ensure_one()
+        if res_model not in self.model_ids.mapped('model'):
+            return self.env['data.quality.rule']
+        if not self.rule_ids:
+            # sudo: the app looks up the active rules of the model whoever saved the record
+            return self.env['data.quality.rule'].sudo().search([('active', '=', True), ('model_name', '=', res_model)])
+        return self.rule_ids.filtered(lambda rule: rule.model_name == res_model)
 
     def _dgq_launch(self, res_model=None, res_ids=None):
         """Open a run and queue its scan; return ``(run, reason)``, the reason when nothing could start.
@@ -180,6 +220,8 @@ class DataQualityAutomation(models.Model):
                 scan = self.env['data.quality.scan'].create(self._dgq_scan_values(run, res_model, res_ids))
                 scan._dgq_enqueue()
                 run.scan_id = scan
+        except (AccessError, MissingError, ValidationError):
+            raise
         except UserError as error:
             return Run, error.args[0]
         return run, False
@@ -189,8 +231,8 @@ class DataQualityAutomation(models.Model):
         self.ensure_one()
         rules, models_ = self.rule_ids, self.model_ids
         if res_model:
+            rules = self._dgq_event_rules(res_model)
             models_ = models_.filtered(lambda model: model.model == res_model)
-            rules = rules.filtered(lambda rule: rule.model_name == res_model)
         # sudo: an automation without companies covers every company, whatever the runner may read
         companies = self.company_ids or self.env['res.company'].sudo().search([])
         return {
@@ -227,40 +269,32 @@ class DataQualityAutomationRun(models.Model):
     issues_assigned = fields.Integer(readonly=True)
 
     def _dgq_close(self, scan):
-        """Record the end of the run's scan; a finished scan hands its new issues to the team.
+        """Record the end of the run's scan.
 
         Requirements: FR-DGQ-0065
         """
         self.ensure_one()
-        vals = {
+        self.write({
             'date_end': fields.Datetime.now(),
             'state': 'done' if scan.state == 'done' else 'failed',
             'issues_created': scan.issues_created,
-        }
-        if scan.state == 'done':
-            vals['issues_assigned'] = self._dgq_assign_new_issues(scan)
-        self.write(vals)
+        })
 
-    def _dgq_assign_new_issues(self, scan):
-        """Give the issues the scan created to the team and, when one can take them, to a user.
+    def _dgq_assign_issues(self, issues):
+        """Give the new issues of one scan batch to the team and, when one can take them, to a user.
 
-        The user is the member chosen for the issue's model, else the team leader; an issue stays New
-        for the team when no user is chosen or the one chosen cannot take it. Returns how many got a user.
+        The user is the member chosen for the issues' model, else the team leader; the issues stay New
+        for the team when no user is chosen or the one chosen cannot take them.
 
         Requirements: FR-DGQ-0065
         """
         self.ensure_one()
         team = self.automation_id.team_id
-        if not team:
-            return 0
-        # sudo: the app writes the issues its scan created, whoever may read them
-        issues = self.env['data.quality.issue'].sudo().search([('first_scan_id', '=', scan.id)])
+        if not team or not issues:
+            return
         issues.write({'team_id': team.id})
-        by_user = defaultdict(lambda: issues.browse())
-        for issue in issues:
-            user = team._dgq_assignee(issue.res_model)
-            if team._dgq_can_take(user, issue):
-                by_user[user] |= issue
-        for user, user_issues in by_user.items():
-            user_issues.write({'user_id': user.id})
-        return sum(len(user_issues) for user_issues in by_user.values())
+        user = team._dgq_assignee(issues[0].res_model)
+        takers = issues.filtered(lambda issue: team._dgq_can_take(user, issue))
+        if takers:
+            takers.write({'user_id': user.id})
+            self.issues_assigned += len(takers)
