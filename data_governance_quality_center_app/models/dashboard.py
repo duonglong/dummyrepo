@@ -6,7 +6,7 @@ from odoo.exceptions import AccessError, UserError
 from ..const import (
     DASHBOARD_LOWEST_MODELS, DASHBOARD_RECENT_ISSUES, DASHBOARD_WIDGET_STEP,
     DRILL_DOWN_RECORD_LIMIT, ISSUE_OPEN_STATES, SEVERITY_WEIGHT_DEFAULTS, TREND_PERIODS)
-from ..services import scoring, trend
+from ..services import health, scoring, trend
 
 
 class DataQualityDashboard(models.AbstractModel):
@@ -31,7 +31,7 @@ class DataQualityDashboard(models.AbstractModel):
         if not self.env.user.has_group('data_governance_quality_center_app.group_dgq_viewer'):
             raise AccessError(self.env._("You are not allowed to open the quality dashboard."))
         allowed = self.env.companies
-        companies = allowed.filtered(lambda company: company.id in company_ids) if company_ids else allowed
+        companies = self._chosen_companies(company_ids)
         end = self._end_of_day(date)
         snapshots = self._latest_snapshots(companies, end)
         by_model, by_company = {}, {}
@@ -39,10 +39,11 @@ class DataQualityDashboard(models.AbstractModel):
         totals = dict.fromkeys(
             ['applicable_weight', 'failed_weight', 'records_scanned', 'records_error', 'records_warning', *open_fields], 0)
         for snap in snapshots:
+            model = snap.model_id.sudo()  # sudo: a viewer may not read ir.model; the name of a scored model is no secret
             for name in totals:
                 totals[name] += snap[name]
             for key, bucket, label in (
-                    (snap.model_id.id, by_model, snap.model_id.name),
+                    (model.id, by_model, model.name),
                     (snap.company_id.id, by_company, snap.company_id.name)):
                 row = bucket.setdefault(key, {'id': key, 'name': label, 'applicable_weight': 0, 'failed_weight': 0})
                 row['applicable_weight'] += snap.applicable_weight
@@ -65,6 +66,15 @@ class DataQualityDashboard(models.AbstractModel):
             'lowest_models': sorted(scored, key=lambda row: (row['score'], row['name']))[:DASHBOARD_LOWEST_MODELS],
             'recent_issues': self._recent_issues(companies, end),
         }
+
+    @api.model
+    def _chosen_companies(self, company_ids):
+        """The chosen companies among the ones the user works with; all of them when none is chosen.
+
+        Requirements: FR-DGQ-0033
+        """
+        allowed = self.env.companies
+        return allowed.filtered(lambda company: company.id in company_ids) if company_ids else allowed
 
     @api.model
     def _end_of_day(self, date):
@@ -266,3 +276,13 @@ class DataQualityDashboard(models.AbstractModel):
         self._check_viewer()
         self.env['data.quality.dashboard.layout'].search([('user_id', '=', self.env.uid)]).unlink()
         return self.get_layout()
+
+    @api.model
+    def get_health(self):
+        """The figures of the health page (administrators only).
+
+        Requirements: FR-DGQ-0079
+        """
+        if not self.env.user.has_group('data_governance_quality_center_app.group_dgq_admin'):
+            raise AccessError(self.env._("The health page is for administrators."))
+        return health.health(self.env)

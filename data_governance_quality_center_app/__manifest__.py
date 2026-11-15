@@ -32,6 +32,10 @@
         'views/profile_views.xml',
         'views/dashboard_views.xml',
         'data/cron_scan.xml',
+        'data/cron_cleanup.xml',
+        'views/health_views.xml',
+        'views/report_views.xml',
+        'views/res_config_settings_views.xml',
         'data/cron_automation.xml',
         'views/automation_views.xml',
     ],
@@ -39,6 +43,7 @@
         'web.assets_backend': [
             'data_governance_quality_center_app/static/src/record_picker/*',
             'data_governance_quality_center_app/static/src/dashboard/*',
+            'data_governance_quality_center_app/static/src/health/*',
         ],
     },
     'installable': True,
