@@ -171,3 +171,81 @@ class TestAutomation(M3Case):
         self.assertFalse(Assignment.with_user(stranger).search([('team_id', '=', team.id)]))
         with self.assertRaises(AccessError):
             team.assignment_ids.with_user(stranger).user_id
+
+    def test_an_event_of_archived_chosen_rules_checks_nothing(self):
+        """FR-DGQ-0064: rules chosen and then switched off leave the event with nothing to check."""
+        rule = self.vendor_rule()
+        other = self.vendor_rule(name='Other contact rule')
+        self.make_automation('On creation', rules=[rule], trigger='event', event='create')
+        rule.sudo().active = False
+        vendors = self.vendors(1)
+        Queue = self.env['data.quality.event.queue'].sudo()
+        Queue._dgq_process()
+        self.assertFalse(Queue.search([('res_id', 'in', vendors.ids)]))
+        self.assertFalse(self.issues_of(other, vendors), 'no rule nobody chose is run')
+        self.assertFalse(self.issues_of(rule, vendors))
+
+    def test_a_schedule_of_archived_chosen_rules_is_skipped(self):
+        """FR-DGQ-0063: a due schedule whose chosen rules are all off starts no scan and records why."""
+        rule = self.vendor_rule()
+        other = self.vendor_rule(name='Other contact rule')
+        automation = self.make_automation(rules=[rule])
+        rule.sudo().active = False
+        vendors = self.vendors(1)
+        scans_before = self.env['data.quality.scan'].sudo().search_count([])
+        self.make_due(automation)
+        automation.sudo()._dgq_run_due()
+        run = automation.sudo().run_ids
+        self.assertEqual((run.state, bool(run.skip_reason)), ('skipped', True))
+        self.assertEqual(self.env['data.quality.scan'].sudo().search_count([]), scans_before)
+        self.assertFalse(self.issues_of(other, vendors))
+
+    def test_an_event_scan_that_can_never_start_is_dropped_with_a_skipped_run(self):
+        """FR-DGQ-0064: only an overlap keeps rows queued; a scope no rule fits is recorded and dropped."""
+        rule = self.vendor_rule(company=self.cy)
+        automation = self.make_automation('On creation', rules=[rule], trigger='event', event='create')
+        vendors = self.vendors(1)
+        Queue = self.env['data.quality.event.queue'].sudo()
+        Queue._dgq_process()
+        self.assertFalse(Queue.search([('res_id', 'in', vendors.ids)]))
+        run = automation.sudo().run_ids
+        self.assertEqual((run.state, bool(run.skip_reason)), ('skipped', True))
+
+    def test_rows_of_an_automation_changed_to_a_schedule_are_dropped(self):
+        """FR-DGQ-0064: an automation no longer on an event starts no event scan for its waiting rows."""
+        rule = self.vendor_rule()
+        automation = self.make_automation('On creation', rules=[rule], trigger='event', event='create')
+        vendors = self.vendors(1)
+        automation.sudo().trigger = 'schedule'
+        Queue = self.env['data.quality.event.queue'].sudo()
+        Queue._dgq_process()
+        self.assertFalse(Queue.search([('res_id', 'in', vendors.ids)]))
+        self.assertFalse(self.issues_of(rule, vendors))
+
+    def test_an_unexpected_error_does_not_stop_the_other_automations(self):
+        """FR-DGQ-0063: a crash of one due automation is recorded as failed and the next one still runs."""
+        rule = self.vendor_rule()
+        first = self.make_automation('First', rules=[rule])
+        second = self.make_automation('Second', rules=[rule])
+        self.make_due(first)
+        self.make_due(second)
+        original = type(first)._dgq_launch
+
+        def crashing(this, *args, **kwargs):
+            if this.name == 'First':
+                raise RuntimeError('boom')
+            return original(this, *args, **kwargs)
+
+        with patch.object(type(first), '_dgq_launch', crashing):
+            first.sudo()._dgq_run_due()
+        self.assertEqual(first.sudo().run_ids.state, 'failed')
+        self.assertTrue(first.sudo().next_run > first.sudo().last_run)
+        self.assertTrue(second.sudo().run_ids.scan_id)
+
+    def test_a_deleted_queue_action_does_not_block_a_save(self):
+        """FR-DGQ-0064: the save of a watched model succeeds when the queue's scheduled action is gone."""
+        rule = self.vendor_rule()
+        self.make_automation('On creation', rules=[rule], trigger='event', event='create')
+        self.env.ref('data_governance_quality_center_app.ir_cron_dgq_event_queue').sudo().unlink()
+        vendors = self.vendors(1)
+        self.assertTrue(self.env['data.quality.event.queue'].sudo().search([('res_id', 'in', vendors.ids)]))

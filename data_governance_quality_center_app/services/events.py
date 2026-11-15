@@ -49,6 +49,7 @@ def queue_saved(env, records, event, field_names=()):
             SQL("(%s, %s, %s, %s, now() AT TIME ZONE 'UTC', %s, now() AT TIME ZONE 'UTC')",
                 automation_id, res_model, res_id, env.uid, env.uid)
             for automation_id, res_model, res_id in rows)))
-    if env.cr.rowcount:
-        env.ref(QUEUE_CRON).sudo()._trigger()  # a user may not read scheduled actions
+    cron = env.ref(QUEUE_CRON, raise_if_not_found=False)  # the save never fails for a deleted action
+    if env.cr.rowcount and cron:
+        cron.sudo()._trigger()  # a user may not read scheduled actions
     return env.cr.rowcount

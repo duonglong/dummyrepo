@@ -35,12 +35,13 @@ class DataQualityEventQueue(models.Model):
         for automation, res_model, _count in groups:
             handled = queue._dgq_process_group(automation, res_model)
             remaining -= handled
-            self.env['ir.cron']._commit_progress(handled, remaining=remaining)
+            if not self.env['ir.cron']._commit_progress(handled, remaining=remaining):
+                break
 
     def _dgq_process_group(self, automation, res_model):
         """Check the first batch of the rows of one automation and model; return how many rows were handled.
 
-        Rows of a record that is gone or of an automation switched off are dropped. A scope that is
+        Rows of a record that is gone or of an automation switched off or no longer on an event are dropped. A scope that is
         busy keeps its rows for the next run.
 
         Requirements: FR-DGQ-0064
@@ -49,7 +50,7 @@ class DataQualityEventQueue(models.Model):
             [('automation_id', '=', automation.id), ('res_model', '=', res_model)],
             order='id', limit=JOB_BATCH_SIZE)
         Model = self.env.get(res_model)
-        if Model is None or not automation.active:
+        if Model is None or not automation.active or automation.trigger != 'event':
             rows.unlink()
             return len(rows)
         # sudo: only the existence of the saved records is looked at

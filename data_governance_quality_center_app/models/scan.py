@@ -14,6 +14,10 @@ from ..services import validation
 _logger = logging.getLogger(__name__)
 
 
+class ScanBusy(UserError):
+    """The refusal of a scan whose scope overlaps a queued or running scan: it may be tried again later."""
+
+
 class DataQualityScan(models.Model):
     """One run of rules over records: scope, state, progress and counts.
 
@@ -257,11 +261,11 @@ class DataQualityScan(models.Model):
         shared_rule = (other.rule_ids & Scan.rule_ids)[:1].display_name
         shared_company = (other.company_ids & Scan.company_ids)[:1].display_name
         if sibling:
-            raise UserError(self.env._(
+            raise ScanBusy(self.env._(
                 "The scans %(first)s and %(second)s both cover rule %(rule)s for %(company)s. "
                 "Start them one after the other.",
                 first=sibling.name, second=self.name, rule=shared_rule, company=shared_company))
-        raise UserError(self.env._(
+        raise ScanBusy(self.env._(
             "A scan of rule %(rule)s for %(company)s is already %(state)s (%(name)s). "
             "Wait for it to finish or cancel it.",
             rule=shared_rule, company=shared_company,

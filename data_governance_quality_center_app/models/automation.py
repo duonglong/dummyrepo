@@ -1,4 +1,5 @@
 import calendar
+import logging
 from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -6,6 +7,9 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 
 from ..services import events
+from .scan import ScanBusy
+
+_logger = logging.getLogger(__name__)
 
 SCHEDULE_FIELDS = {'trigger', 'interval', 'hour', 'weekday', 'monthday', 'user_id', 'active'}
 WATCH_FIELDS = {'trigger', 'model_ids', 'active'}
@@ -168,46 +172,80 @@ class DataQualityAutomation(models.Model):
         due = self.sudo().search([('trigger', '=', 'schedule'), ('next_run', '<=', now)])  # sudo: the scheduled action is the app
         for automation in due:
             automation.write({'last_run': now, 'next_run': automation._dgq_next_run(now)})
-            _run, reason = automation._dgq_launch()
-            if reason:
-                self.env['data.quality.automation.run'].create({
-                    'automation_id': automation.id, 'date_start': now, 'date_end': now,
-                    'state': 'skipped', 'skip_reason': reason})
-            self.env['ir.cron']._commit_progress(1)  # a failure of the next automation keeps this one
+            stop, _busy = automation._dgq_launch_safely()
+            if stop:
+                automation._dgq_record_stop(now, *stop)
+            if not self.env['ir.cron']._commit_progress(1):  # a failure of the next automation keeps this one
+                break
+
+    def _dgq_launch_safely(self, res_model=None, res_ids=None):
+        """Start a scan; an unexpected error is logged and returned as a failure, never raised.
+
+        Returns ``((state, reason), busy)``: no stop when the scan started; ``busy`` when the scope
+        overlaps a running scan and may be tried again.
+        """
+        self.ensure_one()
+        try:
+            with self.env.cr.savepoint():
+                stop, busy = self._dgq_launch(res_model, res_ids)
+        except Exception as error:  # noqa: BLE001 - one automation must not stop the others
+            _logger.exception("Automation %s failed to start its scan", self.id)
+            return ('failed', str(error)), False
+        return stop, busy
+
+    def _dgq_record_stop(self, now, state, reason):
+        """Record a run that never started a scan, with the reason."""
+        self.ensure_one()
+        self.env['data.quality.automation.run'].create({
+            'automation_id': self.id, 'date_start': now, 'date_end': now,
+            'state': state, 'skip_reason': reason})
 
     def _dgq_launch_event(self, res_model, res_ids):
-        """Start the scan of the waiting records of one model; false when the scope is busy.
+        """Start the scan of the waiting records of one model; false only while the scope is busy.
 
         A model the automation no longer covers, or whose rules it did not choose, has nothing to
-        check: the records count as handled and no scan starts.
+        check: the records count as handled and no scan starts. Any other refusal is final: a skipped
+        run records the reason and the records count as handled. Only an overlap keeps them waiting.
 
         Requirements: FR-DGQ-0064
         """
         self.ensure_one()
         if not self._dgq_event_rules(res_model):
             return True
-        _run, reason = self._dgq_launch(res_model, res_ids)
-        return not reason
+        stop, busy = self._dgq_launch_safely(res_model, res_ids)
+        if busy:
+            return False
+        if stop:
+            self._dgq_record_stop(fields.Datetime.now(), *stop)
+        return True
 
     def _dgq_event_rules(self, res_model):
         """The rules an event of the model checks: the chosen ones, or every rule of the model when none is chosen.
 
-        Empty when the model is not one of the automation's or none of its chosen rules is about it.
+        Empty when the model is not one of the automation's, or when rules were chosen and none of
+        them is switched on or about this model.
 
         Requirements: FR-DGQ-0064
         """
         self.ensure_one()
         if res_model not in self.model_ids.mapped('model'):
             return self.env['data.quality.rule']
-        if not self.rule_ids:
-            # sudo: the app looks up the active rules of the model whoever saved the record
-            return self.env['data.quality.rule'].sudo().search([('active', '=', True), ('model_name', '=', res_model)])
-        return self.rule_ids.filtered(lambda rule: rule.model_name == res_model)
+        chosen = self._dgq_chosen_rules()
+        if chosen:
+            return chosen.filtered(lambda rule: rule.active and rule.model_name == res_model)
+        # sudo: the app looks up the active rules of the model whoever saved the record
+        return self.env['data.quality.rule'].sudo().search([('active', '=', True), ('model_name', '=', res_model)])
+
+    def _dgq_chosen_rules(self):
+        """The rules named on the automation, switched off ones included (a many2many read hides them)."""
+        self.ensure_one()
+        return self.with_context(active_test=False).rule_ids
 
     def _dgq_launch(self, res_model=None, res_ids=None):
-        """Open a run and queue its scan; return ``(run, reason)``, the reason when nothing could start.
+        """Open a run and queue its scan; return ``(stop, busy)``.
 
-        A scope that cannot start (an overlapping scan, no rule to scan) leaves nothing behind.
+        ``stop`` is ``(state, reason)`` when nothing could start (an overlapping scan, no rule to
+        scan) and leaves nothing behind; ``busy`` is true when only an overlap stopped it.
 
         Requirements: FR-DGQ-0063, FR-DGQ-0064
         """
@@ -222,14 +260,19 @@ class DataQualityAutomation(models.Model):
                 run.scan_id = scan
         except (AccessError, MissingError, ValidationError):
             raise
+        except ScanBusy as error:
+            return ('skipped', error.args[0]), True
         except UserError as error:
-            return Run, error.args[0]
-        return run, False
+            return ('skipped', error.args[0]), False
+        return False, False
 
     def _dgq_scan_values(self, run, res_model=None, res_ids=None):
         """The scope of the scan an automation starts: its rules, models and companies."""
         self.ensure_one()
-        rules, models_ = self.rule_ids, self.model_ids
+        chosen = self._dgq_chosen_rules()
+        rules, models_ = chosen.filtered('active'), self.model_ids
+        if chosen and not rules:
+            raise UserError(self.env._("None of the rules chosen for this automation is switched on."))
         if res_model:
             rules = self._dgq_event_rules(res_model)
             models_ = models_.filtered(lambda model: model.model == res_model)
