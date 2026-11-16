@@ -150,7 +150,7 @@
     </record>
 
     <menuitem id="menu_dgq_automation" name="Automations" parent="menu_dgq_configuration"
-              action="automation_action" sequence="40" groups="group_dgq_admin"/>
+              action="automation_action" sequence="40" groups="group_dgq_manager"/>
     <menuitem id="menu_dgq_team" name="Teams" parent="menu_dgq_configuration"
-              action="team_action" sequence="50" groups="group_dgq_admin"/>
+              action="team_action" sequence="50" groups="group_dgq_manager"/>
 </odoo>

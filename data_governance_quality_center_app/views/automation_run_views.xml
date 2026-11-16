@@ -85,5 +85,5 @@
     </record>
 
     <menuitem id="menu_dgq_automation_run" name="Automation History" parent="menu_dgq_configuration"
-              action="automation_run_action" sequence="45" groups="group_dgq_admin"/>
+              action="automation_run_action" sequence="45" groups="group_dgq_manager"/>
 </odoo>

@@ -51,14 +51,14 @@ access_dgq_score_snapshot_viewer,data.quality.score.snapshot viewer,data.quality
 access_dgq_score_snapshot_company,data.quality.score.snapshot own companies,data.quality.score.snapshot,,r,"['|',('company_id','=',False),('company_id','in',company_ids)]"
 access_dgq_report_wizard_viewer,data.quality.report.wizard viewer,data.quality.report.wizard,group_dgq_viewer,crud,
 access_dgq_team_viewer,data.quality.team viewer,data.quality.team,group_dgq_viewer,r,
-access_dgq_team_admin,data.quality.team admin,data.quality.team,group_dgq_admin,crud,
+access_dgq_team_manager,data.quality.team manager,data.quality.team,group_dgq_manager,crud,
 access_dgq_team_company,data.quality.team own companies,data.quality.team,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
 access_dgq_team_assignment_viewer,data.quality.team.assignment viewer,data.quality.team.assignment,group_dgq_viewer,r,
-access_dgq_team_assignment_admin,data.quality.team.assignment admin,data.quality.team.assignment,group_dgq_admin,crud,
+access_dgq_team_assignment_manager,data.quality.team.assignment manager,data.quality.team.assignment,group_dgq_manager,crud,
 access_dgq_team_assignment_company,data.quality.team.assignment own companies,data.quality.team.assignment,,crud,"['|',('team_id.company_id','=',False),('team_id.company_id','in',company_ids)]"
-access_dgq_automation_admin,data.quality.automation admin,data.quality.automation,group_dgq_admin,crud,
+access_dgq_automation_manager,data.quality.automation manager,data.quality.automation,group_dgq_manager,crud,
 access_dgq_automation_company,data.quality.automation own companies,data.quality.automation,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
-access_dgq_automation_run_admin,data.quality.automation.run admin,data.quality.automation.run,group_dgq_admin,r,
+access_dgq_automation_run_manager,data.quality.automation.run manager,data.quality.automation.run,group_dgq_manager,r,
 access_dgq_automation_run_company,data.quality.automation.run own companies,data.quality.automation.run,,r,"['|',('automation_id.company_ids','=',False),('automation_id.company_ids','in',company_ids)]"
 access_dgq_profile_viewer,data.quality.profile viewer,data.quality.profile,group_dgq_viewer,r,
 access_dgq_profile_operator,data.quality.profile operator,data.quality.profile,group_dgq_operator,cru,
