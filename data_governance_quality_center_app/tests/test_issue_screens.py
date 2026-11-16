@@ -82,3 +82,19 @@ class TestIssueScreens(HttpCase):
         """
         self._issue('new')
         self._open('issue_action', KANBAN_STEPS)
+
+    def test_bug_b_0232_the_analysis_of_unresolved_issues_does_not_offer_to_create(self):
+        """Regression test for B-0232: with open issues only, the analysis is not the create-a-document empty state.
+
+        Requirements: FR-DGQ-0029
+        """
+        self._issue('new')
+        self._open('issue_analysis_action', EMPTY_ANALYSIS_STEPS)
+
+    def test_bug_b_0232_the_analysis_splits_the_resolution_time_by_assignee(self):
+        """Regression test for B-0232: resolved issues are shown by rule and by assignee.
+
+        Requirements: FR-DGQ-0029
+        """
+        self._issue('resolved', resolution_hours=5.0)
+        self._open('issue_analysis_action', ANALYSIS_STEPS)
