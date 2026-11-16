@@ -309,7 +309,7 @@ class DataQualityAutomation(models.Model):
     def _dgq_escalate_uncovered(self, covered_teams, today):
         """Escalate the late issues of teams that no automation covers, and of no team, with the settings' delay.
 
-        A team's leader is told; an issue with no team has no leader, so the administrators are told.
+        A team's leader is told; an issue with no team, or a team with no leader, tells the administrators.
 
         Requirements: FR-DGQ-0067
         """
@@ -321,7 +321,7 @@ class DataQualityAutomation(models.Model):
         for team, team_issues in issues.grouped('team_id').items():
             try:
                 with self.env.cr.savepoint():
-                    team_issues._dgq_escalate(team.leader_id if team else self._dgq_admins())
+                    team_issues._dgq_escalate(team.leader_id or self._dgq_admins())
             except Exception:  # noqa: BLE001 - one team must not stop the escalation of the others
                 _logger.exception("Escalation of the issues of team %s failed", team.id)
             if not self.env['ir.cron']._commit_progress(1):
@@ -340,7 +340,7 @@ class DataQualityAutomation(models.Model):
         issues = late.filtered(lambda issue: issue.escalated_deadline != issue.deadline)
         if not issues:
             return
-        issues._dgq_escalate(self.escalation_user_id or self.team_id.leader_id)
+        issues._dgq_escalate(self.escalation_user_id or self.team_id.leader_id or self._dgq_admins())
         now = fields.Datetime.now()
         self.env['data.quality.automation.run'].create({
             'automation_id': self.id, 'date_start': now, 'date_end': now, 'state': 'done',
@@ -563,7 +563,8 @@ class DataQualityAutomationRun(models.Model):
                 self._dgq_follow_up()
         except Exception:  # noqa: BLE001 - a notice that cannot be sent never undoes the scan
             _logger.exception("Automation run %s could not send its e-mails and activities", self.id)
-            self.message = self.env._("The e-mails and activities could not be created. See the server log.")
+            note = self.env._("The e-mails and activities could not be created. See the server log.")
+            self.message = " ".join(filter(None, [self.message, note]))
             self._dgq_send_skipped_notices()
 
     def _dgq_send_skipped_notices(self):

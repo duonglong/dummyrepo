@@ -368,6 +368,53 @@ class TestAutomationActions(M3Case):
             ('id', '>', base['mail.message']), ('partner_ids', 'in', self.lee.partner_id.ids)])
         self.assertEqual(messages, 1, 'the assignment notice is sent once')
 
+    def test_an_overdue_issue_of_a_team_without_leader_is_escalated_to_the_administrators(self):
+        """FR-DGQ-0067: a team with no leader, with or without an automation, tells the administrators."""
+        leaderless = self.make_team('No leader', members=[self.ann])
+        issue = self.late_issue(leaderless)
+        base = self.baseline()
+        self.advance(1)
+        issue.invalidate_recordset()
+        self.assertEqual(issue.escalated_deadline, issue.deadline)
+        self.assertGreater(self.notices(self.administrator, base), 0, 'no automation covers the team')
+        self.make_automation('Leaderless', rules=[self.vendor_rule()], team_id=leaderless)
+        other = self.late_issue(leaderless)
+        base = self.baseline()
+        self.advance(1)
+        other.invalidate_recordset()
+        self.assertEqual(other.escalated_deadline, other.deadline)
+        self.assertGreater(self.notices(self.administrator, base), 0, 'an automation covers the team')
+
+    def test_a_follow_up_that_fails_keeps_the_reason_the_run_failed(self):
+        """FR-DGQ-0069: the failure reason of a run stays on it, and in the administrators' e-mail, when the
+        follow-up fails too."""
+        rule, trim = self.vendor_rule(), self.trim_rule()
+        self.vendors(2)
+        self.env['res.partner'].create({'name': '  Padded  ', 'company_id': self.cx.id})
+        correction = self.correction('res.partner', 'name', ['trim'], rule=trim)
+        self.dry_run(correction)
+        correction.with_user(self.manager_b).write({'auto_approved': True})
+        automation = self.follow_up_automation([rule, trim], correction_ids=[correction])
+        base = self.baseline()
+        CorrectionRun = type(self.env['data.quality.correction.run'])
+        Run = type(self.env['data.quality.automation.run'])
+
+        def boom(this):
+            raise RuntimeError('simulated failure')
+
+        def broken(this, user, issues):
+            raise RuntimeError('mail server down')
+
+        with patch.object(CorrectionRun, '_dgq_run_batch', boom), patch.object(Run, '_dgq_send_summary', broken):
+            self.run_once(automation)
+        run = automation.sudo().run_ids
+        self.assertEqual(run.state, 'failed')
+        self.assertIn('A correction did not finish', run.message)
+        self.assertIn('could not be created', run.message)
+        mails = self.env['mail.message'].sudo().search([
+            ('id', '>', base['mail.message']), ('partner_ids', 'in', self.administrator.partner_id.ids)])
+        self.assertTrue(any('A correction did not finish' in (mail.body or '') for mail in mails))
+
     def test_an_overdue_issue_without_team_is_escalated_to_the_administrators(self):
         """FR-DGQ-0067: an issue with no team has no leader, so the data quality administrators are told."""
         rule = self.vendor_rule()
