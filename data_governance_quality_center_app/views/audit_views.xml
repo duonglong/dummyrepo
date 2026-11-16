@@ -12,6 +12,7 @@
                             <field name="event"/>
                             <field name="user_id"/>
                             <field name="company_id"/>
+                            <field name="automation_id"/>
                         </group>
                         <group>
                             <field name="res_model"/>

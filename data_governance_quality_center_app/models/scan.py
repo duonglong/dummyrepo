@@ -7,6 +7,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 
 from ..const import JOB_BATCH_SIZE
+from ..services import audit
 from ..services import issues as issue_service
 from ..services import scan as scan_service
 from ..services import scoring
@@ -140,18 +141,40 @@ class DataQualityScan(models.Model):
         A queued or running scan keeps the scope its overlap and not-run checks were made on. When a scan
         started by an automation ends, its run records the outcome.
 
-        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0063, FR-DGQ-0070
+        Requirements: FR-DGQ-0018, FR-DGQ-0020, FR-DGQ-0063, FR-DGQ-0070, FR-DGQ-0072
         """
         if not self.env.su:
             self._dgq_check_user_values(set(vals))
             if any(scan.state != 'draft' for scan in self):
                 raise UserError(self.env._("The scope of a scan can only be changed while it is a draft."))
+        ending = vals.get('state') in ('done', 'failed', 'cancelled')
+        before = {scan.id: scan.state for scan in self} if ending else {}
         result = super().write(vals)
-        if vals.get('state') in ('done', 'failed', 'cancelled'):
+        if ending:
+            self._dgq_audit_ended(before)
             for scan in self.filtered('automation_run_id'):
                 # sudo: the run is the app's own record
                 scan.automation_run_id.sudo()._dgq_close(scan)
         return result
+
+    def _dgq_audit_event(self, event, **details):
+        """The audit entry of a scan event, for the person who requested the scan, under its automation.
+
+        Requirements: FR-DGQ-0072
+        """
+        self.ensure_one()
+        return audit.entry_values(
+            self.env, event, self, user=self.user_id or self.env.user,
+            automation=self.automation_run_id.sudo().automation_id, **details)  # sudo: the run is the app's own record
+
+    def _dgq_audit_ended(self, before):
+        """Note in the audit trail each scan that has just ended; ``before`` maps a scan id to its state.
+
+        Requirements: FR-DGQ-0072
+        """
+        audit.log_many(self.env, [
+            scan._dgq_audit_event('scan_ended', changes={'state': [before[scan.id], scan.state]})
+            for scan in self if before[scan.id] != scan.state])
 
     @api.model
     def _dgq_check_user_values(self, names):
@@ -191,7 +214,7 @@ class DataQualityScan(models.Model):
         Every scan of the call is checked against the queued and running scans and against
         the scans before it in the call, before any is queued.
 
-        Requirements: FR-DGQ-0015, FR-DGQ-0018
+        Requirements: FR-DGQ-0015, FR-DGQ-0018, FR-DGQ-0072
         """
         self.check_access('write')
         for scan in self:
@@ -199,7 +222,9 @@ class DataQualityScan(models.Model):
         self._dgq_lock_scope_rules()
         for index, scan in enumerate(self):
             scan._dgq_refuse_overlap(self[:index])
-        return super(DataQualityScan, self.sudo())._dgq_enqueue()  # sudo: the app writes the state after the checks
+        queued = super(DataQualityScan, self.sudo())._dgq_enqueue()  # sudo: the app writes the state after the checks
+        audit.log_many(self.env, [scan._dgq_audit_event('scan_started') for scan in self])
+        return queued
 
     def _dgq_lock_scope_rules(self):
         """Touch the scope's rule rows so two starts of the same rule cannot both pass.

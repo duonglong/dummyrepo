@@ -59,3 +59,4 @@ from . import test_sample_data
 from . import test_uninstall
 from . import test_profile_compare
 from . import test_automation_actions
+from . import test_audit_events

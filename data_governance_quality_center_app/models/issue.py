@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from ..const import ISSUE_PRIORITY_BY_SEVERITY, ISSUE_STATE_MOVES, NOTIFY_EMAIL_DEFAULT, NOTIFY_EMAIL_PARAMETER
-from ..services import explain
+from ..services import audit, explain
 
 OPERATOR_GROUP = 'data_governance_quality_center_app.group_dgq_operator'
 ASSIGNED_TEMPLATE = 'data_governance_quality_center_app.mail_template_issue_assigned'
@@ -111,7 +111,9 @@ class DataQualityIssue(models.Model):
 
         A user writes only the work fields: the finding comes from the scan.
 
-        Requirements: BR-DGQ-0004, FR-DGQ-0024, FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0070
+        Every assignment, resolution, ignoring and reopening is noted in the audit trail.
+
+        Requirements: BR-DGQ-0004, FR-DGQ-0024, FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0070, FR-DGQ-0072
         """
         if not self.env.su:
             forbidden = set(vals) - self._dgq_work_fields
@@ -128,12 +130,37 @@ class DataQualityIssue(models.Model):
         if assignee:
             self._dgq_check_assignee(assignee)
         newly_assigned = self.filtered(lambda issue: issue.user_id != assignee) if assignee else self.browse()
+        before = {issue.id: (issue.state, issue.user_id) for issue in self}
         for issue in self:
             super(DataQualityIssue, issue).write(issue._dgq_state_values(vals))
         self._track_finalize()
+        self._dgq_audit_changes(before)
         if assignee != self.env.user and not self.env.context.get('dgq_no_assign_notice'):
             newly_assigned._dgq_notify_assignee(assignee)
         return True
+
+    def _dgq_audit_changes(self, before):
+        """Write the audit entries of the issues whose person or status changed since ``before``.
+
+        ``before`` maps an issue id to its (status, person) before the write.
+
+        Requirements: FR-DGQ-0072
+        """
+        entries = []
+        for issue in self:
+            state, user = before[issue.id]
+            if issue.user_id and issue.user_id != user:
+                entries.append(audit.entry_values(
+                    self.env, 'issue_assigned', issue, changes={'user_id': [user.name or False, issue.user_id.name]}))
+            if issue.state == state:
+                continue
+            event = {'resolved': 'issue_resolved', 'ignored': 'issue_ignored'}.get(issue.state)
+            if issue.state == 'new' and state in ('resolved', 'ignored'):
+                event = 'issue_reopened'
+            if event:
+                entries.append(audit.entry_values(
+                    self.env, event, issue, changes={'state': [state, issue.state]}))
+        audit.log_many(self.env, entries)
 
     def _dgq_state_values(self, vals):
         """The values to write on this issue, the status change checked and its side effects added."""

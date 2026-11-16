@@ -6,7 +6,7 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from ..const import MERGE_MAX_RECORDS, MERGE_MIN_RECORDS, PROTECTED_MODELS
-from ..services import merge
+from ..services import audit, merge
 
 _logger = logging.getLogger(__name__)
 
@@ -277,7 +277,7 @@ class DataQualityMergeWizard(models.TransientModel):
 
         All in one transaction: when a step fails nothing is changed and the reason is shown.
 
-        Requirements: FR-DGQ-0043, FR-DGQ-0044, BR-DGQ-0008
+        Requirements: FR-DGQ-0043, FR-DGQ-0044, FR-DGQ-0072, BR-DGQ-0008
         """
         self.ensure_one()
         self.env['data.quality.duplicate.group']._check_manager()
@@ -341,6 +341,9 @@ class DataQualityMergeWizard(models.TransientModel):
         })
         if self.group_id:
             self.group_id.sudo().write({'state': 'merged', 'merge_id': history.id})  # sudo: the app closes its own group
+        audit.log(
+            self.env, 'merge_done', kept, changes={name: [before[name], written[name]] for name in written},
+            description=self.env._("Merged away: %s", names))
         _logger.info("dgq merge %s: %s into %s by uid %s", self.res_model, others, kept.id, self.env.uid)
         return history
 

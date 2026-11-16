@@ -3,7 +3,7 @@ import logging
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
-from ..services import merge
+from ..services import audit, merge
 
 _logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class DataQualityMerge(models.Model):
         Only what the merge moved is moved back: a link created on the kept record since stays;
         a field changed since keeps its value and is listed in the report.
 
-        Requirements: FR-DGQ-0045, BR-DGQ-0008
+        Requirements: FR-DGQ-0045, FR-DGQ-0072, BR-DGQ-0008
         """
         self.ensure_one()
         self.env['data.quality.duplicate.group']._check_manager()
@@ -99,6 +99,12 @@ class DataQualityMerge(models.Model):
             self.sudo().write({  # sudo: the app writes its own history
                 'state': 'rolled_back', 'rollback_user_id': self.env.user.id,
                 'rollback_date': fields.Datetime.now(), 'rollback_report': report})
+            left = {entry['field'] for entry in report['fields_left_as_changed']}
+            audit.log(
+                self.env, 'merge_rolled_back', kept,
+                changes={name: [written, (self.values_before or {}).get(name)]
+                         for name, written in (self.values_written or {}).items() if name not in left},
+                description=self.env._("Brought back: %s", self.merged_names))
         _logger.info("dgq merge rollback %s: %s by uid %s", self.res_model, self.id, self.env.uid)
         return True
 

@@ -18,7 +18,7 @@ from odoo.addons.phone_validation.tools import phone_validation
 
 from .. import const
 from ..const import JOB_BATCH_SIZE
-from . import validation
+from . import audit, validation
 
 _logger = logging.getLogger(__name__)
 
@@ -282,7 +282,7 @@ def run_batch(run):
     the ORM, one savepoint per record, so a refused write is logged failed and the batch goes on.
     The checkpoint is the last id handled, so a resumed run continues after it.
 
-    Requirements: FR-DGQ-0047, FR-DGQ-0049, FR-DGQ-0051, FR-DGQ-0068, NFR-DGQ-0005
+    Requirements: FR-DGQ-0047, FR-DGQ-0049, FR-DGQ-0051, FR-DGQ-0068, FR-DGQ-0072, NFR-DGQ-0005
     """
     correction = run.correction_id
     if not run.last_id:  # the first batch fixes the targets, whatever the run record held
@@ -303,6 +303,19 @@ def run_batch(run):
     return len(batch), len(targets) - first - len(batch)
 
 
+def _audit_values(run, event, record, field_name, before, after, hide_values=False):
+    """The audit entry of one value a run changed or put back, under the run's automation if it has one.
+
+    A sensitive field is named, never quoted (BR-DGQ-0010).
+
+    Requirements: FR-DGQ-0072, BR-DGQ-0010
+    """
+    return audit.entry_values(
+        run.env, event, record, changes=False if hide_values else {field_name: [before, after]},
+        field_names=field_name, description=run.correction_id.name, user=run.user_id,
+        automation=run.automation_run_id.sudo().automation_id)  # sudo: the run is the app's own record
+
+
 def _handle_batch(run, ids):
     env = run.env
     correction = run.correction_id
@@ -320,6 +333,7 @@ def _handle_batch(run, ids):
     counts = dict.fromkeys(('changed', 'unchanged', 'skipped', 'failed'), 0)
     logs = []
     changed = []
+    entries = []
 
     def line(record, state, reason=False, before=None, after=None):
         masked = hide_values and state in ('would_change', 'changed', 'failed')
@@ -366,8 +380,10 @@ def _handle_batch(run, ids):
             continue
         line(record, 'changed', before=before, after=after)
         changed.append(record.id)
+        entries.append(_audit_values(run, 'correction_run', record, field_name, before, after, hide_values))
     # sudo: nobody creates log lines by hand, the engine writes them
     env['data.quality.correction.log'].sudo().create(logs)
+    audit.log_many(env, entries)
     run.write({
         'count_changed': run.count_changed + counts['changed'],
         'count_unchanged': run.count_unchanged + counts['unchanged'],
@@ -404,7 +420,7 @@ def rollback_batch(run):
     A value is put back only while the field still holds what the run wrote (BR-DGQ-0007); any
     other value is listed as not restored with the reason. Each value is logged.
 
-    Requirements: BR-DGQ-0007, FR-DGQ-0050
+    Requirements: BR-DGQ-0007, FR-DGQ-0050, FR-DGQ-0072
     """
     env = run.env
     if not run.last_id:
@@ -416,6 +432,7 @@ def rollback_batch(run):
     batch = targets[first:first + JOB_BATCH_SIZE]
     counts = dict.fromkeys(('restored', 'not_restored'), 0)
     logs = []
+    entries = []
     originals = env['data.quality.correction.log'].sudo().browse(batch).exists()  # sudo: the app reads its own log
     records = {}
     for model_name in set(originals.mapped('res_model')):
@@ -452,7 +469,10 @@ def rollback_batch(run):
         })
         if state == 'restored':
             original.restored = True
+            entries.append(_audit_values(
+                run, 'correction_rolled_back', record, original.field_name, current, original.value_before))
     env['data.quality.correction.log'].sudo().create(logs)  # sudo: nobody creates log lines by hand
+    audit.log_many(env, entries)
     run.write({
         'count_restored': run.count_restored + counts['restored'],
         'count_not_restored': run.count_not_restored + counts['not_restored'],

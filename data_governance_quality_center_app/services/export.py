@@ -9,7 +9,7 @@ from odoo import fields
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
-COLUMNS = ['Time', 'Event', 'User', 'Company', 'Model', 'Record ID', 'Record', 'Fields', 'Values', 'Description']
+COLUMNS = ['Time', 'Event', 'User', 'Company', 'Model', 'Record ID', 'Record', 'Fields', 'Values', 'Description', 'Automation']
 
 
 def day_start_utc(env, day):
@@ -57,6 +57,7 @@ def audit_rows(entries):
         fields.Datetime.context_timestamp(entry, entry.date).strftime('%Y-%m-%d %H:%M:%S'), labels[entry.event], entry.user_id.name or '', entry.company_id.name or '',
         entry.res_model or '', entry.res_id or '', entry.record_name or '', entry.field_names or '',
         str(entry.changes) if entry.changes else '', entry.description or '',
+        entry.automation_id.name or '',
     ] for entry in entries]
 
 
