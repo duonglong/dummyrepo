@@ -29,7 +29,7 @@
             <form>
                 <header>
                     <button name="action_start" type="object" string="Check" class="btn-primary"
-                            invisible="state not in ('draft', 'cancelled')"
+                            invisible="state not in ('draft', 'cancelled') or imported_count"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
                     <button name="action_resume" type="object" string="Resume" class="btn-primary"
                             invisible="state != 'failed'"
@@ -38,7 +38,7 @@
                             invisible="state != 'done' or job_kind != 'check' or import_state == 'imported'"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
                     <button name="action_download_error_report" type="object" string="Error Report"
-                            invisible="state != 'done' or job_kind != 'check' or not (error_count or warning_count)"/>
+                            invisible="not date_checked or not (error_count or warning_count)"/>
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('queued', 'running')"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
@@ -76,6 +76,14 @@
                     <group invisible="not error_message">
                         <field name="error_message"/>
                     </group>
+                    <separator string="Not Imported" invisible="not left_out_ids"/>
+                    <field name="left_out_ids" readonly="1" invisible="not left_out_ids" nolabel="1">
+                        <list>
+                            <field name="row_number"/>
+                            <field name="column"/>
+                            <field name="message"/>
+                        </list>
+                    </field>
                     <field name="row_ids" readonly="1">
                         <list>
                             <field name="row_number"/>

@@ -12,6 +12,7 @@ from collections import defaultdict
 
 import xlsxwriter
 
+from odoo import fields
 from odoo.exceptions import UserError
 
 from . import import_check
@@ -63,7 +64,8 @@ def import_batch(session, loaded, first, size):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(headers)
-    writer.writerows([_text(cell) for cell in cells] for _number, cells in chunk)
+    kinds = [column.field.type for column in loaded.columns]
+    writer.writerows([_text(cell, kind) for cell, kind in zip(cells, kinds)] for _number, cells in chunk)
     env = session.env
     user = session.user_id or env.user
     # sudo: the native import keeps its working record in a transient model; the import itself runs as the user
@@ -82,8 +84,15 @@ def import_batch(session, loaded, first, size):
     return len(rows), len(result.get('ids') or []), errors
 
 
-def _text(cell):
-    return cell.isoformat() if isinstance(cell, (datetime.date, datetime.datetime)) else cell
+def _text(cell, field_type=None):
+    """A cell as text in the server formats the native import reads; a date-time in a date column keeps its day."""
+    if isinstance(cell, datetime.datetime):
+        if field_type == 'date':
+            return fields.Date.to_string(cell)
+        return fields.Datetime.to_string(cell)
+    if isinstance(cell, datetime.date):
+        return fields.Date.to_string(cell)
+    return cell
 
 
 def error_report(session):
@@ -96,7 +105,7 @@ def error_report(session):
     Requirements: FR-DGQ-0061
     """
     env = session.env
-    if session.state != 'done' or session.job_kind != 'check':
+    if not session.date_checked:
         raise UserError(env._("The error report is available once the check has finished."))
     # sudo: the findings are written and read by the app only; the session itself was read as the user
     findings = session.sudo().row_ids.filtered(lambda finding: finding.row_number > import_check.HEADER_ROW)
@@ -129,12 +138,16 @@ def _xlsx(header, rows):
     output = io.BytesIO()
     book = xlsxwriter.Workbook(output, {'in_memory': True, 'strings_to_formulas': False, 'strings_to_urls': False})
     sheet = book.add_worksheet()
+    date_format = book.add_format({'num_format': 'yyyy-mm-dd hh:mm:ss'})
+    day_format = book.add_format({'num_format': 'yyyy-mm-dd'})
     for index, row in enumerate([header] + rows):
         for column, cell in enumerate(row):
-            value = _text(cell)
-            if isinstance(value, str) or value is None:
-                sheet.write_string(index, column, value or '')
+            if isinstance(cell, (datetime.date, datetime.datetime)):
+                style = date_format if isinstance(cell, datetime.datetime) else day_format
+                sheet.write_datetime(index, column, cell, style)
+            elif isinstance(cell, str) or cell is None:
+                sheet.write_string(index, column, cell or '')
             else:
-                sheet.write(index, column, value)
+                sheet.write(index, column, cell)
     book.close()
     return output.getvalue()

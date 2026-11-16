@@ -1,5 +1,5 @@
 from odoo import http
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
 from ..services import export, import_run
@@ -31,10 +31,13 @@ class DataQualityXlsx(http.Controller):
         Requirements: FR-DGQ-0061
         """
         session = request.env['data.quality.import.session'].browse(session_id)
-        session.check_access('read')
         if not session.exists():
             return request.not_found()
-        content, name, mimetype = import_run.error_report(session)
+        session.check_access('read')
+        try:
+            content, name, mimetype = import_run.error_report(session)
+        except UserError as refusal:
+            return request.not_found(str(refusal))
         return request.make_response(content, headers=[
             ('Content-Type', mimetype),
             ('Content-Disposition', http.content_disposition(name)),

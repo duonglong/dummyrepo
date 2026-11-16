@@ -71,6 +71,9 @@ class DataQualityImportSession(models.Model):
         copy=False, readonly=True, help="The file changed after the check: it is checked again, then imported.")
     next_row = fields.Integer(copy=False, help="The index of the next row to check or to import.")
     row_ids = fields.One2many('data.quality.import.row', 'session_id', string='Findings')
+    left_out_ids = fields.One2many(
+        'data.quality.import.row', 'session_id', string='Not Imported', domain=[('left_out', '=', True)],
+        help="The findings of the rows with errors that a warnings-only import left out.")
 
     # job state and progress are written by the app only
     state = fields.Selection(readonly=True)
@@ -128,7 +131,18 @@ class DataQualityImportSession(models.Model):
         return super().create([self._dgq_as_text(vals) for vals in vals_list])
 
     def write(self, vals):
-        return super().write(self._dgq_as_text(vals))
+        """Write the values; an import that stops unfinished (failed or cancelled) is marked failed.
+
+        Requirements: FR-DGQ-0062
+        """
+        vals = self._dgq_as_text(vals)
+        if vals.get('state') in ('failed', 'cancelled') and 'import_state' not in vals:
+            unfinished = self.filtered(
+                lambda session: session.job_kind == 'import' and session.import_state == 'not_imported')
+            if unfinished:
+                super(DataQualityImportSession, unfinished).write(dict(vals, import_state='failed'))
+                self -= unfinished
+        return super().write(vals)
 
     # ---- job ---------------------------------------------------------------
 
@@ -146,6 +160,10 @@ class DataQualityImportSession(models.Model):
     def _dgq_reset_check(self):
         """Read the file, refuse it when it cannot be checked, and clear the findings of an earlier check."""
         self.ensure_one()
+        if self.imported_count:
+            raise UserError(self.env._(
+                "%(count)s rows of this file were imported already. Upload the corrected file in a new check.",
+                count=self.imported_count))
         self.write({'file_checksum': import_check.file_checksum(self) if self.file else False})
         loaded = import_check.load_file(self)
         import_check.forget_file(self)
@@ -189,7 +207,9 @@ class DataQualityImportSession(models.Model):
         return bool(self.file) and import_check.file_checksum(self) != self.file_checksum
 
     def _dgq_queue_import(self, user):
-        """Queue the import of the rows without errors, from the first one."""
+        """Queue the import of the rows without errors, from the first one, and list the rows left out."""
+        # sudo: the findings are written by the app only
+        self.sudo().row_ids.filtered(lambda finding: finding.severity == 'error').write({'left_out': True})
         self.write({
             'job_kind': 'import', 'import_after_check': False, 'next_row': 0, 'done_count': 0, 'total_count': 0,
             'imported_count': 0, 'error_message': False, 'state': 'queued', 'user_id': user.id,
@@ -229,6 +249,8 @@ class DataQualityImportSession(models.Model):
 
     def _dgq_import_batch(self):
         """Import the next rows without errors through the native import; a batch it refuses ends the import."""
+        if self.file_changed_since_check():
+            raise UserError(self.env._("The file changed while it was being imported. Check it again."))
         loaded = import_check.load_file(self)
         first = self.next_row
         total, created, errors = import_run.import_batch(self, loaded, first, JOB_BATCH_SIZE)
@@ -238,6 +260,8 @@ class DataQualityImportSession(models.Model):
                 'session_id': self.id, 'row_number': number, 'severity': 'error', 'message': message,
             } for number, message in errors])
             self.write({
+                'error_count': self.error_count + len(errors),
+                'error_row_count': self.error_row_count + len({number for number, _message in errors}),
                 'import_state': 'failed',
                 'error_message': self.env._(
                     "The import stopped at row %(row)s. %(count)s rows were imported before it.",
@@ -291,3 +315,4 @@ class DataQualityImportRow(models.Model):
     severity = fields.Selection([('error', 'Error'), ('warning', 'Warning')], required=True)
     message = fields.Char(required=True)
     value = fields.Char(string='Value')
+    left_out = fields.Boolean(string='Not Imported', readonly=True, copy=False)
