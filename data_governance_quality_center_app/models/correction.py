@@ -1,7 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from .. import const
 from ..const import ADMIN_GROUP
 from ..services import audit
 from ..services import correction as engine
@@ -216,8 +215,7 @@ class DataQualityCorrection(models.Model):
         """
         self.ensure_one()
         model_name = self.model_id.sudo().model  # sudo: a manager may not read the model list
-        return (model_name in const.PROTECTED_MODELS
-                or self.env['data.quality.model.config']._get_status(model_name) == 'restricted')
+        return self.env['data.quality.model.config']._is_protected(model_name)
 
     def _dgq_is_sensitive(self):
         """Tell whether the corrected field is marked sensitive, by a mark or by default."""

@@ -5,7 +5,7 @@ from psycopg2 import IntegrityError
 from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..const import MERGE_MAX_RECORDS, MERGE_MIN_RECORDS, PROTECTED_MODELS
+from ..const import MERGE_MAX_RECORDS, MERGE_MIN_RECORDS
 from ..services import audit, merge
 
 _logger = logging.getLogger(__name__)
@@ -237,8 +237,7 @@ class DataQualityMergeWizard(models.TransientModel):
     def _protected(self):
         """Whether the model of the records is protected (BR-DGQ-0005)."""
         self.ensure_one()
-        return self.res_model in PROTECTED_MODELS or (
-            self.env['data.quality.model.config']._get_status(self.res_model) == 'restricted')
+        return self.env['data.quality.model.config']._is_protected(self.res_model)
 
     @api.depends('res_model')
     def _compute_is_protected(self):

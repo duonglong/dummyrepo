@@ -3,6 +3,7 @@ import logging
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..const import ADMIN_GROUP
 from ..services import audit, merge
 
 _logger = logging.getLogger(__name__)
@@ -69,15 +70,20 @@ class DataQualityMerge(models.Model):
         """Roll the merge back: records active again, moved links pointed back, values restored.
 
         Only what the merge moved is moved back: a link created on the kept record since stays;
-        a field changed since keeps its value and is listed in the report.
+        a field changed since keeps its value and is listed in the report. Records of a protected
+        model are brought back by an administrator only (BR-DGQ-0005).
 
-        Requirements: FR-DGQ-0045, FR-DGQ-0072, BR-DGQ-0008
+        Requirements: FR-DGQ-0045, FR-DGQ-0072, BR-DGQ-0005, BR-DGQ-0008
         """
         self.ensure_one()
         self.env['data.quality.duplicate.group']._check_manager()
         reason = self._blocked_reason()
         if reason:
             raise UserError(reason)
+        if self.env['data.quality.model.config']._is_protected(self.res_model) and not (
+                self.env.su or self.env.user.has_group(ADMIN_GROUP)):
+            raise UserError(self.env._(
+                "%s is a protected model: an administrator must roll the merge back.", self.res_model))
         ids = [*self.merged_res_ids, self.kept_res_id]
         if not (merge.lock_records(self.env, self._name, self.ids)
                 and merge.lock_records(self.env, self.res_model, ids)):

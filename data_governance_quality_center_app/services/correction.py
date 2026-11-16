@@ -418,12 +418,15 @@ def _resolve_issues(correction, records):
 def rollback_batch(run):
     """Restore the next batch of values the rolled back run changed; return ``(processed, remaining)``.
 
-    A value is put back only while the field still holds what the run wrote (BR-DGQ-0007); any
-    other value is listed as not restored with the reason. Each value is logged.
+    A value is put back only while the field still holds what the run wrote (BR-DGQ-0007) and
+    while its record is not protected without an authorization (BR-DGQ-0005); any other value is
+    listed as not restored with the reason. Each value is logged.
 
-    Requirements: BR-DGQ-0007, FR-DGQ-0050, FR-DGQ-0072
+    Requirements: BR-DGQ-0005, BR-DGQ-0007, FR-DGQ-0050, FR-DGQ-0051, FR-DGQ-0072
     """
     env = run.env
+    correction = run.rollback_of_id.correction_id
+    protected = correction._dgq_is_protected() and not correction.protected_authorized
     if not run.last_id:
         # sudo: the log of the rolled back run is read by the app
         run.res_ids = env['data.quality.correction.log'].sudo().search(
@@ -446,6 +449,8 @@ def rollback_batch(run):
         state, reason, current = 'restored', False, None
         if not record:
             state, reason = 'not_restored', env._("The record no longer exists.")
+        elif protected:
+            state, reason = 'not_restored', env._("The record is protected.")
         elif original.masked:
             state, reason = 'not_restored', env._("The values of this field were not kept.")
         else:

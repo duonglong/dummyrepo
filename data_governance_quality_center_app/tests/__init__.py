@@ -77,3 +77,4 @@ from . import test_company_isolation_acceptance
 from . import test_audit_export_acceptance
 from . import test_definition_company_separation
 from . import test_correction_scope
+from . import test_rollback_protected

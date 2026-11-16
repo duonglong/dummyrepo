@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from .. import const
+
 
 class DataQualityModelConfig(models.Model):
     _name = 'data.quality.model.config'
@@ -41,3 +43,11 @@ class DataQualityModelConfig(models.Model):
         # sudo: the mark is an administrator setting that every scan must see
         config = self.sudo().search([('model_name', '=', model_name)], limit=1)
         return config.status or False
+
+    @api.model
+    def _is_protected(self, model_name):
+        """Tell whether the records of a model are protected: an accounting model or a restricted one.
+
+        Requirements: BR-DGQ-0005
+        """
+        return model_name in const.PROTECTED_MODELS or self._get_status(model_name) == 'restricted'
