@@ -45,16 +45,23 @@ class DataQualityDuplicateCheck(models.Model):
     def action_start(self):
         """Queue the check from its first phase, unless a check of the rule is already waiting.
 
-        Requirements: FR-DGQ-0039
+        Requirements: FR-DGQ-0039, BR-DGQ-0010
         """
         self._check_not_overlapping()
+        self._check_filter_allowed()
         self._reset_progress()
         return super().action_start()
 
     def action_resume(self):
         """Queue a failed check again, unless a check of the rule is already waiting."""
         self._check_not_overlapping()
+        self._check_filter_allowed()
         return super().action_resume()
+
+    def _check_filter_allowed(self):
+        """Refuse a check whose rule has a filter that reaches a field a scan may not read."""
+        for rule in self.rule_id.filtered('domain'):
+            rule._dgq_check_domain()
 
     def _check_not_overlapping(self):
         # sudo: lock the rule row so that two quick starts of the same rule cannot both pass the

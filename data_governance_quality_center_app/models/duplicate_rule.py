@@ -1,10 +1,9 @@
-import ast
-
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
 from ..const import DUPLICATE_MAX_THRESHOLD, DUPLICATE_MIN_THRESHOLD
+from ..services.correction import parse_domain
 
 
 class DataQualityDuplicateRule(models.Model):
@@ -86,23 +85,40 @@ class DataQualityDuplicateRule(models.Model):
 
     @api.constrains('domain', 'model_id')
     def _check_domain(self):
-        """The filter must be a domain that the model can search with.
+        """The filter is checked when it is saved."""
+        for rule in self.filtered('domain'):
+            rule._dgq_check_domain()
 
-        Requirements: FR-DGQ-0038
+    def _dgq_check_domain(self):
+        """Return the filter as an optimised domain, refusing one that cannot be searched or that
+        reaches a field a scan may not read.
+
+        A check searches the filter in sudo, so a filter on a sensitive field would show its
+        value. The marks change after the filter was saved: every check reads them again.
+
+        Requirements: BR-DGQ-0009, BR-DGQ-0010, FR-DGQ-0038, FR-DGQ-0075
         """
-        for rule in self:
-            if rule.domain:
-                try:
-                    # sudo: only parses the filter against the model, no record is read
-                    self.env[rule.model_name].sudo()._search(rule._get_domain_filter(), limit=1)
-                except (ValueError, SyntaxError, KeyError, TypeError) as error:
-                    raise ValidationError(self.env._(
-                        "The filter of the rule is not valid: %s", error)) from error
+        self.ensure_one()
+        rules = self.env['data.quality.rule']
+        model = self.env[self.model_name]
+        try:
+            domain = parse_domain(model, self.domain)
+        except (ValueError, SyntaxError, TypeError, KeyError, AttributeError, UserError) as error:
+            raise ValidationError(self.env._(
+                "The filter of the rule is not valid: %s", error)) from error
+        marked = set(rules._dgq_marked_models().mapped('model'))
+        blocked = sorted(rules._dgq_blocked_fields(model, domain, {}, marked))
+        if blocked:
+            raise ValidationError(self.env._(
+                "The filter of the rule uses fields that are not stored, are excluded or "
+                "sensitive, or lead to a model not marked supported or restricted: %s. "
+                "Compare a link with record ids.", ', '.join(blocked)))
+        return domain
 
     def _get_domain_filter(self):
-        """Return the rule's filter as a domain (empty list when none)."""
+        """Return the rule's filter as a checked domain (empty list when none)."""
         self.ensure_one()
-        return Domain(ast.literal_eval(self.domain)) if self.domain else Domain.TRUE
+        return self._dgq_check_domain() if self.domain else Domain.TRUE
 
     def _get_match_lines(self):
         """Return the matching fields as ``[(field name, method, weight)]``."""
