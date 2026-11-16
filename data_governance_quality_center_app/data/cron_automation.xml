@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_dgq_automation" model="ir.cron">
+        <field name="name">Data Quality: start due automations</field>
+        <field name="model_id" ref="model_data_quality_automation"/>
+        <field name="state">code</field>
+        <field name="code">model._dgq_run_due()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+    </record>
+
+    <record id="ir_cron_dgq_event_queue" model="ir.cron">
+        <field name="name">Data Quality: check queued records</field>
+        <field name="model_id" ref="model_data_quality_event_queue"/>
+        <field name="state">code</field>
+        <field name="code">model._dgq_process()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+    </record>
+
+    <record id="ir_cron_dgq_escalation" model="ir.cron">
+        <field name="name">Data Quality: escalate overdue issues</field>
+        <field name="model_id" ref="model_data_quality_automation"/>
+        <field name="state">code</field>
+        <field name="code">model._dgq_escalate_overdue()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+</odoo>

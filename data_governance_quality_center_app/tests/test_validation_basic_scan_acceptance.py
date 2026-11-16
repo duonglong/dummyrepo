@@ -5,8 +5,12 @@ from .acceptance_helpers import AcceptanceCase, choice
 PATTERN = r'[A-Z]{3}-[0-9]{4}'
 
 
-class TestValidationBasicAcceptance(AcceptanceCase):
-    """Acceptance tests of T-006: required field, pattern, number range and date checks.
+class TestValidationBasicScanAcceptance(AcceptanceCase):
+    """Acceptance tests of the basic checks (required, pattern, range, date) as a scan shows them.
+
+    They belong to T-010 (scan batches and results), the last task that builds what they need:
+    the design names no entry point of the validation service itself, so the checks are seen
+    through the scan result lines. T-006 builds the checks the scan then calls.
 
     Every test runs a real scan (create, start, background runner) and reads the result lines.
     The scan form step is left to the build; the scan is created through the registry.

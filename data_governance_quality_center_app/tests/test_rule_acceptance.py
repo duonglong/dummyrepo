@@ -110,7 +110,8 @@ class TestRuleAcceptance(AcceptanceCase):
 
     def test_change_of_the_check_keeps_the_old_version(self):
         """SC-DGQ-0011-1: raising the maximum makes version 2; version 1 is kept read-only."""
-        manager = self.user('manager')
+        # The rule belongs to company X (make_rule), so the manager who changes it belongs to X too.
+        manager = self.user('manager', company=self.cx)
         rule = self._range_rule().with_user(manager)
         self.assertEqual(rule.version, 1)
         with Form(rule) as form:

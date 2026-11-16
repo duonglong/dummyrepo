@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="data_governance_quality_center_app.Trend">
+        <div class="mb-4">
+            <div class="d-flex gap-2 align-items-center">
+                <h5 class="mb-0">Trend</h5>
+                <t t-foreach="['day', 'week', 'month']" t-as="period" t-key="period">
+                    <button t-attf-class="btn btn-sm #{state.period === period ? 'btn-primary' : 'btn-light'}"
+                            t-on-click="() => this.setPeriod(period)" t-out="periodLabel(period)"/>
+                </t>
+                <select class="form-select w-auto" t-on-change="(ev) => this.setScope('companyId', ev)">
+                    <option value="0">All companies</option>
+                    <option t-foreach="props.companies" t-as="company" t-key="company.id" t-att-value="company.id"
+                            t-att-selected="company.id === state.companyId" t-out="company.name"/>
+                </select>
+                <select class="form-select w-auto" t-on-change="(ev) => this.setScope('modelId', ev)">
+                    <option value="0">All models</option>
+                    <option t-foreach="props.models" t-as="model" t-key="model.id" t-att-value="model.id"
+                            t-att-selected="model.id === state.modelId" t-out="model.name"/>
+                </select>
+            </div>
+            <div t-foreach="state.points" t-as="point" t-key="point.period" class="d-flex gap-3">
+                <span t-out="point.period"/>
+                <span t-out="formatScore(point.score)"/>
+                <span t-if="point.is_illustrative" class="badge text-bg-warning">Illustrative</span>
+                <button t-if="point.previous_snapshot_id and point.score !== null" class="btn btn-link p-0"
+                        t-on-click="() => this.explain(point)">Why?</button>
+            </div>
+            <div t-if="state.explanation" class="mt-2">
+                <div class="fw-bold">
+                    <span t-out="formatScore(state.explanation.score_before)"/> → <span t-out="formatScore(state.explanation.score_after)"/>
+                    <span t-if="state.explanation.is_illustrative" class="badge text-bg-warning ms-2">Illustrative</span>
+                </div>
+                <div t-foreach="state.explanation.causes" t-as="cause" t-key="cause_index" class="d-flex gap-3">
+                    <span t-out="causeLabel(cause.kind)"/>
+                    <span t-out="cause.rule_name"/>
+                    <span t-out="formatPoints(cause.points)"/>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

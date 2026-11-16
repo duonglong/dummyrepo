@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ..services import correction
+
 
 class DataQualityRegistry(models.AbstractModel):
     """Documented extension points of the data quality center.
@@ -41,11 +43,15 @@ class DataQualityRegistry(models.AbstractModel):
 
     @api.model
     def _dgq_correction_actions(self):
-        """Correction actions: descriptors ``key``, ``label``, ``handler``.
+        """Correction actions: descriptors ``key``, ``label``, ``handler``, ``field_types``.
 
-        The handler contract is defined with the correction task.
+        The handler is ``handler(value, record, params)``: it returns the new value or raises
+        ``DgqSkip`` with the reason. The app provides the built-in actions; a module adds its own
+        by extending the list with ``super()``.
+
+        Requirements: FR-DGQ-0046
         """
-        return []
+        return correction.builtin_actions(self.env)
 
     @api.model
     def _dgq_descriptors(self, kind):

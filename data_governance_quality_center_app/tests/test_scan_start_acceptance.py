@@ -18,7 +18,8 @@ class TestScanStartAcceptance(AcceptanceCase):
 
     def test_operator_starts_a_scan_that_is_queued_at_once(self):
         """SC-DGQ-0015-1: the operator's start answers with a queued scan; later it is done with counts."""
-        operator = self.user('operator')
+        # The rule and the scan are of company X (helpers), so the operator belongs to X.
+        operator = self.user('operator', company=self.cx)
         rule = self.make_rule('res.partner', 'required', ['ref'])
         self.partner('Acme')
         scan = self.make_scan([rule], models=['res.partner'], user=operator)

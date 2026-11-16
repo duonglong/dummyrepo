@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="health_action" model="ir.actions.client">
+        <field name="name">Health</field>
+        <field name="tag">data_quality_health</field>
+    </record>
+    <menuitem id="menu_dgq_health" name="Health" parent="menu_dgq_configuration"
+              action="health_action" sequence="40" groups="group_dgq_admin"/>
+</odoo>

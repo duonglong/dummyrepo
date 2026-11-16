@@ -7,11 +7,66 @@ access_dgq_audit_admin,data.quality.audit admin,data.quality.audit,group_dgq_adm
 access_dgq_audit_purge_admin,data.quality.audit.purge admin,data.quality.audit.purge,group_dgq_admin,crud,
 access_dgq_audit_export_admin,data.quality.audit.export admin,data.quality.audit.export,group_dgq_admin,crud,
 access_dgq_audit_company,data.quality.audit own companies,data.quality.audit,,r,"['|',('company_id','=',False),('company_id','in',company_ids)]"
+access_dgq_duplicate_rule_viewer,data.quality.duplicate.rule viewer,data.quality.duplicate.rule,group_dgq_viewer,r,
+access_dgq_duplicate_rule_manager,data.quality.duplicate.rule manager,data.quality.duplicate.rule,group_dgq_manager,crud,
+access_dgq_duplicate_rule_field_viewer,data.quality.duplicate.rule.field viewer,data.quality.duplicate.rule.field,group_dgq_viewer,r,
+access_dgq_duplicate_rule_field_manager,data.quality.duplicate.rule.field manager,data.quality.duplicate.rule.field,group_dgq_manager,crud,
+access_dgq_duplicate_check_manager,data.quality.duplicate.check manager,data.quality.duplicate.check,group_dgq_manager,crud,
+access_dgq_duplicate_dismissal_manager,data.quality.duplicate.dismissal manager,data.quality.duplicate.dismissal,group_dgq_manager,crud,
+access_dgq_duplicate_group_viewer,data.quality.duplicate.group viewer,data.quality.duplicate.group,group_dgq_viewer,r,
+access_dgq_duplicate_line_viewer,data.quality.duplicate.line viewer,data.quality.duplicate.line,group_dgq_viewer,r,
+access_dgq_duplicate_rule_company,data.quality.duplicate.rule own companies,data.quality.duplicate.rule,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
+access_dgq_duplicate_rule_field_company,data.quality.duplicate.rule.field own companies,data.quality.duplicate.rule.field,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
+access_dgq_duplicate_dismissal_company,data.quality.duplicate.dismissal own companies,data.quality.duplicate.dismissal,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
 access_dgq_rule_viewer,data.quality.rule viewer,data.quality.rule,group_dgq_viewer,r,
 access_dgq_rule_manager,data.quality.rule manager,data.quality.rule,group_dgq_manager,crud,
 access_dgq_rule_version_viewer,data.quality.rule.version viewer,data.quality.rule.version,group_dgq_viewer,r,
+access_dgq_rule_company,data.quality.rule own companies,data.quality.rule,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
+access_dgq_rule_version_company,data.quality.rule.version own companies,data.quality.rule.version,,crud,"['|',('rule_id.company_ids','=',False),('rule_id.company_ids','in',company_ids)]"
+access_dgq_ir_model_viewer,ir.model viewer,ir.model,group_dgq_viewer,r,"[('dgq_config_ids.status','in',('supported','restricted'))]"
 access_dgq_ir_model_fields_viewer,ir.model.fields viewer,ir.model.fields,group_dgq_viewer,r,"[('model_id.dgq_config_ids.status','in',('supported','restricted'))]"
+access_dgq_correction_viewer,data.quality.correction viewer,data.quality.correction,group_dgq_viewer,r,
+access_dgq_correction_manager,data.quality.correction manager,data.quality.correction,group_dgq_manager,crud,
+access_dgq_correction_company,data.quality.correction own companies,data.quality.correction,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
+access_dgq_correction_mapping_viewer,data.quality.correction.mapping viewer,data.quality.correction.mapping,group_dgq_viewer,r,
+access_dgq_correction_mapping_manager,data.quality.correction.mapping manager,data.quality.correction.mapping,group_dgq_manager,crud,
+access_dgq_correction_run_viewer,data.quality.correction.run viewer,data.quality.correction.run,group_dgq_viewer,r,
+access_dgq_correction_run_manager,data.quality.correction.run manager,data.quality.correction.run,group_dgq_manager,cru,
+access_dgq_correction_log_viewer,data.quality.correction.log viewer,data.quality.correction.log,group_dgq_viewer,r,
+access_dgq_correction_run_company,data.quality.correction.run own companies,data.quality.correction.run,,crud,"['|',('correction_id.company_ids','=',False),('correction_id.company_ids','in',company_ids)]"
+access_dgq_correction_mapping_company,data.quality.correction.mapping own companies,data.quality.correction.mapping,,crud,"['|',('correction_id.company_ids','=',False),('correction_id.company_ids','in',company_ids)]"
+access_dgq_duplicate_check_company,data.quality.duplicate.check own companies,data.quality.duplicate.check,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
+access_dgq_merge_wizard_manager,data.quality.merge.wizard manager,data.quality.merge.wizard,group_dgq_manager,crud,
+access_dgq_merge_wizard_value_manager,data.quality.merge.wizard.value manager,data.quality.merge.wizard.value,group_dgq_manager,crud,
 access_dgq_scan_viewer,data.quality.scan viewer,data.quality.scan,group_dgq_viewer,r,
 access_dgq_scan_operator,data.quality.scan operator,data.quality.scan,group_dgq_operator,cru,
 access_dgq_scan_line_viewer,data.quality.scan.line viewer,data.quality.scan.line,group_dgq_viewer,r,
 access_dgq_scan_checkpoint_viewer,data.quality.scan.checkpoint viewer,data.quality.scan.checkpoint,group_dgq_viewer,r,
+access_dgq_merge_manager,data.quality.merge manager,data.quality.merge,group_dgq_manager,r,
+access_dgq_scan_tally_viewer,data.quality.scan.tally viewer,data.quality.scan.tally,group_dgq_viewer,r,
+access_dgq_issue_viewer,data.quality.issue viewer,data.quality.issue,group_dgq_viewer,r,
+access_dgq_issue_operator,data.quality.issue operator,data.quality.issue,group_dgq_operator,ru,
+access_dgq_issue_bulk_operator,data.quality.issue.bulk operator,data.quality.issue.bulk,group_dgq_operator,crud,
+access_dgq_score_snapshot_viewer,data.quality.score.snapshot viewer,data.quality.score.snapshot,group_dgq_viewer,r,
+access_dgq_score_snapshot_company,data.quality.score.snapshot own companies,data.quality.score.snapshot,,r,"[('company_id','in',company_ids)]"
+access_dgq_report_wizard_viewer,data.quality.report.wizard viewer,data.quality.report.wizard,group_dgq_viewer,crud,
+access_dgq_team_viewer,data.quality.team viewer,data.quality.team,group_dgq_viewer,r,
+access_dgq_team_admin,data.quality.team admin,data.quality.team,group_dgq_admin,crud,
+access_dgq_team_company,data.quality.team own companies,data.quality.team,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
+access_dgq_team_assignment_viewer,data.quality.team.assignment viewer,data.quality.team.assignment,group_dgq_viewer,r,
+access_dgq_team_assignment_admin,data.quality.team.assignment admin,data.quality.team.assignment,group_dgq_admin,crud,
+access_dgq_team_assignment_company,data.quality.team.assignment own companies,data.quality.team.assignment,,crud,"['|',('team_id.company_id','=',False),('team_id.company_id','in',company_ids)]"
+access_dgq_automation_admin,data.quality.automation admin,data.quality.automation,group_dgq_admin,crud,
+access_dgq_automation_company,data.quality.automation own companies,data.quality.automation,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
+access_dgq_automation_run_admin,data.quality.automation.run admin,data.quality.automation.run,group_dgq_admin,r,
+access_dgq_automation_run_company,data.quality.automation.run own companies,data.quality.automation.run,,r,"['|',('automation_id.company_ids','=',False),('automation_id.company_ids','in',company_ids)]"
+access_dgq_profile_viewer,data.quality.profile viewer,data.quality.profile,group_dgq_viewer,r,
+access_dgq_profile_operator,data.quality.profile operator,data.quality.profile,group_dgq_operator,cru,
+access_dgq_profile_line_viewer,data.quality.profile.line viewer,data.quality.profile.line,group_dgq_viewer,r,
+access_dgq_profile_compare_wizard_viewer,data.quality.profile.compare.wizard viewer,data.quality.profile.compare.wizard,group_dgq_viewer,crud,
+access_dgq_profile_compare_line_viewer,data.quality.profile.compare.line viewer,data.quality.profile.compare.line,group_dgq_viewer,crud,
+access_dgq_import_session_operator,data.quality.import.session own,data.quality.import.session,group_dgq_operator,cru,"[('user_id', '=', user.id)]"
+access_dgq_import_session_manager,data.quality.import.session manager,data.quality.import.session,group_dgq_manager,crud,
+access_dgq_import_row_operator,data.quality.import.row own,data.quality.import.row,group_dgq_operator,r,"[('session_id.user_id', '=', user.id)]"
+access_dgq_import_row_manager,data.quality.import.row manager,data.quality.import.row,group_dgq_manager,r,
+access_dgq_dashboard_layout_viewer,data.quality.dashboard.layout viewer,data.quality.dashboard.layout,group_dgq_viewer,crud,

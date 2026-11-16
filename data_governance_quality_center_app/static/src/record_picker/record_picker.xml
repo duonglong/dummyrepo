@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="data_governance_quality_center_app.RecordPicker">
+        <MultiRecordSelector t-if="this.resModel and !this.props.readonly"
+            resModel="this.resModel"
+            resIds="this.resIds"
+            update.bind="this.update"/>
+    </t>
+</templates>

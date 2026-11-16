@@ -6,6 +6,9 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
+from ..services import audit
+from ..services.validation.advanced import validator_for
+
 # What a rule checks: a change of one of these raises the version (FR-DGQ-0011).
 # Name, description, advice, sequence and the active switch are not part of the definition.
 DEFINITION_FIELDS = (
@@ -14,6 +17,8 @@ DEFINITION_FIELDS = (
     'date_to', 'applies_domain', 'condition_domain', 'compare_field_id', 'compare_operator',
     'validator_key',
 )
+# What the audit trail keeps the before and after of: the definition and what a person edits besides it.
+AUDITED_FIELDS = DEFINITION_FIELDS + ('name', 'description', 'advice', 'active')
 RULE_TYPES_WITHOUT_FIELD = ('condition', 'custom')
 HIERARCHY_OPERATORS = ('child_of', 'parent_of')
 SUB_DOMAIN_OPERATORS = ('any', 'not any', 'any!', 'not any!')
@@ -158,6 +163,11 @@ class DataQualityRule(models.Model):
         """What the rule checks now, as JSON-safe data keyed by field name."""
         self.ensure_one()
         return {name: self._dgq_serialise(self[name]) for name in DEFINITION_FIELDS}
+
+    def _dgq_audited_values(self, names):
+        """The values of the audited fields among ``names``, as JSON-safe data."""
+        self.ensure_one()
+        return {name: self._dgq_serialise(self[name]) for name in AUDITED_FIELDS if name in names}
 
     # ---- constraints -----------------------------------------------------
 
@@ -356,62 +366,81 @@ class DataQualityRule(models.Model):
                         "The fields %(first)s and %(second)s cannot be compared with each other.",
                         first=field.display_name, second=rule.compare_field_id.display_name))
 
-    @api.constrains('rule_type', 'validator_key')
+    @api.constrains('rule_type', 'validator_key', 'model_id')
     def _check_validator(self):
-        """A custom rule names a validator that an installed module registers.
+        """A custom rule names a validator that an installed module registers for the rule's model.
 
         Requirements: FR-DGQ-0009, BR-DGQ-0009
         """
-        registry = self.env['data.quality.registry']
         for rule in self.filtered(lambda r: r.rule_type == 'custom'):
-            if not rule.validator_key or not registry._dgq_find('validators', rule.validator_key):
+            if not rule.validator_key or not validator_for(self.env, rule.validator_key, rule.model_name):
                 raise ValidationError(self.env._(
-                    "The custom rule %s needs a validator provided by an installed module.", rule.name))
+                    "The custom rule %(rule)s needs a validator that an installed module provides for the model "
+                    "%(model)s.", rule=rule.name, model=rule.model_id.name))
 
     # ---- versions --------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]):
-        """A new rule starts at version 1; the number is never given by hand.
+        """A new rule starts at version 1; the number is never given by hand. The audit trail notes it.
 
-        Requirements: FR-DGQ-0011
+        Requirements: FR-DGQ-0011, FR-DGQ-0072
         """
         if any('version' in vals for vals in vals_list):
             raise UserError(self.env._(
                 "A new rule starts at version 1; its version cannot be set by hand."))
-        return super().create(vals_list)
+        rules = super().create(vals_list)
+        audit.log_many(self.env, [audit.entry_values(self.env, 'rule_created', rule) for rule in rules])
+        return rules
 
     def write(self, vals):
-        """Keep the previous definition as a version when the definition changes.
+        """Keep the previous definition as a version when the definition changes, and audit the change.
 
         A change of the model, check type, fields, settings, filters, severity or companies raises
-        the version by one; the name, description, advice and the active switch do not.
+        the version by one; the name, description, advice and the active switch do not. Every
+        change of an audited field is noted in the audit trail with its values before and after.
 
-        Requirements: FR-DGQ-0011
+        Requirements: FR-DGQ-0011, FR-DGQ-0072
         """
         if 'version' in vals:
             raise UserError(self.env._(
                 "The version of a rule is raised by changing its definition; it cannot be set by hand."))
-        if not any(name in vals for name in DEFINITION_FIELDS):
+        if not any(name in vals for name in AUDITED_FIELDS):
             return super().write(vals)
-        before = {rule.id: rule._dgq_definition() for rule in self}
+        before = {rule.id: rule._dgq_audited_values(vals) for rule in self}
+        before_definition = {rule.id: rule._dgq_definition() for rule in self}
         result = super().write(vals)
+        entries = []
         for rule in self:
+            audited = {
+                name: [before[rule.id][name], value]
+                for name, value in rule._dgq_audited_values(vals).items() if value != before[rule.id][name]}
+            if audited:
+                entries.append(audit.entry_values(self.env, 'rule_changed', rule, changes=audited))
             after = rule._dgq_definition()
             changed = {
-                name: [before[rule.id][name], value]
-                for name, value in after.items() if value != before[rule.id][name]}
+                name: [before_definition[rule.id][name], value]
+                for name, value in after.items() if value != before_definition[rule.id][name]}
             if changed:
                 # sudo: versions are read-only for every user; only the rule writes them
                 self.env['data.quality.rule.version'].sudo().create({
                     'rule_id': rule.id,
                     'version': rule.version,
-                    'definition': before[rule.id],
+                    'definition': before_definition[rule.id],
                     'changed_values': changed,
                     'user_id': self.env.user.id,
                 })
                 super(DataQualityRule, rule).write({'version': rule.version + 1})
+        audit.log_many(self.env, entries)
         return result
+
+    def unlink(self):
+        """Note each deleted rule in the audit trail; the entry keeps its name.
+
+        Requirements: FR-DGQ-0072
+        """
+        audit.log_many(self.env, [audit.entry_values(self.env, 'rule_deleted', rule) for rule in self])
+        return super().unlink()
 
     def copy_data(self, default=None):
         """A copy is a new rule: named '(copy)', at version 1, with no versions.

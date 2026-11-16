@@ -26,9 +26,13 @@ class TestScanRunAcceptance(AcceptanceCase):
         Scan = type(self.env['data.quality.scan'])
         original = Scan._dgq_run_batch
         log = []
+        stopped = []
 
         def spy(this):
-            if fail_on_batch and len(log) + 1 == fail_on_batch:
+            # The stop fires once: the failed batch is not logged (it saved nothing), so the
+            # resume's first call sees the same count and must not stop again.
+            if fail_on_batch and not stopped and len(log) + 1 == fail_on_batch:
+                stopped.append(True)
                 raise RuntimeError('simulated stop')
             result = original(this)
             checkpoints = this.env['data.quality.scan.checkpoint'].search([('scan_id', '=', this.id)])

@@ -2,7 +2,7 @@ import re
 
 from odoo import Command
 from odoo.exceptions import UserError
-from odoo.tests import new_test_user
+from odoo.tests import Form, new_test_user
 
 from .acceptance_m2b_helpers import M2BCase, ROLLBACK, call_first, dump
 
@@ -29,10 +29,24 @@ class TestMergeAcceptance(M2BCase):
     def group(self):
         return self.make_group(self.rule, self.acme | self.acme_two)
 
-    def merge(self, group=None):
-        """Preview and confirm the merge of the group as manager Ann; return the merge history."""
-        group = group or self.group()
+    def preview_keeping_acme(self, group):
+        """The preview of the group as manager Ann, with 'Acme Ltd' chosen as the kept record.
+
+        The preview proposes the record with the most links (FR-DGQ-0042); the scenarios name the
+        kept record, so the manager chooses it in the preview before confirming.
+        """
         wizard = self.open_preview(group=group, user=self.manager_a)
+        if wizard.kept_res_id != self.acme.id:
+            with Form(wizard) as form:
+                form.kept_res_id = self.acme.id
+            wizard = form.record
+        self.assertEqual(wizard.kept_res_id, self.acme.id)
+        return wizard
+
+    def merge(self, group=None):
+        """Preview (keeping 'Acme Ltd') and confirm the merge of the group as manager Ann; return the merge history."""
+        group = group or self.group()
+        wizard = self.preview_keeping_acme(group)
         self.confirm_merge(wizard)
         self.env.flush_all()
         group.invalidate_recordset()
@@ -102,7 +116,7 @@ class TestMergeAcceptance(M2BCase):
         other_bank = self.link_bank(self.acme_two, 'SAME-ACCOUNT')
         self.acme_two.phone = '555-0100'
         group = self.group()
-        wizard = self.open_preview(group=group, user=self.manager_a)
+        wizard = self.preview_keeping_acme(group)
         with self.assertRaises(UserError) as caught:
             self.confirm_merge(wizard)
         self.assertTrue(str(caught.exception).strip())
@@ -124,8 +138,7 @@ class TestMergeAcceptance(M2BCase):
         for number in (1, 2):
             user = new_test_user(self.env, login='dgq_m2b_dupuser%d' % number, groups='base.group_user')
             user.partner_id.write({
-                'name': 'Dup User' if number == 1 else 'DUP USER', 'email': 'dup@user.com',
-                'company_id': self.cx.id})
+                'name': 'Dup User' if number == 1 else 'DUP USER', 'email': 'dup@user.com'})
             partners |= user.partner_id
         self.refused(partners, r'user')
         for partner in partners:

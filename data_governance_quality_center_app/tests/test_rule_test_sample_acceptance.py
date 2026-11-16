@@ -29,8 +29,8 @@ def words(item):
     return dump(item).replace('_', ' ')
 
 
-class TestRuleTestAcceptance(AcceptanceCase):
-    """Acceptance tests of T-008: test a rule on sample records, explain why a record failed.
+class TestRuleTestSampleAcceptance(AcceptanceCase):
+    """Acceptance tests of T-008 (the issue and its language, shown from the scan result here): test a rule on sample records, explain why a record failed.
 
     The test of an unsaved rule is the computed ``test_results`` of the rule shown in the form
     (design: not stored, computed on the unsaved form) with the picked ``test_res_ids``; the
@@ -58,7 +58,10 @@ class TestRuleTestAcceptance(AcceptanceCase):
         """SC-DGQ-0012-1: Acme (no e-mail) fails with the field named, Beta passes; nothing is created."""
         acme = self.partner('Acme')
         beta = self.partner('Beta', email='beta@example.com')
-        names = ('data.quality.issue', 'data.quality.scan', 'data.quality.scan.line', 'data.quality.rule')
+        # The issue model belongs to a later task: it is counted once it exists.
+        names = [name for name in ('data.quality.issue', 'data.quality.scan', 'data.quality.scan.line',
+                                   'data.quality.rule') if name in self.env]
+        self.assertIn('data.quality.scan', names)
         before = {name: self.env[name].with_context(active_test=False).search_count([]) for name in names}
         rule = self._unsaved_required_rule(['email'], [acme.id, beta.id])
         results = rule.test_results
@@ -82,13 +85,18 @@ class TestRuleTestAcceptance(AcceptanceCase):
         self.assertIn('fail', words(entry_of(screen.test_results, acme.id)))
 
     def test_rule_test_shows_not_applicable(self):
-        """FR-DGQ-0012: a record outside the 'applies to' filter is shown as not applicable."""
-        company = self.partner('Company', is_company=True)
-        person = self.partner('Person', is_company=False)
+        """FR-DGQ-0012: a record outside the 'applies to' filter is shown as not applicable.
+
+        Odoo 20 computes 'Is a company' from the tax ID, so the policy checks the e-mail of the
+        partners that have a website: 'Company' (website, no e-mail) fails, 'Person' (no website)
+        is not applicable.
+        """
+        company = self.partner('Company', website='https://company.example.com')
+        person = self.partner('Person')
         rule = self.env['data.quality.rule'].new({
             'name': 'Unsaved', 'model_id': self.model('res.partner').id, 'rule_type': 'condition',
-            'severity': 'warning', 'applies_domain': "[('is_company', '=', True)]",
-            'condition_domain': "[('vat', '!=', False)]",
+            'severity': 'warning', 'applies_domain': "[('website', '!=', False)]",
+            'condition_domain': "[('email', '!=', False)]",
             'test_res_ids': [company.id, person.id],
         })
         results = rule.test_results
