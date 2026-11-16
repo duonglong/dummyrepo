@@ -23,6 +23,8 @@ class DataQualityImportSession(models.Model):
         'error_count', 'warning_count', 'error_row_count', 'imported_count', 'import_after_check', 'next_row',
         'file_checksum',
     }
+    _dgq_scope_fields = frozenset({
+        'model_id', 'company_id', 'rule_ids', 'duplicate_field_ids', 'options'})
     _description = 'Data Quality Import Check'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_import'
@@ -151,6 +153,12 @@ class DataQualityImportSession(models.Model):
         return super().write(vals)
 
     # ---- job ---------------------------------------------------------------
+
+    def _dgq_scope_is_open(self):
+        """A check that stopped before anything was imported is read again from its first row."""
+        self.ensure_one()
+        return super()._dgq_scope_is_open() or (
+            self.state in ('failed', 'cancelled') and not self.imported_count)
 
     def action_start(self):
         """Read the file, refuse it when it cannot be checked, and queue the check from its first row.

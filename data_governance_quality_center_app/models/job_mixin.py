@@ -12,9 +12,11 @@ class DataQualityJobMixin(models.AbstractModel):
     ``_dgq_run_next``.
 
     A user never writes the state, progress or results of a job: the buttons and the runner do. A kind
-    lists its own result fields in ``_dgq_app_fields``.
+    lists its own result fields in ``_dgq_app_fields``. A user writes the scope of a job (the fields a kind
+    lists in ``_dgq_scope_fields``) only while the job is draft, or in a state the kind's
+    ``_dgq_scope_is_open`` names, because starting it again reads the scope again.
 
-    Requirements: NFR-DGQ-0002, NFR-DGQ-0003, NFR-DGQ-0005, NFR-DGQ-0006
+    Requirements: NFR-DGQ-0002, NFR-DGQ-0003, NFR-DGQ-0005, NFR-DGQ-0006, FR-DGQ-0070
     """
     _name = 'data.quality.job.mixin'
     _description = 'Data quality background job'
@@ -26,6 +28,9 @@ class DataQualityJobMixin(models.AbstractModel):
         'state', 'user_id', 'date_queued', 'date_start', 'date_end', 'heartbeat', 'progress',
         'total_count', 'done_count', 'error_message',
     })
+
+    #: the fields that say what a job works on; a kind lists its own
+    _dgq_scope_fields = frozenset()
 
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -67,13 +72,22 @@ class DataQualityJobMixin(models.AbstractModel):
         return super().create(vals_list)
 
     def write(self, vals):
-        """A user changes the settings of a job, never its state, progress or results.
+        """A user changes the settings of a job, never its state, progress or results, and its scope only
+        while the job has not run.
 
-        Requirements: NFR-DGQ-0006
+        Requirements: NFR-DGQ-0006, FR-DGQ-0070
         """
         if not self.env.su:
             self._dgq_check_app_values(set(vals))
+            if self._dgq_scope_fields.intersection(vals) and self.filtered(lambda job: not job._dgq_scope_is_open()):
+                raise UserError(self.env._(
+                    "The scope of a job can only be changed before it is started. Create a new one instead."))
         return super().write(vals)
+
+    def _dgq_scope_is_open(self):
+        """Whether the scope of this job may still be written: starting it reads the scope again."""
+        self.ensure_one()
+        return self.state == 'draft'
 
     @api.model
     def _dgq_check_app_values(self, names):

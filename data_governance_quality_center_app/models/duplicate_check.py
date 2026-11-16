@@ -26,6 +26,7 @@ class DataQualityDuplicateCheck(models.Model):
     _inherit = ['data.quality.job.mixin']
     _dgq_app_fields = DataQualityJobMixin._dgq_app_fields | {
         'phase', 'last_id', 'last_key', 'pair_data', 'pairs_scored', 'blocks_skipped', 'groups_found'}
+    _dgq_scope_fields = frozenset({'rule_id'})
     _description = 'Data Quality Duplicate Check'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_duplicate_check'
