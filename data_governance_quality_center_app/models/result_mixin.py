@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 
 
@@ -8,6 +9,28 @@ class DataQualityResultMixin(models.AbstractModel):
 
     res_model = fields.Char(string='Model', required=True, index=True)
     company_id = fields.Many2one('res.company', string='Company', index=True)
+
+    def _dgq_open_record(self):
+        """Open the record a result is about under the user's own rights, or say why it cannot be.
+
+        Requirements: FR-DGQ-0030
+        """
+        self.ensure_one()
+        record = self.env[self.res_model].browse(self.res_id)
+        if not record.exists():
+            raise UserError(self.env._("The record no longer exists."))
+        try:
+            record.check_access('read')
+        except AccessError:
+            raise UserError(self.env._("You may not read this record.")) from None
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self.res_model,
+            'res_id': self.res_id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
+        }
 
     @api.model
     @api.ormcache('self.env.uid')

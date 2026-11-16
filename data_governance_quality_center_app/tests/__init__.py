@@ -90,3 +90,4 @@ from . import test_benchmark_dashboard
 from . import test_manager_automation_access
 from . import test_job_guard
 from . import test_automation_requester
+from . import test_scan_line_open

@@ -79,6 +79,7 @@
                                     <field name="res_id"/>
                                     <field name="severity"/>
                                     <field name="explanation"/>
+                                    <button name="action_open_record" type="object" string="Open Record"/>
                                 </list>
                             </field>
                         </page>

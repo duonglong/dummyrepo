@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 from ..const import ISSUE_PRIORITY_BY_SEVERITY, ISSUE_STATE_MOVES, NOTIFY_EMAIL_DEFAULT, NOTIFY_EMAIL_PARAMETER
 from ..services import audit, explain
@@ -236,22 +236,7 @@ class DataQualityIssue(models.Model):
 
         Requirements: FR-DGQ-0030
         """
-        self.ensure_one()
-        record = self.env[self.res_model].browse(self.res_id)
-        if not record.exists():
-            raise UserError(self.env._("The record no longer exists."))
-        try:
-            record.check_access('read')
-        except AccessError:
-            raise UserError(self.env._("You may not read this record.")) from None
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self.res_model,
-            'res_id': self.res_id,
-            'view_mode': 'form',
-            'views': [(False, 'form')],
-            'target': 'current',
-        }
+        return self._dgq_open_record()
 
     def _dgq_escalate(self, users):
         """Raise the priority of each issue by one level, note it, and tell each user once about all of them.

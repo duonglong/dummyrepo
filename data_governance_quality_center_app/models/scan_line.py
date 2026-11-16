@@ -25,6 +25,13 @@ class DataQualityScanLine(models.Model):
     explanation_params = fields.Json()
     explanation = fields.Text(compute='_compute_explanation')
 
+    def action_open_record(self):
+        """Open the record behind the result under the user's own rights, or say why it cannot be.
+
+        Requirements: FR-DGQ-0030
+        """
+        return self._dgq_open_record()
+
     @api.depends('explanation_code', 'explanation_params', 'res_model', 'rule_id.advice')
     @api.depends_context('lang')
     def _compute_explanation(self):
