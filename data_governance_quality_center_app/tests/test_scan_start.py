@@ -24,13 +24,32 @@ class TestScanStart(AcceptanceCase):
         self.assertIn(self.model('res.partner'), scan.model_ids)
         self.assertEqual(scan.company_ids, self.cx)
 
-    def test_scan_without_any_rule_is_refused(self):
-        """FR-DGQ-0015: nothing to scan is refused instead of queued."""
-        scan = self.make_scan([], companies=[self.cx], models=['res.partner'])
-        scan.rule_ids = False
-        self.env['data.quality.rule'].search([]).write({'active': False})
-        with self.assertRaisesRegex(UserError, "no active rule to scan"):
-            scan.action_start()
+    def test_bug_b_0216_scan_with_every_rule_switched_off_runs_and_says_so(self):
+        """Regression test for B-0216: a scan with no active rule runs, checks nothing and records that.
+
+        One row per way to start it: an empty choice, rules chosen and all off, and two such scans started in
+        one call (the row lock then has no rule to lock).
+
+        Requirements: FR-DGQ-0010, FR-DGQ-0015
+        """
+        rule = self.make_rule('res.partner', 'required', ['ref'])
+        self.partner('NoRef')
+        rule.active = False
+        chosen = self.make_scan([rule], companies=[self.cx], models=['res.partner'])
+        chosen.rule_ids = [Command.set(rule.ids)]
+        for label, scans in (
+            ('empty choice', self.make_scan([], companies=[self.cx], models=['res.partner'])),
+            ('rules chosen', chosen),
+            ('two in one call', self.make_scan([], companies=[self.cx]) | self.make_scan([], companies=[self.cx])),
+        ):
+            with self.subTest(label):
+                scans.action_start()
+                for scan in scans:
+                    self.drain(scan)
+                    self.assertEqual(scan.state, 'done')
+                    self.assertFalse(scan.line_ids)
+                    self.assertFalse(scan.rule_ids)
+                    self.assertIn('No active rule was checked', scan.rules_not_run_text)
 
     def test_scan_form_is_saved_as_a_draft_with_a_reference(self):
         """FR-DGQ-0015: the operator fills the scan form; saving gives a draft with its reference."""

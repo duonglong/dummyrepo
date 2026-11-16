@@ -264,6 +264,7 @@ class DataQualityAutomation(models.Model):
         self.ensure_one()
         try:
             with self.env.cr.savepoint():
+                self._dgq_refuse_empty_scope(run.scan_id)
                 run.scan_id.action_resume()
         except ScanBusy as busy:
             run.message = busy.args[0]
@@ -426,6 +427,7 @@ class DataQualityAutomation(models.Model):
                     'automation_id': self.id, 'date_start': fields.Datetime.now(), 'state': 'running',
                     'sends_summary': self.send_email})
                 scan = self.env['data.quality.scan'].create(self._dgq_scan_values(run, res_model, res_ids))
+                self._dgq_refuse_empty_scope(scan)
                 scan._dgq_enqueue()
                 run.scan_id = scan
         except (AccessError, MissingError, ValidationError):
@@ -435,6 +437,14 @@ class DataQualityAutomation(models.Model):
         except UserError as error:
             return ('skipped', error.args[0]), False
         return False, False
+
+    def _dgq_refuse_empty_scope(self, scan):
+        """An automation never starts, or resumes, a scan with no active rule to check.
+
+        Requirements: FR-DGQ-0063, FR-DGQ-0069
+        """
+        if not scan._dgq_resolve_scope():
+            raise UserError(self.env._("There is no active rule to scan in this scope."))
 
     def _dgq_scan_values(self, run, res_model=None, res_ids=None):
         """The scope of the scan an automation starts: its rules, models and companies."""

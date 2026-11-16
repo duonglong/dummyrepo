@@ -15,6 +15,9 @@ from ..services import validation
 
 _logger = logging.getLogger(__name__)
 
+# Key of the one note of rules_not_run that names no rule: the scan had no active rule to check.
+NO_RULE_KEY = 'none'
+
 
 class ScanBusy(UserError):
     """The refusal of a scan whose scope overlaps a queued or running scan: it may be tried again later."""
@@ -203,7 +206,7 @@ class DataQualityScan(models.Model):
         rules = self.env['data.quality.rule'].sudo().with_context(active_test=False)
         for scan in self:
             scan.rules_not_run_text = "\n".join(
-                "%s: %s" % (rules.browse(int(rule_id)).display_name, reason)
+                reason if rule_id == NO_RULE_KEY else "%s: %s" % (rules.browse(int(rule_id)).display_name, reason)
                 for rule_id, reason in (scan.rules_not_run or {}).items())
 
     # ---- start: scope and overlap -------------------------------------------
@@ -237,13 +240,18 @@ class DataQualityScan(models.Model):
         Requirements: FR-DGQ-0018
         """
         rule_ids = self.sudo().rule_ids.ids  # sudo: the requester may not read every rule
+        if not rule_ids:
+            return
         self.env.cr.execute(SQL(
             "UPDATE data_quality_rule SET write_date = write_date WHERE id IN %s", tuple(rule_ids)))
 
     def _dgq_resolve_scope(self):
         """Store the real rules, models and companies: an empty choice means everything allowed.
 
-        Requirements: FR-DGQ-0015
+        A scope with no active rule is kept: the scan runs, checks nothing and says so (FR-DGQ-0010).
+        The rules found are returned, so a caller with its own skip rule can refuse an empty scope.
+
+        Requirements: FR-DGQ-0015, FR-DGQ-0010
         """
         self.ensure_one()
         scan = self.sudo()  # sudo: the scope is read as stored, whatever the requester may read
@@ -259,13 +267,14 @@ class DataQualityScan(models.Model):
         if scan.model_ids:
             rules = rules.filtered(lambda rule: rule.model_id in scan.model_ids)
         rules = rules.filtered(lambda rule: not rule.company_ids or rule.company_ids & companies)
-        if not rules:
-            raise UserError(self.env._("There is no active rule to scan in this scope."))
-        scan.write({  # sudo: the app writes the resolved scope
+        values = {  # sudo: the app writes the resolved scope
             'rule_ids': [fields.Command.set(rules.ids)],
-            'model_ids': [fields.Command.set(rules.model_id.ids)],
             'company_ids': [fields.Command.set(companies.ids)],
-        })
+        }
+        if rules:
+            values['model_ids'] = [fields.Command.set(rules.model_id.ids)]
+        scan.write(values)
+        return rules
 
     def _dgq_refuse_overlap(self, starting=None):
         """Refuse a scan that shares a rule and a company with a queued or running scan,
@@ -307,7 +316,7 @@ class DataQualityScan(models.Model):
         Requirements: FR-DGQ-0020
         """
         self.ensure_one()
-        not_run = {}
+        not_run = {} if self.rule_ids else {NO_RULE_KEY: self.env._("No active rule was checked.")}
         runnable = self.env['data.quality.rule']
         for rule in self.rule_ids:
             reason = scan_service.not_run_reason(self.env, rule)
