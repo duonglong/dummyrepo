@@ -113,7 +113,7 @@ class DataQualityIssue(models.Model):
 
         Every assignment, resolution, ignoring and reopening is noted in the audit trail.
 
-        Requirements: BR-DGQ-0004, FR-DGQ-0024, FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0070, FR-DGQ-0072
+        Requirements: BR-DGQ-0004, FR-DGQ-0024, FR-DGQ-0025, FR-DGQ-0026, FR-DGQ-0028, FR-DGQ-0070, FR-DGQ-0072
         """
         if not self.env.su:
             forbidden = set(vals) - self._dgq_work_fields
@@ -163,7 +163,10 @@ class DataQualityIssue(models.Model):
         audit.log_many(self.env, entries)
 
     def _dgq_state_values(self, vals):
-        """The values to write on this issue, the status change checked and its side effects added."""
+        """The values to write on this issue, the status change checked and its side effects added.
+
+        Requirements: FR-DGQ-0025
+        """
         self.ensure_one()
         vals = dict(vals)
         target = vals.get('state')
