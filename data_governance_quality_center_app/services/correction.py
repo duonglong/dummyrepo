@@ -282,11 +282,15 @@ def run_batch(run):
     the ORM, one savepoint per record, so a refused write is logged failed and the batch goes on.
     The checkpoint is the last id handled, so a resumed run continues after it.
 
-    Requirements: FR-DGQ-0047, FR-DGQ-0049, FR-DGQ-0051, NFR-DGQ-0005
+    Requirements: FR-DGQ-0047, FR-DGQ-0049, FR-DGQ-0051, FR-DGQ-0068, NFR-DGQ-0005
     """
     correction = run.correction_id
     if not run.last_id:  # the first batch fixes the targets, whatever the run record held
-        run.res_ids = target_ids(correction)
+        targets = target_ids(correction)
+        if run.automation_run_id:  # an automation corrects only the records its scan found failing
+            found = set(run.res_ids or ())
+            targets = [record_id for record_id in targets if record_id in found]
+        run.res_ids = targets
     started = time.monotonic()
     targets = run.res_ids or []  # no target is stored as an empty value
     first = bisect.bisect_right(targets, run.last_id)  # the targets are in id order

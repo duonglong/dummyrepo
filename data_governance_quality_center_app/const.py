@@ -71,6 +71,12 @@ SEVERITY_WEIGHT_PARAMETER = 'data_quality.weight_%s'
 DASHBOARD_LOWEST_MODELS = 5
 DASHBOARD_RECENT_ISSUES = 10
 
+# Times a failed automation run is tried again at its next due times before it is marked failed (FR-DGQ-0069).
+AUTOMATION_RETRIES = 3
+
+# The group of the data quality administrators.
+ADMIN_GROUP = 'data_governance_quality_center_app.group_dgq_admin'
+
 # Days scan result lines and import files are kept, and days a Resolved or Ignored issue is kept (BR-DGQ-0013, FR-DGQ-0077).
 SCAN_LINE_RETENTION_DAYS = 90
 ISSUE_RETENTION_DAYS = 365

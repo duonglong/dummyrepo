@@ -38,7 +38,9 @@
         'views/report_views.xml',
         'views/res_config_settings_views.xml',
         'data/cron_automation.xml',
+        'data/automation_mail_templates.xml',
         'views/automation_views.xml',
+        'views/automation_run_views.xml',
     ],
     'demo': [
         'demo/demo_data.xml',

@@ -2,10 +2,9 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .. import const
+from ..const import ADMIN_GROUP
 from ..services import audit
 from ..services import correction as engine
-
-ADMIN_GROUP = 'data_governance_quality_center_app.group_dgq_admin'
 
 #: what a correction does: a change of any of these needs a new dry run and a new approval
 DEFINITION_FIELDS = (
@@ -92,6 +91,10 @@ class DataQualityCorrection(models.Model):
         'data.quality.correction.run', string='Last Dry Run', readonly=True, copy=False,
         ondelete='set null')
     run_ids = fields.One2many('data.quality.correction.run', 'correction_id', string='Runs')
+    auto_approved = fields.Boolean(
+        string='Approved for Automatic Use', copy=False,
+        help="A manager allows automations to run this correction by themselves. "
+        "Any change of the correction withdraws it.")
 
     # ---- policy ----------------------------------------------------------
 
@@ -184,6 +187,18 @@ class DataQualityCorrection(models.Model):
                     "Compare a link with record ids.", name=correction.name,
                     fields=', '.join(blocked)))
 
+    @api.constrains('auto_approved')
+    def _check_auto_approved(self):
+        """A correction that needs a person's approval is never run by an automation.
+
+        Requirements: FR-DGQ-0068
+        """
+        for correction in self.filtered('auto_approved'):
+            if correction.needs_approval:
+                raise ValidationError(self.env._(
+                    "%s is critical, sensitive or about protected records: a person approves it "
+                    "each time, so it cannot be approved for automatic use.", correction.name))
+
     def _dgq_kind_message(self, key, descriptor):
         kinds = set(descriptor['field_types'])
         if kinds <= set(engine.TEXT_TYPES):
@@ -230,13 +245,16 @@ class DataQualityCorrection(models.Model):
     def _dgq_back_to_draft(self):
         """Put corrections that are not in draft back to draft: a new definition needs new proof.
 
-        Requirements: FR-DGQ-0048
+        The approval for automatic use goes too: a manager approved the earlier definition.
+
+        Requirements: FR-DGQ-0048, FR-DGQ-0068
         """
-        changed = self.filtered(lambda correction: correction.state != 'draft' or correction.last_dry_run_id)
+        changed = self.filtered(
+            lambda correction: correction.state != 'draft' or correction.last_dry_run_id or correction.auto_approved)
         if changed:
             changed.sudo().write({  # sudo: the reset is the app's, users may not write these fields
                 'state': 'draft', 'approver_id': False, 'approval_date': False,
-                'approved_dry_run_id': False, 'last_dry_run_id': False,
+                'approved_dry_run_id': False, 'last_dry_run_id': False, 'auto_approved': False,
             })
 
     def _dgq_check_authorization(self, vals):
@@ -261,20 +279,33 @@ class DataQualityCorrection(models.Model):
             if not self.env.user.has_group(ADMIN_GROUP):
                 allowed.discard('protected_authorized')
             self = self.with_context(context_without_defaults(self.env, allowed))
-        return super().create(vals_list)
+        corrections = super().create(vals_list)
+        corrections.filtered('auto_approved')._dgq_log_automatic_approval()
+        return corrections
+
+    def _dgq_log_automatic_approval(self):
+        """Write the audit entry of an approval for automatic use, whether given on create or on write."""
+        for correction in self:
+            audit.log(self.env, 'correction_approved', correction,
+                      description=self.env._("Approved for automatic use"))
 
     def write(self, vals):
-        """A change of what the correction does sends it back to draft and removes its approval.
+        """A change of what the correction does sends it back to draft and removes its approvals.
 
-        Requirements: BR-DGQ-0006, FR-DGQ-0048
+        The approval for automatic use is recorded in the audit trail.
+
+        Requirements: BR-DGQ-0006, FR-DGQ-0048, FR-DGQ-0068
         """
         self._dgq_check_authorization(vals)
         self._dgq_check_guarded(vals)
         if any(name in vals for name in DEFINITION_FIELDS):
             vals = dict(
                 vals, state='draft', approver_id=False, approval_date=False,
-                approved_dry_run_id=False, last_dry_run_id=False)
-        return super().write(vals)
+                approved_dry_run_id=False, last_dry_run_id=False, auto_approved=False)
+        result = super().write(vals)
+        if vals.get('auto_approved'):
+            self._dgq_log_automatic_approval()
+        return result
 
     def unlink(self):
         """A correction that ran for real is the proof of what was changed: it is archived."""

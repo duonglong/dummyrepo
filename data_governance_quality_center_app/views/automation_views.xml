@@ -48,6 +48,16 @@
                             <field name="team_id" options="{'no_create': True}"/>
                             <field name="user_id"/>
                         </group>
+                        <group string="Follow-up">
+                            <field name="send_email"/>
+                            <field name="create_activity"/>
+                            <field name="deadline_days"/>
+                            <field name="escalation_days"/>
+                            <field name="escalation_user_id"/>
+                        </group>
+                        <group string="Corrections">
+                            <field name="correction_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="History" name="history">
@@ -58,6 +68,8 @@
                                     <field name="scan_id"/>
                                     <field name="issues_created"/>
                                     <field name="issues_assigned"/>
+                                    <field name="issues_escalated"/>
+                                    <field name="corrections_applied"/>
                                     <field name="skip_reason"/>
                                 </list>
                             </field>
