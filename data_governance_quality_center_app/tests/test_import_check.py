@@ -123,8 +123,9 @@ class TestImportCheck(M3Case):
         """NFR-DGQ-0003: no state outside the cursor; the file of a session is dropped on request."""
         first = self.make_session(csv_file(['Name'], [['A']]), 'first.csv')
         second = self.make_session(csv_file(['Name'], [['B'], ['C']]), 'second.csv')
-        first.file_checksum = import_check.file_checksum(first)
-        second.file_checksum = import_check.file_checksum(second)
+        # sudo: the checksum is written by the app when a check starts
+        first.sudo().file_checksum = import_check.file_checksum(first)
+        second.sudo().file_checksum = import_check.file_checksum(second)
         self.assertEqual(len(import_check.load_file(first).rows), 1)
         self.assertEqual(len(import_check.load_file(second).rows), 2)
         self.assertEqual(len(import_check.load_file(first).rows), 1)

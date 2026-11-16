@@ -8,6 +8,7 @@ from odoo.exceptions import UserError
 
 from ..const import DUPLICATE_MAX_BLOCK_KEY_LENGTH, DUPLICATE_MAX_BLOCK_SIZE, JOB_BATCH_SIZE
 from ..services import matching, merge
+from .job_mixin import DataQualityJobMixin
 
 _logger = logging.getLogger(__name__)
 
@@ -23,6 +24,8 @@ class DataQualityDuplicateCheck(models.Model):
     """
     _name = 'data.quality.duplicate.check'
     _inherit = ['data.quality.job.mixin']
+    _dgq_app_fields = DataQualityJobMixin._dgq_app_fields | {
+        'phase', 'last_id', 'last_key', 'pair_data', 'pairs_scored', 'blocks_skipped', 'groups_found'}
     _description = 'Data Quality Duplicate Check'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_duplicate_check'
@@ -78,7 +81,7 @@ class DataQualityDuplicateCheck(models.Model):
     def _reset_progress(self):
         # sudo: the work table has no access group
         self.env['data.quality.duplicate.key'].sudo().search([('check_id', 'in', self.ids)]).unlink()
-        self.write({
+        self._dgq_write_as_app({
             'phase': 'keys', 'last_id': 0, 'last_key': False, 'pair_data': False,
             'pairs_scored': 0, 'blocks_skipped': 0, 'groups_found': 0,
             'done_count': 0, 'total_count': 0,

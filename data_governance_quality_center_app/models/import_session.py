@@ -3,6 +3,7 @@ from odoo.exceptions import UserError, ValidationError
 
 from ..const import JOB_BATCH_SIZE
 from ..services import import_check, import_run
+from .job_mixin import DataQualityJobMixin
 
 START_STATES = ('draft', 'failed', 'cancelled')
 
@@ -17,6 +18,11 @@ class DataQualityImportSession(models.Model):
     """
     _name = 'data.quality.import.session'
     _inherit = ['data.quality.job.mixin', 'data.quality.result.mixin']
+    _dgq_app_fields = DataQualityJobMixin._dgq_app_fields | {
+        'job_kind', 'res_model', 'column_mapping', 'import_state', 'date_checked', 'date_imported', 'row_count',
+        'error_count', 'warning_count', 'error_row_count', 'imported_count', 'import_after_check', 'next_row',
+        'file_checksum',
+    }
     _description = 'Data Quality Import Check'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_import'
@@ -164,12 +170,12 @@ class DataQualityImportSession(models.Model):
             raise UserError(self.env._(
                 "%(count)s rows of this file were imported already. Upload the corrected file in a new check.",
                 count=self.imported_count))
-        self.write({'file_checksum': import_check.file_checksum(self) if self.file else False})
+        self._dgq_write_as_app({'file_checksum': import_check.file_checksum(self) if self.file else False})
         loaded = import_check.load_file(self)
         import_check.forget_file(self)
         # sudo: the findings are written by the app only
         self.sudo().row_ids.unlink()
-        self.write({
+        self._dgq_write_as_app({
             'job_kind': 'check', 'import_state': 'not_imported', 'import_after_check': False,
             'imported_count': 0, 'date_imported': False,
             'next_row': 0, 'row_count': 0, 'error_count': 0, 'warning_count': 0, 'error_row_count': 0,
@@ -195,7 +201,7 @@ class DataQualityImportSession(models.Model):
         for session in self:
             if session.file_changed_since_check():
                 session._dgq_reset_check()
-                session.import_after_check = True
+                session._dgq_write_as_app({'import_after_check': True})
                 session._dgq_enqueue()
             else:
                 session._dgq_queue_import(self.env.user)
@@ -212,7 +218,7 @@ class DataQualityImportSession(models.Model):
         self.env['data.quality.import.row'].sudo().search([
             ('session_id', '=', self.id), ('severity', '=', 'error'), ('row_number', '>', import_check.HEADER_ROW),
         ]).write({'left_out': True})
-        self.write({
+        self._dgq_write_as_app({
             'job_kind': 'import', 'import_after_check': False, 'next_row': 0, 'done_count': 0, 'total_count': 0,
             'imported_count': 0, 'error_message': False, 'state': 'queued', 'user_id': user.id,
             'date_queued': fields.Datetime.now(),
@@ -226,7 +232,7 @@ class DataQualityImportSession(models.Model):
         """
         resumed = self.filtered(lambda session: session.state == 'failed' and session.job_kind == 'import')
         if resumed:
-            resumed.write({'import_state': 'not_imported'})
+            resumed._dgq_write_as_app({'import_state': 'not_imported'})
         return super().action_resume()
 
     def action_download_error_report(self):

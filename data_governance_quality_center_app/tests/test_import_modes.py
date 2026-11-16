@@ -137,9 +137,10 @@ class TestImportModes(M3Case):
         """Run the import of a session for one batch of 10 rows, then cancel it, as a user does."""
         with patch('odoo.addons.data_governance_quality_center_app.models.import_session.JOB_BATCH_SIZE', 10):
             session.action_import()
-            session.write({'state': 'running'})
-            processed, remaining = session._dgq_run_batch()
-            session._dgq_record_batch(processed, remaining)
+            runner = session.sudo()  # sudo: the background runner is the app, not the user
+            runner.write({'state': 'running'})
+            processed, remaining = runner._dgq_run_batch()
+            runner._dgq_record_batch(processed, remaining)
         self.assertTrue(remaining)
         session.action_cancel()
 
@@ -175,17 +176,18 @@ class TestImportModes(M3Case):
         session = self.checked(csv_file(HEADER, self.rows(total=25)), 'resume.csv')
         with patch('odoo.addons.data_governance_quality_center_app.models.import_session.JOB_BATCH_SIZE', 10):
             session.action_import()
-            session.write({'state': 'running'})
-            session._dgq_record_batch(*session._dgq_run_batch())
-            session.write({'state': 'failed'})
+            runner = session.sudo()  # sudo: the background runner is the app, not the user
+            runner.write({'state': 'running'})
+            runner._dgq_record_batch(*runner._dgq_run_batch())
+            runner.write({'state': 'failed'})
             self.assertEqual(session.import_state, 'failed')
             session.action_resume()
             self.assertEqual(session.import_state, 'not_imported')
-            session.write({'state': 'running'})
+            runner.write({'state': 'running'})
             remaining = True
             while remaining:
-                processed, remaining = session._dgq_run_batch()
-                session._dgq_record_batch(processed, remaining)
+                processed, remaining = runner._dgq_run_batch()
+                runner._dgq_record_batch(processed, remaining)
         self.assertEqual((session.import_state, session.imported_count), ('imported', 25))
         self.assertTrue(session.date_imported)
 

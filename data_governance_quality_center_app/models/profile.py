@@ -3,6 +3,7 @@ from odoo.exceptions import UserError, ValidationError
 
 from ..const import PROFILE_STALE_DAYS
 from ..services import profile_compare, profiling
+from .job_mixin import DataQualityJobMixin
 
 
 class DataQualityProfile(models.Model):
@@ -15,6 +16,8 @@ class DataQualityProfile(models.Model):
     """
     _name = 'data.quality.profile'
     _inherit = ['data.quality.job.mixin', 'data.quality.result.mixin']
+    _dgq_app_fields = DataQualityJobMixin._dgq_app_fields | {
+        'res_model', 'record_count', 'stale_count', 'next_field_index'}
     _description = 'Data Quality Profile'
     _order = 'id desc'
     _dgq_cron_xmlid = 'data_governance_quality_center_app.ir_cron_dgq_profile'
@@ -137,8 +140,8 @@ class DataQualityProfile(models.Model):
                 # the default list is fixed at the start, so the checkpoint index stays stable
                 profile.field_ids = profile._usable_fields()
             profile.sudo().line_ids.unlink()  # sudo: the lines are written by the app only
-        self.write({'next_field_index': 0, 'record_count': 0, 'stale_count': 0,
-                    'done_count': 0, 'total_count': 0})
+        self._dgq_write_as_app({'next_field_index': 0, 'record_count': 0, 'stale_count': 0,
+                                'done_count': 0, 'total_count': 0})
         return super().action_start()
 
     # ---- compare and export ---------------------------------------------------

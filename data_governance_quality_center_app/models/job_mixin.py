@@ -11,13 +11,21 @@ class DataQualityJobMixin(models.AbstractModel):
     that runs it and implements ``_dgq_run_batch``; its scheduled action calls
     ``_dgq_run_next``.
 
-    Requirements: NFR-DGQ-0002, NFR-DGQ-0003, NFR-DGQ-0005
+    A user never writes the state, progress or results of a job: the buttons and the runner do. A kind
+    lists its own result fields in ``_dgq_app_fields``.
+
+    Requirements: NFR-DGQ-0002, NFR-DGQ-0003, NFR-DGQ-0005, NFR-DGQ-0006
     """
     _name = 'data.quality.job.mixin'
     _description = 'Data quality background job'
 
     #: external id of the scheduled action that runs this kind of job
     _dgq_cron_xmlid = None
+    #: the fields only the app writes; a kind adds its own results to these
+    _dgq_app_fields = frozenset({
+        'state', 'user_id', 'date_queued', 'date_start', 'date_end', 'heartbeat', 'progress',
+        'total_count', 'done_count', 'error_message',
+    })
 
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -36,6 +44,51 @@ class DataQualityJobMixin(models.AbstractModel):
     total_count = fields.Integer(copy=False)
     done_count = fields.Integer(copy=False)
     error_message = fields.Text(copy=False)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """A user creates a job with its own settings; a field of the app is accepted only at its default.
+
+        A form sends the defaults of every field of a new record, so a value equal to the default is
+        no hand setting. Defaults passed in the context are left out for these fields: the ORM applies
+        them after the check of the values.
+
+        Requirements: NFR-DGQ-0006
+        """
+        if not self.env.su:
+            self = self.with_context({
+                key: value for key, value in self.env.context.items()
+                if key.removeprefix('default_') not in self._dgq_app_fields})
+            names = {name for vals in vals_list for name in vals if name in self._dgq_app_fields}
+            defaults = self.default_get(sorted(names))
+            for vals in vals_list:
+                self._dgq_check_app_values({
+                    name for name in names.intersection(vals) if vals[name] != defaults.get(name, False)})
+        return super().create(vals_list)
+
+    def write(self, vals):
+        """A user changes the settings of a job, never its state, progress or results.
+
+        Requirements: NFR-DGQ-0006
+        """
+        if not self.env.su:
+            self._dgq_check_app_values(set(vals))
+        return super().write(vals)
+
+    @api.model
+    def _dgq_check_app_values(self, names):
+        """Refuse the fields only the app writes."""
+        forbidden = names & self._dgq_app_fields
+        if forbidden:
+            raise UserError(self.env._(
+                "These fields are set by the app, not by hand: %s. "
+                "A job moves on only through Start, Resume and Cancel.",
+                ", ".join(sorted(self._fields[name]._description_string(self.env) for name in forbidden))))
+
+    def _dgq_write_as_app(self, vals):
+        """Write the fields of a job for a user who may change it."""
+        self.check_access('write')
+        return self.sudo().write(vals)  # sudo: the app writes the state and results, after the access check
 
     @api.depends('total_count', 'done_count', 'state')
     def _compute_progress(self):
@@ -67,11 +120,11 @@ class DataQualityJobMixin(models.AbstractModel):
         for job in self:
             if job.state not in ('draft', 'queued', 'running'):
                 raise UserError(self.env._("A finished job cannot be cancelled."))
-        self.write({'state': 'cancelled', 'date_end': fields.Datetime.now()})
+        self._dgq_write_as_app({'state': 'cancelled', 'date_end': fields.Datetime.now()})
         return True
 
     def _dgq_enqueue(self):
-        self.write({
+        self._dgq_write_as_app({
             'state': 'queued',
             'user_id': self.env.user.id,
             'date_queued': fields.Datetime.now(),
