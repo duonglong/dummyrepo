@@ -81,6 +81,7 @@ from . import test_rollback_protected
 from . import test_duplicate_rule_filter
 from . import test_health_automation
 from . import test_shared_scores
+from . import test_report_trend
 from . import test_benchmark_delivery
 from . import test_benchmark_scan
 from . import test_benchmark_save
