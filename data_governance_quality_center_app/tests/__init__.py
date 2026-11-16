@@ -64,3 +64,4 @@ from . import test_rule_required_acceptance
 from . import test_rule_pattern_acceptance
 from . import test_rule_range_acceptance
 from . import test_rule_date_acceptance
+from . import test_dashboard_figures_acceptance
