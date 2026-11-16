@@ -217,10 +217,11 @@ def parse_domain(model, text):
 def target_ids(correction):
     """The ids of the records a correction looks at, in id order.
 
-    A filter of the correction narrows the records of its model and companies; a correction with
-    no filter and a rule looks at the records with an open issue of that rule.
+    The records of a correction with a rule are those with an open issue of that rule; a filter
+    narrows them. A correction with a filter and no rule looks at the records the filter matches.
+    The companies of the correction narrow either.
 
-    Requirements: FR-DGQ-0047
+    Requirements: FR-DGQ-0046, FR-DGQ-0047
     """
     env = correction.env
     correction._dgq_check_domain()
@@ -229,7 +230,7 @@ def target_ids(correction):
     domain = Domain.TRUE
     if correction.domain:
         domain &= parse_domain(model, correction.domain)
-    elif correction.rule_id:
+    if correction.rule_id:
         if 'data.quality.issue' not in env:
             return []
         # sudo: the issues of the rule, whoever asked
