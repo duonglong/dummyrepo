@@ -218,8 +218,9 @@ def target_ids(correction):
     """The ids of the records a correction looks at, in id order.
 
     The records of a correction with a rule are those with an open issue of that rule; a filter
-    narrows them. A correction with a filter and no rule, or whose rule has no open issue on the
-    model yet, looks at the records the filter matches. The companies of the correction narrow either.
+    narrows them, also when every issue of the rule is closed (then nothing is left to correct). A
+    correction with a filter and a rule that never had an issue on the model looks at the records the
+    filter matches. The companies of the correction narrow either.
 
     Requirements: FR-DGQ-0046, FR-DGQ-0047
     """
@@ -234,11 +235,11 @@ def target_ids(correction):
         if 'data.quality.issue' not in env:
             return []
         # sudo: the issues of the rule, whoever asked
-        issues = env['data.quality.issue'].sudo().search([
-            ('rule_id', '=', correction.rule_id.id), ('state', 'in', OPEN_ISSUE_STATES),
-            ('res_model', '=', model._name)])
-        if issues or not correction.domain:
-            domain &= Domain('id', 'in', issues.mapped('res_id'))
+        issues = env['data.quality.issue'].sudo()
+        of_rule = [('rule_id', '=', correction.rule_id.id), ('res_model', '=', model._name)]
+        open_issues = issues.search(of_rule + [('state', 'in', OPEN_ISSUE_STATES)])
+        if open_issues or issues.search_count(of_rule, limit=1) or not correction.domain:
+            domain &= Domain('id', 'in', open_issues.mapped('res_id'))
     if correction.company_ids and 'company_id' in model._fields:
         domain &= Domain('company_id', 'in', [False, *correction.company_ids.ids])
     return model._search(domain, order='id').get_result_ids()
