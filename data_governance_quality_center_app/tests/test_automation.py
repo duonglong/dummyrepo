@@ -31,6 +31,19 @@ class TestAutomation(M3Case):
         self.assertEqual(monthly._dgq_next_run(after), datetime(2026, 12, 10, 3, 0))
         self.assertEqual(monthly._dgq_next_run(datetime(2026, 12, 20, 0, 0)), datetime(2027, 1, 10, 3, 0))
 
+    def test_bug_b_0220_new_automation_takes_the_saved_scan_frequency(self):
+        """Regression test for B-0220: the default scan frequency of the settings is the interval of a new one.
+
+        One row per way an automation is born: created with no interval, and the blank form's default.
+
+        Requirements: FR-DGQ-0076, FR-DGQ-0063
+        """
+        self.env['ir.config_parameter'].sudo().set_str('data_quality.scan_frequency', 'weekly')
+        Automation = self.env['data.quality.automation'].sudo()
+        created = Automation.create({'name': 'Weekly', 'trigger': 'schedule'})
+        self.assertEqual(created.interval, 'weekly')
+        self.assertEqual(Automation.default_get(['interval'])['interval'], 'weekly')
+
     def test_a_busy_scope_skips_the_scheduled_run(self):
         """FR-DGQ-0063 (SC-DGQ-0018-3): a run whose scope is busy is recorded as skipped, with the reason."""
         rule = self.vendor_rule()

@@ -6,7 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 
-from ..const import ADMIN_GROUP, AUTOMATION_RETRIES, ESCALATION_DAYS_PARAMETER, ISSUE_OPEN_STATES
+from ..const import (
+    ADMIN_GROUP, AUTOMATION_RETRIES, ESCALATION_DAYS_PARAMETER, ISSUE_OPEN_STATES, SCAN_FREQUENCY_PARAMETER)
 from ..services import audit, events
 from .scan import ScanBusy
 
@@ -41,7 +42,7 @@ class DataQualityAutomation(models.Model):
         ('daily', 'Daily'),
         ('weekly', 'Weekly'),
         ('monthly', 'Monthly'),
-    ], default='daily')
+    ], default=lambda self: self._dgq_default_interval())
     hour = fields.Integer(default=2, help="The hour of the day, from 0 to 23, in the time zone of the responsible user.")
     weekday = fields.Selection([
         ('0', 'Monday'), ('1', 'Tuesday'), ('2', 'Wednesday'), ('3', 'Thursday'),
@@ -299,6 +300,15 @@ class DataQualityAutomation(models.Model):
         """The data quality administrators: told of failed runs and of late issues that have no team."""
         # sudo: the app looks up whom to tell, whatever the runner may read of the users
         return self.env['res.users'].sudo().search([('all_group_ids', 'in', self.env.ref(ADMIN_GROUP).ids)])
+
+    @api.model
+    def _dgq_default_interval(self):
+        """The default scan frequency of the settings, the interval a new automation starts with.
+
+        Requirements: FR-DGQ-0076, FR-DGQ-0063
+        """
+        # sudo: the frequency is read for every user, not only administrators
+        return self.env['ir.config_parameter'].sudo().get_str(SCAN_FREQUENCY_PARAMETER, 'daily')
 
     @api.model
     def _dgq_escalation_delay(self):
