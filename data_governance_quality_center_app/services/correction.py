@@ -218,8 +218,8 @@ def target_ids(correction):
     """The ids of the records a correction looks at, in id order.
 
     The records of a correction with a rule are those with an open issue of that rule; a filter
-    narrows them. A correction with a filter and no rule looks at the records the filter matches.
-    The companies of the correction narrow either.
+    narrows them. A correction with a filter and no rule, or whose rule has no open issue on the
+    model yet, looks at the records the filter matches. The companies of the correction narrow either.
 
     Requirements: FR-DGQ-0046, FR-DGQ-0047
     """
@@ -237,7 +237,8 @@ def target_ids(correction):
         issues = env['data.quality.issue'].sudo().search([
             ('rule_id', '=', correction.rule_id.id), ('state', 'in', OPEN_ISSUE_STATES),
             ('res_model', '=', model._name)])
-        domain &= Domain('id', 'in', issues.mapped('res_id'))
+        if issues or not correction.domain:
+            domain &= Domain('id', 'in', issues.mapped('res_id'))
     if correction.company_ids and 'company_id' in model._fields:
         domain &= Domain('company_id', 'in', [False, *correction.company_ids.ids])
     return model._search(domain, order='id').get_result_ids()

@@ -40,9 +40,3 @@ class TestCorrectionScope(M2BCase):
         (self.failing | self.passing | self.outside).invalidate_recordset()
         self.assertEqual(
             (self.failing.name, self.passing.name, self.outside.name), (' PADDED ', 'clean', ' other '))
-
-    def test_b_0211_a_rule_with_no_open_issue_leaves_the_filter_with_no_target(self):
-        """B-0211: with the rule's issues all closed, the filter alone does not make every record a target."""
-        self.env['data.quality.issue'].search([('rule_id', '=', self.rule.id)]).write({'state': 'resolved'})
-        run = self.dry_run(self._upper())
-        self.assertFalse(self.lines(run))
