@@ -70,3 +70,4 @@ from . import test_trend_acceptance
 from . import test_score_explain_acceptance
 from . import test_dashboard_drill_acceptance
 from . import test_profile_compare_acceptance
+from . import test_profile_export_acceptance
