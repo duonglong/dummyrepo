@@ -47,7 +47,7 @@ class DataQualityIssue(models.Model):
         ('in_progress', 'In Progress'),
         ('resolved', 'Resolved'),
         ('ignored', 'Ignored'),
-    ], default='new', required=True, index=True, tracking=True, copy=False)
+    ], default='new', required=True, index=True, tracking=True, copy=False, group_expand=True)
     priority = fields.Selection([
         ('low', 'Low'),
         ('normal', 'Normal'),
