@@ -62,3 +62,4 @@ from . import test_automation_actions
 from . import test_audit_events
 from . import test_rule_required_acceptance
 from . import test_rule_pattern_acceptance
+from . import test_rule_range_acceptance
