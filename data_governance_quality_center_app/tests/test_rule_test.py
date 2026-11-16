@@ -78,11 +78,11 @@ class TestRuleTest(AcceptanceCase):
         """FR-DGQ-0070, FR-DGQ-0012: the rule test is for managers; the server refuses the lower levels."""
         rule = self.make_rule('res.partner', 'required', ['email'])
         for level in ('viewer', 'operator'):
-            as_user = rule.with_user(self.user(level))
+            as_user = rule.with_user(self.user(level, company=self.cx))
             for name in ('test_res_ids', 'test_results', 'test_report'):
                 with self.subTest(level=level, field=name), self.assertRaises(AccessError):
                     as_user.read([name])
-        manager = rule.with_user(self.user('manager'))
+        manager = rule.with_user(self.user('manager', company=self.cx))
         self.assertTrue(manager.test_results['records'])
 
     def test_no_read_access_gives_a_reason(self):

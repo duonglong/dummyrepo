@@ -75,3 +75,4 @@ from . import test_import_error_report_acceptance
 from . import test_access_levels_acceptance
 from . import test_company_isolation_acceptance
 from . import test_audit_export_acceptance
+from . import test_definition_company_separation

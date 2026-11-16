@@ -34,7 +34,7 @@ class TestScanStart(AcceptanceCase):
 
     def test_scan_form_is_saved_as_a_draft_with_a_reference(self):
         """FR-DGQ-0015: the operator fills the scan form; saving gives a draft with its reference."""
-        rule = self.make_rule('res.partner', 'required', ['ref'])
+        rule = self.make_rule('res.partner', 'required', ['ref'], company=False)
         operator = self.user('operator')
         form = Form(self.env['data.quality.scan'].with_user(operator))
         form.rule_ids.add(rule)
@@ -153,7 +153,7 @@ class TestScanStart(AcceptanceCase):
 
     def test_operator_cannot_change_the_scope_of_a_queued_scan(self):
         """FR-DGQ-0018, FR-DGQ-0020: a plain save of a queued scan's rules is refused."""
-        operator = self.user('operator')
+        operator = self.user('operator', company=self.cx)
         vat = self.make_rule('res.partner', 'required', ['vat'])
         ref = self.make_rule('res.partner', 'required', ['ref'])
         scan = self.make_scan([vat], user=operator)
@@ -183,7 +183,7 @@ class TestScanStart(AcceptanceCase):
 
     def test_operator_still_cancels_his_queued_scan(self):
         """FR-DGQ-0015: Cancel works for the operator although he cannot write the state by hand."""
-        operator = self.user('operator')
+        operator = self.user('operator', company=self.cx)
         rule = self.make_rule('res.partner', 'required', ['ref'])
         scan = self.make_scan([rule], user=operator)
         scan.action_start()

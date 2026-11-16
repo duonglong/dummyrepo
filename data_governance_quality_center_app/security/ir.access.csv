@@ -16,9 +16,13 @@ access_dgq_duplicate_dismissal_manager,data.quality.duplicate.dismissal manager,
 access_dgq_duplicate_group_viewer,data.quality.duplicate.group viewer,data.quality.duplicate.group,group_dgq_viewer,r,
 access_dgq_duplicate_line_viewer,data.quality.duplicate.line viewer,data.quality.duplicate.line,group_dgq_viewer,r,
 access_dgq_duplicate_rule_company,data.quality.duplicate.rule own companies,data.quality.duplicate.rule,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
+access_dgq_duplicate_rule_field_company,data.quality.duplicate.rule.field own companies,data.quality.duplicate.rule.field,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
+access_dgq_duplicate_dismissal_company,data.quality.duplicate.dismissal own companies,data.quality.duplicate.dismissal,,crud,"['|',('rule_id.company_id','=',False),('rule_id.company_id','in',company_ids)]"
 access_dgq_rule_viewer,data.quality.rule viewer,data.quality.rule,group_dgq_viewer,r,
 access_dgq_rule_manager,data.quality.rule manager,data.quality.rule,group_dgq_manager,crud,
 access_dgq_rule_version_viewer,data.quality.rule.version viewer,data.quality.rule.version,group_dgq_viewer,r,
+access_dgq_rule_company,data.quality.rule own companies,data.quality.rule,,crud,"['|',('company_ids','=',False),('company_ids','in',company_ids)]"
+access_dgq_rule_version_company,data.quality.rule.version own companies,data.quality.rule.version,,crud,"['|',('rule_id.company_ids','=',False),('rule_id.company_ids','in',company_ids)]"
 access_dgq_ir_model_viewer,ir.model viewer,ir.model,group_dgq_viewer,r,"[('dgq_config_ids.status','in',('supported','restricted'))]"
 access_dgq_ir_model_fields_viewer,ir.model.fields viewer,ir.model.fields,group_dgq_viewer,r,"[('model_id.dgq_config_ids.status','in',('supported','restricted'))]"
 access_dgq_correction_viewer,data.quality.correction viewer,data.quality.correction,group_dgq_viewer,r,

@@ -1,6 +1,7 @@
 from datetime import datetime
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.exceptions import AccessError
 
 from .acceptance_m3_helpers import M3Case
@@ -203,6 +204,7 @@ class TestAutomation(M3Case):
     def test_an_event_scan_that_can_never_start_is_dropped_with_a_skipped_run(self):
         """FR-DGQ-0064: only an overlap keeps rows queued; a scope no rule fits is recorded and dropped."""
         rule = self.vendor_rule(company=self.cy)
+        self.administrator.write({'company_ids': [Command.link(self.cy.id)]})
         automation = self.make_automation('On creation', rules=[rule], trigger='event', event='create')
         vendors = self.vendors(1)
         Queue = self.env['data.quality.event.queue'].sudo()
