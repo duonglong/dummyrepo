@@ -146,6 +146,31 @@ class TestMerge(M2BCase):
         self.assertFalse(two.active)
         self.assertTrue(one.active)
 
+    def merge_products(self, kept, other):
+        """Merge two product templates into ``kept``, as the manager does in the dialog."""
+        rule = self.dup_rule('product.template', [('name', 'exact', 1)], threshold=85)
+        group = self.make_group(rule, kept | other)
+        Wizard = self.env['data.quality.merge.wizard'].with_user(self.manager_a)
+        context = {
+            'default_group_id': group.id, 'default_res_model': 'product.template',
+            'default_res_ids': sorted(self.group_ids(group))}
+        with Form(Wizard.with_context(**context)) as form:
+            form.kept_res_id = kept.id
+        form.record.action_confirm()
+        self.env.flush_all()
+        return self.merge_of(group)
+
+    def test_bug_b_0215_a_barcode_only_the_merged_away_product_has_moves_to_the_kept_one(self):
+        """Regression test for B-0215: the barcode of the merged-away product is filled into the kept one.
+
+        Requirements: FR-DGQ-0042, FR-DGQ-0043
+        """
+        kept = self.product('Pen DGQ', barcode=False)
+        other = self.product('Pen DGQ', barcode='DGQ-0215')
+        self.merge_products(kept, other)
+        self.assertEqual(kept.barcode, 'DGQ-0215')
+        self.assertFalse(other.active)
+
     def test_a_link_table_that_cannot_be_recorded_shows_its_reason(self):
         """FR-DGQ-0043: an unrecordable link table is a reason shown to the person and nothing changes."""
         wizard = self.preview(self.acme)

@@ -325,8 +325,9 @@ class DataQualityMergeWizard(models.TransientModel):
         merged_records = records.browse(others)
         names = ', '.join(merged_records.mapped('display_name'))
         moved = merge.move_links(self.env, self.res_model, kept.id, others)
-        kept.sudo().write(written)  # sudo: the app writes; the manager decided and may not edit
+        # archive first: a value unique among active records (a barcode) moves to the kept record
         merged_records.sudo().write({'active': False})  # sudo: the app archives; the manager decided
+        kept.sudo().write(written)  # sudo: the app writes; the manager decided and may not edit
         strategy = merge.strategy_of(self.env, self.res_model)
         reversible = not (strategy and strategy.get('reversible') is False)
         history = self.env['data.quality.merge'].sudo().create({  # sudo: the app writes its own history
