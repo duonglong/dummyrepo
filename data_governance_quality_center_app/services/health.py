@@ -16,17 +16,28 @@ def _job_models(env):
 
 
 def _failed_runs(env, since):
-    """The failed jobs of every kind since a moment, newest first, each with its reason and the record to open."""
+    """The failed jobs and automation runs of every kind since a moment, newest first, each with its reason and the record to open."""
     failed_domain = Domain('state', '=', 'failed') & (
         Domain('date_end', '>=', since) | (Domain('date_end', '=', False) & Domain('write_date', '>=', since)))
+    sources = [(model, 'error_message') for model in _job_models(env)]
+    sources.append((env['data.quality.automation.run'], 'message'))
     runs = []
-    for model in _job_models(env):
+    for model, reason_field in sources:
         for job in model.search(failed_domain):
             runs.append({
                 'model': model._name, 'kind': model._description, 'id': job.id, 'name': job.display_name,
-                'error': job.error_message or '',
+                'error': job[reason_field] or '',
                 'date': fields.Datetime.to_string(job.date_end or job.write_date)})
     return sorted(runs, key=lambda run: run['date'], reverse=True)
+
+
+def _automations(env):
+    """The last and next run of every active automation."""
+    return [{
+        'id': automation.id, 'name': automation.name,
+        'last_run': fields.Datetime.to_string(automation.last_run) if automation.last_run else False,
+        'next_run': fields.Datetime.to_string(automation.next_run) if automation.next_run else False}
+        for automation in env['data.quality.automation'].search([], order='name')]
 
 
 def _scan_counts(env):
@@ -84,6 +95,7 @@ def health(env):
         'failed_runs': _failed_runs(env, since),
         'last_scans': _last_scans(env),
         'scheduled_tasks': _scheduled_tasks(env),
+        'automations': _automations(env),
         'held': {
             'scan_lines': env['data.quality.scan.line'].search_count([]),
             'issues': env['data.quality.issue'].search_count([]),

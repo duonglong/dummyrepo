@@ -36,6 +36,17 @@
                             </tr>
                         </tbody>
                     </table>
+                    <h5 class="mt-4">Automations</h5>
+                    <table class="table table-sm">
+                        <thead><tr><th>Automation</th><th>Last run</th><th>Next run</th></tr></thead>
+                        <tbody>
+                            <tr t-foreach="state.health.automations" t-as="automation" t-key="automation.id">
+                                <td><a href="#" t-on-click.prevent="() => this.openRecord('data.quality.automation', automation.id)" t-out="automation.name"/></td>
+                                <td t-out="formatDate(automation.last_run)"/>
+                                <td t-out="formatDate(automation.next_run)"/>
+                            </tr>
+                        </tbody>
+                    </table>
                     <h5 class="mt-4">Held</h5>
                     <div t-foreach="heldRows" t-as="row" t-key="row[0]" class="d-flex justify-content-between">
                         <span t-out="row[0]"/><span t-out="row[1]"/>
