@@ -79,14 +79,15 @@ class M3Case(M2BCase):
     # ---- records -----------------------------------------------------------
 
     def isolate(self, *model_names):
-        """Move the records the setup left in company X (users' contacts and the like) to company Y.
+        """Move the records the setup left in company X or in no company (users' contacts and the like) to company Y.
 
         A figure of a scenario counts the records of the scenario only.
         """
         for name in model_names:
             table = self.env[name]._table
             self.env.cr.execute(
-                "UPDATE %s SET company_id = %%s WHERE company_id = %%s" % table, (self.cy.id, self.cx.id))
+                "UPDATE %s SET company_id = %%s WHERE company_id = %%s OR company_id IS NULL" % table,
+                (self.cy.id, self.cx.id))
             self.env[name].invalidate_model(['company_id'])
 
     def vendor_rule(self, severity='warning', name=None, **vals):

@@ -1,7 +1,8 @@
 """Statistics of a profile, computed by SQL aggregates so that memory does not grow with the data.
 
 Every figure is read from the stored column of one field of one model, for the records of one
-company; nothing is written to the profiled model. Identifiers and values go through ``SQL``.
+company and those that belong to no company; nothing is written to the profiled model. Identifiers
+and values go through ``SQL``.
 """
 from datetime import timedelta
 
@@ -16,13 +17,13 @@ NUMBER_TYPES = ('integer', 'float', 'monetary')
 
 
 def _source(env, model_name, company):
-    """Return ``(model, from_sql, where_sql)`` of the active records of the company, as root."""
+    """Return ``(model, from_sql, where_sql)`` of the active records of the company and the shared ones, as root."""
     # sudo: a profile reads the whole company's records whoever started it; access to the
     # result is limited by the profile's own rules
     model = env[model_name].sudo()
     domain = Domain.TRUE
     if 'company_id' in model._fields and model._fields['company_id'].store:
-        domain &= Domain('company_id', '=', company.id)
+        domain &= Domain('company_id', 'in', [False, company.id])
     query = model._search(domain)
     where = SQL("WHERE %s", query.where_clause) if query.where_clause else SQL()
     return model, query, SQL("FROM %s %s", query.from_clause, where)
@@ -42,7 +43,7 @@ def _is_empty(model, field_name, value):
 
 
 def count_records(env, model_name, company):
-    """Number of active records of the company.
+    """Number of active records of the company and the shared ones.
 
     Requirements: FR-DGQ-0053
     """
@@ -52,7 +53,7 @@ def count_records(env, model_name, company):
 
 
 def count_stale(env, model_name, company, days):
-    """Number of active records of the company not updated for more than ``days`` days.
+    """Number of active records of the company and the shared ones not updated for more than ``days`` days.
 
     Requirements: FR-DGQ-0055
     """
