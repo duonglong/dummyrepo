@@ -155,10 +155,12 @@ class DataQualityImportSession(models.Model):
     # ---- job ---------------------------------------------------------------
 
     def _dgq_scope_is_open(self):
-        """A check that stopped before anything was imported is read again from its first row."""
+        """A cancelled check with nothing imported is read again from its first row by Start.
+
+        A failed one is not: Resume continues it from its next row under the scope it was checked in.
+        """
         self.ensure_one()
-        return super()._dgq_scope_is_open() or (
-            self.state in ('failed', 'cancelled') and not self.imported_count)
+        return super()._dgq_scope_is_open() or (self.state == 'cancelled' and not self.imported_count)
 
     def action_start(self):
         """Read the file, refuse it when it cannot be checked, and queue the check from its first row.

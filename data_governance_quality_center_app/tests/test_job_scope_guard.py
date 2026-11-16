@@ -128,3 +128,31 @@ class TestJobScopeGuard(M3Case):
         other = self.other_rule()
         draft.write({'rule_id': other.id})
         self.assertEqual(draft.rule_id, other)
+
+    def test_bug_b_0227_failed_import_check_scope_is_fixed_so_resume_cannot_skip_the_check(self):
+        """B-0227: a failed check keeps company, model, rules and duplicate fields; Resume continues it as it is.
+
+        It cannot reach the screen: the forms show these fields read-only, so the plain write is what is covered.
+        """
+        session = self.make_session(csv_file(HEADER, [['Failed', 'f@example.com', 'Atlantis']]), 'f.csv')
+        session.action_start()
+        session.sudo().write({'state': 'failed', 'next_row': 1, 'row_count': 1})
+        changes = {
+            'company_id': self.cy.id,
+            'model_id': self.model('product.template').id,
+            'rule_ids': [Command.set(self.vendor_rule().ids)],
+            'duplicate_field_ids': [Command.set(self.fld('res.partner', 'email').ids)],
+        }
+        for name, value in changes.items():
+            with self.subTest(field=name), self.assertRaisesRegex(UserError, REFUSED):
+                session.write({name: value})
+
+    def test_bug_b_0227_failed_import_with_nothing_imported_keeps_its_scope(self):
+        """B-0227: a failed import that imported no row yet is resumed from its next row, so its company is fixed.
+
+        It cannot reach the screen: the forms show these fields read-only, so the plain write is what is covered.
+        """
+        session = self.done_session()
+        session.sudo().write({'state': 'failed', 'job_kind': 'import', 'imported_count': 0})
+        with self.assertRaisesRegex(UserError, REFUSED):
+            session.write({'company_id': self.cy.id})
