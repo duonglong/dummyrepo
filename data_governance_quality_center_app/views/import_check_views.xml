@@ -14,7 +14,9 @@
                 <field name="error_count"/>
                 <field name="warning_count"/>
                 <field name="import_state" widget="badge"/>
+                <field name="imported_count"/>
                 <field name="date_checked"/>
+                <field name="date_imported"/>
                 <field name="user_id"/>
             </list>
         </field>
@@ -27,11 +29,16 @@
             <form>
                 <header>
                     <button name="action_start" type="object" string="Check" class="btn-primary"
-                            invisible="state not in ('draft', 'cancelled')"
+                            invisible="state not in ('draft', 'cancelled') or imported_count"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
                     <button name="action_resume" type="object" string="Resume" class="btn-primary"
                             invisible="state != 'failed'"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_import" type="object" string="Import" class="btn-primary"
+                            invisible="state != 'done' or job_kind != 'check' or import_state == 'imported'"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_download_error_report" type="object" string="Error Report"
+                            invisible="not date_checked or not (error_count or warning_count)"/>
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('queued', 'running')"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
@@ -59,12 +66,24 @@
                             <field name="warning_count"/>
                             <field name="error_row_count"/>
                             <field name="date_checked"/>
+                            <field name="import_state"/>
+                            <field name="imported_count" invisible="import_state == 'not_imported'"/>
+                            <field name="date_imported" invisible="not date_imported"/>
+                            <field name="job_kind" invisible="1"/>
                             <field name="user_id"/>
                         </group>
                     </group>
                     <group invisible="not error_message">
                         <field name="error_message"/>
                     </group>
+                    <separator string="Not Imported" invisible="not left_out_ids"/>
+                    <field name="left_out_ids" readonly="1" invisible="not left_out_ids" nolabel="1">
+                        <list>
+                            <field name="row_number"/>
+                            <field name="column"/>
+                            <field name="message"/>
+                        </list>
+                    </field>
                     <field name="row_ids" readonly="1">
                         <list>
                             <field name="row_number"/>

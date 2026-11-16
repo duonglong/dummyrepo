@@ -43,6 +43,7 @@ from . import test_dashboard_layout_acceptance
 from . import test_profile_acceptance
 from . import test_import_check_acceptance
 from . import test_import_run_acceptance
+from . import test_import_modes
 from . import test_automation_acceptance
 from . import test_automation_actions_acceptance
 from . import test_scoring
