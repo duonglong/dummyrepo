@@ -14,7 +14,8 @@ class DataQualityScoreSnapshot(models.Model):
 
     date = fields.Datetime(required=True, default=fields.Datetime.now, index=True)
     scan_id = fields.Many2one('data.quality.scan', ondelete='set null', index=True)
-    company_id = fields.Many2one('res.company', required=True, ondelete='cascade')
+    company_id = fields.Many2one(
+        'res.company', ondelete='cascade', help="Empty for the records with no company: their score is shared by every company.")
     model_id = fields.Many2one('ir.model', required=True, ondelete='cascade')
     rule_id = fields.Many2one('data.quality.rule', ondelete='set null', index=True)
     rule_version = fields.Integer()

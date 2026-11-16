@@ -27,13 +27,13 @@ def snapshot_values(env, scan):
     """Values of the snapshots of a finished scan: per model and company, and per rule inside them.
 
     Each rule tally counts a record once per rule, whatever the number of fields it checks, and
-    records the rule did not apply to are not in it (BR-DGQ-0002). A record of no company is
-    counted for the first company of the scan.
+    records the rule did not apply to are not in it (BR-DGQ-0002). The records of no company are
+    scored apart, under no company, whichever companies the scan covered: every company's viewers
+    see that shared score.
 
     Requirements: FR-DGQ-0031, BR-DGQ-0001, BR-DGQ-0002
     """
     weights = severity_weights(env)
-    default_company = scan.company_ids[:1].id
     scan = scan.sudo()  # sudo: the scan's own results are read whatever the requester may see
     models = scan.checkpoint_ids.model_id
     rows = {}  # (model id, company id) -> model figures
@@ -48,10 +48,7 @@ def snapshot_values(env, scan):
             for company in scan.company_ids:
                 model_row(model, company.id)
     for tally in scan.tally_ids:
-        company_id = tally.company_id.id or default_company
-        if not company_id:
-            continue
-        row = model_row(tally.model_id, company_id)
+        row = model_row(tally.model_id, tally.company_id.id)
         if not tally.rule_id:
             for name in ('records_scanned', 'records_failing', 'records_error', 'records_warning'):
                 row[name] += tally[name]
@@ -69,7 +66,7 @@ def snapshot_values(env, scan):
         figures['records_failing'] += tally.records_failed
         figures['records_error'] += tally.records_failed if tally.severity == 'critical' else 0
         figures['records_warning'] += tally.records_failed if tally.severity == 'warning' else 0
-    open_issues = open_issue_counts(env, models, default_company)
+    open_issues = open_issue_counts(env, models)
     values = []
     for (model_id, company_id), row in rows.items():
         common = {
@@ -99,12 +96,12 @@ def _figures(row):
     }
 
 
-def open_issue_counts(env, models, default_company):
+def open_issue_counts(env, models):
     """Open issues now: {(model name, company id): {severity: n}} and {(rule id, severity): n} per company.
 
-    An issue of a record with no company is counted for the same company as the record's scores
-    (the scan's first company, `default_company`), so figures and scores agree. Sample issues of the
-    demo data are never counted: a live figure counts live results only.
+    An issue of a record with no company is counted under no company, as the record's scores are,
+    so figures and scores agree. Sample issues of the demo data are never counted: a live figure
+    counts live results only.
 
     Requirements: FR-DGQ-0031, FR-DGQ-0080
     """
@@ -114,7 +111,7 @@ def open_issue_counts(env, models, default_company):
         ['res_model', 'company_id', 'rule_id', 'severity'], ['__count'])
     counts = {}
     for res_model, company, rule, severity, count in groups:
-        by_model = counts.setdefault((res_model, company.id or default_company), {})
+        by_model = counts.setdefault((res_model, company.id), {})
         by_model[severity] = by_model.get(severity, 0) + count
         by_model[(rule.id, severity)] = by_model.get((rule.id, severity), 0) + count
     return counts

@@ -37,13 +37,13 @@ class TestScoring(M3Case):
         self.assertEqual(snap.weights_used['warning'], 5)
         self.assertEqual((snap.applicable_weight, snap.failed_weight), (5, 5))
 
-    def test_open_issues_of_a_record_with_no_company_count_for_the_scan_company(self):
-        """FR-DGQ-0031: a company-less contact's issue is counted where its score is counted."""
+    def test_open_issues_of_a_record_with_no_company_count_for_the_shared_score(self):
+        """FR-DGQ-0031: a company-less contact's issue is counted where its score is counted: under no company."""
         rule = self.vendor_rule(severity='critical', company=False)
         self.isolate('res.partner')
         contact = self.env['res.partner'].create({'name': 'Shared', 'function': 'DGQVEND', 'company_id': False})
         scan = self.run_scan([rule], models=['res.partner'])
-        domain = [('scan_id', '=', scan.id), ('company_id', '=', self.cx.id)]
+        domain = [('scan_id', '=', scan.id), ('company_id', '=', False)]
         snapshot = self.env['data.quality.score.snapshot'].search(domain + [('rule_id', '=', False)])
         per_rule = self.env['data.quality.score.snapshot'].search(domain + [('rule_id', '=', rule.id)])
         self.assertTrue(self.issues_of(rule, contact))
@@ -66,7 +66,7 @@ class TestScoring(M3Case):
             self.assertEqual(Snapshot.search(domain + [('rule_id', '=', rule.id)]).issues_open_critical, expected)
 
     def test_a_scan_of_a_model_without_company_field_stores_a_snapshot(self):
-        """FR-DGQ-0031: a model with no company field is scored under the scan's first company."""
+        """FR-DGQ-0031: a model with no company field is scored as shared records, under no company."""
         self.env['data.quality.model.config'].create({
             'model_id': self.env['ir.model']._get('res.partner.category').id, 'status': 'supported'})
         rule = self.make_rule('res.partner.category', 'required', ['parent_id'], severity='warning', company=False)
@@ -75,4 +75,4 @@ class TestScoring(M3Case):
         self.assertEqual(scan.state, 'done')
         snapshot = self.env['data.quality.score.snapshot'].search([
             ('scan_id', '=', scan.id), ('rule_id', '=', False)])
-        self.assertEqual(snapshot.company_id, self.cx)
+        self.assertFalse(snapshot.company_id)

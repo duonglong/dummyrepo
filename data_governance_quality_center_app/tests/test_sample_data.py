@@ -43,7 +43,7 @@ class TestSampleData(M3Case):
         self._issue(rule, partners[0])
         self._issue(rule, partners[1], is_illustrative=True)
         counts = scoring.open_issue_counts(
-            self.env, self.env['ir.model'].sudo().search([('model', '=', 'res.partner')]), self.cx.id)  # sudo: test set-up
+            self.env, self.env['ir.model'].sudo().search([('model', '=', 'res.partner')]))  # sudo: test set-up
         self.assertEqual(counts[('res.partner', self.cx.id)]['warning'], 1)
 
     def test_recent_issues_say_which_are_illustrative(self):

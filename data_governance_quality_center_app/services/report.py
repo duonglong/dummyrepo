@@ -20,7 +20,7 @@ def _rule_rows(env, companies, end):
     Returns the rows and whether a demo snapshot is among those read.
     """
     Snapshot = env['data.quality.score.snapshot']
-    domain = Domain('company_id', 'in', companies.ids) & Domain('rule_id', '!=', False)
+    domain = Domain('company_id', 'in', [False, *companies.ids]) & Domain('rule_id', '!=', False)
     if end:
         domain &= Domain('date', '<', end)
     groups = Snapshot._read_group(domain, ['company_id', 'model_id', 'rule_id'], ['id:max'])
@@ -42,7 +42,7 @@ def _trend_rows(env, companies, start, end, period):
     Returns the rows and whether a demo snapshot is among those read.
     """
     Snapshot = env['data.quality.score.snapshot']
-    domain = Domain('company_id', 'in', companies.ids) & Domain('rule_id', '=', False)
+    domain = Domain('company_id', 'in', [False, *companies.ids]) & Domain('rule_id', '=', False)
     if start:
         domain &= Domain('date', '>=', start)
     if end:

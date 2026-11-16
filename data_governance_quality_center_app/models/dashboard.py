@@ -45,7 +45,7 @@ class DataQualityDashboard(models.AbstractModel):
                 totals[name] += snap[name]
             for key, bucket, label in (
                     (model.id, by_model, model.name),
-                    (snap.company_id.id, by_company, snap.company_id.name)):
+                    (snap.company_id.id, by_company, snap.company_id.name or self.env._("Shared records"))):
                 row = bucket.setdefault(key, {'id': key, 'name': label, 'applicable_weight': 0, 'failed_weight': 0})
                 row['applicable_weight'] += snap.applicable_weight
                 row['failed_weight'] += snap.failed_weight
@@ -97,12 +97,13 @@ class DataQualityDashboard(models.AbstractModel):
     def _latest_snapshots(self, companies, end):
         """The latest model-level snapshot of each company and model before the end instant.
 
-        Snapshots are written in date order, so the highest id of a group is its latest.
+        Snapshots are written in date order, so the highest id of a group is its latest. The shared
+        snapshots, of the records with no company, count for every company.
 
         Requirements: FR-DGQ-0033
         """
         Snapshot = self.env['data.quality.score.snapshot']
-        domain = [('company_id', 'in', companies.ids), ('rule_id', '=', False), ('severity', '=', False)]
+        domain = [('company_id', 'in', [False, *companies.ids]), ('rule_id', '=', False), ('severity', '=', False)]
         if end:
             domain.append(('date', '<', end))
         groups = Snapshot._read_group(domain, ['company_id', 'model_id'], ['id:max'])
@@ -156,7 +157,7 @@ class DataQualityDashboard(models.AbstractModel):
         self._check_viewer()
         if period not in TREND_PERIODS:
             raise UserError(self.env._("The period must be day, week or month."))
-        domain = [('company_id', 'in', self._chosen_companies(company_ids).ids), ('rule_id', '=', False),
+        domain = [('company_id', 'in', [False, *self._chosen_companies(company_ids).ids]), ('rule_id', '=', False),
                   ('severity', '=', False)]
         if model_id:
             domain.append(('model_id', '=', model_id))

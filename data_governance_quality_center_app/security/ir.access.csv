@@ -48,7 +48,7 @@ access_dgq_issue_viewer,data.quality.issue viewer,data.quality.issue,group_dgq_v
 access_dgq_issue_operator,data.quality.issue operator,data.quality.issue,group_dgq_operator,ru,
 access_dgq_issue_bulk_operator,data.quality.issue.bulk operator,data.quality.issue.bulk,group_dgq_operator,crud,
 access_dgq_score_snapshot_viewer,data.quality.score.snapshot viewer,data.quality.score.snapshot,group_dgq_viewer,r,
-access_dgq_score_snapshot_company,data.quality.score.snapshot own companies,data.quality.score.snapshot,,r,"[('company_id','in',company_ids)]"
+access_dgq_score_snapshot_company,data.quality.score.snapshot own companies,data.quality.score.snapshot,,r,"['|',('company_id','=',False),('company_id','in',company_ids)]"
 access_dgq_report_wizard_viewer,data.quality.report.wizard viewer,data.quality.report.wizard,group_dgq_viewer,crud,
 access_dgq_team_viewer,data.quality.team viewer,data.quality.team,group_dgq_viewer,r,
 access_dgq_team_admin,data.quality.team admin,data.quality.team,group_dgq_admin,crud,
