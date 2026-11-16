@@ -170,6 +170,34 @@ class TestImportModes(M3Case):
             session.action_import()
         self.assertEqual((session.imported_count, self.imported()), (10, 10))
 
+    def test_a_crashed_import_that_is_resumed_and_finishes_is_imported(self):
+        """FR-DGQ-0062: crash after one batch, resume, finish: imported, dated, with the full count."""
+        session = self.checked(csv_file(HEADER, self.rows(total=25)), 'resume.csv')
+        with patch('odoo.addons.data_governance_quality_center_app.models.import_session.JOB_BATCH_SIZE', 10):
+            session.action_import()
+            session.write({'state': 'running'})
+            session._dgq_record_batch(*session._dgq_run_batch())
+            session.write({'state': 'failed'})
+            self.assertEqual(session.import_state, 'failed')
+            session.action_resume()
+            self.assertEqual(session.import_state, 'not_imported')
+            session.write({'state': 'running'})
+            remaining = True
+            while remaining:
+                processed, remaining = session._dgq_run_batch()
+                session._dgq_record_batch(processed, remaining)
+        self.assertEqual((session.import_state, session.imported_count), ('imported', 25))
+        self.assertTrue(session.date_imported)
+
+    def test_header_row_errors_are_not_listed_as_not_imported(self):
+        """FR-DGQ-0060: only data rows in error are left out, not the findings on the header row."""
+        session = self.checked(csv_file(HEADER, self.rows(bad=(3,))), 'head.csv')
+        session.sudo().row_ids.create({
+            'session_id': session.id, 'row_number': 1, 'severity': 'error', 'message': 'Missing column'})
+        session.action_import()
+        self.assertTrue(session.left_out_ids)
+        self.assertNotIn(1, session.left_out_ids.mapped('row_number'))
+
     def test_a_cancelled_check_can_be_checked_again(self):
         """FR-DGQ-0058: a session with nothing imported can still be checked again after a cancel."""
         session = self.make_session(csv_file(HEADER, self.rows()), 'again.csv')

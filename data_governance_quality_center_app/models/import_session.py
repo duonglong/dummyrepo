@@ -209,13 +209,25 @@ class DataQualityImportSession(models.Model):
     def _dgq_queue_import(self, user):
         """Queue the import of the rows without errors, from the first one, and list the rows left out."""
         # sudo: the findings are written by the app only
-        self.sudo().row_ids.filtered(lambda finding: finding.severity == 'error').write({'left_out': True})
+        self.env['data.quality.import.row'].sudo().search([
+            ('session_id', '=', self.id), ('severity', '=', 'error'), ('row_number', '>', import_check.HEADER_ROW),
+        ]).write({'left_out': True})
         self.write({
             'job_kind': 'import', 'import_after_check': False, 'next_row': 0, 'done_count': 0, 'total_count': 0,
             'imported_count': 0, 'error_message': False, 'state': 'queued', 'user_id': user.id,
             'date_queued': fields.Datetime.now(),
         })
         self._dgq_trigger_cron()
+
+    def action_resume(self):
+        """Queue a failed job again; an import that continues is no longer marked failed.
+
+        Requirements: FR-DGQ-0062
+        """
+        resumed = self.filtered(lambda session: session.state == 'failed' and session.job_kind == 'import')
+        if resumed:
+            resumed.write({'import_state': 'not_imported'})
+        return super().action_resume()
 
     def action_download_error_report(self):
         """Open the download of the error report of the check."""
