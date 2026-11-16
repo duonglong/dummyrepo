@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Templates for a real database: switched off until a manager turns them on. -->
+    <record id="sample_rule_contact_name" model="data.quality.rule">
+        <field name="name">Contact has a name</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="rule_type">required</field>
+        <field name="field_ids" eval="[Command.set([ref('base.field_res_partner__name')])]"/>
+        <field name="severity">critical</field>
+    </record>
+    <record id="sample_rule_contact_email" model="data.quality.rule">
+        <field name="name">Contact e-mail looks valid</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="rule_type">pattern</field>
+        <field name="pattern_preset">email</field>
+        <field name="field_ids" eval="[Command.set([ref('base.field_res_partner__email')])]"/>
+        <field name="severity">warning</field>
+    </record>
+    <record id="sample_rule_vendor_phone" model="data.quality.rule">
+        <field name="name">Vendor contact has a phone number</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="rule_type">required</field>
+        <field name="field_ids" eval="[Command.set([ref('base.field_res_partner__phone')])]"/>
+        <field name="severity">info</field>
+        <field name="description">Template for vendors: limit it to your vendors with the filter of the rule.</field>
+    </record>
+    <record id="sample_rule_product_price" model="data.quality.rule">
+        <field name="name">Product price is not negative</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="rule_type">range</field>
+        <field name="field_ids" eval="[Command.set([ref('product.field_product_template__list_price')])]"/>
+        <field name="has_min" eval="True"/>
+        <field name="min_value">0</field>
+        <field name="severity">warning</field>
+    </record>
+    <record id="sample_rule_product_reference" model="data.quality.rule">
+        <field name="name">Product has an internal reference</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="rule_type">required</field>
+        <field name="field_ids" eval="[Command.set([ref('product.field_product_template__default_code')])]"/>
+        <field name="severity">info</field>
+    </record>
+
+    <record id="sample_duplicate_rule_contact" model="data.quality.duplicate.rule">
+        <field name="name">Contacts with the same name and e-mail</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="threshold">85</field>
+        <field name="field_line_ids" eval="[
+            Command.create({'field_id': ref('base.field_res_partner__name'), 'method': 'fuzzy', 'weight': 3}),
+            Command.create({'field_id': ref('base.field_res_partner__email'), 'method': 'normalized', 'weight': 2}),
+        ]"/>
+    </record>
+    <record id="sample_duplicate_rule_product" model="data.quality.duplicate.rule">
+        <field name="name">Products with the same name</field>
+        <field name="active" eval="False"/>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="threshold">90</field>
+        <field name="field_line_ids" eval="[
+            Command.create({'field_id': ref('product.field_product_template__name'), 'method': 'fuzzy', 'weight': 1}),
+        ]"/>
+    </record>
+</odoo>

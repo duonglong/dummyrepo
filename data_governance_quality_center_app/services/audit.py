@@ -11,18 +11,21 @@ from ..const import AUDIT_PURGE_BATCH_SIZE
 from .export import day_start_utc
 
 
-def log(env, event, record=None, changes=None, description=False, field_names=False):
-    """Write one audit entry for the current user and return it.
+def entry_values(env, event, record=None, changes=None, description=False, field_names=False,
+                 automation=None, user=None):
+    """The values of one audit entry; ``log_many`` writes a list of them in one call.
 
-    ``record`` is the record the event is about; ``changes`` maps a field name to its
-    ``[before, after]`` values. Values of sensitive fields must never be passed in.
+    ``user`` is the person responsible when it is not the current user (a background job writes
+    for the person who started it); ``automation`` is the automation whose run caused the event.
+    Values of sensitive fields must never be passed in: name the field in ``field_names`` only.
 
-    Requirements: FR-DGQ-0072
+    Requirements: FR-DGQ-0072, BR-DGQ-0010
     """
     vals = {
         'event': event,
-        'user_id': env.user.id,
+        'user_id': (user or env.user).id,
         'company_id': env.company.id,
+        'automation_id': automation.id if automation else False,
         'changes': changes or False,
         'field_names': field_names or (', '.join(changes) if changes else False),
         'description': description,
@@ -35,8 +38,27 @@ def log(env, event, record=None, changes=None, description=False, field_names=Fa
             company_id=(record.company_id.id if 'company_id' in record._fields
                         else env.company.id),
         )
+    return vals
+
+
+def log_many(env, values_list):
+    """Write the entries of ``entry_values`` in one call and return them.
+
+    Requirements: FR-DGQ-0072
+    """
     # sudo: nobody holds create access, the app writes the trail itself
-    return env['data.quality.audit'].sudo().create(vals)
+    return env['data.quality.audit'].sudo().create(values_list)
+
+
+def log(env, event, record=None, **details):
+    """Write one audit entry for the current user and return it.
+
+    ``record`` is the record the event is about; ``changes`` maps a field name to its
+    ``[before, after]`` values (see ``entry_values`` for the other details).
+
+    Requirements: FR-DGQ-0072
+    """
+    return log_many(env, [entry_values(env, event, record, **details)])
 
 
 def purge(env, date_before):

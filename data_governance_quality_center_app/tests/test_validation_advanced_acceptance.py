@@ -79,14 +79,21 @@ class TestValidationAdvancedAcceptance(AcceptanceCase):
     # ---- FR-DGQ-0007 condition --------------------------------------------
 
     def test_condition_applies_and_must_satisfy(self):
-        """SC-DGQ-0007-1: Acme fails, Beta passes, the person John is not applicable."""
+        """SC-DGQ-0007-1: a company missing the required value fails, one that has it passes, a person is not applicable.
+
+        Odoo 20 computes 'Is a company' from the tax ID (a partner without a tax ID is a person), so a
+        company 'without tax ID' cannot exist. The scenario's shape is kept with 'Website is set' as the
+        policy: Acme (company, no website) fails, Beta (company, website) passes, John (person) is not
+        applicable.
+        """
         rule = self.make_rule(
             'res.partner', 'condition', applies_domain="[('is_company', '=', True)]",
-            condition_domain="[('vat', '!=', False)]")
+            condition_domain="[('website', '!=', False)]")
         before = self._counts(self.run_scan([rule], models=['res.partner']))
-        acme = self.partner('Acme', is_company=True)
-        beta = self.partner('Beta', is_company=True, vat='BE0477472701')
-        john = self.partner('John', is_company=False)
+        acme = self.partner('Acme', vat='BE0403019261')
+        beta = self.partner('Beta', vat='BE0477472701', website='https://beta.example.com')
+        john = self.partner('John')
+        self.assertTrue(acme.is_company and beta.is_company and not john.is_company)
         scan = self.run_scan([rule], models=['res.partner'])
         failed = self.failing(scan, rule)
         self.assertEqual(set(failed) & {acme.id, beta.id, john.id}, {acme.id})

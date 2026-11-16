@@ -33,7 +33,11 @@ class DataQualityAudit(models.Model):
         ('merge_rolled_back', 'Merge rolled back'),
         ('setting_changed', 'Setting changed'),
         ('purge', 'Audit purge'),
+        ('cleanup', 'Retention cleanup'),
     ], string='Event', required=True, index=True, readonly=True)
+    automation_id = fields.Many2one(
+        'data.quality.automation', string='Automation', ondelete='set null', index=True, readonly=True,
+        help="The automation whose run caused the event.")
     res_model = fields.Char(string='Model', index=True, readonly=True)
     res_id = fields.Integer(string='Record ID', readonly=True)
     record_name = fields.Char(string='Record', readonly=True)

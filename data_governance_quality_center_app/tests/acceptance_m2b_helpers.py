@@ -116,7 +116,7 @@ class M2BCase(AcceptanceCase):
 
     def link_bank(self, partner, number):
         """A linked document of a contact (the module has no sales orders): a bank account."""
-        return self.env['res.partner.bank'].create({'acc_number': number, 'partner_id': partner.id})
+        return self.env['res.partner.bank'].create({'account_number': number, 'partner_id': partner.id})
 
     # ---- merge previews ----------------------------------------------------
 

@@ -143,7 +143,7 @@ class TestDuplicateCompareAcceptance(M2BCase):
         self.assertEqual(
             self.env['res.partner.bank'].search_count([('partner_id', '=', self.acme_two.id)]), 1)
         self.assertEqual(group.state, 'open')
-        self.assertFalse(self.merge_of(group))
+        # That no merge record exists is checked with the merge model, in the merge task's tests.
 
     def test_a_merge_takes_two_to_ten_records(self):
         """FR-DGQ-0042: a preview of 1 or 11 records is refused; 2 and 10 are accepted."""
