@@ -3,24 +3,24 @@
     <t t-name="data_governance_quality_center_app.Health">
         <div class="o_action o_dgq_health p-3 overflow-auto">
             <div class="d-flex flex-wrap gap-4 mb-4">
-                <div><div class="fs-3" t-out="state.health.scans.queued"/><div>Queued</div></div>
-                <div><div class="fs-3 text-success" t-out="state.health.scans.running"/><div>Running</div></div>
-                <div><div class="fs-3 text-danger" t-out="state.health.scans.failed"/><div>Failed</div></div>
+                <div><div class="fs-3" t-out="this.state.health.scans.queued"/><div>Queued</div></div>
+                <div><div class="fs-3 text-success" t-out="this.state.health.scans.running"/><div>Running</div></div>
+                <div><div class="fs-3 text-danger" t-out="this.state.health.scans.failed"/><div>Failed</div></div>
             </div>
             <div class="row">
                 <div class="col-md-6">
-                    <h5>Failed in the last <t t-out="state.health.failed_days"/> days</h5>
-                    <div t-foreach="state.health.failed_runs" t-as="run" t-key="run.model + run.id" class="mb-2">
+                    <h5>Failed in the last <t t-out="this.state.health.failed_days"/> days</h5>
+                    <div t-foreach="this.state.health.failed_runs" t-as="run" t-key="run.model + run.id" class="mb-2">
                         <a href="#" t-on-click.prevent="() => this.openRecord(run.model, run.id)">
                             <t t-out="run.kind"/> <t t-out="run.name"/>
                         </a>
-                        <span class="text-muted ms-2" t-out="formatDate(run.date)"/>
+                        <span class="text-muted ms-2" t-out="this.formatDate(run.date)"/>
                         <div class="text-danger" t-out="run.error"/>
                     </div>
                     <h5 class="mt-4">Last scans</h5>
-                    <div t-foreach="state.health.last_scans" t-as="scan" t-key="scan.id" class="d-flex justify-content-between">
+                    <div t-foreach="this.state.health.last_scans" t-as="scan" t-key="scan.id" class="d-flex justify-content-between">
                         <a href="#" t-on-click.prevent="() => this.openRecord('data.quality.scan', scan.id)" t-out="scan.name"/>
-                        <span t-out="formatDuration(scan.seconds)"/>
+                        <span t-out="this.formatDuration(scan.seconds)"/>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -28,11 +28,11 @@
                     <table class="table table-sm">
                         <thead><tr><th>Task</th><th>Last run</th><th>Next run</th></tr></thead>
                         <tbody>
-                            <tr t-foreach="state.health.scheduled_tasks" t-as="task" t-key="task.id"
+                            <tr t-foreach="this.state.health.scheduled_tasks" t-as="task" t-key="task.id"
                                 t-att-class="task.active ? '' : 'text-muted'">
                                 <td t-out="task.name"/>
-                                <td t-out="formatDate(task.last_run)"/>
-                                <td t-out="formatDate(task.next_run)"/>
+                                <td t-out="this.formatDate(task.last_run)"/>
+                                <td t-out="this.formatDate(task.next_run)"/>
                             </tr>
                         </tbody>
                     </table>
@@ -40,20 +40,20 @@
                     <table class="table table-sm">
                         <thead><tr><th>Automation</th><th>Last run</th><th>Next run</th></tr></thead>
                         <tbody>
-                            <tr t-foreach="state.health.automations" t-as="automation" t-key="automation.id">
+                            <tr t-foreach="this.state.health.automations" t-as="automation" t-key="automation.id">
                                 <td><a href="#" t-on-click.prevent="() => this.openRecord('data.quality.automation', automation.id)" t-out="automation.name"/></td>
-                                <td t-out="formatDate(automation.last_run)"/>
-                                <td t-out="formatDate(automation.next_run)"/>
+                                <td t-out="this.formatDate(automation.last_run)"/>
+                                <td t-out="this.formatDate(automation.next_run)"/>
                             </tr>
                         </tbody>
                     </table>
                     <h5 class="mt-4">Held</h5>
-                    <div t-foreach="heldRows" t-as="row" t-key="row[0]" class="d-flex justify-content-between">
+                    <div t-foreach="this.heldRows" t-as="row" t-key="row[0]" class="d-flex justify-content-between">
                         <span t-out="row[0]"/><span t-out="row[1]"/>
                     </div>
-                    <t t-if="state.health.last_cleanup">
-                        <h5 class="mt-4">Last cleanup <span class="text-muted" t-out="formatDate(state.health.last_cleanup.date)"/></h5>
-                        <div t-foreach="cleanupRows" t-as="row" t-key="row[0]" class="d-flex justify-content-between">
+                    <t t-if="this.state.health.last_cleanup">
+                        <h5 class="mt-4">Last cleanup <span class="text-muted" t-out="this.formatDate(this.state.health.last_cleanup.date)"/></h5>
+                        <div t-foreach="this.cleanupRows" t-as="row" t-key="row[0]" class="d-flex justify-content-between">
                             <span t-out="row[0]"/><span t-out="row[1]"/>
                         </div>
                     </t>
