@@ -72,3 +72,4 @@ from . import test_dashboard_drill_acceptance
 from . import test_profile_compare_acceptance
 from . import test_profile_export_acceptance
 from . import test_import_error_report_acceptance
+from . import test_access_levels_acceptance
