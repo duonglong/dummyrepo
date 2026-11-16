@@ -93,3 +93,4 @@ from . import test_automation_requester
 from . import test_scan_line_open
 from . import test_issue_status_trace
 from . import test_job_scope_guard
+from . import test_client_screens

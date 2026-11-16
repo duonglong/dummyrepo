@@ -1,18 +1,19 @@
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, proxy, useProps } from "@odoo/owl";
 import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { standardActionServiceProps } from "@web/webclient/actions/action_plugin";
 import { DgqTrend } from "./trend";
 
 export class DgqDashboard extends Component {
     static template = "data_governance_quality_center_app.Dashboard";
-    static props = ["*"];
     static components = { DgqTrend };
+    props = useProps({ ...standardActionServiceProps });
 
     setup() {
         this.orm = useService("orm");
-        this.state = useState({ figures: null, layout: [], editing: false, companyIds: [], date: "" });
+        this.state = proxy({ figures: null, layout: [], editing: false, companyIds: [], date: "" });
         onWillStart(() => this.load());
     }
 

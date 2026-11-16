@@ -1,19 +1,19 @@
-import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, proxy, t, useProps } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
 export class DgqTrend extends Component {
     static template = "data_governance_quality_center_app.Trend";
-    static props = {
-        companyIds: { type: Array },
-        companies: { type: Array },
-        models: { type: Array },
-        date: { type: String },
-    };
+    props = useProps({
+        companyIds: t.array(),
+        companies: t.array(),
+        models: t.array(),
+        date: t.string(),
+    });
 
     setup() {
         this.orm = useService("orm");
-        this.state = useState({
+        this.state = proxy({
             period: "week",
             companyId: 0,
             modelId: 0,

@@ -3,84 +3,84 @@
     <t t-name="data_governance_quality_center_app.Dashboard">
         <div class="o_action o_dgq_dashboard p-3 overflow-auto">
             <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
-                <t t-foreach="state.figures.companies" t-as="company" t-key="company.id">
+                <t t-foreach="this.state.figures.companies" t-as="company" t-key="company.id">
                     <label class="d-flex gap-1 align-items-center">
-                        <input type="checkbox" t-att-checked="state.companyIds.includes(company.id)"
+                        <input type="checkbox" t-att-checked="this.state.companyIds.includes(company.id)"
                                t-on-change="() => this.toggleCompany(company.id)"/>
                         <span t-out="company.name"/>
                     </label>
                 </t>
-                <input type="date" class="form-control w-auto" t-att-value="state.date" t-on-change="onDateChange"/>
+                <input type="date" class="form-control w-auto" t-att-value="this.state.date" t-on-change="this.onDateChange"/>
             </div>
-            <t t-if="!state.figures.has_scan">
+            <t t-if="!this.state.figures.has_scan">
                 <p class="text-muted">No scan has run yet.</p>
-                <button t-if="state.figures.can_start_scan" class="btn btn-primary"
+                <button t-if="this.state.figures.can_start_scan" class="btn btn-primary"
                         t-on-click="() => this.env.services.action.doAction('data_governance_quality_center_app.scan_action')">
                     Start a scan
                 </button>
             </t>
             <t t-else="">
-                <span t-if="state.figures.is_illustrative" class="badge text-bg-warning mb-2">Illustrative</span>
+                <span t-if="this.state.figures.is_illustrative" class="badge text-bg-warning mb-2">Illustrative</span>
                 <div class="mb-3">
-                    <button class="btn btn-link p-0" t-on-click="() => state.editing = !state.editing">Layout</button>
-                    <div t-if="state.editing" class="d-flex flex-column gap-1 mt-2">
-                        <div t-foreach="state.layout" t-as="item" t-key="item.widget" class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-link p-0" t-on-click="() => this.state.editing = !this.state.editing">Layout</button>
+                    <div t-if="this.state.editing" class="d-flex flex-column gap-1 mt-2">
+                        <div t-foreach="this.state.layout" t-as="item" t-key="item.widget" class="d-flex gap-2 align-items-center">
                             <input type="checkbox" t-att-checked="item.visible" t-on-change="() => this.toggleWidget(item.widget)"/>
                             <span t-out="item.label"/>
                             <button class="btn btn-sm btn-light fa fa-arrow-up" aria-label="Up" t-on-click="() => this.moveWidget(item.widget, -1)"/>
                             <button class="btn btn-sm btn-light fa fa-arrow-down" aria-label="Down" t-on-click="() => this.moveWidget(item.widget, 1)"/>
                         </div>
-                        <button class="btn btn-secondary align-self-start" t-on-click="resetLayout">Reset</button>
+                        <button class="btn btn-secondary align-self-start" t-on-click="this.resetLayout">Reset</button>
                     </div>
                 </div>
-                <t t-foreach="state.layout" t-as="item" t-key="item.widget">
+                <t t-foreach="this.state.layout" t-as="item" t-key="item.widget">
                     <t t-if="item.visible">
                         <div t-if="item.widget == 'score'" class="d-flex flex-wrap gap-4 mb-4">
-                            <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-1 fw-bold" t-out="formatScore(state.figures.score)"/><div>Score</div></div>
+                            <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-1 fw-bold" t-out="this.formatScore(this.state.figures.score)"/><div>Score</div></div>
                         </div>
-                        <DgqTrend t-elif="item.widget == 'trend'" companyIds="state.companyIds" companies="state.figures.companies"
-                                  models="state.figures.by_model" date="state.date"/>
+                        <DgqTrend t-elif="item.widget == 'trend'" companyIds="this.state.companyIds" companies="this.state.figures.companies"
+                                  models="this.state.figures.by_model" date="this.state.date"/>
                         <div t-elif="item.widget == 'records'" class="d-flex flex-wrap gap-4 mb-4">
-                            <div><div class="fs-3" t-out="state.figures.records_scanned"/><div>Scanned</div></div>
-                            <div role="button" t-on-click="() => this.drillRecords('records_error')"><div class="fs-3 text-danger" t-out="state.figures.records_error"/><div>Errors</div></div>
-                            <div role="button" t-on-click="() => this.drillRecords('records_warning')"><div class="fs-3 text-warning" t-out="state.figures.records_warning"/><div>Warnings</div></div>
+                            <div><div class="fs-3" t-out="this.state.figures.records_scanned"/><div>Scanned</div></div>
+                            <div role="button" t-on-click="() => this.drillRecords('records_error')"><div class="fs-3 text-danger" t-out="this.state.figures.records_error"/><div>Errors</div></div>
+                            <div role="button" t-on-click="() => this.drillRecords('records_warning')"><div class="fs-3 text-warning" t-out="this.state.figures.records_warning"/><div>Warnings</div></div>
                         </div>
                         <div t-elif="item.widget == 'issues'" class="d-flex flex-wrap gap-4 mb-4">
-                            <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-3" t-out="state.figures.open_issues"/><div>Open issues</div></div>
-                            <div role="button" t-on-click="() => this.drill('critical_issues')"><div class="fs-3 text-danger" t-out="state.figures.critical_issues"/><div>Critical</div></div>
-                            <div t-foreach="Object.entries(state.figures.issues_by_severity)" t-as="entry" t-key="entry[0]"
+                            <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-3" t-out="this.state.figures.open_issues"/><div>Open issues</div></div>
+                            <div role="button" t-on-click="() => this.drill('critical_issues')"><div class="fs-3 text-danger" t-out="this.state.figures.critical_issues"/><div>Critical</div></div>
+                            <div t-foreach="Object.entries(this.state.figures.issues_by_severity)" t-as="entry" t-key="entry[0]"
                                  role="button" t-on-click="() => this.drill('severity', {severity: entry[0]})">
                                 <div class="fs-3" t-out="entry[1]"/>
-                                <div t-out="severityLabel(entry[0])"/>
+                                <div t-out="this.severityLabel(entry[0])"/>
                             </div>
                         </div>
                         <div t-elif="item.widget == 'by_model'" class="mb-4">
                             <h5>By model</h5>
-                            <div t-foreach="state.figures.by_model" t-as="row" t-key="row.id" class="d-flex justify-content-between"
+                            <div t-foreach="this.state.figures.by_model" t-as="row" t-key="row.id" class="d-flex justify-content-between"
                                  role="button" t-on-click="() => this.drill('model', {model_id: row.id})">
-                                <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                                <span t-out="row.name"/><span t-out="this.formatScore(row.score)"/>
                             </div>
                         </div>
                         <div t-elif="item.widget == 'by_company'" class="mb-4">
                             <h5>By company</h5>
-                            <div t-foreach="state.figures.by_company" t-as="row" t-key="row.id" class="d-flex justify-content-between"
+                            <div t-foreach="this.state.figures.by_company" t-as="row" t-key="row.id" class="d-flex justify-content-between"
                                  role="button" t-on-click="() => this.drill('open_issues', {company_ids: [row.id]})">
-                                <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                                <span t-out="row.name"/><span t-out="this.formatScore(row.score)"/>
                             </div>
                         </div>
                         <div t-elif="item.widget == 'lowest'" class="mb-4">
                             <h5>Lowest scores</h5>
-                            <div t-foreach="state.figures.lowest_models" t-as="row" t-key="row.id" class="d-flex justify-content-between"
+                            <div t-foreach="this.state.figures.lowest_models" t-as="row" t-key="row.id" class="d-flex justify-content-between"
                                  role="button" t-on-click="() => this.drill('model', {model_id: row.id})">
-                                <span t-out="row.name"/><span t-out="formatScore(row.score)"/>
+                                <span t-out="row.name"/><span t-out="this.formatScore(row.score)"/>
                             </div>
                         </div>
                         <div t-elif="item.widget == 'recent'" class="mb-4">
                             <h5>Latest issues</h5>
-                            <div t-foreach="state.figures.recent_issues" t-as="issue" t-key="issue.id" class="d-flex gap-3">
+                            <div t-foreach="this.state.figures.recent_issues" t-as="issue" t-key="issue.id" class="d-flex gap-3">
                                 <span t-out="issue.name"/>
                                 <span t-if="issue.is_illustrative" class="badge text-bg-warning">Illustrative</span>
-                                <span class="text-muted" t-out="formatDate(issue.last_found)"/>
+                                <span class="text-muted" t-out="this.formatDate(issue.last_found)"/>
                             </div>
                         </div>
                     </t>
