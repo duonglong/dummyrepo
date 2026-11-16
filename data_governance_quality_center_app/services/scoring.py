@@ -72,7 +72,9 @@ def snapshot_values(env, scan):
     open_issues = open_issue_counts(env, models, default_company)
     values = []
     for (model_id, company_id), row in rows.items():
-        common = {'scan_id': scan.id, 'model_id': model_id, 'company_id': company_id, 'weights_used': weights}
+        common = {
+            'scan_id': scan.id, 'model_id': model_id, 'company_id': company_id, 'weights_used': weights,
+            'is_illustrative': scan.is_illustrative}
         model_name = env['ir.model'].browse(model_id).model
         counts = open_issues.get((model_name, company_id), {})
         values.append(dict(
@@ -101,12 +103,14 @@ def open_issue_counts(env, models, default_company):
     """Open issues now: {(model name, company id): {severity: n}} and {(rule id, severity): n} per company.
 
     An issue of a record with no company is counted for the same company as the record's scores
-    (the scan's first company, `default_company`), so figures and scores agree.
+    (the scan's first company, `default_company`), so figures and scores agree. Sample issues of the
+    demo data are never counted: a live figure counts live results only.
 
-    Requirements: FR-DGQ-0031
+    Requirements: FR-DGQ-0031, FR-DGQ-0080
     """
     groups = env['data.quality.issue'].sudo()._read_group(  # sudo: counts of the stored issues
-        [('res_model', 'in', models.mapped('model')), ('state', 'in', ISSUE_OPEN_STATES)],
+        [('res_model', 'in', models.mapped('model')), ('state', 'in', ISSUE_OPEN_STATES),
+         ('is_illustrative', '=', False)],
         ['res_model', 'company_id', 'rule_id', 'severity'], ['__count'])
     counts = {}
     for res_model, company, rule, severity, count in groups:

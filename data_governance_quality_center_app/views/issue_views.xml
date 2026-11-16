@@ -8,6 +8,7 @@
                 <field name="name"/>
                 <field name="severity" widget="badge"/>
                 <field name="state" widget="badge"/>
+                <field name="is_illustrative" widget="boolean" optional="show"/>
                 <field name="priority"/>
                 <field name="user_id"/>
                 <field name="deadline"/>
@@ -27,6 +28,7 @@
                     <field name="state" widget="statusbar" statusbar_visible="new,assigned,in_progress,resolved"/>
                 </header>
                 <sheet>
+                    <widget name="web_ribbon" title="Illustrative" bg_color="text-bg-warning" invisible="not is_illustrative"/>
                     <div class="oe_title">
                         <h1><field name="name"/></h1>
                     </div>

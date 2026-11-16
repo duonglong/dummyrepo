@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from ..const import PROFILE_STALE_DAYS
-from ..services import profiling
+from ..services import profile_compare, profiling
 
 
 class DataQualityProfile(models.Model):
@@ -39,8 +39,9 @@ class DataQualityProfile(models.Model):
     stale_count = fields.Integer(copy=False, readonly=True)
     compare_profile_id = fields.Many2one(
         'data.quality.profile', string='Compare With', copy=False, ondelete='set null',
-        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), ('id', '!=', id)]",
-        help="An earlier profile of the same model and company.")
+        domain="[('model_id', '=', model_id), ('company_id', '=', company_id), "
+               "('state', '=', 'done')] + ([('id', '<', id)] if id else [])",
+        help="A finished, earlier profile of the same model and company.")
     next_field_index = fields.Integer(copy=False)
     line_ids = fields.One2many('data.quality.profile.line', 'profile_id', string='Fields Profiled')
 
@@ -103,7 +104,9 @@ class DataQualityProfile(models.Model):
 
     @api.constrains('compare_profile_id', 'model_id', 'company_id')
     def _check_compare_profile(self):
-        """The profile to compare with is another profile of the same model and company.
+        """The profile to compare with is an earlier profile of the same model and company.
+
+        It may still be running when chosen, so the comparison dialog is what requires it finished.
 
         Requirements: FR-DGQ-0056
         """
@@ -112,6 +115,8 @@ class DataQualityProfile(models.Model):
             if other == profile or other.model_id != profile.model_id or other.company_id != profile.company_id:
                 raise ValidationError(self.env._(
                     "A profile can only be compared with another profile of the same model and company."))
+            if other.id >= profile.id:
+                raise ValidationError(self.env._("The profile to compare with must be an earlier profile."))
 
     @api.onchange('model_id')
     def _onchange_model_id(self):
@@ -135,6 +140,68 @@ class DataQualityProfile(models.Model):
         self.write({'next_field_index': 0, 'record_count': 0, 'stale_count': 0,
                     'done_count': 0, 'total_count': 0})
         return super().action_start()
+
+    # ---- compare and export ---------------------------------------------------
+
+    def action_compare(self):
+        """Open the comparison with the earlier profile chosen on the profile.
+
+        Requirements: FR-DGQ-0056
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Compare Profiles"),
+            'res_model': 'data.quality.profile.compare.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'active_model': self._name, 'active_id': self.id},
+        }
+
+    def _check_exportable(self):
+        """Only a finished profile is exported."""
+        for profile in self:
+            if profile.state != 'done':
+                raise UserError(self.env._("Only a finished profile can be exported."))
+
+    def action_export_xlsx(self):
+        """Download the profile as an XLSX file, one sheet per kind of statistic.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        self._check_exportable()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/data_quality/xlsx/profile/%s' % self.id,
+            'target': 'self',
+        }
+
+    def action_export_pdf(self):
+        """Give the profile as a PDF report with the same figures.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        self._check_exportable()
+        return self.env.ref('data_governance_quality_center_app.action_report_profile').report_action(self)
+
+    def get_export_sections(self):
+        """The figures of the profile as ``(title, header, rows)`` sections, for the PDF report.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        self._check_exportable()
+        return profile_compare.profile_sections(self)
+
+    def get_export_header(self):
+        """The model, company, date and users the exports name, as ``(label, value)`` pairs.
+
+        Requirements: FR-DGQ-0057
+        """
+        self.ensure_one()
+        return profile_compare.profile_header(self)
 
     def _usable_fields(self):
         """Every stored field of the model that is not excluded or sensitive, in a stable order."""

@@ -31,6 +31,13 @@
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('queued', 'running')"
                             groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_compare" type="object" string="Compare"
+                            invisible="state != 'done' or not compare_profile_id"
+                            groups="data_governance_quality_center_app.group_dgq_viewer"/>
+                    <button name="action_export_xlsx" type="object" string="Export XLSX"
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
+                    <button name="action_export_pdf" type="object" string="Export PDF"
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done"/>
                 </header>
                 <sheet>
@@ -85,6 +92,77 @@
             </form>
         </field>
     </record>
+
+    <record id="profile_compare_wizard_view_form" model="ir.ui.view">
+        <field name="name">data.quality.profile.compare.wizard.form</field>
+        <field name="model">data.quality.profile.compare.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="model_id" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <field name="profile_id" readonly="1"/>
+                    <field name="compare_profile_id" options="{'no_create': True}"/>
+                </group>
+                <field name="line_ids" readonly="1">
+                    <list decoration-success="status == 'added'" decoration-danger="status == 'dropped'"
+                          decoration-muted="status == 'same'">
+                        <field name="field_id"/>
+                        <field name="status" widget="badge"/>
+                        <field name="empty_share_old"/>
+                        <field name="empty_share_new"/>
+                        <field name="empty_share_change"/>
+                        <field name="distinct_old"/>
+                        <field name="distinct_new"/>
+                        <field name="distinct_change"/>
+                        <field name="shapes_change"/>
+                        <field name="numbers_change"/>
+                    </list>
+                </field>
+                <footer>
+                    <button special="cancel" string="Close"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_report_profile" model="ir.actions.report">
+        <field name="name">Profile</field>
+        <field name="model">data.quality.profile</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">data_governance_quality_center_app.report_profile</field>
+    </record>
+
+    <template id="report_profile">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <t t-foreach="docs" t-as="doc">
+                    <div class="page">
+                        <h2>Profile</h2>
+                        <table class="table table-sm">
+                            <tr t-foreach="doc.get_export_header()" t-as="fact">
+                                <th><t t-out="fact[0]"/></th>
+                                <td><t t-out="fact[1]"/></td>
+                            </tr>
+                        </table>
+                        <t t-foreach="doc.get_export_sections()" t-as="section">
+                            <h3><t t-out="section[0]"/></h3>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th t-foreach="section[1]" t-as="title"><t t-out="title"/></th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="section[2]" t-as="row">
+                                        <td t-foreach="row" t-as="cell"><t t-out="cell"/></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
 
     <record id="profile_action" model="ir.actions.act_window">
         <field name="name">Profiling</field>

@@ -45,6 +45,7 @@ access_dgq_issue_operator,data.quality.issue operator,data.quality.issue,group_d
 access_dgq_issue_bulk_operator,data.quality.issue.bulk operator,data.quality.issue.bulk,group_dgq_operator,crud,
 access_dgq_score_snapshot_viewer,data.quality.score.snapshot viewer,data.quality.score.snapshot,group_dgq_viewer,r,
 access_dgq_score_snapshot_company,data.quality.score.snapshot own companies,data.quality.score.snapshot,,r,"[('company_id','in',company_ids)]"
+access_dgq_report_wizard_viewer,data.quality.report.wizard viewer,data.quality.report.wizard,group_dgq_viewer,crud,
 access_dgq_team_viewer,data.quality.team viewer,data.quality.team,group_dgq_viewer,r,
 access_dgq_team_admin,data.quality.team admin,data.quality.team,group_dgq_admin,crud,
 access_dgq_team_company,data.quality.team own companies,data.quality.team,,crud,"['|',('company_id','=',False),('company_id','in',company_ids)]"
@@ -58,7 +59,10 @@ access_dgq_automation_run_company,data.quality.automation.run own companies,data
 access_dgq_profile_viewer,data.quality.profile viewer,data.quality.profile,group_dgq_viewer,r,
 access_dgq_profile_operator,data.quality.profile operator,data.quality.profile,group_dgq_operator,cru,
 access_dgq_profile_line_viewer,data.quality.profile.line viewer,data.quality.profile.line,group_dgq_viewer,r,
+access_dgq_profile_compare_wizard_viewer,data.quality.profile.compare.wizard viewer,data.quality.profile.compare.wizard,group_dgq_viewer,crud,
+access_dgq_profile_compare_line_viewer,data.quality.profile.compare.line viewer,data.quality.profile.compare.line,group_dgq_viewer,crud,
 access_dgq_import_session_operator,data.quality.import.session own,data.quality.import.session,group_dgq_operator,cru,"[('user_id', '=', user.id)]"
 access_dgq_import_session_manager,data.quality.import.session manager,data.quality.import.session,group_dgq_manager,crud,
 access_dgq_import_row_operator,data.quality.import.row own,data.quality.import.row,group_dgq_operator,r,"[('session_id.user_id', '=', user.id)]"
 access_dgq_import_row_manager,data.quality.import.row manager,data.quality.import.row,group_dgq_manager,r,
+access_dgq_dashboard_layout_viewer,data.quality.dashboard.layout viewer,data.quality.dashboard.layout,group_dgq_viewer,crud,
