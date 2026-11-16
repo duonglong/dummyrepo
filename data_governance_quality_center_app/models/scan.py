@@ -211,6 +211,15 @@ class DataQualityScan(models.Model):
 
     # ---- start: scope and overlap -------------------------------------------
 
+    def _dgq_requester(self):
+        """A job an automation started is requested by the automation's responsible user, not the scheduler.
+
+        Requirements: FR-DGQ-0072
+        """
+        self.ensure_one()
+        # sudo: the run and its automation are the app's own records
+        return self.automation_run_id.sudo().automation_id.user_id or super()._dgq_requester()
+
     def _dgq_enqueue(self):
         """Resolve the scope, refuse an overlap, then queue (also on resume).
 

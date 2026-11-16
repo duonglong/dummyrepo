@@ -645,7 +645,7 @@ class DataQualityAutomationRun(models.Model):
                         'correction_id': correction.id, 'kind': 'run',
                         'automation_run_id': self.id, 'res_ids': failing.mapped('res_id')})
                     run.action_start()
-                    audit.log(self.env, 'correction_run', correction, automation=self.automation_id)
+                    audit.log(self.env, 'correction_run', correction, automation=self.automation_id, user=run.user_id)
             except UserError as refusal:
                 left_out.append("%s: %s" % (correction.name, refusal.args[0]))
                 continue

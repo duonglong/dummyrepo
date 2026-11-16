@@ -80,6 +80,15 @@ class DataQualityCorrectionRun(models.Model):
         for run in self.filtered(lambda r: r.kind == 'run' and not r.dry_run_id):
             run.sudo().dry_run_id = run.correction_id.last_dry_run_id  # sudo: set by the app only
 
+    def _dgq_requester(self):
+        """A job an automation started is requested by the automation's responsible user, not the scheduler.
+
+        Requirements: FR-DGQ-0072
+        """
+        self.ensure_one()
+        # sudo: the run and its automation are the app's own records
+        return self.automation_run_id.sudo().automation_id.user_id or super()._dgq_requester()
+
     def action_start(self):
         """Queue the run as the user who may write it; the app then writes the run's fields.
 

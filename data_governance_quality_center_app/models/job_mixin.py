@@ -123,13 +123,19 @@ class DataQualityJobMixin(models.AbstractModel):
         self._dgq_write_as_app({'state': 'cancelled', 'date_end': fields.Datetime.now()})
         return True
 
+    def _dgq_requester(self):
+        """The user a job is queued for: the one who asks; a kind started for someone else says who."""
+        self.ensure_one()
+        return self.env.user
+
     def _dgq_enqueue(self):
-        self._dgq_write_as_app({
-            'state': 'queued',
-            'user_id': self.env.user.id,
-            'date_queued': fields.Datetime.now(),
-            'error_message': False,
-        })
+        for requester, jobs_ in self.grouped(lambda job: job._dgq_requester()).items():
+            jobs_._dgq_write_as_app({
+                'state': 'queued',
+                'user_id': requester.id,
+                'date_queued': fields.Datetime.now(),
+                'error_message': False,
+            })
         self._dgq_trigger_cron()
         return True
 
