@@ -1,6 +1,7 @@
 from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
+from odoo.http.stream import content_disposition
 
 from ..services import export, import_run, profile_compare, report
 
@@ -40,7 +41,7 @@ class DataQualityXlsx(http.Controller):
             return request.not_found(str(refusal))
         return request.make_response(content, headers=[
             ('Content-Type', mimetype),
-            ('Content-Disposition', http.content_disposition(name)),
+            ('Content-Disposition', content_disposition(name)),
         ])
 
     @http.route('/data_quality/xlsx/profile/<int:profile_id>', type='http', auth='user')
