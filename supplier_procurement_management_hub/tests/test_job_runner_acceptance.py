@@ -110,3 +110,16 @@ class TestJobRunnerAcceptance(TransactionCase):
         self.assertTrue(run.date_end)
         self.assertGreaterEqual(run.processed_count, 1)
         self.assertEqual(run.error_count, 0)
+
+    def test_sc_0096_2_switched_off_job_has_its_scheduled_action_off(self):
+        """SC-SPM-0096-2: an Administrator switches a job off; its scheduled
+        action is then inactive, so its scheduled time does not run it, and
+        switching it back on activates it again. (The scheduler itself is
+        Odoo's: an inactive scheduled action is never picked.)"""
+        job = self.env['procurement.job'].search([('code', '=', self._job_code())])
+        job.write({'active': False})
+        self.env.flush_all()
+        self.assertFalse(job.cron_id.active)
+        self.assertFalse(self.env['ir.cron'].search([('id', '=', job.cron_id.id)]))
+        job.write({'active': True})
+        self.assertTrue(job.cron_id.active)
