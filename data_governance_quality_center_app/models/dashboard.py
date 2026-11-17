@@ -25,7 +25,8 @@ class DataQualityDashboard(models.AbstractModel):
         the record rules use) are offered and used. For each company and model the latest
         snapshot taken on or before the date counts; the overall and per-company scores are
         weighted sums of those figures, not averages of scores. ``is_illustrative`` is on when
-        any of those snapshots comes from the demo data (FR-DGQ-0080).
+        any of those snapshots comes from the demo data (FR-DGQ-0080). ``has_scan`` is off when no snapshot
+        falls in the chosen companies and date, so the screen shows its empty state (UX-DGQ-001).
 
         Requirements: FR-DGQ-0032, FR-DGQ-0033, BR-DGQ-0001, FR-DGQ-0080
         """
@@ -53,7 +54,7 @@ class DataQualityDashboard(models.AbstractModel):
         scored = [row for row in models_scored if row['score'] is not None]
         return {
             'is_illustrative': any(snapshots.mapped('is_illustrative')),
-            'has_scan': bool(snapshots) or bool(self.env['data.quality.score.snapshot'].search_count([], limit=1)),
+            'has_scan': bool(snapshots),
             'can_start_scan': self.env.user.has_group('data_governance_quality_center_app.group_dgq_operator'),
             'companies': [{'id': company.id, 'name': company.name} for company in allowed],
             'score': scoring.score(totals['applicable_weight'], totals['failed_weight']),
