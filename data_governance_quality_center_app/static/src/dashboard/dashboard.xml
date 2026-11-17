@@ -27,8 +27,8 @@
                         <div t-foreach="this.state.layout" t-as="item" t-key="item.widget" class="d-flex gap-2 align-items-center">
                             <input type="checkbox" t-att-checked="item.visible" t-on-change="() => this.toggleWidget(item.widget)"/>
                             <span t-out="item.label"/>
-                            <button class="btn btn-sm btn-light fa fa-arrow-up" aria-label="Up" t-on-click="() => this.moveWidget(item.widget, -1)"/>
-                            <button class="btn btn-sm btn-light fa fa-arrow-down" aria-label="Down" t-on-click="() => this.moveWidget(item.widget, 1)"/>
+                            <button class="btn btn-sm btn-light" aria-label="Up" t-on-click="() => this.moveWidget(item.widget, -1)"><i class="oi" data-icon="arrow_upward"/></button>
+                            <button class="btn btn-sm btn-light" aria-label="Down" t-on-click="() => this.moveWidget(item.widget, 1)"><i class="oi" data-icon="arrow_downward"/></button>
                         </div>
                         <button class="btn btn-secondary align-self-start" t-on-click="this.resetLayout">Reset</button>
                     </div>
