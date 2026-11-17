@@ -197,6 +197,26 @@ class DataQualityDashboard(models.AbstractModel):
             is_illustrative=before.is_illustrative or after.is_illustrative)
 
     @api.model
+    def explain_score(self, company_ids=None, date=None):
+        """The causes of the latest score change of each model the dashboard scores, biggest change first.
+
+        Each model counts through the latest snapshot the figures use; one with no earlier snapshot has
+        nothing to explain and is left out.
+
+        Requirements: FR-DGQ-0035
+        """
+        self._check_viewer()
+        snapshots = self._latest_snapshots(self._chosen_companies(company_ids), self._end_of_day(date))
+        changes = []
+        for snapshot in snapshots:
+            try:
+                changes.append(self.explain_change(snapshot.id))
+            except UserError:
+                continue  # the first snapshot of a model has no earlier one to compare with
+        changes.sort(key=lambda change: -abs((change['score_after'] or 0) - (change['score_before'] or 0)))
+        return {'changes': changes}
+
+    @api.model
     def drill_down(self, figure, company_ids=None, model_id=None, date=None, severity=None):
         """The window action of the issues, or of the records, behind a figure, filtered as the figure is.
 

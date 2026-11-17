@@ -4,7 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_plugin";
-import { DgqTrend } from "./trend";
+import { DgqTrend, causeLabel } from "./trend";
 
 export class DgqDashboard extends Component {
     static template = "data_governance_quality_center_app.Dashboard";
@@ -13,16 +13,25 @@ export class DgqDashboard extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.state = proxy({ figures: null, layout: [], editing: false, companyIds: [], date: "" });
+        this.state = proxy({ figures: null, layout: [], editing: false, companyIds: [], date: "", explanation: null });
         onWillStart(() => this.load());
     }
 
     async load() {
         this.state.layout = await this.orm.call("data.quality.dashboard", "get_layout", []);
+        this.state.explanation = null;
         this.state.figures = await this.orm.call("data.quality.dashboard", "get_figures", [], {
             company_ids: this.state.companyIds,
             date: this.state.date || false,
         });
+    }
+
+    async explainScore() {
+        const result = await this.orm.call("data.quality.dashboard", "explain_score", [], {
+            company_ids: this.state.companyIds,
+            date: this.state.date || false,
+        });
+        this.state.explanation = result.changes;
     }
 
     async toggleCompany(companyId) {
@@ -83,6 +92,12 @@ export class DgqDashboard extends Component {
 
     async resetLayout() {
         this.state.layout = await this.orm.call("data.quality.dashboard", "reset_layout", []);
+    }
+
+    causeLabel = causeLabel;
+
+    formatPoints(points) {
+        return (points > 0 ? "+" : "") + points.toFixed(1);
     }
 
     severityLabel(severity) {

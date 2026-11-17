@@ -2,6 +2,17 @@ import { Component, onWillStart, onWillUpdateProps, proxy, t, useProps } from "@
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
+export function causeLabel(kind) {
+    return {
+        rule_added: _t("Rule added"),
+        rule_removed: _t("Rule removed"),
+        rule_switched_off: _t("Rule switched off"),
+        rule_version_changed: _t("Rule changed"),
+        applicable_weight_changed: _t("Records added or removed"),
+        failed_weight_changed: _t("Failures changed"),
+    }[kind];
+}
+
 export class DgqTrend extends Component {
     static template = "data_governance_quality_center_app.Trend";
     props = useProps({
@@ -56,16 +67,7 @@ export class DgqTrend extends Component {
         ]);
     }
 
-    causeLabel(kind) {
-        return {
-            rule_added: _t("Rule added"),
-            rule_removed: _t("Rule removed"),
-            rule_switched_off: _t("Rule switched off"),
-            rule_version_changed: _t("Rule changed"),
-            applicable_weight_changed: _t("Records added or removed"),
-            failed_weight_changed: _t("Failures changed"),
-        }[kind];
-    }
+    causeLabel = causeLabel;
 
     formatScore(score) {
         return score === null ? "–" : score.toFixed(1);

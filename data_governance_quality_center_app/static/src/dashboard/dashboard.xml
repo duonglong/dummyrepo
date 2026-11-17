@@ -36,7 +36,24 @@
                 <t t-foreach="this.state.layout" t-as="item" t-key="item.widget">
                     <t t-if="item.visible">
                         <div t-if="item.widget == 'score'" class="d-flex flex-wrap gap-4 mb-4">
-                            <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-1 fw-bold" t-out="this.formatScore(this.state.figures.score)"/><div>Score</div></div>
+                            <div class="o_dgq_score d-flex gap-2 align-items-start">
+                                <div role="button" t-on-click="() => this.drill('open_issues')"><div class="fs-1 fw-bold" t-out="this.formatScore(this.state.figures.score)"/><div>Score</div></div>
+                                <button name="explain_score" class="btn btn-link p-0" t-on-click="this.explainScore">Why?</button>
+                            </div>
+                            <div t-if="this.state.explanation" class="o_dgq_explanation w-100">
+                                <span t-if="!this.state.explanation.length" class="text-muted">No earlier score</span>
+                                <div t-foreach="this.state.explanation" t-as="change" t-key="change_index" class="mb-2">
+                                    <div class="fw-bold">
+                                        <span t-out="change.model"/>:
+                                        <span t-out="this.formatScore(change.score_before)"/> → <span t-out="this.formatScore(change.score_after)"/>
+                                    </div>
+                                    <div t-foreach="change.causes" t-as="cause" t-key="cause_index" class="d-flex gap-3">
+                                        <span t-out="this.causeLabel(cause.kind)"/>
+                                        <span t-out="cause.rule_name"/>
+                                        <span t-out="this.formatPoints(cause.points)"/>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <DgqTrend t-elif="item.widget == 'trend'" companyIds="this.state.companyIds" companies="this.state.figures.companies"
                                   models="this.state.figures.by_model" date="this.state.date"/>
