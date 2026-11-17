@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="automation_view_list" model="ir.ui.view">
+        <field name="name">data.quality.automation.list</field>
+        <field name="model">data.quality.automation</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="trigger"/>
+                <field name="team_id"/>
+                <field name="last_run"/>
+                <field name="next_run"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="automation_view_form" model="ir.ui.view">
+        <field name="name">data.quality.automation.form</field>
+        <field name="model">data.quality.automation</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <field name="active" invisible="1"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Nightly contacts"/></h1>
+                    </div>
+                    <group>
+                        <group string="When">
+                            <field name="trigger" widget="radio"/>
+                            <field name="interval" invisible="trigger != 'schedule'"
+                                   required="trigger == 'schedule'"/>
+                            <field name="hour" invisible="trigger != 'schedule' or interval == 'hourly'"/>
+                            <field name="weekday" invisible="trigger != 'schedule' or interval != 'weekly'"/>
+                            <field name="monthday" invisible="trigger != 'schedule' or interval != 'monthly'"/>
+                            <field name="event" invisible="trigger != 'event'" required="trigger == 'event'"/>
+                            <field name="watched_field_ids" widget="many2many_tags"
+                                   invisible="trigger != 'event' or event == 'create'"
+                                   options="{'no_create': True}"/>
+                            <field name="next_run" invisible="trigger != 'schedule'"/>
+                            <field name="last_run"/>
+                        </group>
+                        <group string="What">
+                            <field name="model_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="rule_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="company_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="team_id" options="{'no_create': True}"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group string="Follow-up">
+                            <field name="send_email"/>
+                            <field name="create_activity"/>
+                            <field name="deadline_days"/>
+                            <field name="escalation_days"/>
+                            <field name="escalation_user_id"/>
+                        </group>
+                        <group string="Corrections">
+                            <field name="correction_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="History" name="history">
+                            <field name="run_ids" readonly="1">
+                                <list>
+                                    <field name="date_start"/>
+                                    <field name="state" widget="badge"/>
+                                    <field name="scan_id"/>
+                                    <field name="issues_created"/>
+                                    <field name="issues_assigned"/>
+                                    <field name="issues_escalated"/>
+                                    <field name="corrections_applied"/>
+                                    <field name="skip_reason"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="automation_view_search" model="ir.ui.view">
+        <field name="name">data.quality.automation.search</field>
+        <field name="model">data.quality.automation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <filter name="schedule" string="Schedule" domain="[('trigger', '=', 'schedule')]"/>
+                <filter name="event" string="Business event" domain="[('trigger', '=', 'event')]"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="automation_action" model="ir.actions.act_window">
+        <field name="name">Automations</field>
+        <field name="res_model">data.quality.automation</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add an automation to scan on a schedule or after a save</p>
+        </field>
+    </record>
+
+    <record id="team_view_list" model="ir.ui.view">
+        <field name="name">data.quality.team.list</field>
+        <field name="model">data.quality.team</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="leader_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="team_view_form" model="ir.ui.view">
+        <field name="name">data.quality.team.form</field>
+        <field name="model">data.quality.team</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <field name="active" invisible="1"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Purchasing"/></h1>
+                    </div>
+                    <group>
+                        <field name="leader_id"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="member_ids" widget="many2many_tags"/>
+                    </group>
+                    <field name="assignment_ids">
+                        <list editable="bottom">
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="user_id"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="team_action" model="ir.actions.act_window">
+        <field name="name">Teams</field>
+        <field name="res_model">data.quality.team</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add a team to hand new issues to</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_dgq_automation" name="Automations" parent="menu_dgq_configuration"
+              action="automation_action" sequence="40" groups="group_dgq_manager"/>
+    <menuitem id="menu_dgq_team" name="Teams" parent="menu_dgq_configuration"
+              action="team_action" sequence="50" groups="group_dgq_manager"/>
+</odoo>

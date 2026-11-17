@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="profile_view_list" model="ir.ui.view">
+        <field name="name">data.quality.profile.list</field>
+        <field name="model">data.quality.profile</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="model_id"/>
+                <field name="company_id"/>
+                <field name="create_date"/>
+                <field name="state" widget="badge"/>
+                <field name="record_count"/>
+                <field name="stale_count"/>
+                <field name="user_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="profile_view_form" model="ir.ui.view">
+        <field name="name">data.quality.profile.form</field>
+        <field name="model">data.quality.profile</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_start" type="object" string="Run" class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_resume" type="object" string="Resume" class="btn-primary"
+                            invisible="state != 'failed'"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state not in ('queued', 'running')"
+                            groups="data_governance_quality_center_app.group_dgq_operator"/>
+                    <button name="action_compare" type="object" string="Compare"
+                            invisible="state != 'done' or not compare_profile_id"
+                            groups="data_governance_quality_center_app.group_dgq_viewer"/>
+                    <button name="action_export_xlsx" type="object" string="Export XLSX"
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
+                    <button name="action_export_pdf" type="object" string="Export PDF"
+                            invisible="state != 'done'" groups="data_governance_quality_center_app.group_dgq_viewer"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,queued,running,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Scope">
+                            <field name="model_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="company_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="allowed_field_ids" invisible="1"/>
+                            <field name="field_ids" widget="many2many_tags" readonly="state != 'draft'"
+                                   domain="[('id', 'in', allowed_field_ids)]"
+                                   options="{'no_create': True}"/>
+                            <field name="stale_days" readonly="state != 'draft'"/>
+                            <field name="compare_profile_id" options="{'no_create': True}"/>
+                        </group>
+                        <group string="Result">
+                            <field name="progress" widget="progressbar"/>
+                            <field name="record_count"/>
+                            <field name="stale_count"/>
+                            <field name="user_id"/>
+                            <field name="date_end"/>
+                        </group>
+                    </group>
+                    <group invisible="not error_message">
+                        <field name="error_message"/>
+                    </group>
+                    <notebook>
+                        <page string="Fields" name="fields">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="empty_count"/>
+                                    <field name="empty_share"/>
+                                    <field name="distinct_count"/>
+                                    <field name="outlier_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Top Values" name="top_values">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="top_values_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Shapes" name="shapes">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="shapes_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Numbers" name="numbers">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="min_value"/>
+                                    <field name="max_value"/>
+                                    <field name="mean_value"/>
+                                    <field name="median_value"/>
+                                    <field name="outlier_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Links" name="links">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="link_empty_share"/>
+                                    <field name="link_distribution_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Unused Choices" name="unused_choices">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="unused_choices_text"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="profile_compare_wizard_view_form" model="ir.ui.view">
+        <field name="name">data.quality.profile.compare.wizard.form</field>
+        <field name="model">data.quality.profile.compare.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="model_id" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <field name="profile_id" readonly="1"/>
+                    <field name="compare_profile_id" options="{'no_create': True}"/>
+                </group>
+                <field name="line_ids" readonly="1">
+                    <list decoration-success="status == 'added'" decoration-danger="status == 'dropped'"
+                          decoration-muted="status == 'same'">
+                        <field name="field_id"/>
+                        <field name="status" widget="badge"/>
+                        <field name="empty_share_old"/>
+                        <field name="empty_share_new"/>
+                        <field name="empty_share_change"/>
+                        <field name="distinct_old"/>
+                        <field name="distinct_new"/>
+                        <field name="distinct_change"/>
+                        <field name="shapes_change"/>
+                        <field name="numbers_change"/>
+                    </list>
+                </field>
+                <footer>
+                    <button special="cancel" string="Close"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_report_profile" model="ir.actions.report">
+        <field name="name">Profile</field>
+        <field name="model">data.quality.profile</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">data_governance_quality_center_app.report_profile</field>
+    </record>
+
+    <template id="report_profile">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <t t-foreach="docs" t-as="doc">
+                    <div class="page">
+                        <h2>Profile</h2>
+                        <table class="table table-sm">
+                            <tr t-foreach="doc.get_export_header()" t-as="fact">
+                                <th><t t-out="fact[0]"/></th>
+                                <td><t t-out="fact[1]"/></td>
+                            </tr>
+                        </table>
+                        <t t-foreach="doc.get_export_sections()" t-as="section">
+                            <h3><t t-out="section[0]"/></h3>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th t-foreach="section[1]" t-as="title"><t t-out="title"/></th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="section[2]" t-as="row">
+                                        <td t-foreach="row" t-as="cell"><t t-out="cell"/></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="profile_action" model="ir.actions.act_window">
+        <field name="name">Profiling</field>
+        <field name="res_model">data.quality.profile</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Profile a model to see where its data stands</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_dgq_profile" name="Profiling" parent="menu_dgq_root"
+              action="profile_action" sequence="45" groups="group_dgq_viewer"/>
+
+    <record id="ir_cron_dgq_profile" model="ir.cron">
+        <field name="name">Data Quality: profiles</field>
+        <field name="model_id" ref="model_data_quality_profile"/>
+        <field name="state">code</field>
+        <field name="code">model._dgq_run_next()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>

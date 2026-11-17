@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_template_automation_summary" model="mail.template">
+        <field name="name">Data quality: new issues of an automation run</field>
+        <field name="model_id" ref="model_data_quality_automation_run"/>
+        <field name="subject">{{ len(ctx['dgq_issues']) }} new data quality issues for you ({{ object.automation_id.name }})</field>
+        <field name="body_html" type="html">
+            <p>The automation <t t-out="object.automation_id.name"/> found new data quality issues for you:</p>
+            <ul>
+                <li t-foreach="ctx['dgq_issues']" t-as="issue">
+                    <t t-out="issue.name"/>
+                    <t t-if="issue.deadline"> (deadline <t t-out="issue.deadline"/>)</t>
+                    <t t-if="issue.explanation"> - <t t-out="issue.explanation"/></t>
+                </li>
+            </ul>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+
+    <record id="mail_template_issue_escalated" model="mail.template">
+        <field name="name">Data quality: overdue issues escalated</field>
+        <field name="model_id" ref="model_data_quality_issue"/>
+        <field name="subject">Overdue data quality issues escalated to you ({{ len(ctx['dgq_issues']) }})</field>
+        <field name="body_html" type="html">
+            <p>These data quality issues are past their deadline and were escalated:</p>
+            <ul>
+                <li t-foreach="ctx['dgq_issues']" t-as="issue">
+                    <t t-out="issue.name"/>
+                    (deadline <t t-out="issue.deadline"/><t t-if="issue.user_id">, <t t-out="issue.user_id.name"/></t>)
+                </li>
+            </ul>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+
+    <record id="mail_template_automation_failed" model="mail.template">
+        <field name="name">Data quality: automation run failed</field>
+        <field name="model_id" ref="model_data_quality_automation_run"/>
+        <field name="subject">Data quality automation failed: {{ object.automation_id.name }}</field>
+        <field name="body_html" type="html">
+            <p>The automation <t t-out="object.automation_id.name"/> failed
+               <t t-if="object.retry_count"> after <t t-out="object.retry_count"/> retries</t>.</p>
+            <p t-if="object.message"><t t-out="object.message"/></p>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+</odoo>

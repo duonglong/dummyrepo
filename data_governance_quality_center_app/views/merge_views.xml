@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="merge_wizard_view_form_confirm" model="ir.ui.view">
+        <field name="name">data.quality.merge.wizard.form.confirm</field>
+        <field name="model">data.quality.merge.wizard</field>
+        <field name="inherit_id" ref="merge_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <field name="links_to_move" position="after">
+                <field name="is_protected" invisible="1"/>
+                <field name="preview_signature" invisible="1"/>
+                <field name="protected_authorized" invisible="not is_protected"
+                       groups="data_governance_quality_center_app.group_dgq_admin"/>
+            </field>
+            <footer position="inside">
+                <button name="action_confirm" type="object" string="Merge" class="btn-primary"
+                        data-hotkey="q"/>
+            </footer>
+        </field>
+    </record>
+
+    <record id="merge_view_list" model="ir.ui.view">
+        <field name="name">data.quality.merge.list</field>
+        <field name="model">data.quality.merge</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="name"/>
+                <field name="res_model"/>
+                <field name="user_id"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="merge_view_form" model="ir.ui.view">
+        <field name="name">data.quality.merge.form</field>
+        <field name="model">data.quality.merge</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_rollback" type="object" string="Roll Back"
+                            invisible="rollback_blocked"
+                            groups="data_governance_quality_center_app.group_dgq_manager"
+                            confirm="The merged records become active again and the links this merge moved are moved back."/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="res_model"/>
+                        <field name="group_id"/>
+                        <field name="user_id"/>
+                        <field name="date"/>
+                        <field name="reversible"/>
+                        <field name="rollback_blocked" invisible="not rollback_blocked or state != 'done'"/>
+                        <field name="rollback_user_id" invisible="state != 'rolled_back'"/>
+                        <field name="rollback_date" invisible="state != 'rolled_back'"/>
+                    </group>
+                    <notebook>
+                        <page string="Values" name="values">
+                            <group>
+                                <field name="values_before"/>
+                                <field name="values_written"/>
+                            </group>
+                        </page>
+                        <page string="Links Moved" name="links">
+                            <field name="moved_links"/>
+                        </page>
+                        <page string="Rollback Report" name="report" invisible="state != 'rolled_back'">
+                            <field name="rollback_report"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="merge_action" model="ir.actions.act_window">
+        <field name="name">Merge History</field>
+        <field name="res_model">data.quality.merge</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No merge yet</p>
+            <p>Merge a duplicate group to see it here.</p>
+        </field>
+    </record>
+
+    <record id="duplicate_group_view_form_merge" model="ir.ui.view">
+        <field name="name">data.quality.duplicate.group.form.merge</field>
+        <field name="model">data.quality.duplicate.group</field>
+        <field name="inherit_id" ref="duplicate_group_view_form"/>
+        <field name="arch" type="xml">
+            <field name="score" position="after">
+                <field name="merge_id" invisible="not merge_id"
+                       groups="data_governance_quality_center_app.group_dgq_manager"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

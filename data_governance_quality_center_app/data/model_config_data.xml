@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="model_config_partner" model="data.quality.model.config">
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="status">supported</field>
+    </record>
+    <record id="model_config_product_template" model="data.quality.model.config">
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="status">supported</field>
+    </record>
+</odoo>
