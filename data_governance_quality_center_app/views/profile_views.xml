@@ -65,29 +65,64 @@
                     <group invisible="not error_message">
                         <field name="error_message"/>
                     </group>
-                    <field name="line_ids" readonly="1">
-                        <list>
-                            <field name="field_id"/>
-                            <field name="empty_count"/>
-                            <field name="empty_share"/>
-                            <field name="distinct_count"/>
-                            <field name="outlier_count"/>
-                            <field name="link_empty_share" optional="hide"/>
-                            <field name="min_value" optional="hide"/>
-                            <field name="max_value" optional="hide"/>
-                            <field name="mean_value" optional="hide"/>
-                            <field name="median_value" optional="hide"/>
-                        </list>
-                        <form>
-                            <group>
-                                <field name="field_id"/>
-                                <field name="top_values_text"/>
-                                <field name="shapes_text" invisible="not shapes"/>
-                                <field name="link_distribution_text" invisible="not link_distribution"/>
-                                <field name="unused_choices_text" invisible="not unused_choices"/>
-                            </group>
-                        </form>
-                    </field>
+                    <notebook>
+                        <page string="Fields" name="fields">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="empty_count"/>
+                                    <field name="empty_share"/>
+                                    <field name="distinct_count"/>
+                                    <field name="outlier_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Top Values" name="top_values">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="top_values_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Shapes" name="shapes">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="shapes_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Numbers" name="numbers">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="min_value"/>
+                                    <field name="max_value"/>
+                                    <field name="mean_value"/>
+                                    <field name="median_value"/>
+                                    <field name="outlier_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Links" name="links">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="link_empty_share"/>
+                                    <field name="link_distribution_text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Unused Choices" name="unused_choices">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="field_id"/>
+                                    <field name="unused_choices_text"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

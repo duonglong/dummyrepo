@@ -99,3 +99,4 @@ from . import test_import_error_report_download
 from . import test_issue_form_status
 from . import test_dashboard_screen_marks
 from . import test_dashboard_explain_screen
+from . import test_profile_form_screen
