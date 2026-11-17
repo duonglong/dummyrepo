@@ -234,6 +234,39 @@ class DataQualityIssue(models.Model):
             self.env['mail.mail'].sudo().create({
                 'subject': subject, 'body_html': body, 'email_to': assignee.email, 'auto_delete': True})
 
+    def action_start(self):
+        """Take the issue into work: In Progress.
+
+        Requirements: FR-DGQ-0025
+        """
+        return self.write({'state': 'in_progress'})
+
+    def action_resolve(self):
+        """Mark the issue Resolved.
+
+        Requirements: FR-DGQ-0025
+        """
+        return self.write({'state': 'resolved'})
+
+    def action_reopen(self):
+        """Bring a Resolved or Ignored issue back to New.
+
+        Requirements: FR-DGQ-0025
+        """
+        return self.write({'state': 'new'})
+
+    def action_ignore(self):
+        """Open the dialog that asks the reason before the issue is ignored.
+
+        Requirements: FR-DGQ-0025
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window', 'res_model': 'data.quality.issue.bulk', 'view_mode': 'form',
+            'views': [(False, 'form')], 'target': 'new',
+            'context': {'default_issue_ids': self.ids, 'default_action': 'ignore'},
+        }
+
     def action_open_record(self):
         """Open the record behind the issue under the user's own rights, or say why it cannot be.
 

@@ -96,3 +96,4 @@ from . import test_job_scope_guard
 from . import test_client_screens
 from . import test_issue_screens
 from . import test_import_error_report_download
+from . import test_issue_form_status
