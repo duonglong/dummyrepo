@@ -9,7 +9,7 @@ from datetime import timedelta
 from odoo import fields
 from odoo.fields import Domain
 from odoo.sql_db import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
-from odoo.tools import float_compare, float_is_zero, float_round
+from odoo.tools import float_compare, float_is_zero, float_repr, float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -137,7 +137,9 @@ def _refresh_one(env, bill) -> None:
     reconciliation = env['procurement.reconciliation'].search([('move_id', '=', bill.id)])
     move_lines = bill.invoice_line_ids.filtered('purchase_line_id')
     duplicates = find_duplicates(bill)
-    if not move_lines and not duplicates and not reconciliation.duplicate_cleared:
+    # a reconciliation holding exceptions is kept, so that their decisions are never deleted
+    if not move_lines and not duplicates and not reconciliation.duplicate_cleared \
+            and not reconciliation.exception_ids:
         reconciliation.unlink()
         return
     bill_total = abs(bill.amount_total_signed)
@@ -167,7 +169,7 @@ def _refresh_one(env, bill) -> None:
     })
     wanted = _exception_values(env, reconciliation, flagged)
     env['procurement.reconciliation.exception']._spm_sync(reconciliation, wanted)
-    reconciliation.state = 'review' if reconciliation._spm_undecided_exceptions() else 'matched'
+    reconciliation.state = 'review' if reconciliation._spm_holding_exceptions() else 'matched'
 
 
 def find_duplicates(bill):
@@ -197,7 +199,11 @@ def find_duplicates(bill):
 
 
 def _label(amount, currency) -> str:
-    return f"{amount:.2f} {currency.name}"
+    return f"{float_repr(currency.round(amount), currency.decimal_places)} {currency.name}"
+
+
+def _qty_label(env, quantity) -> str:
+    return float_repr(quantity, env['decimal.precision'].precision_get('Product Unit'))
 
 
 def _move_label(move) -> str:
@@ -223,7 +229,7 @@ def _exception_values(env, reconciliation, duplicates) -> dict:
                               _label(line.billed_price, line.currency_id), abs(line.amount_difference))
         if not line.qty_within_tolerance:
             reference = line.received_qty if line.method == 'three_way' else line.ordered_qty
-            found['quantity'] = (str(reference), str(line.billed_qty),
+            found['quantity'] = (_qty_label(env, reference), _qty_label(env, line.billed_qty),
                                  max(line.qty_difference, 0.0) * line.billed_price)
         if line.ordered_tax_ids != line.billed_tax_ids:
             found['tax'] = (', '.join(line.ordered_tax_ids.mapped('name')) or '-',
@@ -237,7 +243,7 @@ def _exception_values(env, reconciliation, duplicates) -> dict:
                 base, expected_value=expected, found_value=seen,
                 amount_at_stake=currency.round(amount))
     if duplicates:
-        wanted[('duplicate', 0)] = {
+        wanted[('duplicate', False)] = {
             'expected_value': env._("No other bill with the same reference or amount"),
             'found_value': ', '.join(_move_label(move) for move in duplicates),
             'amount_at_stake': currency.round(reconciliation.move_id.amount_total),

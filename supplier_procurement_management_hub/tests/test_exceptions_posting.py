@@ -2,8 +2,13 @@
 
 Requirements: FR-SPM-0075, FR-SPM-0076, FR-SPM-0077, FR-SPM-0078
 """
+from unittest.mock import patch
+
+from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, tagged
+
+from ..services import reconciliation as reconciliation_service
 
 from .matching_common import SpmMatchingCommon
 
@@ -34,6 +39,7 @@ class TestExceptionLifecycle(SpmMatchingCommon):
         self.bill.invoice_line_ids.price_unit = 13.5
         self.env.flush_all()
         self.assertEqual(self.exc.state, 'open')
+        self.assertIn('Agreed', self._decision_history(self.exc))
         with self.assertRaises(UserError):
             self.bill.with_user(self.user_acc).action_post()
 
@@ -135,6 +141,110 @@ class TestExceptionLifecycle(SpmMatchingCommon):
         self.assertEqual(self._recon(dup).exception_ids.filtered(lambda e: e.state == 'open').kind, 'duplicate')
 
 
+    def _decision_history(self, exception):
+        # sudo: the test reads the whole chatter, as an auditor would
+        return ' '.join(exception.sudo().message_ids.mapped('body'))
+
+    def test_a_rejected_overcharge_that_comes_back_holds_the_bill(self):
+        """Requirements: FR-SPM-0077. Finding Q10: a system resolve is not a person's release."""
+        self.exc.with_user(self.user_fin).action_spm_reject('Not agreed')
+        self.bill.invoice_line_ids.price_unit = 11.5
+        self.env.flush_all()
+        self.assertEqual(self.exc.state, 'resolved')
+        self.bill.invoice_line_ids.price_unit = 12.5
+        self.env.flush_all()
+        self.assertEqual(self.exc.state, 'open')
+        with self.assertRaises(UserError):
+            self.bill.with_user(self.user_acc).action_post()
+
+    def test_the_resolve_dialog_requires_a_comment_and_stores_it(self):
+        """Requirements: FR-SPM-0077. Finding S7: the dialog is filled and saved as a person does;
+        its Confirm button stays for the screen review."""
+        action = self.exc.with_user(self.user_fin).action_spm_open_resolve_wizard()
+        wizards = self.env['procurement.reason.wizard'].with_user(self.user_fin).with_context(**action['context'])
+        blank = Form(wizards)
+        blank.reason = '   '
+        with self.assertRaises(UserError):
+            blank.save().action_confirm()
+        self.assertEqual(self.exc.state, 'open')
+        dialog = Form(wizards)
+        dialog.reason = 'Credit note CN/12 received'
+        dialog.save().action_confirm()
+        self.assertEqual(self.exc.state, 'resolved')
+        self.assertEqual(self.exc.decision_comment, 'Credit note CN/12 received')
+
+    def test_a_later_decision_keeps_the_earlier_one_in_the_history(self):
+        """Requirements: FR-SPM-0077. Finding Q11, path 1: reject, then resolve."""
+        self.exc.with_user(self.user_fin).action_spm_reject('Not agreed')
+        self.env.flush_all()
+        self.exc.with_user(self.user_pm).action_spm_resolve('Credit note')
+        self.env.flush_all()
+        self.assertIn('Not agreed', self._decision_history(self.exc))
+
+    def test_removing_the_order_lines_keeps_decided_exceptions(self):
+        """Requirements: FR-SPM-0076. Finding Q11, path 4: the matching is not deleted."""
+        self.exc.with_user(self.user_fin).action_spm_accept('Agreed surcharge')
+        self.env.flush_all()
+        self.bill.invoice_line_ids.purchase_line_id = False
+        self.env.flush_all()
+        self.assertTrue(self.exc.exists())
+        self.assertEqual((self.exc.state, self.exc.decision_comment), ('accepted', 'Agreed surcharge'))
+
+    def test_a_system_resolve_keeps_the_rejection_in_the_history(self):
+        """Requirements: FR-SPM-0077. Finding Q11, paths 2 and 3."""
+        self.exc.with_user(self.user_fin).action_spm_reject('Not agreed')
+        self.bill.invoice_line_ids.price_unit = 11.5
+        self.env.flush_all()
+        self.assertIn('Not agreed', self._decision_history(self.exc))
+
+    def test_a_finance_route_without_a_person_notifies_every_finance_reviewer(self):
+        """Requirements: FR-SPM-0076. Finding S6: the reviewer who starts the review owns it."""
+        self._plain_bill(self.acme, 1150.0, ref='INV-F').action_post()
+        exc = self._recon(self._plain_bill(self.acme, 1150.0, ref='INV-F')).exception_ids
+        self.assertFalse(exc.owner_id)
+        self.assertIn(self.user_fin.partner_id, exc.message_partner_ids)
+        self.assertNotIn(self.user_ann.partner_id, exc.message_partner_ids)
+        exc.with_user(self.user_fin).action_spm_review()
+        self.assertEqual(exc.owner_id, self.user_fin)
+
+    def test_the_decider_owns_an_exception_without_owner(self):
+        """Requirements: FR-SPM-0076. Finding S6: deciding takes ownership."""
+        self._plain_bill(self.acme, 1150.0, ref='INV-G').action_post()
+        exc = self._recon(self._plain_bill(self.acme, 1150.0, ref='INV-G')).exception_ids
+        exc.with_user(self.user_pm).action_spm_accept('Known repeat')
+        self.assertEqual(exc.owner_id, self.user_pm)
+
+    def test_a_reviewer_cannot_decide_for_another_company(self):
+        """Requirements: FR-SPM-0075, FR-SPM-0077. Finding Q12: the company rule applies."""
+        data = self.setup_other_company(name='Company B M5')
+        moves = self.env['account.move'].with_company(data['company'])
+
+        def bill_b():
+            return moves.create({
+                'move_type': 'in_invoice', 'partner_id': self.acme.id, 'ref': 'INV-B2',
+                'invoice_date': fields.Date.from_string('2026-11-10'),
+                'invoice_line_ids': [(0, 0, {
+                    'name': 'Service', 'quantity': 1, 'price_unit': 90.0,
+                    'account_id': data['default_account_expense'].id, 'tax_ids': [(6, 0, [])]})],
+            })
+        bill_b().action_post()
+        recon = self._recon(bill_b())
+        self.assertTrue(recon.duplicate_move_ids)
+        with self.assertRaises(AccessError):
+            recon.with_user(self.user_fin).action_spm_mark_not_duplicate('Not ours')
+        with self.assertRaises(AccessError):
+            recon.exception_ids.with_user(self.user_fin).action_spm_accept('Not ours')
+        self.assertTrue(recon.duplicate_move_ids)
+        self.assertEqual(recon.exception_ids.state, 'open')
+
+    def test_a_bill_held_by_a_rejection_stays_to_review(self):
+        """Requirements: FR-SPM-0077. Finding Q13."""
+        self.exc.with_user(self.user_fin).action_spm_reject('Not agreed')
+        self.bill.action_spm_run_matching()
+        self.assertEqual(self._recon(self.bill).state, 'review')
+        self.assertEqual(self.bill.spm_open_exception_count, 1)
+
+
 @tagged('post_install', '-at_install')
 class TestExceptionRefresh(SpmMatchingCommon):
     """Requirements: FR-SPM-0076, FR-SPM-0077"""
@@ -156,10 +266,20 @@ class TestExceptionRefresh(SpmMatchingCommon):
         self.assertEqual(exc.decision_comment, 'Agreed')
 
     def test_a_matching_error_does_not_duplicate_exceptions(self):
-        """Requirements: FR-SPM-0076. Lines dropped by an error keep their exceptions."""
+        """Requirements: FR-SPM-0076. Finding Q16: a real matching error, then a good run."""
         bill = self._bill(self._order(qty=10, price=1.10), 13, 1.10)
         recon = self._recon(bill)
         before = recon.exception_ids
-        recon.sudo().line_ids.unlink()
+        before.with_user(self.user_fin).action_spm_accept('Agreed')
+        with patch.object(reconciliation_service, '_line_values', side_effect=ValueError('boom')):
+            bill.action_spm_run_matching()
+        self.assertEqual(recon.state, 'error')
         bill.action_spm_run_matching()
         self.assertEqual(recon.exception_ids, before)
+        self.assertEqual(before.state, 'accepted')
+
+    def test_quantity_labels_carry_no_float_noise(self):
+        """Requirements: FR-SPM-0076. Finding Q15."""
+        bill = self._bill(self._order(qty=10, price=1.10), 13, 1.10)
+        exc = self._recon(bill).exception_ids.filtered(lambda e: e.kind == 'quantity')
+        self.assertEqual((exc.expected_value, exc.found_value), ('10.00', '13.00'))

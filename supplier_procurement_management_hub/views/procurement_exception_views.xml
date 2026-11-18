@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="procurement_reason_wizard_view_form_review"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='reason']" position="attributes">
-                <attribute name="required">action in ('override', 'request_changes', 'reject', 'accept_exception', 'reject_exception', 'not_duplicate') or status_kind in ('suspended', 'blocked')</attribute>
+                <attribute name="required">action in ('override', 'request_changes', 'reject', 'accept_exception', 'reject_exception', 'resolve_exception', 'not_duplicate') or status_kind in ('suspended', 'blocked')</attribute>
             </xpath>
         </field>
     </record>
@@ -45,7 +45,7 @@
                     <button name="action_spm_open_reject_wizard" type="object" string="Reject"
                             invisible="state not in ('open', 'in_review')"
                             groups="group_spm_finance,group_spm_manager"/>
-                    <button name="action_spm_resolve" type="object" string="Resolve"
+                    <button name="action_spm_open_resolve_wizard" type="object" string="Resolve"
                             invisible="state not in ('open', 'in_review', 'rejected')"
                             groups="group_spm_finance,group_spm_manager"/>
                     <field name="state" widget="statusbar" statusbar_visible="open,in_review,accepted"/>

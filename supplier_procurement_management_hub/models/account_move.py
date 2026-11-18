@@ -43,7 +43,7 @@ class AccountMove(models.Model):
         for move in self:
             recon = found.get(move.id)
             move.spm_reconciliation_id = recon
-            move.spm_open_exception_count = len(recon._spm_undecided_exceptions()) if recon else 0
+            move.spm_open_exception_count = len(recon._spm_holding_exceptions()) if recon else 0
             move.spm_possible_duplicate_ids = recon.duplicate_move_ids if recon else False
             if recon:
                 move.spm_match_state = recon.state

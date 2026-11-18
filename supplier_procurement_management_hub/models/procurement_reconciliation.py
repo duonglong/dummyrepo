@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 from .procurement_matching_policy import MATCHING_METHODS
-from .procurement_reconciliation_exception import UNDECIDED_STATES
+from .procurement_reconciliation_exception import RELEASING_STATES
 
 PROTECTED_FIELDS = {
     'state', 'method', 'duplicate_move_ids', 'duplicate_cleared', 'duplicate_cleared_by_id', 'duplicate_comment',
@@ -63,9 +63,9 @@ class ProcurementReconciliation(models.Model):
             raise AccessError(self.env._("The matching result and the duplicate decision cannot be edited."))
         return super().write(vals)
 
-    def _spm_undecided_exceptions(self):
-        """Return the exceptions of these matchings still waiting for a decision."""
-        return self.exception_ids.filtered(lambda exception: exception.state in UNDECIDED_STATES)
+    def _spm_holding_exceptions(self):
+        """Return the exceptions of these matchings that are neither accepted nor resolved."""
+        return self.exception_ids.filtered(lambda exception: exception.state not in RELEASING_STATES)
 
     def action_spm_run_matching(self):
         """Match the bill again.
@@ -89,12 +89,14 @@ class ProcurementReconciliation(models.Model):
         """Clear the possible-duplicate flag, with a mandatory comment.
 
         Requirements: FR-SPM-0075
-        Only a Finance reviewer may (the Administrator implies the role). The duplicate exception is resolved with
-        the same comment; the bill itself is not written.
+        Only a Finance reviewer of the bill's company may (the Administrator implies the role). The duplicate
+        exception is resolved with the same comment; the bill itself is not written.
         """
         user = self.env.user
         if not user.has_group('supplier_procurement_management_hub.group_spm_finance'):
             raise AccessError(self.env._("Only a Finance reviewer may mark a bill as not a duplicate."))
+        # the company rule of the caller applies before the elevated write below
+        self.check_access('write')
         comment = (comment or '').strip()
         if not comment:
             raise UserError(self.env._("A comment is required to mark a bill as not a duplicate."))
@@ -105,6 +107,8 @@ class ProcurementReconciliation(models.Model):
             'duplicate_reviewed_move_ids': [(4, move.id) for move in recon.duplicate_move_ids],
             'duplicate_move_ids': [(5, 0, 0)],
         })
-        recon._spm_undecided_exceptions().filtered(lambda exc: exc.kind == 'duplicate').write({
-                'state': 'resolved', 'decided_by_id': user.id, 'decision_comment': comment})
+        duplicate_exceptions = recon._spm_holding_exceptions().filtered(lambda exc: exc.kind == 'duplicate')
+        duplicate_exceptions._spm_log_decision()
+        duplicate_exceptions.write({
+            'state': 'resolved', 'decided_by_id': user.id, 'decision_comment': comment})
         return True

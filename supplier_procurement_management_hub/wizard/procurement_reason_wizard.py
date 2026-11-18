@@ -16,7 +16,7 @@ class ProcurementReasonWizard(models.TransientModel):
         ('set_status', 'Change supplier status'), ('override', 'Override supplier control'),
         ('request_changes', 'Request changes on an application'), ('reject', 'Reject an application'),
         ('accept_exception', 'Accept an exception'), ('reject_exception', 'Reject an exception'),
-        ('not_duplicate', 'Mark a bill as not a duplicate'),
+        ('resolve_exception', 'Resolve an exception'), ('not_duplicate', 'Mark a bill as not a duplicate'),
     ], required=True)
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
@@ -39,7 +39,7 @@ class ProcurementReasonWizard(models.TransientModel):
             self._spm_record_overrides()
         if self.action in ('request_changes', 'reject'):
             self._spm_review_applications()
-        if self.action in ('accept_exception', 'reject_exception', 'not_duplicate'):
+        if self.action in ('accept_exception', 'reject_exception', 'resolve_exception', 'not_duplicate'):
             self._spm_decide_matching()
         return {'type': 'ir.actions.act_window_close'}
 
@@ -47,11 +47,15 @@ class ProcurementReasonWizard(models.TransientModel):
         """Forward the comment to the decision of the exceptions or reconciliations.
 
         Requirements: FR-SPM-0075, FR-SPM-0077
-        Rights, state and the required comment are those of the decision methods.
+        Rights and state are those of the decision methods; the comment is
+        required here for every decision, resolve included.
         """
+        if not (self.reason or '').strip():
+            raise UserError(self.env._("A comment is required to decide."))
         expected = {
             'accept_exception': 'procurement.reconciliation.exception',
             'reject_exception': 'procurement.reconciliation.exception',
+            'resolve_exception': 'procurement.reconciliation.exception',
             'not_duplicate': 'procurement.reconciliation',
         }[self.action]
         if self.res_model != expected:
@@ -59,7 +63,7 @@ class ProcurementReasonWizard(models.TransientModel):
         records = self.env[self.res_model].browse(self.res_ids)
         method = {
             'accept_exception': 'action_spm_accept', 'reject_exception': 'action_spm_reject',
-            'not_duplicate': 'action_spm_mark_not_duplicate',
+            'resolve_exception': 'action_spm_resolve', 'not_duplicate': 'action_spm_mark_not_duplicate',
         }[self.action]
         getattr(records, method)(self.reason)
 
