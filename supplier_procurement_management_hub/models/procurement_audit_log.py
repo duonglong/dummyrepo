@@ -25,6 +25,7 @@ class ProcurementAuditLog(models.Model):
         ('delegation', 'Delegation'),
         ('contract', 'Contract activation or revision'),
         ('risk_override', 'Risk override'),
+        ('status_override', 'Supplier status override'),
         ('exception', 'Exception decision'),
         ('configuration', 'Configuration change'),
     ], required=True, index=True, readonly=True)

@@ -40,3 +40,7 @@ access_spm_portal_field_auditor,Portal field auditor,procurement.portal.field,gr
 access_spm_portal_field_admin,Portal field admin,procurement.portal.field,group_spm_admin,crud,
 access_spm_reason_wizard_manager,Reason dialog manager,procurement.reason.wizard,group_spm_manager,crud,
 access_spm_reason_wizard_admin,Reason dialog admin,procurement.reason.wizard,group_spm_admin,crud,
+access_spm_override_manager,Override manager,procurement.override,group_spm_manager,cr,
+access_spm_override_auditor,Override auditor,procurement.override,group_spm_auditor,r,
+access_spm_override_admin,Override admin,procurement.override,group_spm_admin,r,
+spm_override_comp_rule,Procurement override: allowed companies,procurement.override,,crud,"[('company_id', 'in', company_ids)]"
