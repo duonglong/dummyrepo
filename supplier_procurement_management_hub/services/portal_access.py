@@ -3,7 +3,8 @@
 Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
 """
 
-SUPPLIER_BLOCKED_KIND = 'blocked'
+# The portal's page size (DESIGN section 6).
+PORTAL_PAGE_SIZE = 20
 # Orders a supplier sees: never a draft the buyer has not sent.
 VISIBLE_ORDER_STATES = ('sent', 'purchase', 'done', 'cancel')
 
@@ -26,6 +27,15 @@ def is_supplier_user(user):
     return bool(user.sudo().partner_id.commercial_partner_id.spm_is_supplier)  # sudo: reads the company contact flag only
 
 
+def is_blocked(user):
+    """True when the supplier of the user has a status of kind Blocked.
+
+    Requirements: FR-SPM-0028
+    """
+    supplier = user.sudo().partner_id.commercial_partner_id  # sudo: reads the company contact status only
+    return supplier.spm_status_kind == 'blocked'
+
+
 def current_supplier(env):
     """Return the supplier (company contact) of the logged-in portal user or refuse.
 
@@ -40,7 +50,7 @@ def current_supplier(env):
     supplier = user.sudo().partner_id.commercial_partner_id  # sudo: the company contact of the session user
     if not supplier.spm_is_supplier:
         raise SupplierAccessRefused('not a supplier')
-    if supplier.spm_status_kind == SUPPLIER_BLOCKED_KIND:
+    if supplier.spm_status_kind == 'blocked':
         raise SupplierAccessRefused('blocked')
     return supplier
 
@@ -63,7 +73,7 @@ def log(env, action, result, supplier=None, record=None, res_model=None, res_id=
 
     Requirements: FR-SPM-0027
     """
-    if record is not None and record:
+    if record:
         res_model, res_id = record._name, record.id
     # sudo: a portal user has no create right on the log; one entry, values set here
     company_contact = env.user.sudo().partner_id.commercial_partner_id  # sudo: the session user's company contact
@@ -83,23 +93,22 @@ def order_rows(env, orders):
 
     Requirements: FR-SPM-0016, BR-SPM-0003
 
-    The orders are already the user's own; the bills are read elevated (a portal user has no
-    right on journal entries) and only name, payment status and total leave this function.
+    The orders are already the user's own; the bill ids are collected elevated, then the bills are
+    read as the user, so the native rule on the user's own posted vendor bills decides.
     """
     receipt_labels = dict(env['purchase.order']._fields['receipt_status']._description_selection(env))
     payment_labels = dict(env['account.move']._fields['payment_state']._description_selection(env))
     rows = []
     for order in orders:
-        bills = order.sudo().invoice_ids.filtered(  # sudo: bills of an order the user owns
-            lambda move: move.state == 'posted' and move.move_type in ('in_invoice', 'in_refund'))
+        bill_ids = order.sudo().invoice_ids.ids  # sudo: only the ids are taken, the user reads the bills
+        bills = env['account.move'].search([
+            ('id', 'in', bill_ids), ('state', '=', 'posted'), ('move_type', '=', 'in_invoice')])
         rows.append({
             'order': order,
             'receipt': receipt_labels.get(order.receipt_status, ''),
             'bills': [{
                 'name': bill.name,
                 'payment': payment_labels.get(bill.payment_state, ''),
-                'total': bill.amount_total,
-                'currency': bill.currency_id,
             } for bill in bills],
         })
     return rows
