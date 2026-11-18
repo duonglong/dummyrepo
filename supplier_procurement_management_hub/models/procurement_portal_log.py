@@ -53,21 +53,31 @@ class ResUsers(models.Model):
 
 
 class MailThread(models.AbstractModel):
-    """A supplier user reads and posts only on threads the user's own rights allow.
+    """A supplier user reads and posts only on procurement threads the user's own rights allow.
 
-    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0028
+    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
     """
     _inherit = 'mail.thread'
 
     @api.model
     def _get_thread_with_access(self, thread_id, *, hash=None, pid=None, token=None, **kwargs):
-        """The share-link hash, partner and token are ignored for a supplier user; a refused user gets nothing."""
-        if not portal_access.is_supplier_user(self.env.user):
+        """On an order, a vendor bill or a hub record, a supplier user's share-link hash, partner and
+        token are ignored; a refused user or a thread of another supplier gives nothing and is logged."""
+        if not portal_access.is_supplier_user(self.env.user) \
+                or not portal_access.is_procurement_record(self.env, self._name, thread_id):
             return super()._get_thread_with_access(thread_id, hash=hash, pid=pid, token=token, **kwargs)
         refused = portal_access.refusal(self.env)
         if refused:
-            if not self.env.cr.readonly:
-                portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
-                                  res_id=thread_id, detail=refused.reason)
+            portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
+                              res_id=thread_id, detail=refused.reason)
             return self.browse()
-        return super()._get_thread_with_access(thread_id, **kwargs)
+        thread = super()._get_thread_with_access(thread_id, **kwargs)
+        if not thread:
+            # a refusal only when the thread is missing or the user cannot read it; a write probe on a
+            # readable one is no denial. has_access raises MissingError on a missing id, so exists() first.
+            target = self.browse(thread_id)
+            if target.exists() and target.has_access('read'):
+                return thread
+            portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
+                              res_id=thread_id, detail='not found')
+        return thread

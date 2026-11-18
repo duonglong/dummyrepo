@@ -25,12 +25,14 @@ class SupplierPortal(CustomerPortal):
             return 'purchase.order', [('state', 'in', portal_access.VISIBLE_ORDER_STATES)], 'read'
         return super()._prepare_portal_counter_values(counter)
 
-    def _refuse(self, refusal, record=None, res_model=None, res_id=None):
-        """Log the refusal and answer with a page that tells nothing about the record."""
-        portal_access.log(request.env, 'denied', 'refused', record=record,
-                          res_model=res_model, res_id=res_id, detail=refusal.reason)
-        status = 404 if refusal.reason == 'not found' else 403
+    def _refusal_page(self, status):
+        """A page that tells nothing about the record (the refusal is logged by the access service)."""
         return request.render(REFUSED_TEMPLATE, {'status': status}, status=status)
+
+    def _refuse(self, refusal):
+        """Log the refusal of the user and answer with a page that tells nothing."""
+        portal_access.log(request.env, 'denied', 'refused', detail=refusal.reason)
+        return self._refusal_page(404 if refusal.reason == 'not found' else 403)
 
     def _supplier_list_refusal(self):
         """The refusal page when a supplier user may not use the portal; None otherwise.
@@ -42,44 +44,58 @@ class SupplierPortal(CustomerPortal):
         refused = portal_access.refusal(request.env)
         return self._refuse(refused) if refused else None
 
+    def _is_supplier_document(self, model_name, document_id):
+        return portal_access.is_supplier_user(request.env.user) \
+            and portal_access.is_procurement_record(request.env, model_name, document_id)
+
+    def _supplier_document(self, model_name, document_id, action):
+        """The supplier user's own document with full rights (the native contract), checked and logged.
+
+        Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+        Raises MissingError when it is not the user's own, AccessError when the user is refused.
+        """
+        try:
+            document = portal_access.check_document(request.env, model_name, document_id, action)
+        except portal_access.SupplierAccessRefused as refused:
+            if refused.reason == 'not found':
+                raise MissingError(request.env._("This document does not exist.")) from None
+            raise AccessError(request.env._("You no longer have access to the supplier portal.")) from None
+        return document.with_user(SUPERUSER_ID)
+
     def _document_check_access(self, model_name, document_id, access_token=None):
-        """A supplier user reaches only documents the user's own rights allow; a token is ignored.
+        """A supplier user reaches only procurement documents the user's own rights allow; a token is ignored.
 
         Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
 
-        This one check serves every native portal page of a record (orders, bills, attachments),
-        so a record token of another supplier opens nothing and a Blocked supplier is refused.
+        This one check serves every native portal page of an order, a vendor bill or an attachment of
+        them. Other documents (customer invoices, sales, shared links) keep Odoo's own check.
         """
-        if not portal_access.is_supplier_user(request.env.user):
+        if not self._is_supplier_document(model_name, document_id):
             return super()._document_check_access(model_name, document_id, access_token=access_token)
-        refused = portal_access.refusal(request.env)
-        if refused:
-            portal_access.log(request.env, 'denied', 'refused', res_model=model_name,
-                              res_id=document_id, detail=refused.reason)
-            raise AccessError(refused.reason)
-        document = portal_access.get_owned(request.env, model_name, document_id)
-        if not document:
-            portal_access.log(request.env, 'denied', 'refused', res_model=model_name,
-                              res_id=document_id, detail='not found')
-            raise MissingError(request.env._("This document does not exist."))
-        return document.with_user(SUPERUSER_ID)  # the native contract: the readable record, with full rights
+        checked = getattr(request, 'spm_checked_document', None)
+        if checked is not None and checked._name == model_name and checked.id == document_id:
+            return checked  # the route of this request has checked and logged it already
+        action = self._access_action(request.params)
+        return self._supplier_document(model_name, document_id, action)
 
-    def _owned_order_or_refusal(self, order_id):
-        """Return (supplier, order, refusal page); the page is set when the order is not the user's own.
+    @staticmethod
+    def _access_action(params):
+        """The log action of a document request: a pdf or text report is a download, the rest a view."""
+        return 'download' if params.get('report_type') in ('pdf', 'text') else 'view'
 
-        Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0028
+    def _supplier_route_refusal(self, model_name, document_id, action):
+        """For a native document route: the refusal page, or None once the document is checked and logged.
+
+        Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
         """
+        request.spm_checked_document = None
         try:
-            supplier = portal_access.current_supplier(request.env)
-        except portal_access.SupplierAccessRefused as refusal:
-            return None, None, self._refuse(refusal, res_model='purchase.order', res_id=order_id)
-        order = portal_access.get_owned(
-            request.env, 'purchase.order', order_id,
-            [('state', 'in', portal_access.VISIBLE_ORDER_STATES)])
-        if not order:
-            return None, None, self._refuse(portal_access.SupplierAccessRefused('not found'),
-                                            res_model='purchase.order', res_id=order_id)
-        return supplier, order, None
+            request.spm_checked_document = self._supplier_document(model_name, document_id, action)
+        except MissingError:
+            return self._refusal_page(404)
+        except AccessError:
+            return self._refusal_page(403)
+        return None
 
     def _profile_values(self, supplier):
         """Plain values of the supplier's own profile: no risk level, no internal data."""
@@ -127,21 +143,12 @@ class SupplierPortal(CustomerPortal):
 
         Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
         """
-        user = request.env.user
-        if not portal_access.is_supplier_user(user):
-            return super().portal_my_purchase_order(order_id=order_id, access_token=access_token, **kw)
-        supplier, order, refusal_page = self._owned_order_or_refusal(order_id)
-        if refusal_page:
-            return refusal_page
-        action = 'download' if kw.get('report_type') in ('pdf', 'text') else 'view'
-        portal_access.log(request.env, action, 'ok', supplier=supplier, record=order)
-        # the token is dropped: ownership alone decides for a supplier user
-        return super().portal_my_purchase_order(order_id=order_id, access_token=None, **kw)
-
-    @http.route()
-    def portal_my_invoices(self, *args, **kw):
-        """Requirements: FR-SPM-0028"""
-        return self._supplier_list_refusal() or super().portal_my_invoices(*args, **kw)
+        if portal_access.is_supplier_user(request.env.user):
+            action = self._access_action(kw)
+            if refusal_page := self._supplier_route_refusal('purchase.order', order_id, action):
+                return refusal_page
+            access_token = None  # ownership alone decides for a supplier user
+        return super().portal_my_purchase_order(order_id=order_id, access_token=access_token, **kw)
 
     @http.route()
     def portal_my_purchase_orders(self, *args, **kw):
@@ -159,14 +166,11 @@ class SupplierPortal(CustomerPortal):
 
         Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
         """
-        if not portal_access.is_supplier_user(request.env.user):
-            return super().portal_my_purchase_order_update_dates(
-                order_id=order_id, access_token=access_token, **kw)
-        supplier, order, refusal_page = self._owned_order_or_refusal(order_id)
-        if refusal_page:
-            return refusal_page
-        portal_access.log(request.env, 'submit', 'ok', supplier=supplier, record=order)
-        return super().portal_my_purchase_order_update_dates(order_id=order_id, access_token=None, **kw)
+        if portal_access.is_supplier_user(request.env.user):
+            if refusal_page := self._supplier_route_refusal('purchase.order', order_id, 'submit'):
+                return refusal_page
+            access_token = None
+        return super().portal_my_purchase_order_update_dates(order_id=order_id, access_token=access_token, **kw)
 
     @http.route()
     def portal_my_purchase_order_download_edi(self, order_id=None, access_token=None, **kw):
@@ -174,14 +178,11 @@ class SupplierPortal(CustomerPortal):
 
         Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
         """
-        if not portal_access.is_supplier_user(request.env.user):
-            return super().portal_my_purchase_order_download_edi(
-                order_id=order_id, access_token=access_token, **kw)
-        supplier, order, refusal_page = self._owned_order_or_refusal(order_id)
-        if refusal_page:
-            return refusal_page
-        portal_access.log(request.env, 'download', 'ok', supplier=supplier, record=order)
-        return super().portal_my_purchase_order_download_edi(order_id=order_id, access_token=None, **kw)
+        if portal_access.is_supplier_user(request.env.user):
+            if refusal_page := self._supplier_route_refusal('purchase.order', order_id, 'download'):
+                return refusal_page
+            access_token = None
+        return super().portal_my_purchase_order_download_edi(order_id=order_id, access_token=access_token, **kw)
 
     def _purchase_order_get_page_view_values(self, order, access_token, **kwargs):
         values = super()._purchase_order_get_page_view_values(order, access_token, **kwargs)
