@@ -11,3 +11,4 @@ from . import test_onboarding_flow_acceptance
 from . import test_application_review_acceptance
 from . import test_qualification_acceptance
 from . import test_job_log_acceptance
+from . import test_contract_company_acceptance
