@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0016, FR-SPM-0017, BR-SPM-0003 -->
+    <record id="portal_entry_procurement" model="portal.entry">
+        <field name="name">Procurement</field>
+        <field name="description">Your profile, documents and orders</field>
+        <field name="url">/my/procurement</field>
+        <field name="placeholder_count">spm_order_count</field>
+        <field name="category">vendor_category</field>
+        <field name="sequence" eval="120"/>
+    </record>
+
+    <template id="portal_refused" name="Supplier portal: not available">
+        <t t-call="portal.frontend_layout">
+            <div id="wrap" class="container py-5">
+                <div class="alert alert-warning" role="alert">
+                    <t t-if="status == 404">Page not found</t>
+                    <t t-else="">Access refused</t>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="portal_home" name="Supplier portal: home">
+        <t t-call="portal.portal_layout">
+            <div class="container py-3" id="spm_portal_home">
+                <h1 class="h3" t-out="profile['name']"/>
+                <p>
+                    <span class="badge text-bg-secondary" t-if="profile['status']" t-out="profile['status']"/>
+                    <span class="badge text-bg-info" t-if="profile['compliance']" t-out="profile['compliance']"/>
+                </p>
+                <h2 class="h5 mt-4">Documents</h2>
+                <table class="table table-sm" t-if="documents">
+                    <tr t-foreach="documents" t-as="document">
+                        <td t-out="document.document_type_id.name"/>
+                        <td><span t-field="document.validity_state"/></td>
+                        <td><span t-field="document.expiry_date"/></td>
+                    </tr>
+                </table>
+                <h2 class="h5 mt-4">Purchase orders</h2>
+                <table class="table table-sm" t-if="order_rows">
+                    <thead><tr><th>Order</th><th>Receipt</th><th>Bills</th></tr></thead>
+                    <tr t-foreach="order_rows" t-as="row">
+                        <td><a t-att-href="row['order'].get_portal_url()" t-out="row['order'].name"/></td>
+                        <td t-out="row['receipt']"/>
+                        <td>
+                            <div t-foreach="row['bills']" t-as="bill">
+                                <span t-out="bill['name']"/> <span class="badge text-bg-light" t-out="bill['payment']"/>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+                <t t-call="portal.pager"/>
+            </div>
+        </t>
+    </template>
+
+    <template id="purchase_order_portal_content_spm" name="Supplier portal: receipt and bills"
+              inherit_id="purchase.purchase_order_portal_content">
+        <xpath expr="//div[@id='informations']" position="after">
+            <div id="spm_order_status" t-if="spm_order_row" class="mt-3">
+                <div><strong>Receipt:</strong> <span t-out="spm_order_row['receipt']"/></div>
+                <div t-foreach="spm_order_row['bills']" t-as="bill">
+                    <strong>Bill:</strong> <span t-out="bill['name']"/>
+                    <span class="badge text-bg-light" t-out="bill['payment']"/>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>

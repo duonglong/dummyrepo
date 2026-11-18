@@ -21,3 +21,4 @@ from . import procurement_exception_route
 from . import procurement_reconciliation
 from . import procurement_reconciliation_line
 from . import account_move
+from . import portal_wizard

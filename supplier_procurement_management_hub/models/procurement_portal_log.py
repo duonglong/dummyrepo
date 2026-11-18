@@ -17,6 +17,7 @@ class ProcurementPortalLog(models.Model):
     partner_id = fields.Many2one('res.partner', ondelete='set null')
     action = fields.Selection([
         ('view', 'Viewed'),
+        ('download', 'Downloaded'),
         ('submit', 'Submitted'),
         ('denied', 'Denied'),
     ], required=True)

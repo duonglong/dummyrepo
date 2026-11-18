@@ -27,3 +27,4 @@ from . import test_purchase_request_acceptance
 from . import test_sourcing_event_acceptance
 from . import test_quotation_versions_acceptance
 from . import test_portal_messages_acceptance
+from . import test_portal_isolation

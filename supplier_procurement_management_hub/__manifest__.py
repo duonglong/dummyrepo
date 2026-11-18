@@ -6,12 +6,14 @@
     'depends': [
         'purchase_stock',
         'portal',
+        'purchase',
         'hr',
     ],
     'data': [
         'security/procurement_security.xml',
         'security/ir.access.csv',
         'security/procurement_document_rules.xml',
+        'security/procurement_portal_rules.xml',
         'data/procurement_supplier_status_data.xml',
         'data/procurement_defaults.xml',
         'data/mail_templates_onboarding.xml',
@@ -23,6 +25,7 @@
         'views/procurement_supplier_application_views.xml',
         'views/procurement_supplier_application_review_views.xml',
         'views/onboarding_templates.xml',
+        'views/portal_templates.xml',
         'views/procurement_override_views.xml',
         'views/procurement_reconciliation_views.xml',
     ],
