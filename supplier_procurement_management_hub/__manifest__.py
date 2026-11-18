@@ -7,11 +7,13 @@
     'data': [
         'security/procurement_security.xml',
         'security/ir.access.csv',
+        'security/procurement_document_rules.xml',
         'data/procurement_supplier_status_data.xml',
         'data/procurement_defaults.xml',
         'views/procurement_audit_views.xml',
         'views/res_config_settings_views.xml',
         'views/procurement_config_views.xml',
+        'views/procurement_supplier_document_views.xml',
         'views/res_partner_views.xml',
     ],
     'license': 'LGPL-3',

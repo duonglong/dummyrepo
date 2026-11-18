@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import audit
+from ..services import audit, supplier_control
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
 # Watched fields whose values only the restricted groups may read (BR-SPM-0004).
@@ -20,7 +20,7 @@ SPM_GUARDED_STATUS_FIELDS = ('spm_status_id', 'spm_status_kind')
 class ResPartner(models.Model):
     """The one supplier master: lifecycle status, change history.
 
-    Requirements: FR-SPM-0011, FR-SPM-0014, BR-SPM-0004, BR-SPM-0005
+    Requirements: FR-SPM-0008, FR-SPM-0011, FR-SPM-0014, BR-SPM-0004, BR-SPM-0005
     """
     _inherit = 'res.partner'
 
@@ -41,6 +41,52 @@ class ResPartner(models.Model):
     ], string="Risk level", copy=False, groups=SPM_RESTRICTED_GROUPS)
     spm_change_ids = fields.One2many(
         'procurement.supplier.change', 'partner_id', string="Change history", readonly=True)
+    spm_document_ids = fields.One2many(
+        'procurement.supplier.document', 'partner_id', string="Documents")
+    spm_compliance_state = fields.Selection([
+        ('valid', 'Valid'),
+        ('expiring', 'Expiring'),
+        ('to_verify', 'To verify'),
+        ('rejected', 'Rejected'),
+        ('expired_or_missing', 'Expired or missing'),
+    ], string="Document compliance", compute='_compute_spm_compliance',
+        search='_search_spm_compliance_state')
+    spm_compliance_summary = fields.Text(
+        string="Required documents", compute='_compute_spm_compliance')
+
+    # --- document compliance --------------------------------------------
+
+    @api.depends(
+        'spm_supplier_type_id.required_document_type_ids',
+        'spm_document_ids.verification_state', 'spm_document_ids.expiry_date',
+        'spm_document_ids.is_current', 'spm_document_ids.document_type_id')
+    @api.depends_context('company', 'uid')
+    def _compute_spm_compliance(self):
+        """Requirements: FR-SPM-0008
+
+        The worst state among the required documents, and one line per
+        required type with its state.
+        """
+        labels = dict(self.env['procurement.supplier.document']._fields["validity_state"]
+                      ._description_selection(self.env), missing=self.env._("Missing"))
+        for partner in self:
+            # elevated: a summary of the documents, readable with the contact
+            elevated = partner.sudo()
+            rows = supplier_control.compliance_rows(elevated.env, elevated)
+            partner.spm_compliance_state = supplier_control.compliance_state(rows)
+            partner.spm_compliance_summary = '\n'.join(
+                f"{document_type.name}: {labels[state]}" for document_type, state in rows) or False
+
+    def _search_spm_compliance_state(self, operator, value):
+        """Requirements: FR-SPM-0008"""
+        if operator not in ('=', '!=', 'in', 'not in'):
+            raise UserError(self.env._("Unsupported search on the document compliance."))
+        values = {value} if isinstance(value, str) else set(value)
+        # elevated: the candidates are filtered by the compliance of their documents
+        candidates = self.sudo().search([('spm_supplier_type_id.required_document_type_ids', '!=', False)])
+        matching = candidates.filtered(
+            lambda partner: (partner.spm_compliance_state in values) == (operator in ('=', 'in')))
+        return [('id', 'in', matching.ids)]
 
     # --- change history -------------------------------------------------
 

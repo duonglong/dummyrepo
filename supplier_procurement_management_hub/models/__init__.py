@@ -6,6 +6,7 @@ from . import procurement_document_type
 from . import procurement_supplier_type_field
 from . import procurement_portal_field
 from . import procurement_supplier_application
+from . import procurement_supplier_document
 from . import procurement_supplier_change
 from . import res_company
 from . import res_config_settings

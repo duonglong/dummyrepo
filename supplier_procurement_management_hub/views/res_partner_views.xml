@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Requirements: FR-SPM-0011, FR-SPM-0014 -->
+    <!-- Requirements: FR-SPM-0008, FR-SPM-0011, FR-SPM-0014 -->
     <record id="res_partner_view_form_spm" model="ir.ui.view">
         <field name="name">res.partner.form.spm</field>
         <field name="model">res.partner</field>
@@ -26,6 +26,20 @@
                             <field name="spm_risk_level"/>
                         </group>
                     </group>
+                    <group>
+                        <field name="spm_compliance_state"/>
+                        <field name="spm_compliance_summary"/>
+                    </group>
+                    <field name="spm_document_ids" context="{'default_partner_id': id}">
+                        <list decoration-danger="validity_state in ('expired', 'rejected')"
+                              decoration-warning="validity_state == 'expiring'">
+                            <field name="document_type_id"/>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="verification_state"/>
+                            <field name="validity_state"/>
+                        </list>
+                    </field>
                     <field name="spm_change_ids">
                         <list>
                             <field name="date"/>
