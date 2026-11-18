@@ -157,16 +157,17 @@ def _refresh_one(env, bill) -> None:
         else:
             env['procurement.reconciliation.line'].create(
                 dict(line_values, reconciliation_id=reconciliation.id, move_line_id=move_line.id))
-    flagged = duplicates if not reconciliation.duplicate_cleared else duplicates.browse()
+    flagged = duplicates - reconciliation.duplicate_reviewed_move_ids
+    cleared = reconciliation.duplicate_cleared and not flagged
     reconciliation.write({
         'method': ('three_way' if 'three_way' in methods else 'two_way') if methods else False,
         'duplicate_move_ids': [(6, 0, flagged.ids)],
+        'duplicate_cleared': cleared,
         'refreshed_date': fields.Datetime.now(),
     })
     wanted = _exception_values(env, reconciliation, flagged)
     env['procurement.reconciliation.exception']._spm_sync(reconciliation, wanted)
-    reconciliation.state = 'review' if reconciliation.exception_ids.filtered(
-        lambda exc: exc.state in ('open', 'in_review')) else 'matched'
+    reconciliation.state = 'review' if reconciliation._spm_undecided_exceptions() else 'matched'
 
 
 def find_duplicates(bill):
@@ -209,10 +210,11 @@ def _exception_values(env, reconciliation, duplicates) -> dict:
     Requirements: FR-SPM-0073, FR-SPM-0074, FR-SPM-0075, FR-SPM-0076
     """
     wanted = {}
+    currency = reconciliation.move_id.currency_id
     for line in reconciliation.line_ids:
         bill_line, purchase_line = line.move_line_id, line.purchase_line_id
         base = {
-            'recon_line_id': line.id, 'purchase_line_id': purchase_line.id, 'order': purchase_line.order_id,
+            'recon_line_id': line.id, 'move_line_id': bill_line.id, 'purchase_line_id': purchase_line.id, 'order': purchase_line.order_id,
             'stock_move_ids': [(6, 0, purchase_line.move_ids.ids)],
         }
         found = {}
@@ -231,13 +233,14 @@ def _exception_values(env, reconciliation, duplicates) -> dict:
         if not _same_unit(line):
             found['unit'] = (line.ordered_uom_id.name, line.billed_uom_id.name, bill_line.price_subtotal)
         for kind, (expected, seen, amount) in found.items():
-            wanted[(kind, line.id)] = dict(
-                base, expected_value=expected, found_value=seen, amount_at_stake=amount)
+            wanted[(kind, bill_line.id)] = dict(
+                base, expected_value=expected, found_value=seen,
+                amount_at_stake=currency.round(amount))
     if duplicates:
         wanted[('duplicate', 0)] = {
             'expected_value': env._("No other bill with the same reference or amount"),
             'found_value': ', '.join(_move_label(move) for move in duplicates),
-            'amount_at_stake': reconciliation.move_id.amount_total,
+            'amount_at_stake': currency.round(reconciliation.move_id.amount_total),
         }
     return wanted
 

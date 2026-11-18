@@ -46,7 +46,7 @@
                             invisible="state not in ('open', 'in_review')"
                             groups="group_spm_finance,group_spm_manager"/>
                     <button name="action_spm_resolve" type="object" string="Resolve"
-                            invisible="state not in ('open', 'in_review')"
+                            invisible="state not in ('open', 'in_review', 'rejected')"
                             groups="group_spm_finance,group_spm_manager"/>
                     <field name="state" widget="statusbar" statusbar_visible="open,in_review,accepted"/>
                 </header>
@@ -85,7 +85,7 @@
         <field name="name">Matching exceptions</field>
         <field name="res_model">procurement.reconciliation.exception</field>
         <field name="view_mode">list,form</field>
-        <field name="help">Bills that differ from their order or receipt appear here.</field>
+        <field name="help">Run matching on a draft vendor bill to see its exceptions.</field>
     </record>
     <menuitem id="menu_spm_exceptions" name="Exceptions" parent="menu_spm_reconciliation" sequence="30"
               action="procurement_reconciliation_exception_action"/>
@@ -98,7 +98,7 @@
             <xpath expr="//button[@name='action_spm_run_matching']" position="after">
                 <button name="action_spm_open_not_duplicate_wizard" type="object" string="Not a duplicate"
                         invisible="not duplicate_move_ids"
-                        groups="group_spm_finance,group_spm_manager"/>
+                        groups="group_spm_finance"/>
             </xpath>
             <xpath expr="//field[@name='line_ids']" position="before">
                 <group invisible="not duplicate_move_ids and not duplicate_cleared">

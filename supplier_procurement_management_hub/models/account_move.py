@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Domain
 
 from ..services import reconciliation
 from .procurement_exception_route import EXCEPTION_KINDS
@@ -42,8 +43,7 @@ class AccountMove(models.Model):
         for move in self:
             recon = found.get(move.id)
             move.spm_reconciliation_id = recon
-            move.spm_open_exception_count = len(recon.exception_ids.filtered(
-                lambda exc: exc.state in ('open', 'in_review'))) if recon else 0
+            move.spm_open_exception_count = len(recon._spm_undecided_exceptions()) if recon else 0
             move.spm_possible_duplicate_ids = recon.duplicate_move_ids if recon else False
             if recon:
                 move.spm_match_state = recon.state
@@ -59,9 +59,12 @@ class AccountMove(models.Model):
         Only the posting is held; Odoo's own posting then runs unchanged.
         """
         # sudo: the posting user may lack access to the hub's exceptions; only the held bills are read
-        held = self.env['procurement.reconciliation.exception'].sudo().search([
-            ('move_id', 'in', self.ids), ('requires_approval', '=', True),
-            ('state', 'not in', RELEASING_STATES)])
+        # the approval setting is read from the routes now, not from a copy taken at matching time
+        routes = self.env['procurement.exception.route'].sudo().search([('requires_approval', '=', True)])
+        approval_scopes = Domain.OR([[('company_id', '=', route.company_id.id), ('kind', '=', route.kind)]
+                                     for route in routes]) if routes else Domain.FALSE
+        held = self.env['procurement.reconciliation.exception'].sudo().search(
+            Domain([('move_id', 'in', self.ids), ('state', 'not in', RELEASING_STATES)]) & approval_scopes)
         if held:
             lines = [self.env._("%(kind)s (%(state)s) on %(bill)s", kind=dict(EXCEPTION_KINDS)[exc.kind],
                                 state=dict(EXCEPTION_STATES)[exc.state], bill=exc.move_id.display_name)
