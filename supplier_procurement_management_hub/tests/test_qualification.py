@@ -2,7 +2,7 @@
 
 Requirements: FR-SPM-0009, FR-SPM-0010
 """
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 from .test_qualification_acceptance import QualificationCase
 
@@ -37,3 +37,24 @@ class TestQualificationRules(QualificationCase):
         with self.assertRaises(UserError):
             assessment.with_user(self.manager).action_spm_approve()
         self.assertEqual(assessment.state, 'submitted')
+
+    def test_an_empty_optional_answer_does_not_lower_the_score(self):
+        """FR-SPM-0009: a blank answer row of an optional question is not counted."""
+        optional = self.env['procurement.questionnaire.question'].create({
+            'questionnaire_id': self.questionnaire.id, 'sequence': 9, 'name': 'Optional',
+            'kind': 'choice', 'required': False})
+        self.env['procurement.questionnaire.option'].create(
+            {'question_id': optional.id, 'name': 'Top', 'points': 10})
+        assessment = self._assessment([10, 10, 10, 0])
+        self.env['procurement.assessment.answer'].create(
+            {'assessment_id': assessment.id, 'question_id': optional.id})
+        assessment.action_spm_submit()
+        self.assertAlmostEqual(assessment.score, 80.0)
+
+    def test_the_questionnaire_cannot_change_under_existing_answers(self):
+        """FR-SPM-0009: old answers must not inflate the score of another questionnaire."""
+        assessment = self._assessment([10, 10, 10, 10])
+        other = self.env['procurement.questionnaire'].create({
+            'name': 'Other', 'purpose': 'qualification', 'pass_score': 10})
+        with self.assertRaises(ValidationError):
+            assessment.write({'questionnaire_id': other.id})

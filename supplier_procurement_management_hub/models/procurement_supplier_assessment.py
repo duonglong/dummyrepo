@@ -78,6 +78,15 @@ class ProcurementSupplierAssessment(models.Model):
 
     # --- scoring --------------------------------------------------------
 
+    def _spm_given_answers(self):
+        """Return the answers that count: to a question of the questionnaire, with an option or a text."""
+        self.ensure_one()
+        questions = self.questionnaire_id.question_ids
+        return self.answer_ids.filtered(
+            lambda answer: answer.question_id in questions
+            and (answer.option_id if answer.question_id.kind == 'choice'
+                 else (answer.text_answer or '').strip()))
+
     def _spm_scoring(self):
         """Return ``(score, failed knock-out questions)`` of the answers given.
 
@@ -86,23 +95,30 @@ class ProcurementSupplierAssessment(models.Model):
         knock-out question without an accepted answer fails.
         """
         self.ensure_one()
-        answers = {answer.question_id: answer for answer in self.answer_ids}
+        given_answers = self._spm_given_answers()
+        answers = {answer.question_id: answer for answer in given_answers}
         questions = self.questionnaire_id.question_ids
         counted = questions.filtered(lambda question: question.required or question in answers)
         maximum = sum(counted.mapped('max_points'))
-        given = sum(answer.points for answer in self.answer_ids)
+        given = sum(given_answers.mapped('points'))
         score = given / maximum * 100 if maximum else 0.0
         failed = questions.filtered(
             lambda question: question.knockout
             and not (question in answers and answers[question].option_id.accepted))
         return score, failed
 
+    @api.constrains('questionnaire_id', 'answer_ids')
+    def _check_answers_match_questionnaire(self):
+        """Requirements: FR-SPM-0009"""
+        for assessment in self:
+            if assessment.answer_ids.question_id - assessment.questionnaire_id.question_ids:
+                raise ValidationError(self.env._(
+                    "The answers belong to another questionnaire: remove them before changing it."))
+
     def _spm_missing_answers(self):
         """Return the required questions without an answer."""
         self.ensure_one()
-        answered = self.answer_ids.filtered(
-            lambda answer: answer.option_id if answer.question_id.kind == 'choice'
-            else (answer.text_answer or '').strip()).question_id
+        answered = self._spm_given_answers().question_id
         return self.questionnaire_id.question_ids.filtered(
             lambda question: question.required and question not in answered)
 
