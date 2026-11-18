@@ -2,7 +2,14 @@
     'name': 'Supplier & Procurement Management Hub',
     'version': '20.0.1.0.0',
     'category': 'Inventory/Purchase',
+    'summary': 'Supplier onboarding, sourcing, approvals and control on top of Purchase',
     'depends': ['purchase_stock', 'portal', 'hr'],
+    'data': [
+        'security/procurement_security.xml',
+        'security/ir.access.csv',
+        'data/procurement_supplier_status_data.xml',
+    ],
     'license': 'LGPL-3',
     'installable': True,
+    'application': True,
 }

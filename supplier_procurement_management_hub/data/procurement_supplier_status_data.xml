@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="supplier_status_prospect" model="procurement.supplier.status">
+        <field name="name">Prospect</field>
+        <field name="kind">prospect</field>
+        <field name="sequence">10</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_in_review" model="procurement.supplier.status">
+        <field name="name">In review</field>
+        <field name="kind">in_review</field>
+        <field name="sequence">20</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_approved" model="procurement.supplier.status">
+        <field name="name">Approved</field>
+        <field name="kind">approved</field>
+        <field name="sequence">30</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_conditional" model="procurement.supplier.status">
+        <field name="name">Conditional</field>
+        <field name="kind">conditional</field>
+        <field name="sequence">40</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_requalification_due" model="procurement.supplier.status">
+        <field name="name">Re-qualification due</field>
+        <field name="kind">requalification_due</field>
+        <field name="sequence">50</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_suspended" model="procurement.supplier.status">
+        <field name="name">Suspended</field>
+        <field name="kind">suspended</field>
+        <field name="sequence">60</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+    <record id="supplier_status_blocked" model="procurement.supplier.status">
+        <field name="name">Blocked</field>
+        <field name="kind">blocked</field>
+        <field name="sequence">70</field>
+        <field name="default_for_kind" eval="True"/>
+    </record>
+</odoo>
