@@ -31,9 +31,12 @@ class ResPartner(models.Model):
         related='spm_status_id.kind', string="Status kind", store=True, index=True)
     spm_supplier_type_id = fields.Many2one(
         'procurement.supplier.type', string="Supplier type", ondelete='restrict')
+    spm_is_supplier = fields.Boolean(
+        string="Is a supplier", compute='_compute_spm_is_supplier', store=True, index=True)
     spm_product_category_ids = fields.Many2many(
         'product.category', 'spm_partner_product_category_rel', 'partner_id', 'category_id',
         string="Supplied categories")
+    spm_operating_locations = fields.Text(string="Operating locations")
     spm_requalification_date = fields.Date(
         string="Re-qualification date", index=True, copy=False)
     spm_risk_level = fields.Selection([
@@ -53,6 +56,16 @@ class ResPartner(models.Model):
         search='_search_spm_compliance_state')
     spm_compliance_summary = fields.Text(
         string="Required documents", compute='_compute_spm_compliance')
+
+    @api.depends('spm_status_id', 'spm_supplier_type_id', 'supplier_rank')
+    def _compute_spm_is_supplier(self):
+        """Requirements: FR-SPM-0005
+
+        A contact is a supplier once it has a hub status or type, or Odoo ranks it as a vendor.
+        """
+        for partner in self:
+            partner.spm_is_supplier = bool(
+                partner.spm_status_id or partner.spm_supplier_type_id or partner.supplier_rank > 0)
 
     # --- document compliance --------------------------------------------
 

@@ -21,7 +21,8 @@ ALWAYS_REQUIRED_KEYS = ('legal_name', 'email')
 PORTAL_READONLY_FIELDS = ('contact_ids', 'email')
 # Fields only the module's own actions write (all run with elevated rights after the access check).
 WORKFLOW_FIELDS = (
-    'state', 'submitted_date', 'invitation_token_hash', 'invitation_expiry', 'invitation_used_date', 'partner_id')
+    'state', 'submitted_date', 'invitation_token_hash', 'invitation_expiry', 'invitation_used_date', 'partner_id',
+    'change_request_comment', 'rejection_reason')
 # States after which an application is read-only.
 CLOSED_STATES = ('approved', 'rejected')
 
@@ -82,3 +83,72 @@ def link_state(application, now=None):
 UPLOAD_MAX_MB = 20
 UPLOAD_MAX_BYTES = UPLOAD_MAX_MB * 1024 * 1024
 UPLOAD_MIMETYPES = ('application/pdf', 'image/png', 'image/jpeg')
+
+
+# --- review: approval into one supplier contact (FR-SPM-0005) -----------------------------
+
+def normalized_tax_id(vat):
+    """Return the tax identifier as compared for matching: stripped and lower-cased.
+
+    Requirements: FR-SPM-0005
+    """
+    return (vat or '').strip().lower()
+
+
+def lock_tax_id(env, vat):
+    """Serialise the approvals of one tax identifier until the end of the transaction.
+
+    Requirements: FR-SPM-0005
+    """
+    env.cr.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ['spm_tax_id:' + normalized_tax_id(vat)])
+
+
+def find_company_contact(env, vat):
+    """Return the oldest active company contact of any company whose tax identifier matches ``vat``.
+
+    Requirements: FR-SPM-0005
+
+    Elevated read: a contact of another company is looked up by its tax identifier only, to
+    link it instead of creating a second one; the caller has passed the role check.
+    """
+    tax_id = normalized_tax_id(vat)
+    if not tax_id:
+        return env['res.partner']
+    env.cr.execute(
+        "SELECT id FROM res_partner WHERE is_company AND active AND lower(btrim(vat)) = %s ORDER BY id LIMIT 1",
+        [tax_id])
+    return env['res.partner'].sudo().browse(  # elevated: see above
+        [row[0] for row in env.cr.fetchall()])
+
+
+def contact_values(application):
+    """Return the contact fields copied from an application (read elevated: restricted fields).
+
+    Requirements: FR-SPM-0005
+    """
+    application = application.sudo()  # elevated: restricted tax and bank fields, role checked by the caller
+    return {
+        'name': application.legal_name or application.email,
+        'is_company': True,
+        'company_id': False,
+        'email': application.email,
+        'vat': application.vat or False,
+        'phone': application.phone,
+        'website': application.website,
+        'spm_operating_locations': application.operating_locations,
+        'street': application.street,
+        'zip': application.zip,
+        'city': application.city,
+        'country_id': application.country_id.id,
+        'spm_supplier_type_id': application.supplier_type_id.id,
+        'spm_product_category_ids': [(6, 0, application.product_category_ids.ids)],
+    }
+
+
+def approved_status(env):
+    """Return the status configured for approved applications: the default of the Approved kind.
+
+    Requirements: FR-SPM-0005
+    """
+    return env['procurement.supplier.status'].sudo().search(  # elevated: configuration read, role checked by the caller
+        [('kind', '=', 'approved'), ('default_for_kind', '=', True)], limit=1)
