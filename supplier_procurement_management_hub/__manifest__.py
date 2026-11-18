@@ -8,6 +8,8 @@
         'security/procurement_security.xml',
         'security/ir.access.csv',
         'data/procurement_supplier_status_data.xml',
+        'views/procurement_audit_views.xml',
+        'views/res_config_settings_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

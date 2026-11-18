@@ -16,3 +16,7 @@ access_spm_application_manager,Supplier application manager,procurement.supplier
 access_spm_application_finance,Supplier application finance,procurement.supplier.application,group_spm_finance,r,
 access_spm_application_auditor,Supplier application auditor,procurement.supplier.application,group_spm_auditor,r,
 access_spm_application_admin,Supplier application admin,procurement.supplier.application,group_spm_admin,crud,
+access_spm_audit_log_manager,Audit log manager,procurement.audit.log,group_spm_manager,r,
+access_spm_audit_log_auditor,Audit log auditor,procurement.audit.log,group_spm_auditor,r,
+access_spm_audit_log_admin,Audit log admin,procurement.audit.log,group_spm_admin,r,
+spm_audit_log_comp_rule,Procurement audit entry: allowed companies and shared records,procurement.audit.log,,crud,"[('company_id', 'in', company_ids + [False])]"
