@@ -107,6 +107,29 @@ class TestOnboardingApplication(TransactionCase):
         with self.assertRaises(UserError):
             application.with_user(self.buyer).write({'legal_name': 'Changed'})
 
+    def test_closed_application_contacts_are_read_only(self):
+        """FR-SPM-0003: create, write and unlink of a contact of a closed application are refused to a user."""
+        Contact = self.env['procurement.supplier.application.contact']
+        application = self.Application.create({
+            'email': 'a@example.com', 'supplier_type_id': self.goods.id, 'state': 'approved'})
+        contact = Contact.create({'application_id': application.id, 'name': 'Kept'})
+        buyer_contact = contact.with_user(self.buyer)
+        with self.assertRaises(UserError):
+            Contact.with_user(self.buyer).create({'application_id': application.id, 'name': 'New'})
+        with self.assertRaises(UserError):
+            buyer_contact.write({'name': 'Changed'})
+        with self.assertRaises(UserError):
+            buyer_contact.unlink()
+        self.assertEqual(contact.name, 'Kept')
+
+    def test_open_application_contacts_stay_editable(self):
+        """FR-SPM-0002: a buyer edits the contacts of an open application."""
+        application = self.Application.create({'email': 'a@example.com', 'supplier_type_id': self.goods.id})
+        contact = self.env['procurement.supplier.application.contact'].with_user(self.buyer).create({
+            'application_id': application.id, 'name': 'Open'})
+        contact.write({'name': 'Edited'})
+        self.assertEqual(contact.name, 'Edited')
+
     def test_submit_by_the_action_still_works_for_a_buyer(self):
         """FR-SPM-0003: the action writes the state with its own rights."""
         application = self.Application.with_user(self.buyer).create({
