@@ -15,3 +15,9 @@ from . import res_config_settings
 from . import res_partner
 from . import procurement_override
 from . import purchase_order
+from . import procurement_matching_policy
+from . import procurement_matching_tolerance
+from . import procurement_exception_route
+from . import procurement_reconciliation
+from . import procurement_reconciliation_line
+from . import account_move

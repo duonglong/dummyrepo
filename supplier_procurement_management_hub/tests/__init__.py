@@ -19,3 +19,4 @@ from . import test_supplier_control
 from . import test_matching_acceptance
 from . import test_exceptions_posting_acceptance
 from . import test_onboarding_application
+from . import test_matching
