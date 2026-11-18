@@ -75,8 +75,13 @@ class SupplierPortal(CustomerPortal):
         checked = getattr(request, 'spm_checked_document', None)
         if checked is not None and checked._name == model_name and checked.id == document_id:
             return checked  # the route of this request has checked and logged it already
-        action = 'download' if request.params.get('report_type') in ('pdf', 'text') else 'view'
+        action = self._access_action(request.params)
         return self._supplier_document(model_name, document_id, action)
+
+    @staticmethod
+    def _access_action(params):
+        """The log action of a document request: a pdf or text report is a download, the rest a view."""
+        return 'download' if params.get('report_type') in ('pdf', 'text') else 'view'
 
     def _supplier_route_refusal(self, model_name, document_id, action):
         """For a native document route: the refusal page, or None once the document is checked and logged.
@@ -139,7 +144,7 @@ class SupplierPortal(CustomerPortal):
         Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
         """
         if portal_access.is_supplier_user(request.env.user):
-            action = 'download' if kw.get('report_type') in ('pdf', 'text') else 'view'
+            action = self._access_action(kw)
             if refusal_page := self._supplier_route_refusal('purchase.order', order_id, action):
                 return refusal_page
             access_token = None  # ownership alone decides for a supplier user

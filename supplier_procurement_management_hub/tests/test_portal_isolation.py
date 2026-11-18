@@ -261,6 +261,13 @@ class TestPortalNativeDocumentPaths(SpmPortalCase):
                 'post_data': {'body': 'hello', 'message_type': 'comment'}})
         self.assertFalse(order.message_ids.filtered(lambda m: 'hello' in (m.body or '')))
 
+    def test_post_on_own_order_writes_no_denial(self):
+        """FR-SPM-0027: a write probe on a thread the user can read (the post route) logs no denial."""
+        order = self._order(self.acme)
+        orders = self.env['purchase.order'].with_user(self.acme_user)
+        orders._get_thread_with_access(order.id, mode='write')
+        self.assertFalse(self._denied('purchase.order', order.id))
+
     def test_date_update_post_of_a_foreign_order_changes_nothing(self):
         """BR-SPM-0002, FR-SPM-0017, NFR-SPM-0001: the update form post with another supplier's token
         leaves its planned dates unchanged and is logged."""

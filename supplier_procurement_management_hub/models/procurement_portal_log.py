@@ -72,7 +72,8 @@ class MailThread(models.AbstractModel):
                               res_id=thread_id, detail=refused.reason)
             return self.browse()
         thread = super()._get_thread_with_access(thread_id, **kwargs)
-        if not thread:
+        if not thread and not self.browse(thread_id).has_access('read'):
+            # a refusal only when the user cannot read the thread; a write probe on a readable one is no denial
             portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
                               res_id=thread_id, detail='not found')
         return thread
