@@ -23,9 +23,10 @@ from . import test_matching
 from . import test_application_review
 from . import test_portal_isolation_acceptance
 from . import test_portal_profile_acceptance
-from . import test_purchase_request
 from . import test_purchase_request_acceptance
 from . import test_sourcing_event_acceptance
 from . import test_quotation_versions_acceptance
 from . import test_portal_messages_acceptance
+from . import test_purchase_request
 from . import test_qualification
+from . import test_portal_isolation

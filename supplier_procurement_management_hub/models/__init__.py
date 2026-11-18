@@ -28,3 +28,4 @@ from . import procurement_supplier_assessment
 from . import procurement_assessment_answer
 from . import procurement_request
 from . import procurement_request_line
+from . import portal_wizard

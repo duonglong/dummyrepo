@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: BR-SPM-0002, FR-SPM-0016 (a supplier portal user reads only the documents of its company contact) -->
+    <record id="access_spm_document_portal" model="ir.access">
+        <field name="name">Supplier document portal: own company</field>
+        <field name="model_id" ref="model_procurement_supplier_document"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('partner_id', '=', user.commercial_partner_id.id)]</field>
+    </record>
+    <record id="access_spm_document_type_portal" model="ir.access">
+        <field name="name">Document type portal</field>
+        <field name="model_id" ref="model_procurement_document_type"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+    </record>
+</odoo>
