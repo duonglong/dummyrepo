@@ -219,7 +219,9 @@ class TestMatching(SpmMatchingCommon):
         """Requirements: FR-SPM-0073"""
         order = self._order(qty=120, price=11.5, receive=120)
         bill = self._bill(order, 10, 138.0)
-        bill.invoice_line_ids.write({'product_uom_id': self.env.ref('uom.product_uom_dozen').id, 'price_unit': 138.0})
+        bill.invoice_line_ids.write({
+            'product_uom_id': self.env.ref('uom.product_uom_dozen').id,
+            'price_unit': 138.0, 'tax_ids': [(6, 0, [])]})
         line = self._recon(bill).line_ids
         self.assertEqual(line.billed_qty, 10)
         self.assertEqual(line.price_difference, 0.0)
