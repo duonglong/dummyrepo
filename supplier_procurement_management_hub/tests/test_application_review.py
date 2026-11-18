@@ -60,3 +60,30 @@ class TestApplicationReview(TransactionCase):
         form.save().action_confirm()
         self.assertEqual(self.application.state, 'rejected')
         self.assertEqual(self.application.rejection_reason, 'No ISO certificate')
+
+    def test_approval_copies_operating_locations(self):
+        """FR-SPM-0005: the operating locations of the application go to the contact."""
+        self.application.sudo().write({'operating_locations': 'Ghent, Antwerp'})
+        self.application.with_user(self.manager).action_spm_approve()
+        self.assertEqual(self.application.partner_id.spm_operating_locations, 'Ghent, Antwerp')
+
+    def test_approval_without_a_default_approved_status_is_refused(self):
+        """FR-SPM-0005: no approved status configured leaves the application submitted."""
+        self.env['procurement.supplier.status'].sudo().search(
+            [('kind', '=', 'approved')]).write({'default_for_kind': False})
+        with self.assertRaises(UserError):
+            self.application.with_user(self.manager).action_spm_approve()
+        self.assertEqual(self.application.state, 'submitted')
+
+    def test_approval_changes_carry_the_approval_origin(self):
+        """FR-SPM-0005: the history rows of an existing contact say approval, not back office."""
+        partner = self.env['res.partner'].create({
+            'name': 'Acme Old', 'is_company': True, 'vat': ' be0123456789 '})
+        self.application.with_user(self.manager).action_spm_approve()
+        self.assertEqual(self.application.partner_id, partner)
+        changes = self.env['procurement.supplier.change'].sudo().search([('partner_id', '=', partner.id)])
+        self.assertTrue(changes)
+        self.assertEqual(set(changes.mapped('origin')), {'approval'})
+        self.assertTrue(partner.spm_status_id)
+        self.assertEqual(partner.name, 'Acme Old')
+        self.assertEqual(partner.city, 'Ghent')

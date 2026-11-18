@@ -302,18 +302,24 @@ class ProcurementSupplierApplication(models.Model):
         """
         self.ensure_one()
         data = onboarding.contact_values(self)
+        status = onboarding.approved_status(self.env)
+        if not status:
+            raise UserError(self.env._(
+                "No default status of the Approved kind is configured: set one in the supplier statuses before approving."))
         onboarding.lock_tax_id(self.env, data['vat'])
         partner = onboarding.find_company_contact(self.env, data['vat'])
-        status = onboarding.approved_status(self.env)
+        partner_model = self.env['res.partner'].sudo().with_context(  # elevated: see above
+            spm_change_origin='approval')
         if partner:
             # An existing contact keeps its own values: only what it lacks is filled in.
             data = {name: value for name, value in data.items()
                     if name not in ('name', 'is_company', 'company_id') and not partner[name]}
             data.pop('spm_product_category_ids', None)
+            partner = partner.with_context(spm_change_origin='approval')
             partner.write(dict(data, spm_status_id=status.id,
                                spm_product_category_ids=[(4, category.id) for category in self.product_category_ids]))
         else:
-            partner = self.env['res.partner'].sudo().create(  # elevated: shared contact and status, see above
+            partner = partner_model.create(  # shared contact and status, see above
                 dict(data, spm_status_id=status.id))
         self._spm_copy_children(partner)
         return partner
@@ -323,7 +329,7 @@ class ProcurementSupplierApplication(models.Model):
         application = self.sudo()  # elevated: restricted bank fields; the manager role was checked
         account = application.bank_account_number
         if account and sanitize_account_number(account) not in partner.bank_ids.mapped('sanitized_account_number'):
-            self.env['res.partner.bank'].sudo().create({  # elevated: bank accounts of a supplier, role checked
+            self.env['res.partner.bank'].sudo().with_context(spm_change_origin='approval').create({  # elevated: bank accounts of a supplier, role checked
                 'partner_id': partner.id, 'account_number': account, 'bank_name': application.bank_name,
                 'bank_bic': application.bank_bic, 'holder_name': application.bank_holder or partner.name})
         known = set(partner.child_ids.mapped('name'))

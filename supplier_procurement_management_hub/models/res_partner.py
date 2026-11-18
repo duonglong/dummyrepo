@@ -36,6 +36,7 @@ class ResPartner(models.Model):
     spm_product_category_ids = fields.Many2many(
         'product.category', 'spm_partner_product_category_rel', 'partner_id', 'category_id',
         string="Supplied categories")
+    spm_operating_locations = fields.Text(string="Operating locations")
     spm_requalification_date = fields.Date(
         string="Re-qualification date", index=True, copy=False)
     spm_risk_level = fields.Selection([

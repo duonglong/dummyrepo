@@ -135,6 +135,7 @@ def contact_values(application):
         'vat': application.vat or False,
         'phone': application.phone,
         'website': application.website,
+        'spm_operating_locations': application.operating_locations,
         'street': application.street,
         'zip': application.zip,
         'city': application.city,
