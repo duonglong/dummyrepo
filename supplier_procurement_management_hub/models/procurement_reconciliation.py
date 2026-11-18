@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..services import audit
 from .procurement_matching_policy import MATCHING_METHODS
 from .procurement_reconciliation_exception import RELEASING_STATES
 
@@ -102,11 +103,15 @@ class ProcurementReconciliation(models.Model):
             raise UserError(self.env._("A comment is required to mark a bill as not a duplicate."))
         # sudo: users hold no write access on matching records; the caller was checked above
         recon = self.sudo()
+        previous = {'duplicate_cleared': recon.duplicate_cleared, 'duplicate_comment': recon.duplicate_comment}
         recon.write({
             'duplicate_cleared': True, 'duplicate_cleared_by_id': user.id, 'duplicate_comment': comment,
             'duplicate_reviewed_move_ids': [(4, move.id) for move in recon.duplicate_move_ids],
             'duplicate_move_ids': [(5, 0, 0)],
         })
+        # the clearing is audited on the matching itself, whatever state its duplicate exception is in
+        audit.log(self.env, 'exception', recon, old_values=previous,
+                  new_values={'duplicate_cleared': True, 'duplicate_comment': comment}, comment=comment)
         duplicate_exceptions = recon._spm_holding_exceptions().filtered(lambda exc: exc.kind == 'duplicate')
         duplicate_exceptions._spm_take_ownership()
         duplicate_exceptions._spm_write_decision({

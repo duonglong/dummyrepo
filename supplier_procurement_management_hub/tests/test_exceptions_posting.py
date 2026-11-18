@@ -72,6 +72,17 @@ class TestExceptionLifecycle(SpmMatchingCommon):
         dup.write({'ref': 'INV-Z'})
         self.assertFalse(dup.spm_possible_duplicate_ids)
 
+    def test_clearing_a_duplicate_is_audited_even_when_its_exception_was_accepted(self):
+        """Requirements: FR-SPM-0075, BR-SPM-0018. Finding Q20: the clearing is on the matching's own trail."""
+        self._plain_bill(self.acme, 1160.0, ref='INV-Y').action_post()
+        dup = self._plain_bill(self.acme, 1160.0, ref='INV-Y')
+        recon = self._recon(dup)
+        recon.exception_ids.with_user(self.user_fin).action_spm_accept('Known')
+        recon.with_user(self.user_fin).action_spm_mark_not_duplicate('Other order')
+        entries = self._audit_entries(recon)
+        self.assertEqual(entries.comment, 'Other order')
+        self.assertEqual(entries.user_id, self.user_fin)
+
     def test_the_comment_dialog_accepts_an_exception(self):
         """Requirements: FR-SPM-0077. The dialog is filled and saved as a person does;
         its Confirm button stays for the screen review."""
