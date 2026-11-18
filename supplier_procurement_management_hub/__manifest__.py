@@ -25,6 +25,7 @@
         'views/onboarding_templates.xml',
         'views/procurement_override_views.xml',
         'views/procurement_reconciliation_views.xml',
+        'views/procurement_exception_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

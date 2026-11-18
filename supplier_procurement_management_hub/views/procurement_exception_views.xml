@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0075, FR-SPM-0076, FR-SPM-0077 -->
+    <record id="procurement_reason_wizard_view_form_matching" model="ir.ui.view">
+        <field name="name">procurement.reason.wizard.form.matching</field>
+        <field name="model">procurement.reason.wizard</field>
+        <field name="inherit_id" ref="procurement_reason_wizard_view_form_review"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='reason']" position="attributes">
+                <attribute name="required">action in ('override', 'request_changes', 'reject', 'accept_exception', 'reject_exception', 'not_duplicate') or status_kind in ('suspended', 'blocked')</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="procurement_reconciliation_exception_view_list" model="ir.ui.view">
+        <field name="name">procurement.reconciliation.exception.list</field>
+        <field name="model">procurement.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-danger="state == 'open'" decoration-warning="state == 'in_review'"
+                  decoration-success="state in ('accepted', 'resolved')" decoration-muted="state == 'rejected'">
+                <field name="move_id"/>
+                <field name="kind"/>
+                <field name="expected_value"/>
+                <field name="found_value"/>
+                <field name="amount_at_stake"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="owner_id"/>
+                <field name="requires_approval" optional="hide"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_reconciliation_exception_view_form" model="ir.ui.view">
+        <field name="name">procurement.reconciliation.exception.form</field>
+        <field name="model">procurement.reconciliation.exception</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <header>
+                    <button name="action_spm_review" type="object" string="Start review"
+                            invisible="state != 'open'"
+                            groups="group_spm_finance,group_spm_manager"/>
+                    <button name="action_spm_open_accept_wizard" type="object" string="Accept" class="btn-primary"
+                            invisible="state not in ('open', 'in_review')"
+                            groups="group_spm_finance,group_spm_manager"/>
+                    <button name="action_spm_open_reject_wizard" type="object" string="Reject"
+                            invisible="state not in ('open', 'in_review')"
+                            groups="group_spm_finance,group_spm_manager"/>
+                    <button name="action_spm_resolve" type="object" string="Resolve"
+                            invisible="state not in ('open', 'in_review')"
+                            groups="group_spm_finance,group_spm_manager"/>
+                    <field name="state" widget="statusbar" statusbar_visible="open,in_review,accepted"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="kind"/>
+                            <field name="move_id"/>
+                            <field name="purchase_line_id"/>
+                            <field name="owner_id"/>
+                            <field name="requires_approval"/>
+                        </group>
+                        <group>
+                            <field name="expected_value"/>
+                            <field name="found_value"/>
+                            <field name="amount_at_stake"/>
+                            <field name="currency_id" invisible="True"/>
+                            <field name="decided_by_id" invisible="not decided_by_id"/>
+                            <field name="decision_comment" invisible="not decision_comment"/>
+                        </group>
+                    </group>
+                    <field name="stock_move_ids">
+                        <list>
+                            <field name="picking_id"/>
+                            <field name="product_id"/>
+                            <field name="quantity"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_reconciliation_exception_action" model="ir.actions.act_window">
+        <field name="name">Matching exceptions</field>
+        <field name="res_model">procurement.reconciliation.exception</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Bills that differ from their order or receipt appear here.</field>
+    </record>
+    <menuitem id="menu_spm_exceptions" name="Exceptions" parent="menu_spm_reconciliation" sequence="30"
+              action="procurement_reconciliation_exception_action"/>
+
+    <record id="procurement_reconciliation_view_form_exceptions" model="ir.ui.view">
+        <field name="name">procurement.reconciliation.form.exceptions</field>
+        <field name="model">procurement.reconciliation</field>
+        <field name="inherit_id" ref="procurement_reconciliation_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_spm_run_matching']" position="after">
+                <button name="action_spm_open_not_duplicate_wizard" type="object" string="Not a duplicate"
+                        invisible="not duplicate_move_ids"
+                        groups="group_spm_finance,group_spm_manager"/>
+            </xpath>
+            <xpath expr="//field[@name='line_ids']" position="before">
+                <group invisible="not duplicate_move_ids and not duplicate_cleared">
+                    <field name="duplicate_move_ids" widget="many2many_tags"/>
+                    <field name="duplicate_cleared"/>
+                    <field name="duplicate_cleared_by_id" invisible="not duplicate_cleared"/>
+                    <field name="duplicate_comment" invisible="not duplicate_cleared"/>
+                </group>
+            </xpath>
+            <xpath expr="//field[@name='line_ids']" position="after">
+                <field name="exception_ids">
+                    <list>
+                        <field name="kind"/>
+                        <field name="expected_value"/>
+                        <field name="found_value"/>
+                        <field name="owner_id"/>
+                        <field name="state"/>
+                    </list>
+                </field>
+            </xpath>
+        </field>
+    </record>
+</odoo>

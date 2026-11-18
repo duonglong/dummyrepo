@@ -1,12 +1,17 @@
 from odoo import fields, models
+from odoo.exceptions import AccessError, UserError
 
 from .procurement_matching_policy import MATCHING_METHODS
+
+PROTECTED_FIELDS = {
+    'state', 'method', 'duplicate_move_ids', 'duplicate_cleared', 'duplicate_cleared_by_id', 'duplicate_comment',
+}
 
 
 class ProcurementReconciliation(models.Model):
     """The matching of one vendor bill with its order and receipts.
 
-    Requirements: FR-SPM-0071, FR-SPM-0072
+    Requirements: FR-SPM-0071, FR-SPM-0072, FR-SPM-0075
     Results live here, never on the bill (ADR-SPM-006).
     """
     _name = 'procurement.reconciliation'
@@ -21,9 +26,26 @@ class ProcurementReconciliation(models.Model):
         ('matched', 'Matched'), ('review', 'To review'), ('error', 'Error'),
     ], required=True, default='matched', readonly=True)
     line_ids = fields.One2many('procurement.reconciliation.line', 'reconciliation_id', string="Lines")
+    exception_ids = fields.One2many('procurement.reconciliation.exception', 'reconciliation_id', string="Exceptions")
+    duplicate_move_ids = fields.Many2many(
+        'account.move', 'spm_recon_duplicate_rel', 'reconciliation_id', 'move_id', string="Possible duplicates",
+        readonly=True)
+    duplicate_cleared = fields.Boolean(string="Not a duplicate", readonly=True)
+    duplicate_cleared_by_id = fields.Many2one('res.users', string="Cleared by", readonly=True)
+    duplicate_comment = fields.Text(string="Clearing comment", readonly=True)
     refreshed_date = fields.Datetime(readonly=True)
 
     _move_unique = models.Constraint('UNIQUE(move_id)', 'A vendor bill has one reconciliation.')
+
+    def write(self, vals):
+        """Keep the duplicate decision and the match results to the hub's own code.
+
+        Requirements: FR-SPM-0075
+        A user's write of these fields would clear a flag without a comment.
+        """
+        if not self.env.su and PROTECTED_FIELDS & set(vals):
+            raise AccessError(self.env._("The matching result and the duplicate decision cannot be edited."))
+        return super().write(vals)
 
     def action_spm_run_matching(self):
         """Match the bill again.
@@ -31,4 +53,39 @@ class ProcurementReconciliation(models.Model):
         Requirements: FR-SPM-0072
         """
         self.move_id.action_spm_run_matching()
+        return True
+
+    def action_spm_open_not_duplicate_wizard(self):
+        """Open the dialog asking the comment to clear the duplicate flag."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window', 'name': self.env._("Not a duplicate"),
+            'res_model': 'procurement.reason.wizard', 'view_mode': 'form', 'target': 'new',
+            'context': {'default_res_model': self._name, 'default_res_ids': self.ids,
+                        'default_action': 'not_duplicate'},
+        }
+
+    def action_spm_mark_not_duplicate(self, comment):
+        """Clear the possible-duplicate flag, with a mandatory comment.
+
+        Requirements: FR-SPM-0075
+        Only a Finance reviewer may. The duplicate exception is resolved with
+        the same comment; the bill itself is not written.
+        """
+        user = self.env.user
+        if not (user.has_group('supplier_procurement_management_hub.group_spm_finance')
+                or user.has_group('supplier_procurement_management_hub.group_spm_manager')):
+            raise AccessError(self.env._("Only a Finance reviewer may mark a bill as not a duplicate."))
+        comment = (comment or '').strip()
+        if not comment:
+            raise UserError(self.env._("A comment is required to mark a bill as not a duplicate."))
+        # sudo: users hold no write access on matching records; the caller was checked above
+        recon = self.sudo()
+        recon.write({
+            'duplicate_cleared': True, 'duplicate_cleared_by_id': user.id, 'duplicate_comment': comment,
+            'duplicate_move_ids': [(5, 0, 0)],
+        })
+        recon.exception_ids.filtered(
+            lambda exc: exc.kind == 'duplicate' and exc.state in ('open', 'in_review')).write({
+                'state': 'resolved', 'decided_by_id': user.id, 'decision_comment': comment})
         return True

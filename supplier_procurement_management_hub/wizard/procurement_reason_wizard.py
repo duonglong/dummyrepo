@@ -15,6 +15,8 @@ class ProcurementReasonWizard(models.TransientModel):
     action = fields.Selection([
         ('set_status', 'Change supplier status'), ('override', 'Override supplier control'),
         ('request_changes', 'Request changes on an application'), ('reject', 'Reject an application'),
+        ('accept_exception', 'Accept an exception'), ('reject_exception', 'Reject an exception'),
+        ('not_duplicate', 'Mark a bill as not a duplicate'),
     ], required=True)
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
@@ -37,7 +39,29 @@ class ProcurementReasonWizard(models.TransientModel):
             self._spm_record_overrides()
         if self.action in ('request_changes', 'reject'):
             self._spm_review_applications()
+        if self.action in ('accept_exception', 'reject_exception', 'not_duplicate'):
+            self._spm_decide_matching()
         return {'type': 'ir.actions.act_window_close'}
+
+    def _spm_decide_matching(self):
+        """Forward the comment to the decision of the exceptions or reconciliations.
+
+        Requirements: FR-SPM-0075, FR-SPM-0077
+        Rights, state and the required comment are those of the decision methods.
+        """
+        expected = {
+            'accept_exception': 'procurement.reconciliation.exception',
+            'reject_exception': 'procurement.reconciliation.exception',
+            'not_duplicate': 'procurement.reconciliation',
+        }[self.action]
+        if self.res_model != expected:
+            raise UserError(self.env._("This action does not apply to these records."))
+        records = self.env[self.res_model].browse(self.res_ids)
+        method = {
+            'accept_exception': 'action_spm_accept', 'reject_exception': 'action_spm_reject',
+            'not_duplicate': 'action_spm_mark_not_duplicate',
+        }[self.action]
+        getattr(records, method)(self.reason)
 
     def _spm_record_overrides(self):
         """Record a status override for each record, to confirm it with its supplier.

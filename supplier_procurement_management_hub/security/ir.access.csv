@@ -41,6 +41,7 @@ access_spm_portal_field_admin,Portal field admin,procurement.portal.field,group_
 access_spm_reason_wizard_buyer,Reason dialog buyer,procurement.reason.wizard,group_spm_buyer,cru,
 access_spm_reason_wizard_manager,Reason dialog manager,procurement.reason.wizard,group_spm_manager,crud,
 access_spm_reason_wizard_admin,Reason dialog admin,procurement.reason.wizard,group_spm_admin,crud,
+access_spm_reason_wizard_finance,Reason dialog finance,procurement.reason.wizard,group_spm_finance,cru,
 access_spm_override_manager,Override manager,procurement.override,group_spm_manager,cr,
 access_spm_override_auditor,Override auditor,procurement.override,group_spm_auditor,r,
 access_spm_override_admin,Override admin,procurement.override,group_spm_admin,cr,
@@ -81,8 +82,14 @@ access_spm_recon_line_manager,Procurement Reconciliation Line manager,procuremen
 access_spm_recon_line_finance,Procurement Reconciliation Line finance,procurement.reconciliation.line,group_spm_finance,cru,
 access_spm_recon_line_auditor,Procurement Reconciliation Line auditor,procurement.reconciliation.line,group_spm_auditor,r,
 access_spm_recon_line_admin,Procurement Reconciliation Line admin,procurement.reconciliation.line,group_spm_admin,crud,
+access_spm_exception_buyer,Procurement Reconciliation Exception buyer,procurement.reconciliation.exception,group_spm_buyer,r,
+access_spm_exception_manager,Procurement Reconciliation Exception manager,procurement.reconciliation.exception,group_spm_manager,r,
+access_spm_exception_finance,Procurement Reconciliation Exception finance,procurement.reconciliation.exception,group_spm_finance,r,
+access_spm_exception_auditor,Procurement Reconciliation Exception auditor,procurement.reconciliation.exception,group_spm_auditor,r,
+access_spm_exception_admin,Procurement Reconciliation Exception admin,procurement.reconciliation.exception,group_spm_admin,r,
 spm_policy_comp_rule,procurement.matching.policy: allowed companies,procurement.matching.policy,,crud,"[('company_id', 'in', company_ids)]"
 spm_tolerance_comp_rule,procurement.matching.tolerance: allowed companies,procurement.matching.tolerance,,crud,"[('company_id', 'in', company_ids)]"
 spm_route_comp_rule,procurement.exception.route: allowed companies,procurement.exception.route,,crud,"[('company_id', 'in', company_ids)]"
 spm_recon_comp_rule,procurement.reconciliation: allowed companies,procurement.reconciliation,,crud,"[('company_id', 'in', company_ids)]"
 spm_recon_line_comp_rule,procurement.reconciliation.line: allowed companies,procurement.reconciliation.line,,crud,"[('company_id', 'in', company_ids)]"
+spm_exception_comp_rule,procurement.reconciliation.exception: allowed companies,procurement.reconciliation.exception,,crud,"[('company_id', 'in', company_ids)]"
