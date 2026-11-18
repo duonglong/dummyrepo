@@ -3,7 +3,10 @@
 Requirements: FR-SPM-0012, FR-SPM-0096, FR-SPM-0097
 """
 from ast import literal_eval
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import psycopg2
+from dateutil.relativedelta import relativedelta
 
 from odoo import fields, modules, sql_db
 from odoo.exceptions import AccessError, UserError
@@ -140,3 +143,59 @@ class TestJobRunner(TransactionCase):
         self.assertEqual(run.state, 'skipped')
         other.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [job_runner._lock_key(self.job)])
         self.assertEqual(self.env['procurement.job']._spm_run('requalification').state, 'done')
+
+    def _requalification_application(self, partner):
+        self.env['procurement.job']._spm_run('requalification')
+        return self.env['procurement.supplier.application'].search(
+            [('partner_id', '=', partner.id), ('is_requalification', '=', True)])
+
+    def test_approval_moves_the_requalification_date_so_the_next_run_starts_nothing(self):
+        """FR-SPM-0012: approval sets the date to today plus the company's months; a run the same day creates nothing."""
+        acme = self._due_supplier()
+        application = self._requalification_application(acme)
+        application.company_id.spm_requalification_months = 6
+        application._spm_contact_for_approval()
+        application.sudo().write({'state': 'approved'})
+        self.assertEqual(acme.spm_requalification_date, fields.Date.context_today(acme) + relativedelta(months=6))
+        self.env['procurement.job']._spm_run('requalification')
+        self.assertEqual(self.env['procurement.supplier.application'].search_count(
+            [('partner_id', '=', acme.id), ('is_requalification', '=', True)]), 1)
+
+    def test_a_manager_without_contact_rights_approves_a_requalification(self):
+        """NFR-SPM-0002: the contact is written in the elevated place of approval, as a plain manager."""
+        acme = self._due_supplier()
+        application = self._requalification_application(acme)
+        manager = self.env['res.users'].create({
+            'name': 'Max Manager', 'login': 'spm_manager_t008', 'email': 'spm_manager_t008@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_manager').id])]})
+        self.assertFalse(manager.has_group('base.group_partner_manager'))
+        self.assertEqual(application.with_user(manager)._spm_contact_for_approval(), acme)
+
+    def test_archived_records_are_invisible_to_the_job(self):
+        """FR-SPM-0012: an archived supplier is not re-qualified, an archived bank account is not prefilled."""
+        archived = self._due_supplier(name='Old Co')
+        archived.active = False
+        live = self._due_supplier(name='Live Co')
+        old_bank = self.env['res.partner.bank'].create({'partner_id': live.id, 'account_number': 'BE68539007547034'})
+        self.env['res.partner.bank'].create({'partner_id': live.id, 'account_number': 'BE71096123456769'})
+        old_bank.active = False
+        self.env['procurement.job'].with_context(active_test=False)._spm_run('requalification')
+        self.assertFalse(self.env['procurement.supplier.application'].search(
+            [('partner_id', '=', archived.id)]))
+        application = self.env['procurement.supplier.application'].search([('partner_id', '=', live.id)])
+        self.assertEqual(application.bank_account_number.replace(' ', ''), 'BE71096123456769')
+
+    def test_run_now_keeps_its_lock_until_the_transaction_ends(self):
+        """NFR-SPM-0007: a Run now outside the scheduler frees nothing early; a second cursor cannot start."""
+        self.env['procurement.job']._spm_run('requalification', trigger='manual')
+        other = sql_db.db_connect(self.env.cr.dbname).cursor()
+        self.addCleanup(other.close)
+        other.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [job_runner._lock_key(self.job)])
+        self.assertFalse(other.fetchone()[0])
+
+    def test_a_failed_release_does_not_hide_the_real_error(self):
+        """NFR-SPM-0007: releasing the lock in a failed transaction is logged, never raised."""
+        env = MagicMock(context={'ir_cron_progress_id': 1})
+        env.cr.execute.side_effect = psycopg2.errors.InFailedSqlTransaction
+        job_runner._release(env, self.job)
+        env.cr.execute.assert_called_once()

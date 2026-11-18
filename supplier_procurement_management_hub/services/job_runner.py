@@ -4,6 +4,8 @@ Requirements: FR-SPM-0096, FR-SPM-0097, NFR-SPM-0007
 """
 import logging
 
+import psycopg2
+
 from odoo import fields, modules
 
 _logger = logging.getLogger(__name__)
@@ -15,12 +17,16 @@ def _acquire(env, job, trigger):
     """Return a new Running run of ``job``, or a Skipped run when another run is going.
 
     Requirements: FR-SPM-0097
-    The session advisory lock is held until the run ends (see ``_release``), so two starts
-    at the same moment never both go on, whatever their transaction snapshot shows; the
-    Running row covers a run seen as going by its row.
+    In the scheduler's loop (which commits part-way) a session advisory lock is held until the
+    run ends (see ``_release``); elsewhere (Run now, one transaction) a transaction lock is
+    freed by the commit itself. Either way two starts at the same moment never both go on,
+    whatever their transaction snapshot shows; the Running row covers a run seen as going.
     """
     runs = env['procurement.job.run']
-    env.cr.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [_lock_key(job)])
+    if _in_scheduler_loop(env):
+        env.cr.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [_lock_key(job)])
+    else:
+        env.cr.execute("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", [_lock_key(job)])
     locked = env.cr.fetchone()[0]
     now = fields.Datetime.now()
     values = {'job_id': job.id, 'trigger': trigger, 'date_start': now}
@@ -35,9 +41,22 @@ def _lock_key(job):
     return 'spm_job:%s' % job.code
 
 
+def _in_scheduler_loop(env):
+    return bool(env.context.get('ir_cron_progress_id'))
+
+
 def _release(env, job):
-    """Release the session lock taken by ``_acquire``."""
-    env.cr.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [_lock_key(job)])
+    """Release the session lock taken by ``_acquire``; a transaction lock ends with its transaction.
+
+    A failed transaction cannot run the release: the original error must reach the caller, and
+    the database frees the lock when the connection goes back to the pool.
+    """
+    if not _in_scheduler_loop(env):
+        return
+    try:
+        env.cr.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [_lock_key(job)])
+    except psycopg2.Error:
+        _logger.warning("Job %s: the lock could not be released, the connection frees it", job.code)
 
 
 def _commit(env, processed=0, remaining=None):

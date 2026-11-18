@@ -57,7 +57,9 @@ class ProcurementJob(models.Model):
         Requirements: FR-SPM-0096, FR-SPM-0097
         """
         # elevated: the scheduler runs as the superuser and Run now is checked for the administrator role
-        job = self.sudo().with_context(active_test=False).search([('code', '=', code)], limit=1)
+        # the switched-off job is found by its domain; the job itself never sees archived records
+        job = self.sudo().with_context(active_test=True).search(
+            [('code', '=', code), ('active', 'in', (True, False))], limit=1)
         if not job:
             raise UserError(self.env._("No job exists for the code %s.", code))
         job = job.with_context(spm_change_origin='job')
