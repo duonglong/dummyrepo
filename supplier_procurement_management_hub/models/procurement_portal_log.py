@@ -50,3 +50,24 @@ class ResUsers(models.Model):
         super()._update_last_login()
         if portal_access.is_supplier_user(self.env.user):
             portal_access.log(self.env, 'login', 'ok')
+
+
+class MailThread(models.AbstractModel):
+    """A supplier user reads and posts only on threads the user's own rights allow.
+
+    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0028
+    """
+    _inherit = 'mail.thread'
+
+    @api.model
+    def _get_thread_with_access(self, thread_id, *, hash=None, pid=None, token=None, **kwargs):
+        """The share-link hash, partner and token are ignored for a supplier user; a refused user gets nothing."""
+        if not portal_access.is_supplier_user(self.env.user):
+            return super()._get_thread_with_access(thread_id, hash=hash, pid=pid, token=token, **kwargs)
+        refused = portal_access.refusal(self.env)
+        if refused:
+            if not self.env.cr.readonly:
+                portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
+                                  res_id=thread_id, detail=refused.reason)
+            return self.browse()
+        return super()._get_thread_with_access(thread_id, **kwargs)

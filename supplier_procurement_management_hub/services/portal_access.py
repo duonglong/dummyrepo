@@ -6,7 +6,7 @@ Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
 # The portal's page size (DESIGN section 6).
 PORTAL_PAGE_SIZE = 20
 # Orders a supplier sees: never a draft the buyer has not sent.
-VISIBLE_ORDER_STATES = ('sent', 'purchase', 'done', 'cancel')
+VISIBLE_ORDER_STATES = ('sent', 'purchase', 'cancel')
 
 
 class SupplierAccessRefused(Exception):
@@ -27,15 +27,6 @@ def is_supplier_user(user):
     return bool(user.sudo().partner_id.commercial_partner_id.spm_is_supplier)  # sudo: reads the company contact flag only
 
 
-def is_blocked(user):
-    """True when the supplier of the user has a status of kind Blocked.
-
-    Requirements: FR-SPM-0028
-    """
-    supplier = user.sudo().partner_id.commercial_partner_id  # sudo: reads the company contact status only
-    return supplier.spm_status_kind == 'blocked'
-
-
 def current_supplier(env):
     """Return the supplier (company contact) of the logged-in portal user or refuse.
 
@@ -53,6 +44,18 @@ def current_supplier(env):
     if supplier.spm_status_kind == 'blocked':
         raise SupplierAccessRefused('blocked')
     return supplier
+
+
+def refusal(env):
+    """The refusal of the session user as an exception, or None when the user may use the portal.
+
+    Requirements: FR-SPM-0028
+    """
+    try:
+        current_supplier(env)
+    except SupplierAccessRefused as refused:
+        return refused
+    return None
 
 
 def get_owned(env, model, record_id, domain=None):
@@ -94,21 +97,19 @@ def order_rows(env, orders):
     Requirements: FR-SPM-0016, BR-SPM-0003
 
     The orders are already the user's own; the bill ids are collected elevated, then the bills are
-    read as the user, so the native rule on the user's own posted vendor bills decides.
+    read once as the user, so the native rule on the user's own posted vendor bills decides.
     """
     receipt_labels = dict(env['purchase.order']._fields['receipt_status']._description_selection(env))
     payment_labels = dict(env['account.move']._fields['payment_state']._description_selection(env))
-    rows = []
-    for order in orders:
-        bill_ids = order.sudo().invoice_ids.ids  # sudo: only the ids are taken, the user reads the bills
-        bills = env['account.move'].search([
-            ('id', 'in', bill_ids), ('state', '=', 'posted'), ('move_type', '=', 'in_invoice')])
-        rows.append({
-            'order': order,
-            'receipt': receipt_labels.get(order.receipt_status, ''),
-            'bills': [{
-                'name': bill.name,
-                'payment': payment_labels.get(bill.payment_state, ''),
-            } for bill in bills],
-        })
-    return rows
+    order_bill_ids = {order.id: set(order.sudo().invoice_ids.ids) for order in orders}  # sudo: ids only
+    bills = env['account.move'].search([
+        ('id', 'in', list(set().union(*order_bill_ids.values()))),
+        ('state', '=', 'posted'), ('move_type', '=', 'in_invoice')])
+    return [{
+        'order': order,
+        'receipt': receipt_labels.get(order.receipt_status, ''),
+        'bills': [{
+            'name': bill.name,
+            'payment': payment_labels.get(bill.payment_state, ''),
+        } for bill in bills.filtered(lambda bill: bill.id in order_bill_ids[order.id])],
+    } for order in orders]

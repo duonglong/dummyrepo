@@ -1,4 +1,5 @@
-from odoo import http
+from odoo import SUPERUSER_ID, http
+from odoo.exceptions import AccessError, MissingError
 from odoo.http import request
 
 from odoo.addons.portal.controllers.portal import pager as portal_pager
@@ -19,7 +20,7 @@ class SupplierPortal(CustomerPortal):
 
     def _prepare_portal_counter_values(self, counter):
         if counter == 'spm_order_count':
-            if not portal_access.is_supplier_user(request.env.user) or portal_access.is_blocked(request.env.user):
+            if not portal_access.is_supplier_user(request.env.user) or portal_access.refusal(request.env):
                 return 'purchase.order', [('id', '=', 0)], 'read'
             return 'purchase.order', [('state', 'in', portal_access.VISIBLE_ORDER_STATES)], 'read'
         return super()._prepare_portal_counter_values(counter)
@@ -38,11 +39,30 @@ class SupplierPortal(CustomerPortal):
         """
         if not portal_access.is_supplier_user(request.env.user):
             return None
-        try:
-            portal_access.current_supplier(request.env)
-        except portal_access.SupplierAccessRefused as refusal:
-            return self._refuse(refusal)
-        return None
+        refused = portal_access.refusal(request.env)
+        return self._refuse(refused) if refused else None
+
+    def _document_check_access(self, model_name, document_id, access_token=None):
+        """A supplier user reaches only documents the user's own rights allow; a token is ignored.
+
+        Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+
+        This one check serves every native portal page of a record (orders, bills, attachments),
+        so a record token of another supplier opens nothing and a Blocked supplier is refused.
+        """
+        if not portal_access.is_supplier_user(request.env.user):
+            return super()._document_check_access(model_name, document_id, access_token=access_token)
+        refused = portal_access.refusal(request.env)
+        if refused:
+            portal_access.log(request.env, 'denied', 'refused', res_model=model_name,
+                              res_id=document_id, detail=refused.reason)
+            raise AccessError(refused.reason)
+        document = portal_access.get_owned(request.env, model_name, document_id)
+        if not document:
+            portal_access.log(request.env, 'denied', 'refused', res_model=model_name,
+                              res_id=document_id, detail='not found')
+            raise MissingError(request.env._("This document does not exist."))
+        return document.with_user(SUPERUSER_ID)  # the native contract: the readable record, with full rights
 
     def _owned_order_or_refusal(self, order_id):
         """Return (supplier, order, refusal page); the page is set when the order is not the user's own.
@@ -117,6 +137,11 @@ class SupplierPortal(CustomerPortal):
         portal_access.log(request.env, action, 'ok', supplier=supplier, record=order)
         # the token is dropped: ownership alone decides for a supplier user
         return super().portal_my_purchase_order(order_id=order_id, access_token=None, **kw)
+
+    @http.route()
+    def portal_my_invoices(self, *args, **kw):
+        """Requirements: FR-SPM-0028"""
+        return self._supplier_list_refusal() or super().portal_my_invoices(*args, **kw)
 
     @http.route()
     def portal_my_purchase_orders(self, *args, **kw):

@@ -119,3 +119,99 @@ class TestPortalRoutesGuarded(SpmPortalCase):
             self.make_jsonrpc_request('/web/dataset/call_kw/procurement.supplier.document/read', {
                 'model': 'procurement.supplier.document', 'method': 'read',
                 'args': [theirs.ids, ['document_type_id']], 'kwargs': {}})
+
+
+class TestPortalNativeDocumentPaths(SpmPortalCase):
+    """Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0028, NFR-SPM-0001"""
+
+    def _bill(self, supplier):
+        order = self._order(supplier)
+        bill = self.env['account.move'].create({
+            'move_type': 'in_invoice', 'partner_id': supplier.id, 'invoice_date': '2026-11-10',
+            'invoice_line_ids': [(0, 0, {
+                'product_id': self.chair.id, 'name': 'Chair', 'quantity': 5.0, 'price_unit': 10.0,
+                'purchase_line_id': order.order_line[:1].id, 'tax_ids': [(6, 0, [])]})],
+        })
+        bill.action_post()
+        return bill
+
+    def _denied(self, model, res_id):
+        return self.env['procurement.portal.log'].sudo().search([
+            ('user_id', '=', self.acme_user.id), ('res_model', '=', model),
+            ('res_id', '=', res_id), ('action', '=', 'denied')])
+
+    def test_foreign_bill_token_opens_nothing(self):
+        """BR-SPM-0002, FR-SPM-0017: a bill token of another supplier gives no bill and is logged."""
+        bill = self._bill(self.beta)
+        token = bill.sudo()._portal_ensure_token()
+        self._login(self.acme_user)
+        response = self._get(f'/my/invoices/{bill.id}?access_token={token}')
+        self.assertEqual(response.status_code, 303)
+        self.assertNotIn(bill.name, response.text)
+        self.assertTrue(self._denied('account.move', bill.id))
+
+    def test_own_bill_opens(self):
+        """FR-SPM-0016: the own posted bill is still reachable."""
+        bill = self._bill(self.acme)
+        self._login(self.acme_user)
+        self.assertEqual(self._get(f'/my/invoices/{bill.id}').status_code, 200)
+
+    def test_blocked_supplier_is_refused_on_bills(self):
+        """FR-SPM-0028: a blocked supplier's user gets neither the bill list nor an own bill."""
+        bill = self._bill(self.acme)
+        self._login(self.acme_user)
+        self.acme.with_user(self.manager).action_spm_set_status(self.blocked, 'Fraud suspected')
+        response = self._get('/my/invoices')
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn(bill.name, response.text)
+        self.assertEqual(self._get(f'/my/invoices/{bill.id}').status_code, 303)
+        self.assertTrue(self._denied('account.move', bill.id))
+
+    def test_foreign_token_gives_no_chatter(self):
+        """BR-SPM-0002, NFR-SPM-0001: a token of another supplier's order opens no thread."""
+        beta_order = self._order(self.beta)
+        token = beta_order.sudo()._portal_ensure_token()
+        orders = self.env['purchase.order'].with_user(self.acme_user)
+        self.assertFalse(orders._get_thread_with_access(beta_order.id, token=token))
+
+    def test_blocked_supplier_gets_no_chatter_on_own_order(self):
+        """FR-SPM-0028: once blocked, the user's own order thread cannot be read nor posted to."""
+        order = self._order(self.acme)
+        orders = self.env['purchase.order'].with_user(self.acme_user)
+        self.assertEqual(orders._get_thread_with_access(order.id), order)
+        self.acme.with_user(self.manager).action_spm_set_status(self.blocked, 'Fraud suspected')
+        self.assertFalse(orders._get_thread_with_access(order.id))
+        self._login(self.acme_user)
+        with self.assertRaises(JsonRpcException):
+            self.make_jsonrpc_request('/mail/message/post', {
+                'thread_model': 'purchase.order', 'thread_id': order.id,
+                'post_data': {'body': 'hello', 'message_type': 'comment'}})
+        self.assertFalse(order.message_ids.filtered(lambda m: 'hello' in (m.body or '')))
+
+    def test_date_update_post_of_a_foreign_order_changes_nothing(self):
+        """BR-SPM-0002, FR-SPM-0017, NFR-SPM-0001: the update form post with another supplier's token
+        leaves its planned dates unchanged and is logged."""
+        beta_order = self._order(self.beta)
+        line = beta_order.order_line[:1]
+        planned = line.date_planned
+        token = beta_order.sudo()._portal_ensure_token()
+        self._login(self.acme_user)
+        self.make_jsonrpc_request(
+            f'/my/purchase/{beta_order.id}/update', {'access_token': token, str(line.id): '2030-01-01'})
+        self.assertEqual(line.date_planned, planned)
+        self.assertTrue(self._denied('purchase.order', beta_order.id))
+
+    def test_procurement_card_is_hidden_for_non_suppliers_and_blocked(self):
+        """FR-SPM-0028: the counter of the Procurement card is 0 for a customer contact and a blocked supplier."""
+        self._order(self.acme)
+        customer = self.env['res.partner'].create({'name': 'Customer Co', 'is_company': True})
+        customer_user = self._portal_user(customer, 'Cy Customer', 'spm_customer_m2')
+        self._login(self.acme_user)
+        counters = self.make_jsonrpc_request('/my/counters', {'counters': {'spm_order_count': 'card'}})
+        self.assertEqual(counters['spm_order_count'], 1)
+        self.acme.with_user(self.manager).action_spm_set_status(self.blocked, 'Fraud suspected')
+        self.assertEqual(
+            self.make_jsonrpc_request('/my/counters', {'counters': {'spm_order_count': 'card'}})['spm_order_count'], 0)
+        self._login(customer_user)
+        self.assertEqual(
+            self.make_jsonrpc_request('/my/counters', {'counters': {'spm_order_count': 'card'}})['spm_order_count'], 0)
