@@ -38,6 +38,9 @@ class ProcurementSupplierApplication(models.Model):
     company_id = fields.Many2one(
         'res.company', default=lambda self: self.env.company, required=True, index=True)
     partner_id = fields.Many2one('res.partner', string="Supplier", copy=False, ondelete='restrict')
+    is_requalification = fields.Boolean(
+        string="Re-qualification", copy=False, readonly=True,
+        help="Set when the application re-qualifies a supplier that is already approved.")
     change_request_comment = fields.Text(copy=False, readonly=True)
     rejection_reason = fields.Text(copy=False, readonly=True)
 

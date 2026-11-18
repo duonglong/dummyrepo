@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0096, FR-SPM-0097 -->
+    <record id="procurement_job_view_list" model="ir.ui.view">
+        <field name="name">procurement.job.list</field>
+        <field name="model">procurement.job</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="last_run_id"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_job_view_form" model="ir.ui.view">
+        <field name="name">procurement.job.form</field>
+        <field name="model">procurement.job</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                <header>
+                    <button name="action_spm_run_now" type="object" string="Run now" class="btn-primary"
+                            groups="supplier_procurement_management_hub.group_spm_admin"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="active"/>
+                        <field name="cron_id"/>
+                    </group>
+                    <field name="run_ids">
+                        <list>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="trigger"/>
+                            <field name="state" decoration-danger="state == 'failed'" decoration-warning="state == 'skipped'"/>
+                            <field name="processed_count"/>
+                            <field name="sent_count"/>
+                            <field name="error_count"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_job_action" model="ir.actions.act_window">
+        <field name="name">Scheduled jobs</field>
+        <field name="res_model">procurement.job</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="procurement_job_run_view_list" model="ir.ui.view">
+        <field name="name">procurement.job.run.list</field>
+        <field name="model">procurement.job.run</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-danger="state == 'failed'" decoration-warning="state == 'skipped'">
+                <field name="job_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="trigger"/>
+                <field name="state"/>
+                <field name="processed_count"/>
+                <field name="sent_count"/>
+                <field name="error_count"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_job_run_view_form" model="ir.ui.view">
+        <field name="name">procurement.job.run.form</field>
+        <field name="model">procurement.job.run</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_spm_mark_failed" type="object" string="Close as failed"
+                            invisible="state != 'running'"
+                            groups="supplier_procurement_management_hub.group_spm_admin"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="job_id"/>
+                            <field name="trigger"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                        </group>
+                        <group>
+                            <field name="processed_count"/>
+                            <field name="sent_count"/>
+                            <field name="error_count"/>
+                        </group>
+                    </group>
+                    <field name="error_summary" invisible="not error_count"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_job_run_action" model="ir.actions.act_window">
+        <field name="name">Job runs</field>
+        <field name="res_model">procurement.job.run</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">No run yet: a job logs a run each time it is scheduled or run now.</field>
+    </record>
+
+    <menuitem id="menu_spm_job" name="Scheduled jobs" parent="menu_spm_configuration" sequence="70"
+              action="procurement_job_action"
+              groups="group_spm_auditor,group_spm_manager,group_spm_admin"/>
+    <menuitem id="menu_spm_job_run" name="Job runs" parent="menu_spm_configuration" sequence="72"
+              action="procurement_job_run_action"
+              groups="group_spm_auditor,group_spm_manager,group_spm_admin"/>
+</odoo>
