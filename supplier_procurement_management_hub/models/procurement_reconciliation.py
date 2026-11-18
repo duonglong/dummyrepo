@@ -1,6 +1,6 @@
-from odoo import api, fields, models
+from odoo import fields, models
 
-from ..services import reconciliation
+from .procurement_matching_policy import MATCHING_METHODS
 
 
 class ProcurementReconciliation(models.Model):
@@ -16,7 +16,7 @@ class ProcurementReconciliation(models.Model):
     move_id = fields.Many2one('account.move', string="Vendor bill", required=True, ondelete='cascade', index=True)
     partner_id = fields.Many2one(related='move_id.partner_id', store=True)
     company_id = fields.Many2one(related='move_id.company_id', store=True, index=True)
-    method = fields.Selection([('two_way', 'Two-way'), ('three_way', 'Three-way')], readonly=True)
+    method = fields.Selection(MATCHING_METHODS, readonly=True)
     state = fields.Selection([
         ('matched', 'Matched'), ('review', 'To review'), ('error', 'Error'),
     ], required=True, default='matched', readonly=True)
@@ -32,11 +32,3 @@ class ProcurementReconciliation(models.Model):
         """
         self.move_id.action_spm_run_matching()
         return True
-
-    @api.model
-    def _spm_refresh(self, bills):
-        """Match the bills; a thin entry point for models.
-
-        Requirements: FR-SPM-0072
-        """
-        return reconciliation.refresh(self.env, bills)

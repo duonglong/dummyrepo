@@ -19,7 +19,8 @@ class ProcurementMatchingTolerance(models.Model):
     product_category_id = fields.Many2one('product.category', string="Product category")
     kind = fields.Selection([('price', 'Price'), ('quantity', 'Quantity')], required=True, default='price')
     amount_from = fields.Monetary(string="Bill total from", default=0.0)
-    amount_to = fields.Monetary(string="Bill total to", default=1000000000.0)
+    amount_to = fields.Monetary(
+        string="Bill total to", default=0.0, help="Upper end of the bill total band; 0 means no upper limit.")
     percent = fields.Float(string="Percentage", default=0.0)
     absolute_amount = fields.Monetary(string="Absolute amount", default=0.0)
     active = fields.Boolean(default=True)
@@ -30,4 +31,4 @@ class ProcurementMatchingTolerance(models.Model):
 
     _percent_positive = models.Constraint('CHECK(percent >= 0)', 'The percentage cannot be negative.')
     _absolute_positive = models.Constraint('CHECK(absolute_amount >= 0)', 'The absolute amount cannot be negative.')
-    _band_ordered = models.Constraint('CHECK(amount_from <= amount_to)', 'The amount band must start below its end.')
+    _band_ordered = models.Constraint('CHECK(amount_to = 0 OR amount_from <= amount_to)', 'The amount band must start below its end.')

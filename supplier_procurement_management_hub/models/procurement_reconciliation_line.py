@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from .procurement_matching_policy import MATCHING_METHODS
+
 
 class ProcurementReconciliationLine(models.Model):
     """One bill line compared with its order line and receipts.
@@ -16,7 +18,7 @@ class ProcurementReconciliationLine(models.Model):
     move_line_id = fields.Many2one('account.move.line', string="Bill line", required=True, ondelete='cascade', index=True)
     purchase_line_id = fields.Many2one('purchase.order.line', string="Order line")
     product_id = fields.Many2one('product.product')
-    method = fields.Selection([('two_way', 'Two-way'), ('three_way', 'Three-way')], readonly=True)
+    method = fields.Selection(MATCHING_METHODS, readonly=True)
     ordered_qty = fields.Float(digits='Product Unit')
     received_qty = fields.Float(digits='Product Unit')
     billed_qty = fields.Float(digits='Product Unit')

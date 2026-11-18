@@ -31,7 +31,8 @@ class AccountMove(models.Model):
     def _compute_spm_match(self):
         """Requirements: FR-SPM-0072"""
         bills = self.filtered(lambda move: move.id and move.move_type in reconciliation.BILL_TYPES)
-        found = {recon.move_id.id: recon for recon in self.env['procurement.reconciliation'].search(
+        # sudo: the match state is the hub's own record, shown to every bill reader
+        found = {recon.move_id.id: recon for recon in self.env['procurement.reconciliation'].sudo().search(
             [('move_id', 'in', bills.ids)])}
         for move in self:
             recon = found.get(move.id)
@@ -46,14 +47,14 @@ class AccountMove(models.Model):
     def _search_spm_match_state(self, operator, value):
         """Requirements: FR-SPM-0072"""
         if operator not in ('=', '!=') or value not in dict(MATCH_STATES):
-            raise UserError(self.env._("Matching state can only be searched with equals."))
-        recon_moves = self.env['procurement.reconciliation'].search([]).move_id.ids
+            raise UserError(self.env._("Matching state can only be searched with 'is' or 'is not'."))
+        # sudo: only ids of the hub's own rows reach the domain
+        recons = self.env['procurement.reconciliation'].sudo()
         if value == 'unmatched':
             domain = [('move_type', 'in', list(reconciliation.BILL_TYPES)), ('state', '=', 'draft'),
-                      ('id', 'not in', recon_moves)]
+                      ('id', 'not in', recons._search([]).subselect('move_id'))]
         else:
-            matched = self.env['procurement.reconciliation'].search([('state', '=', value)]).move_id.ids
-            domain = [('id', 'in', matched)]
+            domain = [('id', 'in', recons._search([('state', '=', value)]).subselect('move_id'))]
         return domain if operator == '=' else ['!'] + domain
 
     def _spm_refresh_matching(self):
@@ -80,7 +81,7 @@ class AccountMove(models.Model):
 
         Requirements: FR-SPM-0072
         """
-        result = super().write(vals)
+        result = super(AccountMove, self.with_context(spm_skip_line_matching=True)).write(vals)
         if MATCHED_MOVE_FIELDS & set(vals):
             self._spm_refresh_matching()
         return result
@@ -104,6 +105,6 @@ class AccountMoveLine(models.Model):
     def write(self, vals):
         """Requirements: FR-SPM-0072"""
         result = super().write(vals)
-        if MATCHED_LINE_FIELDS & set(vals):
+        if MATCHED_LINE_FIELDS & set(vals) and not self.env.context.get('spm_skip_line_matching'):
             self.move_id._spm_refresh_matching()
         return result
