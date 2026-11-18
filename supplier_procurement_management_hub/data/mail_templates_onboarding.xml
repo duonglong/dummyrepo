@@ -12,7 +12,7 @@
     <p>Hello,</p>
     <p><t t-out="object.company_id.name"/> invites you to complete your supplier application.</p>
     <p><a t-att-href="ctx.get('spm_onboarding_url')">Open your application</a></p>
-    <p>The link works once and expires after 14 days.</p>
+    <p>The link works once and expires after <t t-out="ctx.get('spm_valid_days')"/> days.</p>
 </div>
         </field>
         <field name="auto_delete" eval="True"/>

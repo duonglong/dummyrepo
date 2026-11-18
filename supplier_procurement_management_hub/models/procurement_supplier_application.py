@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from ..services import onboarding
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
@@ -7,9 +7,7 @@ from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 # Bank and tax data: the restricted roles and the Buyer (BR-SPM-0004).
 SPM_APPLICATION_RESTRICTED_GROUPS = (
     SPM_RESTRICTED_GROUPS + ',supplier_procurement_management_hub.group_spm_buyer')
-SPM_EDITABLE_STATES = ('invited', 'changes_requested')
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_supplier_invitation'
-ONBOARDING_ROUTE = '/my/procurement/onboarding/'
 
 
 class ProcurementSupplierApplication(models.Model):
@@ -72,6 +70,36 @@ class ProcurementSupplierApplication(models.Model):
         for application in self:
             application.field_rules = application.spm_field_rules()
 
+    # --- write guard --------------------------------------------------------
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Refuse a workflow or invitation field in the values of a new application.
+
+        Requirements: FR-SPM-0003
+        """
+        for vals in vals_list:
+            self._spm_refuse_workflow_values(vals)
+        return super().create(vals_list)
+
+    def _spm_refuse_workflow_values(self, vals):
+        """Raise when ``vals`` hold a workflow or invitation field and the caller is not elevated."""
+        if not self.env.su and set(onboarding.WORKFLOW_FIELDS).intersection(vals):
+            raise AccessError(self.env._(
+                "The state, the invitation and the supplier link of an application change through its actions only."))
+
+    def write(self, vals):
+        """Refuse direct writes of the workflow and invitation fields, and any write once closed.
+
+        Only the module's own actions change them, with elevated rights after their access check.
+
+        Requirements: FR-SPM-0001, FR-SPM-0003
+        """
+        self._spm_refuse_workflow_values(vals)
+        if not self.env.su and self.filtered(lambda application: application.state in onboarding.CLOSED_STATES):
+            raise UserError(self.env._("An approved or rejected application cannot be changed."))
+        return super().write(vals)
+
     # --- field rules --------------------------------------------------------
 
     def spm_field_rules(self):
@@ -84,7 +112,7 @@ class ProcurementSupplierApplication(models.Model):
         rules = dict.fromkeys(keys, 'shown')
         for rule in self.supplier_type_id.field_ids:
             rules[rule.field_key] = rule.visibility
-        for key in ('legal_name', 'email'):
+        for key in onboarding.ALWAYS_REQUIRED_KEYS:
             rules[key] = 'required'
         return rules
 
@@ -93,7 +121,7 @@ class ProcurementSupplierApplication(models.Model):
         self.ensure_one()
         rules = self.spm_field_rules()
         return [name for key, names in onboarding.KEY_FIELDS.items() if rules[key] != 'hidden'
-                for name in names if name != 'contact_ids']
+                for name in names if name not in onboarding.PORTAL_READONLY_FIELDS]
 
     # --- invitation -----------------------------------------------------------
 
@@ -119,7 +147,7 @@ class ProcurementSupplierApplication(models.Model):
     def _spm_send_invitation(self):
         """Issue a new token, store its hash and expiry, and e-mail the link."""
         self.ensure_one()
-        if self.state not in SPM_EDITABLE_STATES:
+        if self.state not in onboarding.EDITABLE_STATES:
             raise UserError(self.env._("An invitation can only be sent for an application the supplier can still fill in."))
         self.check_access('write')
         token = onboarding.new_token()
@@ -130,8 +158,9 @@ class ProcurementSupplierApplication(models.Model):
             'invitation_expiry': onboarding.expiry_from_now(),
             'invitation_used_date': False,
         })
-        url = self.get_base_url() + ONBOARDING_ROUTE + token
-        template = self.env.ref(INVITATION_TEMPLATE).with_context(spm_onboarding_url=url)
+        url = self.get_base_url() + onboarding.ONBOARDING_PATH + token
+        template = self.env.ref(INVITATION_TEMPLATE).with_context(
+            spm_onboarding_url=url, spm_valid_days=onboarding.INVITATION_VALID_DAYS)
         template.send_mail(self.id, force_send=False)
 
     # --- submission -------------------------------------------------------------
@@ -144,10 +173,9 @@ class ProcurementSupplierApplication(models.Model):
         labels = dict(self.env['procurement.supplier.type.field']._fields['field_key']._description_selection(self.env))
         missing = []
         for key, rule in self.spm_field_rules().items():
-            if rule != 'required':
+            if rule != 'required' or key not in onboarding.KEY_FIELDS:
                 continue
-            name = onboarding.KEY_REQUIRED_FIELD.get(key, onboarding.KEY_FIELDS[key][0])
-            if not application[name]:
+            if not application[onboarding.required_field(key)]:
                 missing.append(labels[key])
         provided = application.document_ids.document_type_id
         missing += (application.supplier_type_id.required_document_type_ids - provided).mapped('name')
@@ -159,13 +187,15 @@ class ProcurementSupplierApplication(models.Model):
         Requirements: FR-SPM-0003
         """
         self.check_access('write')
+        self.lock_for_update()
         for application in self:
-            if application.state not in SPM_EDITABLE_STATES:
+            if application.state not in onboarding.EDITABLE_STATES:
                 raise UserError(self.env._("Only an application the supplier can still fill in can be submitted."))
             missing = application._spm_missing_items()
             if missing:
                 raise UserError(self.env._("The application cannot be submitted. Missing: %s.", ", ".join(missing)))
-            application.write({'state': 'submitted', 'submitted_date': fields.Datetime.now()})
+            # Elevated: the workflow fields are written by the module's own actions only (write guard).
+            application.sudo().write({'state': 'submitted', 'submitted_date': fields.Datetime.now()})
             if application.user_id:
                 application.activity_schedule(
                     'mail.mail_activity_data_todo', user_id=application.user_id.id,

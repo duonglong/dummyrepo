@@ -11,6 +11,20 @@ from odoo import fields
 # A link works for 14 days (answer of the administrator, FR-SPM-0001); named once here.
 INVITATION_VALID_DAYS = 14
 
+# The link path, named once; the controller route and the e-mailed URL both build on it.
+ONBOARDING_PATH = '/my/procurement/onboarding/'
+# States in which the supplier may still fill in the application.
+EDITABLE_STATES = ('invited', 'changes_requested')
+# Keys that are always required (FR-SPM-0002): the supplier cannot be identified without them.
+ALWAYS_REQUIRED_KEYS = ('legal_name', 'email')
+# Fields of the keys a supplier never edits through the link.
+PORTAL_READONLY_FIELDS = ('contact_ids', 'email')
+# Fields only the module's own actions write (all run with elevated rights after the access check).
+WORKFLOW_FIELDS = (
+    'state', 'submitted_date', 'invitation_token_hash', 'invitation_expiry', 'invitation_used_date', 'partner_id')
+# States after which an application is read-only.
+CLOSED_STATES = ('approved', 'rejected')
+
 # Application fields behind each field key of a supplier type; the key says what is asked.
 KEY_FIELDS = {
     'legal_name': ('legal_name',),
@@ -26,6 +40,11 @@ KEY_FIELDS = {
 }
 # Of a group of fields, the one that must be filled when the key is required.
 KEY_REQUIRED_FIELD = {'street': 'street', 'bank': 'bank_account_number'}
+
+
+def required_field(key):
+    """Return the application field that must be filled when the field key ``key`` is required."""
+    return KEY_REQUIRED_FIELD.get(key, KEY_FIELDS[key][0])
 
 
 def new_token():
@@ -60,5 +79,6 @@ def link_state(application, now=None):
 
 
 # What a supplier may upload through the link (answer of the administrator, FR-SPM-0027).
-UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+UPLOAD_MAX_MB = 20
+UPLOAD_MAX_BYTES = UPLOAD_MAX_MB * 1024 * 1024
 UPLOAD_MIMETYPES = ('application/pdf', 'image/png', 'image/jpeg')

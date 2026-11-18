@@ -38,36 +38,31 @@
                             <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                         <group>
-                            <field name="legal_name" required="True"/>
-                            <field name="phone" invisible="field_rules.phone == 'hidden'"
-                                   required="field_rules.phone == 'required'"/>
-                            <field name="website" invisible="field_rules.website == 'hidden'"
-                                   required="field_rules.website == 'required'"/>
-                            <field name="vat" invisible="field_rules.vat == 'hidden'"
-                                   required="field_rules.vat == 'required'"/>
+                            <field name="legal_name"/>
+                            <field name="phone" invisible="field_rules.phone == 'hidden'"/>
+                            <field name="website" invisible="field_rules.website == 'hidden'"/>
+                            <field name="vat" invisible="field_rules.vat == 'hidden'"/>
                         </group>
                     </group>
                     <group invisible="field_rules.street == 'hidden'">
                         <group string="Address">
-                            <field name="street" required="field_rules.street == 'required'"/>
+                            <field name="street"/>
                             <field name="zip"/>
                             <field name="city"/>
                             <field name="country_id"/>
                         </group>
                     </group>
                     <group string="Bank account" invisible="field_rules.bank == 'hidden'">
-                        <field name="bank_account_number" required="field_rules.bank == 'required'"/>
+                        <field name="bank_account_number"/>
                         <field name="bank_name"/>
                         <field name="bank_bic"/>
                         <field name="bank_holder"/>
                     </group>
                     <group>
                         <field name="product_category_ids" widget="many2many_tags"
-                               invisible="field_rules.categories == 'hidden'"
-                               required="field_rules.categories == 'required'"/>
+                               invisible="field_rules.categories == 'hidden'"/>
                         <field name="operating_locations"
-                               invisible="field_rules.operating_locations == 'hidden'"
-                               required="field_rules.operating_locations == 'required'"/>
+                               invisible="field_rules.operating_locations == 'hidden'"/>
                     </group>
                     <notebook>
                         <page string="Contacts" invisible="field_rules.contacts == 'hidden'">

@@ -29,10 +29,10 @@
                         <input type="text" class="form-control" t-att-value="application.email" readonly="readonly"/>
                     </div>
                     <div t-foreach="text_fields" t-as="item" class="mb-3">
-                        <label t-attf-for="spm_#{item[1]}" class="form-label"><t t-out="item[2]"/></label>
+                        <label t-attf-for="spm_#{item[1]}" class="form-label"><t t-out="item[2]"/><span t-if="item[1] in required_fields" class="text-danger"> *</span></label>
                         <input type="text" t-att-name="item[1]" t-attf-id="spm_#{item[1]}"
                                class="form-control" t-att-value="application[item[1]]"
-                               t-att-required="'required' if rules[item[0]] == 'required' else None"/>
+                               t-att-required="'required' if item[1] in required_fields else None"/>
                     </div>
                     <div t-if="rules['street'] != 'hidden'" class="mb-3">
                         <label for="spm_country_id" class="form-label">Country</label>
@@ -43,7 +43,7 @@
                         </select>
                     </div>
                     <div t-if="rules['categories'] != 'hidden'" class="mb-3">
-                        <label for="spm_categories" class="form-label">Product categories</label>
+                        <label for="spm_categories" class="form-label">Product categories<span t-if="rules['categories'] == 'required'" class="text-danger"> *</span></label>
                         <select name="product_category_ids" id="spm_categories" class="form-select" multiple="multiple"
                                 t-att-required="'required' if rules['categories'] == 'required' else None">
                             <option t-foreach="categories" t-as="category" t-att-value="category.id"
@@ -51,14 +51,14 @@
                         </select>
                     </div>
                     <div t-if="rules['operating_locations'] != 'hidden'" class="mb-3">
-                        <label for="spm_operating_locations" class="form-label">Operating locations</label>
+                        <label for="spm_operating_locations" class="form-label">Operating locations<span t-if="rules['operating_locations'] == 'required'" class="text-danger"> *</span></label>
                         <textarea name="operating_locations" id="spm_operating_locations" class="form-control"
                                   t-att-required="'required' if rules['operating_locations'] == 'required' else None"><t t-out="application.operating_locations"/></textarea>
                     </div>
                     <div t-if="rules['contacts'] != 'hidden'" class="mb-3">
                         <h2 class="h5">Contacts</h2>
                         <div t-foreach="contacts" t-as="contact" class="row g-2 mb-2">
-                            <t t-set="index" t-value="contact_index"/>
+                            <t t-set="index" t-value="contact.id if contact else 'new%s' % (contact_index - len(application.contact_ids))"/>
                             <div class="col"><input type="text" class="form-control" t-attf-name="contact_name_#{index}" placeholder="Name" t-att-value="contact and contact.name"/></div>
                             <div class="col"><input type="text" class="form-control" t-attf-name="contact_email_#{index}" placeholder="E-mail" t-att-value="contact and contact.email"/></div>
                             <div class="col"><input type="text" class="form-control" t-attf-name="contact_phone_#{index}" placeholder="Phone" t-att-value="contact and contact.phone"/></div>

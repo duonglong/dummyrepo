@@ -1,8 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-# Application fields that are always asked (FR-SPM-0002): the supplier cannot be identified without them.
-ALWAYS_REQUIRED_KEYS = ('legal_name', 'email')
+from ..services.onboarding import ALWAYS_REQUIRED_KEYS
 
 
 class ProcurementSupplierTypeField(models.Model):
@@ -39,9 +38,9 @@ class ProcurementSupplierTypeField(models.Model):
 
     @api.constrains('field_key', 'visibility')
     def _check_always_required(self):
-        """Requirements: FR-SPM-0002 (legal name and e-mail are never hidden)."""
+        """Requirements: FR-SPM-0002 (legal name and e-mail are always required)."""
         labels = dict(self._fields['field_key']._description_selection(self.env))
         for rule in self:
-            if rule.field_key in ALWAYS_REQUIRED_KEYS and rule.visibility == 'hidden':
+            if rule.field_key in ALWAYS_REQUIRED_KEYS and rule.visibility != 'required':
                 raise ValidationError(self.env._(
-                    "%s is always required: it cannot be hidden.", labels[rule.field_key]))
+                    "%s is always required: it cannot be hidden or optional.", labels[rule.field_key]))
