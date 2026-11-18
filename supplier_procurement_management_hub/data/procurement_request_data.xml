@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Requirements: FR-SPM-0030 -->
+    <record id="seq_procurement_request" model="ir.sequence">
+        <field name="name">Purchase request</field>
+        <field name="code">procurement.request</field>
+        <field name="prefix">REQ</field>
+        <field name="padding">5</field>
+    </record>
+</odoo>

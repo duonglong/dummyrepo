@@ -86,3 +86,15 @@ spm_tolerance_comp_rule,procurement.matching.tolerance: allowed companies,procur
 spm_route_comp_rule,procurement.exception.route: allowed companies,procurement.exception.route,,crud,"[('company_id', 'in', company_ids)]"
 spm_recon_comp_rule,procurement.reconciliation: allowed companies,procurement.reconciliation,,crud,"[('company_id', 'in', company_ids)]"
 spm_recon_line_comp_rule,procurement.reconciliation.line: allowed companies,procurement.reconciliation.line,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_request_requester,Purchase request requester (own),procurement.request,group_spm_requester,cru,"[('requester_id', '=', user.id)]"
+access_spm_request_buyer,Purchase request buyer,procurement.request,group_spm_buyer,crud,
+access_spm_request_manager,Purchase request manager,procurement.request,group_spm_manager,crud,
+access_spm_request_auditor,Purchase request auditor,procurement.request,group_spm_auditor,r,
+access_spm_request_admin,Purchase request admin,procurement.request,group_spm_admin,crud,
+spm_request_comp_rule,procurement.request: allowed companies,procurement.request,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_request_line_requester,Purchase request line requester (own),procurement.request.line,group_spm_requester,crud,"[('request_id.requester_id', '=', user.id)]"
+access_spm_request_line_buyer,Purchase request line buyer,procurement.request.line,group_spm_buyer,crud,
+access_spm_request_line_manager,Purchase request line manager,procurement.request.line,group_spm_manager,crud,
+access_spm_request_line_auditor,Purchase request line auditor,procurement.request.line,group_spm_auditor,r,
+access_spm_request_line_admin,Purchase request line admin,procurement.request.line,group_spm_admin,crud,
+spm_request_line_comp_rule,procurement.request.line: allowed companies,procurement.request.line,,crud,"[('request_id.company_id', 'in', company_ids)]"
