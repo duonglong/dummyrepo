@@ -108,9 +108,16 @@ class ProcurementSupplierApplication(models.Model):
         Requirements: FR-SPM-0001, FR-SPM-0003
         """
         self._spm_refuse_workflow_values(vals)
-        if not self.env.su and self.filtered(lambda application: application.state in onboarding.CLOSED_STATES):
-            raise UserError(self.env._("An approved or rejected application cannot be changed."))
+        self._spm_check_open()
         return super().write(vals)
+
+    def _spm_check_open(self):
+        """Refuse a change of an approved or rejected application, unless the caller is elevated.
+
+        Requirements: FR-SPM-0003
+        """
+        if not self.env.su and any(application.state in onboarding.CLOSED_STATES for application in self):
+            raise UserError(self.env._("An approved or rejected application cannot be changed."))
 
     # --- field rules --------------------------------------------------------
 

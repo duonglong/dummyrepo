@@ -27,6 +27,10 @@ class TestOnboardingApplication(TransactionCase):
             'name': 'Bea Buyer', 'login': 'spm_buyer_t005u', 'email': 'spm_buyer_t005u@example.com',
             'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_buyer').id])],
         })
+        self.manager = self.env['res.users'].create({
+            'name': 'Max Manager', 'login': 'spm_manager_t005u', 'email': 'spm_manager_t005u@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_manager').id])],
+        })
         self.goods = self.env['procurement.supplier.type'].create({'name': 'Goods T005U'})
         self.Application = self.env['procurement.supplier.application']
 
@@ -118,9 +122,18 @@ class TestOnboardingApplication(TransactionCase):
             Contact.with_user(self.buyer).create({'application_id': application.id, 'name': 'New'})
         with self.assertRaises(UserError):
             buyer_contact.write({'name': 'Changed'})
-        with self.assertRaises(UserError):
-            buyer_contact.unlink()
+        with self.assertRaisesRegex(UserError, 'cannot be changed'):
+            contact.with_user(self.manager).unlink()
         self.assertEqual(contact.name, 'Kept')
+
+    def test_closed_application_contact_refused_through_context_default(self):
+        """FR-SPM-0003: a default_application_id in the context cannot add a contact to a closed application."""
+        application = self.Application.create({
+            'email': 'a@example.com', 'supplier_type_id': self.goods.id, 'state': 'approved'})
+        Contact = self.env['procurement.supplier.application.contact']
+        with self.assertRaisesRegex(UserError, 'cannot be changed'):
+            Contact.with_user(self.buyer).with_context(default_application_id=application.id).create({'name': 'X'})
+        self.assertFalse(application.contact_ids)
 
     def test_open_application_contacts_stay_editable(self):
         """FR-SPM-0002: a buyer edits the contacts of an open application."""
