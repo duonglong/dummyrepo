@@ -176,14 +176,14 @@ class TestMatching(SpmMatchingCommon):
 
     def test_bill_save_matches_once_and_reads_rules_once_per_bill(self):
         """Requirements: FR-SPM-0072"""
-        order = self._order(qty=300, receive=300)
+        order = self._order(qty=1000, receive=1000)
         line = order.order_line
         bill = self.env['account.move'].create({
             'move_type': 'in_invoice', 'partner_id': self.acme.id,
             'invoice_date': fields.Date.from_string('2026-11-10'),
             'invoice_line_ids': [Command.create({
                 'product_id': line.product_id.id, 'name': 'Chair', 'quantity': 1, 'price_unit': 11.5,
-                'purchase_line_id': line.id, 'tax_ids': [Command.set([])]}) for _i in range(40)],
+                'purchase_line_id': line.id, 'tax_ids': [Command.set([])]}) for _i in range(200)],
         })
         edits = [Command.update(move_line.id, {'quantity': 2}) for move_line in bill.invoice_line_ids]
         policy_model = type(self.env['procurement.matching.policy'])
@@ -195,4 +195,39 @@ class TestMatching(SpmMatchingCommon):
         self.assertEqual(refreshed.call_count, 1)
         self.assertEqual(policies.call_count, 1)
         self.assertEqual(tolerances.call_count, 1)
-        self.assertEqual(len(self._recon(bill).line_ids), 40)
+        self.assertEqual(len(self._recon(bill).line_ids), 200)
+
+    def test_dropped_discount_is_a_price_difference(self):
+        """Requirements: FR-SPM-0073"""
+        order = self._order(qty=100, price=11.5, receive=100)
+        order.order_line.discount = 10.0
+        line = self._recon(self._bill(order, 100, 11.5)).line_ids
+        self.assertAlmostEqual(line.ordered_price, 10.35)
+        self.assertAlmostEqual(line.price_difference, 1.15)
+        self.assertAlmostEqual(line.amount_difference, 115.0)
+        self.assertFalse(line.price_within_tolerance)
+
+    def test_discount_kept_on_the_bill_matches(self):
+        """Requirements: FR-SPM-0073"""
+        order = self._order(qty=100, price=11.5, receive=100)
+        order.order_line.discount = 10.0
+        bill = self._bill(order, 100, 11.5)
+        bill.invoice_line_ids.discount = 10.0
+        self.assertEqual(self._recon(bill).line_ids.price_difference, 0.0)
+
+    def test_bill_in_dozens_is_compared_per_ordered_unit(self):
+        """Requirements: FR-SPM-0073"""
+        order = self._order(qty=120, price=11.5, receive=120)
+        bill = self._bill(order, 10, 138.0)
+        bill.invoice_line_ids.write({'product_uom_id': self.env.ref('uom.product_uom_dozen').id, 'price_unit': 138.0})
+        line = self._recon(bill).line_ids
+        self.assertEqual(line.billed_qty, 10)
+        self.assertEqual(line.price_difference, 0.0)
+        self.assertEqual(line.qty_difference, 0.0)
+        self.assertEqual(self._recon(bill).state, 'matched')
+
+    def test_read_only_user_cannot_run_matching(self):
+        """Requirements: FR-SPM-0072"""
+        bill = self._bill(self._order(receive=100), 100, 11.5)
+        with self.assertRaises(AccessError):
+            bill.with_user(self.user_acc).action_spm_run_matching()

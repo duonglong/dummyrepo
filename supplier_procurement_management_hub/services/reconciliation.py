@@ -82,23 +82,26 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
     date = bill.invoice_date or bill.date or fields.Date.context_today(bill)
     method = policy_method(policies, vendor, move_line.product_id)
     ordered_uom, billed_uom = purchase_line.uom_id, move_line.product_uom_id
-    billed_qty = move_line.quantity
+    billed_qty = ordered_billed_qty = move_line.quantity
+    # price per ordered unit of the net (after discount) billed price
+    billed_net = move_line.price_unit * (1 - move_line.discount / 100.0)
     units_convert = True
     if ordered_uom and billed_uom and billed_uom != ordered_uom:
-        units_convert = billed_uom._has_common_reference(ordered_uom)
+        units_convert = _units_convert(ordered_uom, billed_uom)
         if units_convert:
-            billed_qty = billed_uom._compute_quantity(billed_qty, ordered_uom, raise_if_failure=False)
+            ordered_billed_qty = billed_uom._compute_quantity(billed_qty, ordered_uom, raise_if_failure=False)
+            billed_net = billed_net / billed_uom._compute_quantity(1.0, ordered_uom, raise_if_failure=False)
     currency, order_currency = bill.currency_id, order.currency_id
-    ordered_price = purchase_line.price_unit
+    ordered_price = purchase_line.price_unit_discounted
     if order_currency != currency:
         ordered_price = order_currency._convert(ordered_price, currency, company, date)
     price_precision = env['decimal.precision'].precision_get('Product Price')
-    price_difference = float_round(move_line.price_unit - ordered_price, precision_digits=price_precision)
-    amount_difference = currency.round(price_difference * billed_qty)
+    price_difference = float_round(billed_net - ordered_price, precision_digits=price_precision)
+    amount_difference = currency.round(price_difference * ordered_billed_qty)
     received_qty = purchase_line.qty_received
     ordered_qty = purchase_line.product_qty
     reference_qty = received_qty if method == 'three_way' else ordered_qty
-    qty_difference = ordered_uom.round(billed_qty - reference_qty) if units_convert else 0.0
+    qty_difference = ordered_uom.round(ordered_billed_qty - reference_qty) if units_convert else 0.0
     price_tolerance = tolerance_for(tolerances, 'price', vendor, category)
     qty_tolerance = tolerance_for(tolerances, 'quantity', vendor, category)
     qty_gap = max(qty_difference, 0.0)
@@ -109,8 +112,8 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
         'ordered_qty': ordered_qty,
         'received_qty': received_qty,
         'billed_qty': billed_qty,
-        'ordered_price': purchase_line.price_unit,
-        'billed_price': move_line.price_unit,
+        'ordered_price': purchase_line.price_unit_discounted,
+        'billed_price': move_line.price_unit * (1 - move_line.discount / 100.0),
         'currency_id': currency.id,
         'order_currency_id': order_currency.id,
         'ordered_tax_ids': [(6, 0, purchase_line.tax_ids.ids)],
@@ -121,7 +124,7 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
         'qty_difference': qty_difference,
         'amount_difference': amount_difference,
         'price_within_tolerance': within_tolerance(
-            price_tolerance, amount_difference, ordered_price * billed_qty, currency, company, date),
+            price_tolerance, amount_difference, ordered_price * ordered_billed_qty, currency, company, date),
         'qty_within_tolerance': within_tolerance(
             qty_tolerance, qty_gap * ordered_price, reference_qty * ordered_price, currency, company, date),
     }
@@ -163,10 +166,14 @@ def _refresh_one(env, bill) -> None:
     })
 
 
-def _same_unit(line) -> bool:
+def _units_convert(ordered, billed) -> bool:
     """Return whether the billed unit equals the ordered one or converts to it."""
-    ordered, billed = line.ordered_uom_id, line.billed_uom_id
     return not ordered or not billed or ordered == billed or billed._has_common_reference(ordered)
+
+
+def _same_unit(line) -> bool:
+    """Return whether the line's billed unit converts to its ordered unit."""
+    return _units_convert(line.ordered_uom_id, line.billed_uom_id)
 
 
 def refresh(env, bills) -> None:

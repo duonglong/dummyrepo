@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from ..services import reconciliation
 
@@ -91,6 +91,10 @@ class AccountMove(models.Model):
 
         Requirements: FR-SPM-0072
         """
+        if not self.env.user.has_group(
+                'supplier_procurement_management_hub.group_spm_finance') and not self.env.user.has_group(
+                'supplier_procurement_management_hub.group_spm_manager'):
+            raise AccessError(self.env._("You are not allowed to run the matching."))
         self._spm_refresh_matching()
         return True
 
