@@ -37,6 +37,11 @@ class ProcurementSupplierDocument(models.Model):
     review_date = fields.Datetime(string="Reviewed on", readonly=True, copy=False)
     review_comment = fields.Text(string="Reviewer's comment", copy=False)
     is_current = fields.Boolean(string="Current", default=True, index=True, copy=False)
+    previous_version_id = fields.Many2one(
+        'procurement.supplier.document', string="Replaces", copy=False, index='btree_not_null',
+        ondelete='set null', readonly=True)
+    replaced_date = fields.Datetime(string="Replaced on", copy=False, readonly=True)
+    uploaded_from_portal = fields.Boolean(string="Uploaded in the portal", copy=False, readonly=True)
     validity_state = fields.Selection([
         ('valid', 'Valid'),
         ('expiring', 'Expiring'),

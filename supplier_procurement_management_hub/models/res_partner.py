@@ -226,6 +226,23 @@ class ResPartner(models.Model):
             self.env['procurement.supplier.change'].sudo().create(rows)  # elevated: system history
         return result
 
+    def _spm_portal_write(self, values):
+        """Write the portal-editable values of a supplier and log each change with origin portal.
+
+        Requirements: FR-SPM-0018
+
+        Watched fields are logged by ``write``; the others (such as the phone) get their row here.
+        """
+        self.ensure_one()
+        # sudo: a portal user has no write right on the contact; the caller allows the fields
+        partner = self.sudo().with_context(spm_change_origin='portal')
+        names = [name for name in values if name not in SPM_WATCHED]
+        before = partner._spm_snapshot(names)
+        partner.write(values)
+        rows = partner._spm_change_rows(before, partner._spm_snapshot(names), 'portal')
+        if rows:
+            self.env['procurement.supplier.change'].sudo().create(rows)  # sudo: system history
+
     # --- lifecycle ------------------------------------------------------
 
     def action_spm_set_status(self, status, reason=None):
