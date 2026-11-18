@@ -268,6 +268,16 @@ class TestPortalNativeDocumentPaths(SpmPortalCase):
         orders._get_thread_with_access(order.id, mode='write')
         self.assertFalse(self._denied('purchase.order', order.id))
 
+    def test_missing_thread_id_answers_empty_and_is_logged(self):
+        """FR-SPM-0027, NFR-SPM-0001: a missing id answers empty like a foreign one, and is logged."""
+        orders = self.env['purchase.order'].with_user(self.acme_user)
+        missing = self.env['purchase.order'].search([], order='id desc', limit=1).id + 1000
+        self.assertFalse(orders._get_thread_with_access(missing, mode='read'))
+        self.assertTrue(self._denied('purchase.order', missing))
+        moves = self.env['account.move'].with_user(self.acme_user)
+        self.assertFalse(moves._get_thread_with_access(missing + 1, mode='read'))
+        self.assertTrue(self._denied('account.move', missing + 1))
+
     def test_date_update_post_of_a_foreign_order_changes_nothing(self):
         """BR-SPM-0002, FR-SPM-0017, NFR-SPM-0001: the update form post with another supplier's token
         leaves its planned dates unchanged and is logged."""

@@ -72,8 +72,12 @@ class MailThread(models.AbstractModel):
                               res_id=thread_id, detail=refused.reason)
             return self.browse()
         thread = super()._get_thread_with_access(thread_id, **kwargs)
-        if not thread and not self.browse(thread_id).has_access('read'):
-            # a refusal only when the user cannot read the thread; a write probe on a readable one is no denial
+        if not thread:
+            # a refusal only when the thread is missing or the user cannot read it; a write probe on a
+            # readable one is no denial. has_access raises MissingError on a missing id, so exists() first.
+            target = self.browse(thread_id)
+            if target.exists() and target.has_access('read'):
+                return thread
             portal_access.log(self.env, 'denied', 'refused', res_model=self._name,
                               res_id=thread_id, detail='not found')
         return thread
