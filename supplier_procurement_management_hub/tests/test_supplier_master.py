@@ -144,7 +144,9 @@ class TestSupplierMaster(TransactionCase):
         self.assertTrue(any('Acme Holder' in value for value in self.acme.spm_change_ids.mapped('restricted_new_value')))
         bank.write({'partner_id': other.id})
         self.assertEqual(len(other.spm_change_ids), 1)
-        self.assertIn('', self.acme.spm_change_ids.mapped('restricted_new_value'))
+        moved_away = self.acme.spm_change_ids.filtered(
+            lambda change: change.field_name == 'bank_ids' and not change.restricted_new_value)
+        self.assertIn('BE68 5390 0754 7034', moved_away.restricted_old_value)
 
     def test_portal_field_allows_only_open_plain_fields(self):
         """BR-SPM-0004: a field with groups, or a computed one marked editable, is refused."""
@@ -162,3 +164,34 @@ class TestSupplierMaster(TransactionCase):
             'res_model': 'res.users', 'res_ids': [1], 'action': 'set_status', 'status_id': self.blocked.id})
         with self.assertRaises(UserError):
             wizard.action_confirm()
+
+    def test_status_default_from_the_client_context_is_ignored(self):
+        """FR-SPM-0011: a context default never creates a contact with a status."""
+        partner = self.env['res.partner'].with_user(self.buyer).with_context(
+            default_spm_status_id=self.blocked.id).create({'name': 'Sneaky'})
+        self.assertFalse(partner.spm_status_id)
+
+    def test_manager_cannot_change_a_contact_of_another_company(self):
+        """FR-SPM-0011: the elevated write never lifts the company record rule."""
+        company_b = self.env['res.company'].create({'name': 'Company B'})
+        hidden = self.env['res.partner'].create({'name': 'Hidden', 'company_id': company_b.id})
+        manager = self.manager.with_context(allowed_company_ids=self.manager.company_id.ids)
+        with self.assertRaises(AccessError):
+            hidden.with_user(manager).action_spm_set_status(self.blocked, 'Fraud')
+        self.assertFalse(hidden.spm_status_id)
+
+    def test_type_write_keeps_no_history_for_an_employee_contact(self):
+        """BR-SPM-0004: writing a supplier type with an address on an employee's contact logs nothing."""
+        employee = self.env['hr.employee'].create({'name': 'Eve'})
+        contact = employee.work_contact_id
+        supplier_type = self.env['procurement.supplier.type'].search([], limit=1) or \
+            self.env['procurement.supplier.type'].create({'name': 'Goods'})
+        contact.write({'spm_supplier_type_id': supplier_type.id, 'city': 'Paris'})
+        self.assertFalse(contact.spm_change_ids)
+
+    def test_status_action_accepts_an_id_and_refuses_an_unknown_one(self):
+        """FR-SPM-0011: a direct call with an id works; a wrong id is a named refusal."""
+        self.acme.with_user(self.manager).action_spm_set_status(self.blocked.id, 'Fraud')
+        self.assertEqual(self.acme.spm_status_id, self.blocked)
+        with self.assertRaises(UserError):
+            self.acme.with_user(self.manager).action_spm_set_status(0, 'Fraud')

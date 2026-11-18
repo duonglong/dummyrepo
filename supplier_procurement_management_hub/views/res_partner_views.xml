@@ -33,8 +33,8 @@
                             <field name="field_label"/>
                             <field name="old_value"/>
                             <field name="new_value"/>
-                            <field name="restricted_old_value" groups="supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,supplier_procurement_management_hub.group_spm_admin"/>
-                            <field name="restricted_new_value" groups="supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,supplier_procurement_management_hub.group_spm_admin"/>
+                            <field name="restricted_old_value"/>
+                            <field name="restricted_new_value"/>
                             <field name="origin"/>
                             <field name="reason"/>
                         </list>

@@ -121,6 +121,9 @@ class ResPartner(models.Model):
         """Requirements: FR-SPM-0011"""
         for vals in vals_list:
             self._spm_check_status_allowed(vals)
+        if not self.env.su:
+            # native create adds context defaults inside super(): a client default must not set the status
+            self = self.with_context(default_spm_status_id=False)
         return super().create(vals_list)
 
     def write(self, vals):
@@ -134,6 +137,8 @@ class ResPartner(models.Model):
             lambda partner: partner._spm_is_history_subject())
         before = {partner.id: partner._spm_snapshot(watched) for partner in tracked}
         result = super().write(vals)
+        if becomes_supplier:
+            tracked = tracked.filtered(lambda partner: partner._spm_is_history_subject())
         origin = self.env['procurement.supplier.change']._spm_origin()
         reason = self.env.context.get('spm_status_reason')
         rows = []
@@ -153,6 +158,11 @@ class ResPartner(models.Model):
         """
         if not self.env.user.has_group('supplier_procurement_management_hub.group_spm_manager'):
             raise AccessError(self.env._("Only a Procurement manager can change the supplier status."))
+        status = self.env['procurement.supplier.status'].browse(
+            status.id if isinstance(status, models.BaseModel) else status).exists()
+        if not status:
+            raise UserError(self.env._("The supplier status does not exist."))
+        self.check_access('read')  # the company boundary stays: only the missing write right is lifted below
         reason = (reason or '').strip()
         if status.kind in SPM_REASON_KINDS and not reason:
             raise UserError(self.env._("A reason is required to set the status %s.", status.name))
