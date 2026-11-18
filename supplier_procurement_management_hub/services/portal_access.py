@@ -71,6 +71,48 @@ def get_owned(env, model, record_id, domain=None):
     return env[model].search([('id', '=', record_id)] + list(domain or []), limit=1)
 
 
+def is_procurement_record(env, model_name, record_id):
+    """True when the record is one the supplier checks guard: an order, a vendor bill, a hub record,
+    or an attachment of one of them. Customer invoices, sales and shared links keep Odoo's own rules.
+
+    Requirements: BR-SPM-0002, FR-SPM-0028
+    """
+    if model_name == 'purchase.order' or model_name.startswith('procurement.'):
+        return True
+    if model_name == 'account.move':
+        move = env['account.move'].sudo().browse(record_id).exists()  # sudo: the move type only
+        # a missing id is answered as a foreign bill would be
+        return not move or move.move_type in ('in_invoice', 'in_refund', 'in_receipt')
+    if model_name == 'ir.attachment':
+        attachment = env['ir.attachment'].sudo().browse(record_id).exists()  # sudo: its owner only
+        return bool(attachment.res_model and attachment.res_id) and attachment.res_model != model_name \
+            and is_procurement_record(env, attachment.res_model, attachment.res_id)
+    return False
+
+
+def check_document(env, model_name, record_id, action):
+    """Return the record the session user owns and log the access; refuse and log otherwise.
+
+    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+
+    The one rule of every portal path: the refusal of the user first, then ownership by the
+    user's own rights (a token is never looked at), then one activity entry.
+    """
+    try:
+        supplier = current_supplier(env)
+    except SupplierAccessRefused as refused:
+        log(env, 'denied', 'refused', res_model=model_name, res_id=record_id, detail=refused.reason)
+        raise
+    domain = [('state', 'in', VISIBLE_ORDER_STATES)] if model_name == 'purchase.order' else None
+    record = get_owned(env, model_name, record_id, domain)
+    if not record:
+        log(env, 'denied', 'refused', supplier=supplier, res_model=model_name, res_id=record_id,
+            detail='not found')
+        raise SupplierAccessRefused('not found')
+    log(env, action, 'ok', supplier=supplier, record=record)
+    return record
+
+
 def log(env, action, result, supplier=None, record=None, res_model=None, res_id=None, detail=''):
     """Write one portal activity entry for the session user.
 
