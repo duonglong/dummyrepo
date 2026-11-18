@@ -18,3 +18,4 @@ from . import test_supplier_document
 from . import test_supplier_control
 from . import test_matching_acceptance
 from . import test_exceptions_posting_acceptance
+from . import test_matching

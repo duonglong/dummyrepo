@@ -16,6 +16,7 @@
         'views/procurement_supplier_document_views.xml',
         'views/res_partner_views.xml',
         'views/procurement_override_views.xml',
+        'views/procurement_reconciliation_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

@@ -46,3 +46,33 @@ access_spm_override_admin,Override admin,procurement.override,group_spm_admin,cr
 access_spm_override_buyer,Override buyer,procurement.override,group_spm_buyer,r,
 access_spm_override_finance,Override finance,procurement.override,group_spm_finance,r,
 spm_override_comp_rule,Procurement override: allowed companies,procurement.override,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_policy_buyer,Procurement Matching Policy buyer,procurement.matching.policy,group_spm_buyer,r,
+access_spm_policy_manager,Procurement Matching Policy manager,procurement.matching.policy,group_spm_manager,crud,
+access_spm_policy_finance,Procurement Matching Policy finance,procurement.matching.policy,group_spm_finance,cru,
+access_spm_policy_auditor,Procurement Matching Policy auditor,procurement.matching.policy,group_spm_auditor,r,
+access_spm_policy_admin,Procurement Matching Policy admin,procurement.matching.policy,group_spm_admin,crud,
+access_spm_tolerance_buyer,Procurement Matching Tolerance buyer,procurement.matching.tolerance,group_spm_buyer,r,
+access_spm_tolerance_manager,Procurement Matching Tolerance manager,procurement.matching.tolerance,group_spm_manager,crud,
+access_spm_tolerance_finance,Procurement Matching Tolerance finance,procurement.matching.tolerance,group_spm_finance,cru,
+access_spm_tolerance_auditor,Procurement Matching Tolerance auditor,procurement.matching.tolerance,group_spm_auditor,r,
+access_spm_tolerance_admin,Procurement Matching Tolerance admin,procurement.matching.tolerance,group_spm_admin,crud,
+access_spm_route_buyer,Procurement Exception Route buyer,procurement.exception.route,group_spm_buyer,r,
+access_spm_route_manager,Procurement Exception Route manager,procurement.exception.route,group_spm_manager,crud,
+access_spm_route_finance,Procurement Exception Route finance,procurement.exception.route,group_spm_finance,cru,
+access_spm_route_auditor,Procurement Exception Route auditor,procurement.exception.route,group_spm_auditor,r,
+access_spm_route_admin,Procurement Exception Route admin,procurement.exception.route,group_spm_admin,crud,
+access_spm_recon_buyer,Procurement Reconciliation buyer,procurement.reconciliation,group_spm_buyer,r,
+access_spm_recon_manager,Procurement Reconciliation manager,procurement.reconciliation,group_spm_manager,cru,
+access_spm_recon_finance,Procurement Reconciliation finance,procurement.reconciliation,group_spm_finance,cru,
+access_spm_recon_auditor,Procurement Reconciliation auditor,procurement.reconciliation,group_spm_auditor,r,
+access_spm_recon_admin,Procurement Reconciliation admin,procurement.reconciliation,group_spm_admin,crud,
+access_spm_recon_line_buyer,Procurement Reconciliation Line buyer,procurement.reconciliation.line,group_spm_buyer,r,
+access_spm_recon_line_manager,Procurement Reconciliation Line manager,procurement.reconciliation.line,group_spm_manager,cru,
+access_spm_recon_line_finance,Procurement Reconciliation Line finance,procurement.reconciliation.line,group_spm_finance,cru,
+access_spm_recon_line_auditor,Procurement Reconciliation Line auditor,procurement.reconciliation.line,group_spm_auditor,r,
+access_spm_recon_line_admin,Procurement Reconciliation Line admin,procurement.reconciliation.line,group_spm_admin,crud,
+spm_policy_comp_rule,procurement.matching.policy: allowed companies,procurement.matching.policy,,crud,"[('company_id', 'in', company_ids)]"
+spm_tolerance_comp_rule,procurement.matching.tolerance: allowed companies,procurement.matching.tolerance,,crud,"[('company_id', 'in', company_ids)]"
+spm_route_comp_rule,procurement.exception.route: allowed companies,procurement.exception.route,,crud,"[('company_id', 'in', company_ids)]"
+spm_recon_comp_rule,procurement.reconciliation: allowed companies,procurement.reconciliation,,crud,"[('company_id', 'in', company_ids)]"
+spm_recon_line_comp_rule,procurement.reconciliation.line: allowed companies,procurement.reconciliation.line,,crud,"[('company_id', 'in', company_ids)]"
