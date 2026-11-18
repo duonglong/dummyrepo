@@ -7,6 +7,7 @@ from datetime import timedelta
 import pytz
 
 from odoo import fields
+from odoo.exceptions import UserError
 
 # Worst first: the supplier shows the worst state among its required documents.
 COMPLIANCE_ORDER = ('expired_or_missing', 'rejected', 'to_verify', 'expiring', 'valid')
@@ -77,3 +78,64 @@ def compliance_state(rows):
     states = {'expired_or_missing' if state in ('expired', 'missing') else state
               for _document_type, state in rows}
     return next(state for state in COMPLIANCE_ORDER if state in states)
+
+
+# Status kinds a supplier may have to take part in a controlled flow (BR-SPM-0006).
+CONTROL_ALLOWED_KINDS = ('approved', 'conditional')
+# Models whose records a controlled flow acts on (an override can name only these).
+CONTROLLED_MODELS = ('purchase.order',)
+# The override event of each override kind in the audit trail.
+OVERRIDE_AUDIT_EVENTS = {'status': 'status_override', 'risk': 'risk_override'}
+
+
+def has_status_override(env, record, partner, action):
+    """Return True when a manager recorded a status override for this one record.
+
+    Requirements: FR-SPM-0013
+    Elevated rights (read of ``procurement.override``): the buyer who acts has no
+    access to the overrides; the search is limited to the one record, supplier
+    and action.
+    """
+    return bool(env['procurement.override'].sudo().search_count([
+        ('res_model', '=', record._name), ('res_id', '=', record.id),
+        ('company_id', '=', record.company_id.id),
+        ('partner_id', '=', partner.id), ('action', '=', action),
+        ('kind', '=', 'status')], limit=1))
+
+
+def controlled_record(env, res_model, res_id):
+    """Return the record an override names, read as the acting user.
+
+    Requirements: FR-SPM-0013, BR-SPM-0001
+    Refuses a model that no controlled flow uses, a record that does not exist
+    and a record the user cannot read (for example one of another company).
+    """
+    if res_model not in CONTROLLED_MODELS:
+        raise UserError(env._("An override cannot be recorded for this kind of record."))
+    record = env[res_model].browse(res_id).exists()
+    if not record:
+        raise UserError(env._("The record of the override does not exist."))
+    record.check_access('read')
+    return record
+
+
+def check_supplier_allowed(env, record, partner, company, action):
+    """Refuse a controlled flow with a supplier whose status is not allowed.
+
+    Requirements: BR-SPM-0006, FR-SPM-0013
+    Does nothing when the company has no supplier control, when the status kind
+    is Approved or Conditional, or when an override exists for this record. The
+    message names the supplier and its status.
+    """
+    if not company.sudo().spm_supplier_control:
+        return
+    partner = partner.commercial_partner_id
+    if partner.spm_status_kind in CONTROL_ALLOWED_KINDS:
+        return
+    if has_status_override(env, record, partner, action):
+        return
+    status = partner.spm_status_id.display_name or env._("no status")
+    raise UserError(env._(
+        "Supplier %(supplier)s cannot be used here: its status is %(status)s. "
+        "A Procurement manager can record an override with a reason.",
+        supplier=partner.display_name, status=status))

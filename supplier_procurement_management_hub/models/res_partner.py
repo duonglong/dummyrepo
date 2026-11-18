@@ -153,16 +153,29 @@ class ResPartner(models.Model):
                 audit.log(self.env, 'restricted_field', self, {name: old}, {name: new}, '')
         return rows
 
-    def _spm_check_status_allowed(self, vals):
+    def _spm_check_status_allowed(self, vals, writing=False):
         """Refuse a status written by a caller that is not elevated.
 
         The lifecycle action, approval and job code write the status elevated
         after their own role and reason checks; nothing the client sends (a
-        context key) opens this path.
+        context key) opens this path. A Procurement manager may also write a
+        status that needs no reason directly (never the stored kind, never
+        Suspended or Blocked, and never on create).
         """
-        if not self.env.su and any(name in vals for name in SPM_GUARDED_STATUS_FIELDS):
-            raise AccessError(self.env._(
-                "The supplier status can only be changed with the Change status action."))
+        if self.env.su or not any(name in vals for name in SPM_GUARDED_STATUS_FIELDS):
+            return
+        if writing and self._spm_manager_may_write_status(vals):
+            return
+        raise AccessError(self.env._(
+            "The supplier status can only be changed with the Change status action."))
+
+    def _spm_manager_may_write_status(self, vals):
+        """Return True for a Procurement manager writing only a reason-free status."""
+        if 'spm_status_kind' in vals or not self.env.user.has_group(
+                'supplier_procurement_management_hub.group_spm_manager'):
+            return False
+        status = self.env['procurement.supplier.status'].sudo().browse(vals['spm_status_id']).exists()
+        return bool(status) and status.kind not in SPM_REASON_KINDS
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -176,7 +189,7 @@ class ResPartner(models.Model):
 
     def write(self, vals):
         """Requirements: FR-SPM-0011, FR-SPM-0014"""
-        self._spm_check_status_allowed(vals)
+        self._spm_check_status_allowed(vals, writing=True)
         watched = [name for name in SPM_WATCHED if name in vals]
         if not watched:
             return super().write(vals)
