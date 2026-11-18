@@ -66,6 +66,9 @@ class TestExceptionLifecycle(SpmMatchingCommon):
             recon.with_user(self.user_acc).action_spm_mark_not_duplicate('mine')
         recon.with_user(self.user_fin).action_spm_mark_not_duplicate('Different order')
         self.assertEqual(recon.exception_ids.state, 'resolved')
+        # Findings S11 and Q17: the reviewer owns the cleared exception and the decision is in the trail
+        self.assertEqual(recon.exception_ids.owner_id, self.user_fin)
+        self.assertEqual(self._audit_entries(recon.exception_ids).comment, 'Different order')
         dup.write({'ref': 'INV-Z'})
         self.assertFalse(dup.spm_possible_duplicate_ids)
 
@@ -172,6 +175,40 @@ class TestExceptionLifecycle(SpmMatchingCommon):
         dialog.save().action_confirm()
         self.assertEqual(self.exc.state, 'resolved')
         self.assertEqual(self.exc.decision_comment, 'Credit note CN/12 received')
+
+    def _audit_entries(self, exception):
+        # sudo: the test reads the protected trail as an auditor would
+        return self.env['procurement.audit.log'].sudo().search([
+            ('event', '=', 'exception'), ('res_model', '=', exception._name), ('res_id', '=', exception.id)])
+
+    def test_a_decision_is_written_to_the_audit_trail_and_survives_the_bill(self):
+        """Requirements: FR-SPM-0077, BR-SPM-0018. Finding Q17: accept, the exception is deleted with its bill."""
+        self.exc.with_user(self.user_fin).action_spm_accept('Agreed surcharge')
+        exc_id = self.exc.id
+        entries = self.env['procurement.audit.log'].sudo().search([
+            ('event', '=', 'exception'), ('res_id', '=', exc_id)])
+        self.assertEqual(entries.user_id, self.user_fin)
+        self.assertEqual(entries.comment, 'Agreed surcharge')
+        self.assertEqual(entries.new_values['state'], 'accepted')
+        # the exception goes the way a deleted draft bill takes it (cascade); the trail is not linked to it
+        self.exc.sudo().unlink()
+        self.env.flush_all()
+        self.assertEqual(self.env['procurement.audit.log'].sudo().search_count([
+            ('event', '=', 'exception'), ('res_id', '=', exc_id)]), 1)
+
+    def test_every_path_that_changes_a_decision_writes_the_audit_trail(self):
+        """Requirements: FR-SPM-0077, BR-SPM-0018. Finding Q17 siblings: review, system resolve, reopen."""
+        self.exc.with_user(self.user_fin).action_spm_review()
+        self.assertEqual(len(self._audit_entries(self.exc)), 1)
+        self.bill.invoice_line_ids.price_unit = 11.5
+        self.env.flush_all()
+        self.assertEqual(self.exc.state, 'resolved')
+        self.assertEqual(len(self._audit_entries(self.exc)), 2)
+        self.bill.invoice_line_ids.price_unit = 12.5
+        self.env.flush_all()
+        self.assertEqual(self.exc.state, 'open')
+        self.assertEqual(len(self._audit_entries(self.exc)), 3)
+        self.assertFalse(self.exc.decision_comment)
 
     def test_a_later_decision_keeps_the_earlier_one_in_the_history(self):
         """Requirements: FR-SPM-0077. Finding Q11, path 1: reject, then resolve."""

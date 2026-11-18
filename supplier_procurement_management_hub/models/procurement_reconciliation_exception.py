@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..services import audit
+
 from .procurement_exception_route import EXCEPTION_KINDS
 
 EXCEPTION_STATES = [
@@ -72,6 +74,26 @@ class ProcurementReconciliationException(models.Model):
                 state=states[exception.state], user=exception.decided_by_id.name or self.env._("the system"),
                 comment=exception.decision_comment or '-'), subtype_xmlid='mail.mt_note')
 
+    def _spm_write_decision(self, values) -> None:
+        """Write a change of decision, keeping the earlier one in the chatter and the audit trail.
+
+        Requirements: FR-SPM-0077, BR-SPM-0018
+        Every path that changes the state, the decider or the comment goes
+        through here, so that the protected audit trail holds who decided
+        what and why even when the bill and its exceptions are deleted.
+        """
+        self._spm_log_decision()
+        snapshot = {exc.id: {'state': exc.state, 'decided_by_id': exc.decided_by_id.id,
+                             'decision_comment': exc.decision_comment} for exc in self}
+        # sudo: users hold read access only; every caller checked its user or is the matching service
+        self.sudo().write(values)
+        for exception in self:
+            audit.log(
+                self.env, 'exception', exception, old_values=snapshot[exception.id],
+                new_values={'state': exception.state, 'decided_by_id': exception.decided_by_id.id,
+                            'decision_comment': exception.decision_comment},
+                comment=exception.decision_comment or '')
+
     def _spm_take_ownership(self):
         """Make the caller the owner of the exceptions that have none."""
         # sudo: users hold read access only; the caller was checked by _spm_check_decider
@@ -90,9 +112,7 @@ class ProcurementReconciliationException(models.Model):
         if comment_required and not (comment or '').strip():
             raise UserError(self.env._("A comment is required to decide an exception."))
         self._spm_take_ownership()
-        self._spm_log_decision()
-        # sudo: users hold read access only; the caller was checked above
-        self.sudo().write({
+        self._spm_write_decision({
             'state': state, 'decided_by_id': self.env.user.id,
             'decision_comment': (comment or '').strip() or False,
         })
@@ -153,8 +173,7 @@ class ProcurementReconciliationException(models.Model):
         if any(exception.state != 'open' for exception in self):
             raise UserError(self.env._("Only an open exception can be put in review."))
         self._spm_take_ownership()
-        # sudo: users hold read access only; the caller was checked above
-        self.sudo().write({'state': 'in_review'})
+        self._spm_write_decision({'state': 'in_review'})
         return True
 
     # sync with the matching ----------------------------------------------
@@ -186,6 +205,7 @@ class ProcurementReconciliationException(models.Model):
         """
         routes = {route.kind: route for route in self.env['procurement.exception.route'].search(
             [('company_id', '=', reconciliation.company_id.id)])}
+        finance = self._spm_finance_reviewers(reconciliation.company_id)
         existing = {(exc.kind, exc.move_line_id.id): exc for exc in reconciliation.exception_ids
                     if exc.kind == 'duplicate' or exc.move_line_id}
         for key, values in wanted.items():
@@ -196,16 +216,15 @@ class ProcurementReconciliationException(models.Model):
             if owner or not current:
                 values['owner_id'] = owner.id
             if not current:
-                self._spm_create(reconciliation, key[0], values)
+                self._spm_create(reconciliation, key[0], values, finance)
                 continue
-            self._spm_refresh_one(current, values)
+            self._spm_refresh_one(current, values, finance)
         gone = reconciliation.exception_ids.filtered(
             lambda exc: exc.state in RESOLVABLE_STATES and (exc.kind, exc.move_line_id.id) not in wanted)
-        gone._spm_log_decision()
-        gone.write({'state': 'resolved', 'decided_by_id': False,
+        gone._spm_write_decision({'state': 'resolved', 'decided_by_id': False,
                     'decision_comment': self.env._("The discrepancy is no longer present.")})
 
-    def _spm_refresh_one(self, current, values) -> None:
+    def _spm_refresh_one(self, current, values, finance) -> None:
         """Bring one exception up to the discrepancy found now."""
         currency = current.currency_id
         previous_owner, previous_state = current.owner_id, current.state
@@ -215,36 +234,36 @@ class ProcurementReconciliationException(models.Model):
         released_by_person = current.state == 'accepted' or (current.state == 'resolved' and current.decided_by_id)
         if current.state in UNDECIDED_STATES or (current.state == 'resolved' and not current.decided_by_id):
             new_state = 'open' if current.state == 'resolved' else current.state
-            current.write(dict(values, state=new_state))
+            if current.state == 'resolved':
+                current._spm_write_decision(dict(values, state=new_state, decision_comment=False))
+            else:
+                current.write(dict(values, state=new_state))
         elif released_by_person and changed:
-            current._spm_log_decision()
-            current.write(dict(values, state='open', decided_by_id=False, decision_comment=False))
+            current._spm_write_decision(dict(values, state='open', decided_by_id=False, decision_comment=False))
         else:
             current.write({'requires_approval': values['requires_approval']})
         reopened = current.state == 'open' and previous_state not in UNDECIDED_STATES
         if reopened or current.owner_id != previous_owner:
-            current._spm_notify_owner()
+            current._spm_notify_owner(finance)
 
     @api.model
-    def _spm_create(self, reconciliation, kind, values) -> None:
+    def _spm_create(self, reconciliation, kind, values, finance) -> None:
         """Create one exception and notify its owner."""
         exception = self.with_context(mail_create_nosubscribe=True).create(dict(
             values, reconciliation_id=reconciliation.id, kind=kind))
-        exception._spm_notify_owner()
+        exception._spm_notify_owner(finance)
 
-    def _spm_recipients(self):
-        """Return the users told about the exception: its owner, else the company's Finance reviewers."""
-        self.ensure_one()
-        if self.owner_id:
-            return self.owner_id
+    @api.model
+    def _spm_finance_reviewers(self, company):
+        """Return the active Finance reviewers of the company (one search per sync)."""
         return self.env['res.users'].search([
             ('all_group_ids', 'in', self.env.ref(FINANCE_GROUP).id), ('share', '=', False),
-            ('company_ids', 'in', self.company_id.id)])
+            ('company_ids', 'in', company.id)])
 
-    def _spm_notify_owner(self) -> None:
-        """Subscribe the owner of the exception, or the Finance reviewers, and tell them about it."""
+    def _spm_notify_owner(self, finance) -> None:
+        """Subscribe the owner of the exception, else the Finance reviewers, and tell them about it."""
         self.ensure_one()
-        partners = self._spm_recipients().partner_id
+        partners = (self.owner_id or finance).partner_id
         if not partners:
             return
         self.message_subscribe(partner_ids=partners.ids)

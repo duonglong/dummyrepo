@@ -108,7 +108,7 @@ class ProcurementReconciliation(models.Model):
             'duplicate_move_ids': [(5, 0, 0)],
         })
         duplicate_exceptions = recon._spm_holding_exceptions().filtered(lambda exc: exc.kind == 'duplicate')
-        duplicate_exceptions._spm_log_decision()
-        duplicate_exceptions.write({
+        duplicate_exceptions._spm_take_ownership()
+        duplicate_exceptions._spm_write_decision({
             'state': 'resolved', 'decided_by_id': user.id, 'decision_comment': comment})
         return True
