@@ -49,6 +49,7 @@
                     <group>
                         <field name="name"/>
                         <field name="required_document_type_ids" widget="many2many_tags"/>
+                        <field name="questionnaire_id"/>
                     </group>
                     <field name="field_ids">
                         <list editable="bottom">

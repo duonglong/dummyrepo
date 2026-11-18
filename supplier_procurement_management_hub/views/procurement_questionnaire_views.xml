@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0009, FR-SPM-0010 -->
+    <record id="procurement_questionnaire_view_form" model="ir.ui.view">
+        <field name="name">procurement.questionnaire.form</field>
+        <field name="model">procurement.questionnaire</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="purpose"/>
+                        <field name="pass_score"/>
+                        <field name="active" invisible="True"/>
+                    </group>
+                    <field name="question_ids">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="required"/>
+                            <field name="knockout"/>
+                            <field name="max_points"/>
+                        </list>
+                        <form>
+                            <group>
+                                <field name="name"/>
+                                <field name="kind"/>
+                                <field name="required"/>
+                                <field name="knockout"/>
+                            </group>
+                            <field name="option_ids" invisible="kind != 'choice'">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="points"/>
+                                    <field name="accepted"/>
+                                </list>
+                            </field>
+                        </form>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_questionnaire_view_list" model="ir.ui.view">
+        <field name="name">procurement.questionnaire.list</field>
+        <field name="model">procurement.questionnaire</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="purpose"/>
+                <field name="pass_score"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_questionnaire_action" model="ir.actions.act_window">
+        <field name="name">Questionnaires</field>
+        <field name="res_model">procurement.questionnaire</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Add a questionnaire.</field>
+    </record>
+
+    <record id="procurement_supplier_assessment_view_form" model="ir.ui.view">
+        <field name="name">procurement.supplier.assessment.form</field>
+        <field name="model">procurement.supplier.assessment</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_spm_submit" string="Submit" type="object" class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="supplier_procurement_management_hub.group_spm_buyer"/>
+                    <button name="action_spm_approve" string="Approve" type="object" class="btn-primary"
+                            invisible="state != 'submitted'"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="application_id" readonly="state != 'draft'"/>
+                            <field name="questionnaire_id" readonly="state != 'draft'"/>
+                        </group>
+                        <group invisible="state == 'draft'">
+                            <field name="score"/>
+                            <field name="passed"/>
+                            <field name="failed_knockout_ids" widget="many2many_tags"/>
+                            <field name="approved_by_id" invisible="state != 'approved'"/>
+                            <field name="approved_date" invisible="state != 'approved'"/>
+                        </group>
+                    </group>
+                    <field name="open_items" invisible="not open_items"/>
+                    <field name="answer_ids" readonly="state != 'draft'">
+                        <list editable="bottom">
+                            <field name="question_id"/>
+                            <field name="option_id" domain="[('question_id', '=', question_id)]"/>
+                            <field name="text_answer"/>
+                            <field name="points"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_supplier_assessment_view_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.assessment.list</field>
+        <field name="model">procurement.supplier.assessment</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id"/>
+                <field name="questionnaire_id"/>
+                <field name="state"/>
+                <field name="score"/>
+                <field name="passed"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_supplier_assessment_action" model="ir.actions.act_window">
+        <field name="name">Qualifications</field>
+        <field name="res_model">procurement.supplier.assessment</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Start a qualification assessment for a supplier.</field>
+    </record>
+
+    <menuitem id="menu_spm_assessment" name="Qualifications" parent="menu_spm_root" sequence="20"
+              action="procurement_supplier_assessment_action" groups="group_spm_buyer"/>
+    <menuitem id="menu_spm_questionnaire" name="Questionnaires" parent="menu_spm_configuration"
+              sequence="25" action="procurement_questionnaire_action"
+              groups="group_spm_manager,group_spm_admin"/>
+</odoo>

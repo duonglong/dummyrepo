@@ -21,3 +21,4 @@ from . import test_exceptions_posting_acceptance
 from . import test_onboarding_application
 from . import test_matching
 from . import test_application_review
+from . import test_qualification

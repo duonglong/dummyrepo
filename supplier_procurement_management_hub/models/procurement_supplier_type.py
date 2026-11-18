@@ -16,5 +16,8 @@ class ProcurementSupplierType(models.Model):
     field_ids = fields.One2many('procurement.supplier.type.field', 'type_id', string="Application fields")
     required_document_type_ids = fields.Many2many(
         'procurement.document.type', string="Required documents")
+    questionnaire_id = fields.Many2one(
+        'procurement.questionnaire', string="Qualification questionnaire", ondelete='restrict',
+        domain=[('purpose', '=', 'qualification')])
 
-    _spm_audited_fields = ('name', 'active', 'required_document_type_ids')
+    _spm_audited_fields = ('name', 'active', 'required_document_type_ids', 'questionnaire_id')
