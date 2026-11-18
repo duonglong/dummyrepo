@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 RISK_ACTIONS = [('none', 'None'), ('warn', 'Warn'), ('block', 'Block')]
@@ -42,4 +42,4 @@ class ResCompany(models.Model):
         for company in self:
             for name in SPM_DAY_FIELDS:
                 if company[name] < 0:
-                    raise ValidationError(_("%s cannot be negative.", company._fields[name]._description_string(self.env)))
+                    raise ValidationError(self.env._("%s cannot be negative.", company._fields[name]._description_string(self.env)))

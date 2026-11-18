@@ -37,6 +37,7 @@ class TestAuditCompanySettings(TransactionCase):
     def test_superuser_cannot_delete_an_entry(self):
         """Requirements: BR-SPM-0018: refused for everyone, superuser included."""
         entry = self.Log.search([('res_id', '=', self.company.id)], limit=1)
+        self.assertTrue(entry)
         with self.assertRaises(UserError):
             entry.sudo().unlink()
         with self.assertRaises(UserError):
@@ -48,3 +49,14 @@ class TestAuditCompanySettings(TransactionCase):
         settings.set_values()
         entry = self.Log.search([('comment', '=', 'settings')], limit=1)
         self.assertEqual(entry.new_values['spm_risk_medium_from'], '35')
+
+    def test_risk_band_guard(self):
+        """Requirements: FR-SPM-0108: medium below high, high at most 100."""
+        for medium, high in ((60, 60), (70, 40), (30, 101)):
+            with self.assertRaises(ValidationError):
+                self.env['res.config.settings'].create({
+                    'spm_risk_medium_from': medium, 'spm_risk_high_from': high})
+
+    def test_audit_actor_is_kept(self):
+        """Requirements: BR-SPM-0018: the actor of an entry cannot be deleted away."""
+        self.assertEqual(self.Log._fields['user_id'].ondelete, 'restrict')
