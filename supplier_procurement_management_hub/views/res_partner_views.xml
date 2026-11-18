@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0011, FR-SPM-0014 -->
+    <record id="res_partner_view_form_spm" model="ir.ui.view">
+        <field name="name">res.partner.form.spm</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header invisible="not id or not is_company">
+                    <button name="action_spm_open_status_wizard" string="Change status" type="object"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                </header>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Procurement" name="spm_procurement"
+                      groups="supplier_procurement_management_hub.group_spm_buyer">
+                    <group>
+                        <group>
+                            <field name="spm_status_id" readonly="True"/>
+                            <field name="spm_supplier_type_id"/>
+                            <field name="spm_product_category_ids" widget="many2many_tags"/>
+                        </group>
+                        <group>
+                            <field name="spm_requalification_date"/>
+                            <field name="spm_risk_level"/>
+                        </group>
+                    </group>
+                    <field name="spm_change_ids">
+                        <list>
+                            <field name="date"/>
+                            <field name="user_id"/>
+                            <field name="field_label"/>
+                            <field name="old_value"/>
+                            <field name="new_value"/>
+                            <field name="origin"/>
+                            <field name="reason"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

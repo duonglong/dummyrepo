@@ -4,10 +4,10 @@ from odoo import fields, models
 class ProcurementSupplierStatus(models.Model):
     """A configurable supplier status tied to one of seven kinds.
 
-    Requirements: FR-SPM-0106
-    Built for T-003 (minimal: the T-001 acceptance test reads it).
+    Requirements: FR-SPM-0106, BR-SPM-0005, FR-SPM-0108
     """
     _name = 'procurement.supplier.status'
+    _inherit = ['procurement.audit.mixin']
     _description = 'Supplier Status'
     _order = 'sequence, id'
 
@@ -24,3 +24,5 @@ class ProcurementSupplierStatus(models.Model):
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     default_for_kind = fields.Boolean()
+
+    _spm_audited_fields = ('name', 'kind', 'sequence', 'active', 'default_for_kind')
