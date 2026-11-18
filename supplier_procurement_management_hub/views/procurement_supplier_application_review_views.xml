@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0004, FR-SPM-0005, FR-SPM-0006 -->
+    <record id="procurement_supplier_application_view_form_review" model="ir.ui.view">
+        <field name="name">procurement.supplier.application.form.review</field>
+        <field name="model">procurement.supplier.application</field>
+        <field name="inherit_id" ref="procurement_supplier_application_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_spm_submit']" position="after">
+                <button name="action_spm_open_request_changes_wizard" string="Request changes" type="object"
+                        invisible="state != 'submitted'"/>
+                <button name="action_spm_approve" string="Approve" type="object" class="btn-primary"
+                        invisible="state != 'submitted'"
+                        groups="supplier_procurement_management_hub.group_spm_manager"/>
+                <button name="action_spm_open_reject_wizard" string="Reject" type="object"
+                        invisible="state != 'submitted'"
+                        groups="supplier_procurement_management_hub.group_spm_manager"/>
+            </xpath>
+            <xpath expr="//field[@name='user_id']" position="after">
+                <field name="partner_id" invisible="not partner_id"/>
+            </xpath>
+            <xpath expr="//field[@name='field_rules']" position="after">
+                <group invisible="not change_request_comment and not rejection_reason">
+                    <field name="change_request_comment" invisible="not change_request_comment"/>
+                    <field name="rejection_reason" invisible="not rejection_reason"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="procurement_reason_wizard_view_form_review" model="ir.ui.view">
+        <field name="name">procurement.reason.wizard.form.review</field>
+        <field name="model">procurement.reason.wizard</field>
+        <field name="inherit_id" ref="procurement_reason_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='reason']" position="attributes">
+                <attribute name="required">action in ('override', 'request_changes', 'reject') or status_kind in ('suspended', 'blocked')</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

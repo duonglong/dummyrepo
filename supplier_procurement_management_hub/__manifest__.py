@@ -21,6 +21,7 @@
         'views/procurement_supplier_document_views.xml',
         'views/res_partner_views.xml',
         'views/procurement_supplier_application_views.xml',
+        'views/procurement_supplier_application_review_views.xml',
         'views/onboarding_templates.xml',
         'views/procurement_override_views.xml',
     ],

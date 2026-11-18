@@ -1,13 +1,17 @@
 from odoo import api, fields, models
+from odoo.addons.base.models.res_partner_bank import sanitize_account_number
 from odoo.exceptions import AccessError, UserError
 
-from ..services import onboarding
+from ..services import audit, onboarding
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
 # Bank and tax data: the restricted roles and the Buyer (BR-SPM-0004).
 SPM_APPLICATION_RESTRICTED_GROUPS = (
     SPM_RESTRICTED_GROUPS + ',supplier_procurement_management_hub.group_spm_buyer')
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_supplier_invitation'
+CHANGES_TEMPLATE = 'supplier_procurement_management_hub.mail_template_supplier_changes_requested'
+REJECTION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_supplier_rejected'
+MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 
 
 class ProcurementSupplierApplication(models.Model):
@@ -34,6 +38,8 @@ class ProcurementSupplierApplication(models.Model):
     company_id = fields.Many2one(
         'res.company', default=lambda self: self.env.company, required=True, index=True)
     partner_id = fields.Many2one('res.partner', string="Supplier", copy=False, ondelete='restrict')
+    change_request_comment = fields.Text(copy=False, readonly=True)
+    rejection_reason = fields.Text(copy=False, readonly=True)
 
     email = fields.Char(required=True)
     invitation_token_hash = fields.Char(copy=False, groups='base.group_system')
@@ -163,11 +169,9 @@ class ProcurementSupplierApplication(models.Model):
             application._spm_send_invitation()
         return True
 
-    def _spm_send_invitation(self):
-        """Issue a new token, store its hash and expiry, and e-mail the link."""
+    def _spm_issue_link(self):
+        """Issue a new token, store its hash and expiry, and return the single-use URL."""
         self.ensure_one()
-        if self.state not in onboarding.EDITABLE_STATES:
-            raise UserError(self.env._("An invitation can only be sent for an application the supplier can still fill in."))
         self.check_access('write')
         token = onboarding.new_token()
         # Elevated (NFR-SPM-0002 named place: invitation token): the hash field is system-only;
@@ -177,7 +181,14 @@ class ProcurementSupplierApplication(models.Model):
             'invitation_expiry': onboarding.expiry_from_now(),
             'invitation_used_date': False,
         })
-        url = self.get_base_url() + onboarding.ONBOARDING_PATH + token
+        return self.get_base_url() + onboarding.ONBOARDING_PATH + token
+
+    def _spm_send_invitation(self):
+        """Issue a new token, store its hash and expiry, and e-mail the link."""
+        self.ensure_one()
+        if self.state not in onboarding.EDITABLE_STATES:
+            raise UserError(self.env._("An invitation can only be sent for an application the supplier can still fill in."))
+        url = self._spm_issue_link()
         template = self.env.ref(INVITATION_TEMPLATE).with_context(
             spm_onboarding_url=url, spm_valid_days=onboarding.INVITATION_VALID_DAYS)
         template.send_mail(self.id, force_send=False)
@@ -220,3 +231,128 @@ class ProcurementSupplierApplication(models.Model):
                     'mail.mail_activity_data_todo', user_id=application.user_id.id,
                     summary=self.env._("Review the onboarding application"))
         return True
+
+    # --- review -------------------------------------------------------------------
+
+    def _spm_start_review(self, role_group=None):
+        """Check the caller's role and rights, lock the applications and require the Submitted state."""
+        if role_group and not self.env.user.has_group(role_group):
+            raise AccessError(self.env._("Only a Procurement manager can do this."))
+        self.check_access('write')
+        self.lock_for_update()
+        if any(application.state != 'submitted' for application in self):
+            raise UserError(self.env._("Only a submitted application can be reviewed."))
+
+    def action_spm_request_changes(self, comment=None):
+        """Send a submitted application back to the supplier with a mandatory comment.
+
+        Requirements: FR-SPM-0004
+        """
+        self._spm_start_review()
+        comment = (comment or '').strip()
+        if not comment:
+            raise UserError(self.env._("A comment is required to request changes."))
+        for application in self:
+            # Elevated: the workflow fields are written by the module's own actions only (write guard).
+            application.sudo().write({'state': 'changes_requested', 'change_request_comment': comment})
+            audit.log(self.env, 'approval', application, {'state': 'submitted'},
+                      {'state': 'changes_requested'}, comment)
+            url = application._spm_issue_link()
+            self.env.ref(CHANGES_TEMPLATE).with_context(
+                spm_onboarding_url=url, spm_comment=comment,
+                spm_valid_days=onboarding.INVITATION_VALID_DAYS).send_mail(application.id, force_send=False)
+        return True
+
+    def action_spm_reject(self, reason=None):
+        """Reject a submitted application with a mandatory reason; the supplier gets a message without it.
+
+        Requirements: FR-SPM-0006
+        """
+        self._spm_start_review(MANAGER_GROUP)
+        reason = (reason or '').strip()
+        if not reason:
+            raise UserError(self.env._("A reason is required to reject an application."))
+        for application in self:
+            # Elevated: the workflow fields are written by the module's own actions only (write guard).
+            application.sudo().write({'state': 'rejected', 'rejection_reason': reason})
+            audit.log(self.env, 'approval', application, {'state': 'submitted'}, {'state': 'rejected'}, reason)
+            self.env.ref(REJECTION_TEMPLATE).send_mail(application.id, force_send=False)
+        return True
+
+    def action_spm_approve(self):
+        """Approve a submitted application: link or create the one supplier contact.
+
+        Requirements: FR-SPM-0005
+        """
+        self._spm_start_review(MANAGER_GROUP)
+        for application in self:
+            partner = application._spm_contact_for_approval()
+            # Elevated: the workflow fields are written by the module's own actions only (write guard).
+            application.sudo().write({'state': 'approved', 'partner_id': partner.id})
+            audit.log(self.env, 'approval', application, {'state': 'submitted'},
+                      {'state': 'approved', 'partner_id': partner.id}, '')
+        return True
+
+    def _spm_contact_for_approval(self):
+        """Return the contact the application becomes, created or updated with its data and approved status.
+
+        Elevated (NFR-SPM-0002 named place: approval): the manager role is checked by the caller;
+        the contact is shared by all companies, may belong to another company and gets a status,
+        which only elevated code writes. The acting user stays the author of the history.
+        """
+        self.ensure_one()
+        data = onboarding.contact_values(self)
+        onboarding.lock_tax_id(self.env, data['vat'])
+        partner = onboarding.find_company_contact(self.env, data['vat'])
+        status = onboarding.approved_status(self.env)
+        if partner:
+            # An existing contact keeps its own values: only what it lacks is filled in.
+            data = {name: value for name, value in data.items()
+                    if name not in ('name', 'is_company', 'company_id') and not partner[name]}
+            data.pop('spm_product_category_ids', None)
+            partner.write(dict(data, spm_status_id=status.id,
+                               spm_product_category_ids=[(4, category.id) for category in self.product_category_ids]))
+        else:
+            partner = self.env['res.partner'].sudo().create(  # elevated: shared contact and status, see above
+                dict(data, spm_status_id=status.id))
+        self._spm_copy_children(partner)
+        return partner
+
+    def _spm_copy_children(self, partner):
+        """Create the bank account and the people of the application on the contact, once each."""
+        application = self.sudo()  # elevated: restricted bank fields; the manager role was checked
+        account = application.bank_account_number
+        if account and sanitize_account_number(account) not in partner.bank_ids.mapped('sanitized_account_number'):
+            self.env['res.partner.bank'].sudo().create({  # elevated: bank accounts of a supplier, role checked
+                'partner_id': partner.id, 'account_number': account, 'bank_name': application.bank_name,
+                'bank_bic': application.bank_bic, 'holder_name': application.bank_holder or partner.name})
+        known = set(partner.child_ids.mapped('name'))
+        self.env['res.partner'].sudo().create([{  # elevated: people of a shared contact, role checked
+            'parent_id': partner.id, 'type': 'contact', 'name': contact.name, 'email': contact.email,
+            'phone': contact.phone, 'function': contact.function}
+            for contact in application.contact_ids if contact.name not in known])
+        application.document_ids.write({'partner_id': partner.id})
+
+    def _spm_open_reason_wizard(self, action, name):
+        """Open the reason dialog of a review action on this application."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': name,
+            'res_model': 'procurement.reason.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': self._name,
+                'default_res_ids': self.ids,
+                'default_action': action,
+            },
+        }
+
+    def action_spm_open_request_changes_wizard(self):
+        """Open the dialog asking the comment for the supplier."""
+        return self._spm_open_reason_wizard('request_changes', self.env._("Request changes"))
+
+    def action_spm_open_reject_wizard(self):
+        """Open the dialog asking the rejection reason."""
+        return self._spm_open_reason_wizard('reject', self.env._("Reject application"))

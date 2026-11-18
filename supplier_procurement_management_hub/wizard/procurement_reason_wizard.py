@@ -14,6 +14,7 @@ class ProcurementReasonWizard(models.TransientModel):
     res_ids = fields.Json(required=True)
     action = fields.Selection([
         ('set_status', 'Change supplier status'), ('override', 'Override supplier control'),
+        ('request_changes', 'Request changes on an application'), ('reject', 'Reject an application'),
     ], required=True)
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
@@ -34,6 +35,8 @@ class ProcurementReasonWizard(models.TransientModel):
                 self.status_id, self.reason)
         if self.action == 'override':
             self._spm_record_overrides()
+        if self.action in ('request_changes', 'reject'):
+            self._spm_review_applications()
         return {'type': 'ir.actions.act_window_close'}
 
     def _spm_record_overrides(self):
@@ -47,3 +50,17 @@ class ProcurementReasonWizard(models.TransientModel):
             'res_model': self.res_model, 'res_id': record.id, 'action': 'confirm',
             'kind': 'status', 'reason': self.reason,
         } for record in records])
+
+    def _spm_review_applications(self):
+        """Forward the reason to the review action of the applications.
+
+        Requirements: FR-SPM-0004, FR-SPM-0006
+        Rights, state and the required reason are those of the application's actions.
+        """
+        if self.res_model != 'procurement.supplier.application':
+            raise UserError(self.env._("This action only applies to supplier applications."))
+        applications = self.env[self.res_model].browse(self.res_ids)
+        if self.action == 'reject':
+            applications.action_spm_reject(self.reason)
+        else:
+            applications.action_spm_request_changes(self.reason)
