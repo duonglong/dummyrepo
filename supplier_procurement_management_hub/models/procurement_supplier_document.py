@@ -20,10 +20,11 @@ class ProcurementSupplierDocument(models.Model):
     partner_id = fields.Many2one(
         'res.partner', string="Supplier", index=True, ondelete='restrict')
     application_id = fields.Many2one(
-        'procurement.supplier.application', string="Application", index=True, ondelete='cascade')
+        'procurement.supplier.application', string="Application", index=True, ondelete='restrict')
     document_type_id = fields.Many2one(
         'procurement.document.type', string="Document type", required=True, ondelete='restrict')
-    attachment_id = fields.Many2one('ir.attachment', string="File", ondelete='set null')
+    attachment_id = fields.Many2one(
+        'ir.attachment', string="File", ondelete='set null', copy=False)
     file_name = fields.Char(related='attachment_id.name', string="File name")
     issue_date = fields.Date()
     expiry_date = fields.Date()
@@ -31,11 +32,11 @@ class ProcurementSupplierDocument(models.Model):
         ('to_verify', 'To verify'),
         ('verified', 'Verified'),
         ('rejected', 'Rejected'),
-    ], string="Verification", required=True, default='to_verify', index=True)
+    ], string="Verification", required=True, default='to_verify', index=True, copy=False)
     reviewer_id = fields.Many2one('res.users', string="Reviewed by", readonly=True, copy=False)
     review_date = fields.Datetime(string="Reviewed on", readonly=True, copy=False)
-    review_comment = fields.Text(string="Reviewer's comment")
-    is_current = fields.Boolean(string="Current", default=True, index=True)
+    review_comment = fields.Text(string="Reviewer's comment", copy=False)
+    is_current = fields.Boolean(string="Current", default=True, index=True, copy=False)
     validity_state = fields.Selection([
         ('valid', 'Valid'),
         ('expiring', 'Expiring'),
@@ -99,14 +100,29 @@ class ProcurementSupplierDocument(models.Model):
             return dict(vals, reviewer_id=self.env.user.id, review_date=fields.Datetime.now())
         return dict(vals, reviewer_id=False, review_date=False)
 
+    def _spm_bind_attachments(self):
+        """Bind a loose file to its document so every reader of the document opens it.
+
+        A file without a record is readable by its uploader only (native rule).
+        """
+        for document in self:
+            attachment = document.attachment_id
+            if attachment and not (attachment.res_model and attachment.res_id):
+                attachment.sudo().write({'res_model': self._name, 'res_id': document.id})
+
     @api.model_create_multi
     def create(self, vals_list):
         """Requirements: FR-SPM-0007"""
         for vals in vals_list:
             self._spm_check_review_allowed(vals)
-        return super().create([self._spm_review_values(vals) for vals in vals_list])
+        documents = super().create([self._spm_review_values(vals) for vals in vals_list])
+        documents._spm_bind_attachments()
+        return documents
 
     def write(self, vals):
         """Requirements: FR-SPM-0007"""
         self._spm_check_review_allowed(vals)
-        return super().write(self._spm_review_values(vals))
+        result = super().write(self._spm_review_values(vals))
+        if 'attachment_id' in vals:
+            self._spm_bind_attachments()
+        return result

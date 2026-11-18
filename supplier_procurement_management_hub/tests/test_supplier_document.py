@@ -61,3 +61,34 @@ class TestSupplierDocument(TransactionCase):
         self.assertEqual(doc.reviewer_id, self.buyer)
         doc.write({'verification_state': 'to_verify'})
         self.assertFalse(doc.reviewer_id)
+
+    def test_file_is_readable_by_another_buyer(self):
+        """FR-SPM-0007: the file of a document is bound to it, so another buyer opens it."""
+        other = self.env['res.users'].create({
+            'name': 'Bob', 'login': 'spm_doc_buyer2', 'email': 'doc_buyer2@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_buyer').id])]})
+        attachment = self.env['ir.attachment'].with_user(self.buyer).create({
+            'name': 'cert.pdf', 'raw': b'pdf'})
+        document = self._doc(self.insurance, attachment_id=attachment.id)
+        self.assertEqual(attachment.sudo().res_id, document.id)
+        self.assertEqual(attachment.with_user(other).name, 'cert.pdf')
+
+    def test_copy_does_not_keep_the_review(self):
+        """FR-SPM-0007: a copy of a verified document starts to verify, without file."""
+        attachment = self.env['ir.attachment'].create({'name': 'a.pdf', 'raw': b'x'})
+        document = self._doc(self.insurance, attachment_id=attachment.id)
+        document.write({'verification_state': 'verified'})
+        copy = document.copy()
+        self.assertEqual(copy.verification_state, 'to_verify')
+        self.assertFalse(copy.reviewer_id)
+        self.assertFalse(copy.attachment_id)
+
+    def test_application_with_documents_cannot_be_deleted(self):
+        """FR-SPM-0007: deleting an application never deletes the supplier's documents."""
+        application = self.env['procurement.supplier.application'].create({
+            'email': 'app@example.com', 'legal_name': 'App T4',
+            'supplier_type_id': self.acme.spm_supplier_type_id.id})
+        document = self._doc(self.insurance, application_id=application.id)
+        with self.assertRaises(Exception), self.cr.savepoint():
+            application.unlink()
+        self.assertTrue(document.exists())
