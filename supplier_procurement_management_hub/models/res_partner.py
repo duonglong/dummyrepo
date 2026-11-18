@@ -13,6 +13,8 @@ SPM_WATCHED = (
 )
 SPM_BANK_WATCHED = {'account_number', 'bank_name', 'holder_name', 'partner_id'}
 SPM_REASON_KINDS = ('suspended', 'blocked')
+# The status and the stored kind copied from it: both are written only elevated.
+SPM_GUARDED_STATUS_FIELDS = ('spm_status_id', 'spm_status_kind')
 
 
 class ResPartner(models.Model):
@@ -112,7 +114,7 @@ class ResPartner(models.Model):
         after their own role and reason checks; nothing the client sends (a
         context key) opens this path.
         """
-        if 'spm_status_id' in vals and not self.env.su:
+        if not self.env.su and any(name in vals for name in SPM_GUARDED_STATUS_FIELDS):
             raise AccessError(self.env._(
                 "The supplier status can only be changed with the Change status action."))
 

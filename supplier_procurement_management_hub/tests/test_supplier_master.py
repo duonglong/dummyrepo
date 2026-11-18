@@ -165,6 +165,15 @@ class TestSupplierMaster(TransactionCase):
         with self.assertRaises(UserError):
             wizard.action_confirm()
 
+    def test_status_kind_cannot_be_written_directly(self):
+        """FR-SPM-0011: the stored kind follows the status and is never written by a user."""
+        partner = self.env['res.partner'].create({'name': 'Kind'})
+        with self.assertRaises(AccessError):
+            partner.with_user(self.buyer).write({'spm_status_kind': 'approved'})
+        with self.assertRaises(AccessError):
+            self.env['res.partner'].with_user(self.buyer).create(
+                {'name': 'Kind2', 'spm_status_kind': 'approved'})
+
     def test_status_default_from_the_client_context_is_ignored(self):
         """FR-SPM-0011: a context default never creates a contact with a status."""
         partner = self.env['res.partner'].with_user(self.buyer).with_context(
