@@ -103,12 +103,21 @@ class ProcurementSupplierDocument(models.Model):
     def _spm_bind_attachments(self):
         """Bind a loose file to its document so every reader of the document opens it.
 
-        A file without a record is readable by its uploader only (native rule).
+        A file without a record is readable by its uploader only (native rule), so
+        only the acting user's own loose file is bound, as the acting user. A file
+        bound to another record is refused.
         """
         for document in self:
             attachment = document.attachment_id
-            if attachment and not (attachment.res_model and attachment.res_id):
-                attachment.sudo().write({'res_model': self._name, 'res_id': document.id})
+            if not attachment or self.env.su:
+                if attachment and not (attachment.res_model and attachment.res_id):
+                    attachment.write({'res_model': self._name, 'res_id': document.id})
+                continue
+            if attachment.res_model == self._name and attachment.res_id == document.id:
+                continue
+            if attachment.res_model or attachment.res_id or attachment.create_uid != self.env.user:
+                raise AccessError(self.env._("You can only attach a file you uploaded yourself."))
+            attachment.write({'res_model': self._name, 'res_id': document.id})
 
     @api.model_create_multi
     def create(self, vals_list):

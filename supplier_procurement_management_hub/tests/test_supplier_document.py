@@ -4,9 +4,12 @@ Requirements: FR-SPM-0007, FR-SPM-0008
 """
 from datetime import timedelta
 
+from psycopg2 import IntegrityError
+
 from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 MODULE = 'supplier_procurement_management_hub'
 
@@ -75,7 +78,8 @@ class TestSupplierDocument(TransactionCase):
 
     def test_copy_does_not_keep_the_review(self):
         """FR-SPM-0007: a copy of a verified document starts to verify, without file."""
-        attachment = self.env['ir.attachment'].create({'name': 'a.pdf', 'raw': b'x'})
+        attachment = self.env['ir.attachment'].with_user(self.buyer).create({
+            'name': 'a.pdf', 'raw': b'x'})
         document = self._doc(self.insurance, attachment_id=attachment.id)
         document.write({'verification_state': 'verified'})
         copy = document.copy()
@@ -89,6 +93,21 @@ class TestSupplierDocument(TransactionCase):
             'email': 'app@example.com', 'legal_name': 'App T4',
             'supplier_type_id': self.acme.spm_supplier_type_id.id})
         document = self._doc(self.insurance, application_id=application.id)
-        with self.assertRaises(Exception), self.cr.savepoint():
+        with self.assertRaises(IntegrityError), self.cr.savepoint(), mute_logger('odoo.sql_db'):
             application.unlink()
         self.assertTrue(document.exists())
+
+    def test_foreign_loose_file_is_refused(self):
+        """FR-SPM-0007: a loose file uploaded by someone else is not taken over."""
+        loose = self.env['ir.attachment'].create({'name': 'draft.pdf', 'raw': b'x'})
+        with self.assertRaises(AccessError):
+            self._doc(self.insurance, attachment_id=loose.id)
+        self.assertFalse(loose.res_id)
+
+    def test_file_bound_elsewhere_is_refused(self):
+        """FR-SPM-0007: a file bound to another record stays there."""
+        bound = self.env['ir.attachment'].create({
+            'name': 'b.pdf', 'raw': b'x', 'res_model': 'res.partner', 'res_id': self.acme.id})
+        with self.assertRaises(AccessError):
+            self._doc(self.insurance, attachment_id=bound.id)
+        self.assertEqual(bound.res_model, 'res.partner')
