@@ -1,5 +1,5 @@
 """Own tests of T-003 (supplier master)."""
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
 
@@ -68,3 +68,97 @@ class TestSupplierMaster(TransactionCase):
         self.assertTrue(DocType.create({'name': 'X', 'reminder_days': 0}))
         with self.assertRaises(ValidationError):
             DocType.create({'name': 'Y', 'reminder_days': -1})
+
+    # --- fix round: guard, rights, history scope ---------------------------
+
+    def _manager_without_contact_rights(self):
+        return self.env['res.users'].create({
+            'name': 'Max', 'login': 'spm_t003_only_mgr', 'email': 'max@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_manager').id])]})
+
+    def test_context_flag_does_not_open_the_status_guard(self):
+        """FR-SPM-0011: a context key sent by the client never lets a status be written."""
+        for user in (self.buyer, self.manager):
+            with self.assertRaises(AccessError):
+                self.acme.with_user(user).with_context(
+                    spm_status_allowed=True, spm_status_reason='x').write({'spm_status_id': self.blocked.id})
+        self.assertFalse(self.acme.spm_status_id)
+
+    def test_manager_with_only_the_hub_role_changes_the_status(self):
+        """FR-SPM-0011: the role alone is enough; the history keeps the manager as user."""
+        manager = self._manager_without_contact_rights()
+        suspended = self.env['procurement.supplier.status'].search([('kind', '=', 'suspended')], limit=1)
+        self.acme.with_user(manager).action_spm_set_status(suspended, 'Late deliveries')
+        change = self.acme.spm_change_ids.filtered(lambda c: c.field_name == 'spm_status_id')
+        self.assertEqual(self.acme.spm_status_id, suspended)
+        self.assertEqual((change.user_id, change.reason), (manager, 'Late deliveries'))
+
+    def test_reason_is_still_required_for_a_blocked_status(self):
+        """FR-SPM-0011: no reason, no block, whatever the context says."""
+        manager = self._manager_without_contact_rights()
+        with self.assertRaises(UserError):
+            self.acme.with_user(manager).with_context(spm_status_reason='sneaky').action_spm_set_status(
+                self.blocked, '')
+
+    def test_origin_named_by_a_user_context_is_ignored(self):
+        """FR-SPM-0014: a back-office user cannot record the origin portal."""
+        self.acme.with_user(self.buyer).with_context(spm_change_origin='portal').write({'street': 'Oak 1'})
+        self.assertEqual(self.acme.spm_change_ids.origin, 'backoffice')
+        self.acme.sudo().with_context(spm_change_origin='portal').write({'street': 'Oak 2'})
+        self.assertIn('portal', self.acme.spm_change_ids.mapped('origin'))
+
+    def test_watched_fields_write_one_row_each(self):
+        """FR-SPM-0014: legal name, categories, risk level and re-qualification date are logged."""
+        category = self.env['product.category'].create({'name': 'Steel'})
+        self.acme.write({
+            'name': 'Acme Ltd', 'spm_product_category_ids': [(4, category.id)],
+            'spm_risk_level': 'high', 'spm_requalification_date': '2027-01-31'})
+        names = set(self.acme.spm_change_ids.mapped('field_name'))
+        self.assertEqual(
+            names, {'name', 'spm_product_category_ids', 'spm_risk_level', 'spm_requalification_date'})
+        risk = self.acme.spm_change_ids.filtered(lambda c: c.field_name == 'spm_risk_level')
+        self.assertEqual(risk.restricted_new_value, 'High')
+
+    def test_employee_bank_account_is_not_logged(self):
+        """BR-SPM-0004: an employee's bank account writes no change row and no audit entry."""
+        employee = self.env['hr.employee'].create({'name': 'Eve'})
+        contact = employee.work_contact_id
+        audit_before = self.env['procurement.audit.log'].search_count([])
+        bank = self.env['res.partner.bank'].create({'partner_id': contact.id, 'account_number': 'BE68539007547034'})
+        bank.write({'holder_name': 'Eve E'})
+        bank.unlink()
+        self.assertFalse(self.env['procurement.supplier.change'].search([('partner_id', '=', contact.id)]))
+        self.assertEqual(self.env['procurement.audit.log'].search_count([]), audit_before)
+
+    def test_customer_address_change_is_not_logged(self):
+        """FR-SPM-0014: a customer's address change writes no history."""
+        customer = self.env['res.partner'].create({'name': 'Cust', 'is_company': True, 'customer_rank': 1})
+        customer.write({'street': 'Elm 3', 'vat': 'BE0123456749'})
+        self.assertFalse(customer.spm_change_ids)
+
+    def test_bank_holder_change_and_move_are_logged(self):
+        """FR-SPM-0014: a holder change and a move to another contact are in the history."""
+        other = self.env['res.partner'].create({'name': 'Other', 'is_company': True})
+        bank = self.env['res.partner.bank'].create({'partner_id': self.acme.id, 'account_number': 'BE68539007547034'})
+        bank.write({'holder_name': 'Acme Holder'})
+        self.assertTrue(any('Acme Holder' in value for value in self.acme.spm_change_ids.mapped('restricted_new_value')))
+        bank.write({'partner_id': other.id})
+        self.assertEqual(len(other.spm_change_ids), 1)
+        self.assertIn('', self.acme.spm_change_ids.mapped('restricted_new_value'))
+
+    def test_portal_field_allows_only_open_plain_fields(self):
+        """BR-SPM-0004: a field with groups, or a computed one marked editable, is refused."""
+        PortalField = self.env['procurement.portal.field']
+        restricted = self.env['ir.model.fields']._get('res.partner', 'credit_limit')
+        with self.assertRaises(ValidationError):
+            PortalField.create({'field_id': restricted.id})
+        computed = self.env['ir.model.fields']._get('res.partner', 'display_name')
+        with self.assertRaises(ValidationError):
+            PortalField.create({'field_id': computed.id, 'editable': True})
+
+    def test_reason_dialog_refuses_a_model_other_than_suppliers(self):
+        """FR-SPM-0011: the dialog never runs the action on another model."""
+        wizard = self.env['procurement.reason.wizard'].with_user(self.manager).create({
+            'res_model': 'res.users', 'res_ids': [1], 'action': 'set_status', 'status_id': self.blocked.id})
+        with self.assertRaises(UserError):
+            wizard.action_confirm()

@@ -1,5 +1,13 @@
 from odoo import api, fields, models
 
+# Roles that may read restricted supplier values (BR-SPM-0004); named once here.
+SPM_RESTRICTED_GROUPS = (
+    'supplier_procurement_management_hub.group_spm_manager,'
+    'supplier_procurement_management_hub.group_spm_finance,'
+    'supplier_procurement_management_hub.group_spm_auditor,'
+    'supplier_procurement_management_hub.group_spm_admin'
+)
+
 
 class ProcurementSupplierChange(models.Model):
     """One change of watched supplier data with old and new value, user, date and origin.
@@ -19,15 +27,9 @@ class ProcurementSupplierChange(models.Model):
     old_value = fields.Text(readonly=True)
     new_value = fields.Text(readonly=True)
     restricted_old_value = fields.Text(
-        readonly=True, groups='supplier_procurement_management_hub.group_spm_manager,'
-        'supplier_procurement_management_hub.group_spm_finance,'
-        'supplier_procurement_management_hub.group_spm_auditor,'
-        'supplier_procurement_management_hub.group_spm_admin')
+        readonly=True, groups=SPM_RESTRICTED_GROUPS)
     restricted_new_value = fields.Text(
-        readonly=True, groups='supplier_procurement_management_hub.group_spm_manager,'
-        'supplier_procurement_management_hub.group_spm_finance,'
-        'supplier_procurement_management_hub.group_spm_auditor,'
-        'supplier_procurement_management_hub.group_spm_admin')
+        readonly=True, groups=SPM_RESTRICTED_GROUPS)
     user_id = fields.Many2one('res.users', readonly=True, ondelete='restrict',
                               default=lambda self: self.env.user)
     date = fields.Datetime(required=True, readonly=True, default=fields.Datetime.now)
@@ -47,7 +49,13 @@ class ProcurementSupplierChange(models.Model):
 
     @api.model
     def _spm_origin(self):
-        """Return the origin of the current change, read from the context."""
+        """Return the origin of the current change.
+
+        Only an elevated caller (portal, approval, job code) may name another
+        origin through the context; a user's own call is always back office.
+        """
+        if not self.env.su:
+            return 'backoffice'
         origin = self.env.context.get('spm_change_origin')
         valid = [key for key, _label in self._fields['origin'].selection]
         return origin if origin in valid else 'backoffice'

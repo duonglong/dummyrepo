@@ -26,6 +26,8 @@ class ProcurementReasonWizard(models.TransientModel):
         if self.action == 'set_status':
             if not self.status_id:
                 raise UserError(self.env._("Choose the new status."))
-            self.env[self.res_model].browse(self.res_ids).action_spm_set_status(
+            if self.res_model != 'res.partner':
+                raise UserError(self.env._("The status can only be changed on suppliers."))
+            self.env['res.partner'].browse(self.res_ids).action_spm_set_status(
                 self.status_id, self.reason)
         return {'type': 'ir.actions.act_window_close'}

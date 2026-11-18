@@ -25,10 +25,13 @@ class ProcurementPortalField(models.Model):
 
     @api.constrains('field_id')
     def _check_field_id(self):
-        """Requirements: BR-SPM-0004 (never a bank, status or risk field)."""
+        """Requirements: BR-SPM-0004 (only an open, plain field; never a bank, status or risk field)."""
         for portal_field in self:
             field = portal_field.field_id
+            native = self.env['res.partner']._fields.get(field.name)
             if field.model != 'res.partner' or field.ttype not in PORTAL_FIELD_TYPES \
-                    or field.name.startswith(PORTAL_FORBIDDEN_PREFIXES):
+                    or field.name.startswith(PORTAL_FORBIDDEN_PREFIXES) \
+                    or native is None or native.groups \
+                    or (portal_field.editable and (native.readonly or native.compute)):
                 raise ValidationError(self.env._(
                     "The field %s cannot be shown to suppliers.", field.field_description))

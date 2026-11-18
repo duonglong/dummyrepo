@@ -2,13 +2,8 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 from ..services import audit
+from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
-SPM_RESTRICTED_GROUPS = (
-    'supplier_procurement_management_hub.group_spm_manager,'
-    'supplier_procurement_management_hub.group_spm_finance,'
-    'supplier_procurement_management_hub.group_spm_auditor,'
-    'supplier_procurement_management_hub.group_spm_admin'
-)
 # Watched fields whose values only the restricted groups may read (BR-SPM-0004).
 SPM_RESTRICTED_WATCHED = ('vat', 'spm_risk_level')
 SPM_WATCHED = (
@@ -16,6 +11,7 @@ SPM_WATCHED = (
     'spm_product_category_ids', 'spm_status_id', 'spm_risk_level',
     'spm_requalification_date',
 )
+SPM_BANK_WATCHED = {'account_number', 'bank_name', 'holder_name', 'partner_id'}
 SPM_REASON_KINDS = ('suspended', 'blocked')
 
 
@@ -66,10 +62,26 @@ class ResPartner(models.Model):
                 values[name] = value or ''
         return values
 
-    def _spm_record_changes(self, before, after, reason=None):
-        """Write one change row per changed watched field and the audit entries."""
-        Change = self.env['procurement.supplier.change'].sudo()  # elevated: system history
-        origin = Change._spm_origin()
+    def _spm_is_history_subject(self):
+        """Tell whether the history of this contact is kept.
+
+        Only suppliers have a history: a contact whose commercial contact has a
+        hub status, type or supplier rank, or that is neither an employee, a user
+        nor a customer. Employees, users and customers never do, so their data
+        (bank accounts of employees, native rules) is never copied into the
+        supplier history.
+        """
+        commercial = self.commercial_partner_id.sudo()  # elevated: reads only flags
+        if commercial.employee_ids or commercial.user_ids:
+            return False
+        return bool(
+            commercial.spm_status_id or commercial.spm_supplier_type_id
+            or commercial.supplier_rank > 0 or commercial.customer_rank == 0)
+
+    def _spm_change_rows(self, before, after, origin, reason=None):
+        """Return the change rows and the audit calls of one partner's changed watched fields."""
+        self.ensure_one()
+        rows = []
         for name, new in after.items():
             old = before[name]
             if old == new:
@@ -86,16 +98,21 @@ class ResPartner(models.Model):
                 row.update(restricted_old_value=old, restricted_new_value=new)
             else:
                 row.update(old_value=old, new_value=new)
-            Change.create(row)
+            rows.append(row)
             if name == 'spm_status_id':
                 audit.log(self.env, 'supplier_status', self, {name: old}, {name: new}, reason or '')
             elif name in SPM_RESTRICTED_WATCHED:
                 audit.log(self.env, 'restricted_field', self, {name: old}, {name: new}, '')
+        return rows
 
     def _spm_check_status_allowed(self, vals):
-        """Refuse a status written outside the lifecycle action, approval or job."""
-        if 'spm_status_id' in vals and not self.env.su \
-                and not self.env.context.get('spm_status_allowed'):
+        """Refuse a status written by a caller that is not elevated.
+
+        The lifecycle action, approval and job code write the status elevated
+        after their own role and reason checks; nothing the client sends (a
+        context key) opens this path.
+        """
+        if 'spm_status_id' in vals and not self.env.su:
             raise AccessError(self.env._(
                 "The supplier status can only be changed with the Change status action."))
 
@@ -112,12 +129,19 @@ class ResPartner(models.Model):
         watched = [name for name in SPM_WATCHED if name in vals]
         if not watched:
             return super().write(vals)
-        before = {partner.id: partner._spm_snapshot(watched) for partner in self}
+        becomes_supplier = bool({'spm_status_id', 'spm_supplier_type_id'}.intersection(vals))
+        tracked = self if becomes_supplier else self.filtered(
+            lambda partner: partner._spm_is_history_subject())
+        before = {partner.id: partner._spm_snapshot(watched) for partner in tracked}
         result = super().write(vals)
+        origin = self.env['procurement.supplier.change']._spm_origin()
         reason = self.env.context.get('spm_status_reason')
-        for partner in self:
-            partner._spm_record_changes(
-                before[partner.id], partner._spm_snapshot(watched), reason)
+        rows = []
+        for partner in tracked:
+            rows += partner._spm_change_rows(
+                before[partner.id], partner._spm_snapshot(watched), origin, reason)
+        if rows:
+            self.env['procurement.supplier.change'].sudo().create(rows)  # elevated: system history
         return result
 
     # --- lifecycle ------------------------------------------------------
@@ -132,7 +156,9 @@ class ResPartner(models.Model):
         reason = (reason or '').strip()
         if status.kind in SPM_REASON_KINDS and not reason:
             raise UserError(self.env._("A reason is required to set the status %s.", status.name))
-        self.with_context(spm_status_allowed=True, spm_status_reason=reason).write(
+        origin = self.env['procurement.supplier.change']._spm_origin()
+        # elevated: the role and the reason are checked above; the acting user stays the manager
+        self.sudo().with_context(spm_status_reason=reason, spm_change_origin=origin).write(
             {'spm_status_id': status.id})
         return True
 
@@ -157,44 +183,63 @@ class ResPartnerBank(models.Model):
     """Bank account changes of a supplier go to its change history.
 
     Requirements: FR-SPM-0014, BR-SPM-0004
+    Accounts of contacts that are not suppliers (employees, customers) are
+    never logged: their readers are narrower than the history's.
     """
     _inherit = 'res.partner.bank'
 
-    def _spm_log_bank(self, partner, old, new):
-        """Write the change row and audit entry of a bank account change."""
-        Change = self.env['procurement.supplier.change'].sudo()  # elevated: system history
-        Change.create({
+    def _spm_describe(self):
+        """Return the account number with its bank and a holder that differs from the contact."""
+        self.ensure_one()
+        record = self.sudo()  # elevated: system history
+        holder = record.holder_name if record.holder_name != record.partner_id.name else ''
+        parts = [record.account_number, record.bank_name, holder]
+        return ' / '.join(part for part in parts if part)
+
+    def _spm_log_banks(self, entries):
+        """Write the change rows and audit entries of ``(partner, old, new)`` entries of suppliers."""
+        entries = [entry for entry in entries if entry[0]._spm_is_history_subject()]
+        if not entries:
+            return
+        Change = self.env['procurement.supplier.change']
+        origin = Change._spm_origin()
+        Change.sudo().create([{  # elevated: system history
             'partner_id': partner.id,
             'field_name': 'bank_ids',
             'field_label': self.env._("Bank accounts"),
             'restricted_old_value': old,
             'restricted_new_value': new,
             'user_id': self.env.user.id,
-            'origin': Change._spm_origin(),
-        })
-        audit.log(self.env, 'restricted_field', partner, {'bank_ids': old}, {'bank_ids': new}, '')
+            'origin': origin,
+        } for partner, old, new in entries])
+        for partner, old, new in entries:
+            audit.log(self.env, 'restricted_field', partner, {'bank_ids': old}, {'bank_ids': new}, '')
 
     @api.model_create_multi
     def create(self, vals_list):
         """Requirements: FR-SPM-0014"""
         banks = super().create(vals_list)
-        for bank in banks:
-            bank._spm_log_bank(bank.partner_id, '', bank.sudo().account_number or '')  # elevated: system history
+        banks._spm_log_banks([(bank.partner_id, '', bank._spm_describe()) for bank in banks])
         return banks
 
     def write(self, vals):
         """Requirements: FR-SPM-0014"""
-        if 'account_number' not in vals:
+        if not SPM_BANK_WATCHED.intersection(vals):
             return super().write(vals)
-        before = {bank.id: bank.sudo().account_number or '' for bank in self}  # elevated: system history
+        before = {bank.id: (bank.partner_id, bank._spm_describe()) for bank in self}
         result = super().write(vals)
+        entries = []
         for bank in self:
-            if before[bank.id] != (bank.sudo().account_number or ''):  # elevated: system history
-                bank._spm_log_bank(bank.partner_id, before[bank.id], bank.sudo().account_number or '')  # elevated: system history
+            old_partner, old_text = before[bank.id]
+            new_text = bank._spm_describe()
+            if old_partner != bank.partner_id:
+                entries += [(old_partner, old_text, ''), (bank.partner_id, '', new_text)]
+            elif old_text != new_text:
+                entries.append((bank.partner_id, old_text, new_text))
+        self._spm_log_banks(entries)
         return result
 
     def unlink(self):
         """Requirements: FR-SPM-0014"""
-        for bank in self:
-            bank._spm_log_bank(bank.partner_id, bank.sudo().account_number or '', '')  # elevated: system history
+        self._spm_log_banks([(bank.partner_id, bank._spm_describe(), '') for bank in self])
         return super().unlink()
