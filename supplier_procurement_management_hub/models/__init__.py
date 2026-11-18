@@ -20,6 +20,7 @@ from . import procurement_matching_tolerance
 from . import procurement_exception_route
 from . import procurement_reconciliation
 from . import procurement_reconciliation_line
+from . import procurement_reconciliation_exception
 from . import account_move
 from . import procurement_questionnaire
 from . import procurement_questionnaire_question

@@ -4,10 +4,12 @@ Plain functions: they take an environment and records and hold no state. They
 read bills and write only the hub's own reconciliation records (ADR-SPM-006).
 """
 import logging
+from datetime import timedelta
 
 from odoo import fields
+from odoo.fields import Domain
 from odoo.sql_db import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
-from odoo.tools import float_compare, float_is_zero, float_round
+from odoo.tools import float_compare, float_is_zero, float_repr, float_round
 
 _logger = logging.getLogger(__name__)
 
@@ -131,10 +133,13 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
 
 
 def _refresh_one(env, bill) -> None:
-    """Create or refresh the reconciliation of one bill."""
+    """Create or refresh the reconciliation and the exceptions of one bill."""
     reconciliation = env['procurement.reconciliation'].search([('move_id', '=', bill.id)])
     move_lines = bill.invoice_line_ids.filtered('purchase_line_id')
-    if not move_lines:
+    duplicates = find_duplicates(bill)
+    # a reconciliation holding exceptions is kept, so that their decisions are never deleted
+    if not move_lines and not duplicates and not reconciliation.duplicate_cleared \
+            and not reconciliation.exception_ids:
         reconciliation.unlink()
         return
     bill_total = abs(bill.amount_total_signed)
@@ -154,16 +159,96 @@ def _refresh_one(env, bill) -> None:
         else:
             env['procurement.reconciliation.line'].create(
                 dict(line_values, reconciliation_id=reconciliation.id, move_line_id=move_line.id))
-    review = any(not (line.price_within_tolerance and line.qty_within_tolerance)
-                 or line.ordered_tax_ids != line.billed_tax_ids
-                 or line.currency_id != line.order_currency_id
-                 or not _same_unit(line)
-                 for line in reconciliation.line_ids)
+    flagged = duplicates - reconciliation.duplicate_reviewed_move_ids
+    cleared = reconciliation.duplicate_cleared and not flagged
     reconciliation.write({
-        'method': 'three_way' if 'three_way' in methods else 'two_way',
-        'state': 'review' if review else 'matched',
+        'method': ('three_way' if 'three_way' in methods else 'two_way') if methods else False,
+        'duplicate_move_ids': [(6, 0, flagged.ids)],
+        'duplicate_cleared': cleared,
         'refreshed_date': fields.Datetime.now(),
     })
+    wanted = _exception_values(env, reconciliation, flagged)
+    env['procurement.reconciliation.exception']._spm_sync(reconciliation, wanted)
+    reconciliation.state = 'review' if reconciliation._spm_holding_exceptions() else 'matched'
+
+
+def find_duplicates(bill):
+    """Return the other vendor bills of the vendor that the bill may repeat.
+
+    Requirements: BR-SPM-0015
+    Cancelled bills are left out. A bill repeats another with the same vendor
+    reference, or with the same total and currency and an invoice date within
+    the company's number of days.
+    """
+    others = [
+        ('id', '!=', bill.id), ('partner_id', '=', bill.partner_id.id), ('company_id', '=', bill.company_id.id),
+        ('move_type', '=', bill.move_type), ('state', '!=', 'cancel'),
+    ]
+    ref = (bill.ref or '').strip()
+    terms = []
+    if ref:
+        terms.append([('ref', '=', ref)])
+    if bill.invoice_date:
+        window = timedelta(days=bill.company_id.spm_duplicate_bill_days)
+        terms.append([
+            ('amount_total', '=', bill.amount_total), ('currency_id', '=', bill.currency_id.id),
+            ('invoice_date', '>=', bill.invoice_date - window), ('invoice_date', '<=', bill.invoice_date + window)])
+    if not bill.partner_id or not terms:
+        return bill.browse()
+    return bill.env['account.move'].search(Domain(others) & Domain.OR(terms))
+
+
+def _label(amount, currency) -> str:
+    return f"{float_repr(currency.round(amount), currency.decimal_places)} {currency.name}"
+
+
+def _qty_label(env, quantity) -> str:
+    return float_repr(quantity, env['decimal.precision'].precision_get('Product Unit'))
+
+
+def _move_label(move) -> str:
+    return move.name if move.name and move.name != '/' else (move.ref or move.display_name)
+
+
+def _exception_values(env, reconciliation, duplicates) -> dict:
+    """Return the discrepancies of a reconciliation, by ``(kind, line id)``.
+
+    Requirements: FR-SPM-0073, FR-SPM-0074, FR-SPM-0075, FR-SPM-0076
+    """
+    wanted = {}
+    currency = reconciliation.move_id.currency_id
+    for line in reconciliation.line_ids:
+        bill_line, purchase_line = line.move_line_id, line.purchase_line_id
+        base = {
+            'recon_line_id': line.id, 'move_line_id': bill_line.id, 'purchase_line_id': purchase_line.id, 'order': purchase_line.order_id,
+            'stock_move_ids': [(6, 0, purchase_line.move_ids.ids)],
+        }
+        found = {}
+        if not line.price_within_tolerance:
+            found['price'] = (_label(line.ordered_price, line.order_currency_id),
+                              _label(line.billed_price, line.currency_id), abs(line.amount_difference))
+        if not line.qty_within_tolerance:
+            reference = line.received_qty if line.method == 'three_way' else line.ordered_qty
+            found['quantity'] = (_qty_label(env, reference), _qty_label(env, line.billed_qty),
+                                 max(line.qty_difference, 0.0) * line.billed_price)
+        if line.ordered_tax_ids != line.billed_tax_ids:
+            found['tax'] = (', '.join(line.ordered_tax_ids.mapped('name')) or '-',
+                            ', '.join(line.billed_tax_ids.mapped('name')) or '-', bill_line.price_subtotal)
+        if line.currency_id != line.order_currency_id:
+            found['currency'] = (line.order_currency_id.name, line.currency_id.name, bill_line.price_subtotal)
+        if not _same_unit(line):
+            found['unit'] = (line.ordered_uom_id.name, line.billed_uom_id.name, bill_line.price_subtotal)
+        for kind, (expected, seen, amount) in found.items():
+            wanted[(kind, bill_line.id)] = dict(
+                base, expected_value=expected, found_value=seen,
+                amount_at_stake=currency.round(amount))
+    if duplicates:
+        wanted[('duplicate', False)] = {
+            'expected_value': env._("No other bill with the same reference or amount"),
+            'found_value': ', '.join(_move_label(move) for move in duplicates),
+            'amount_at_stake': currency.round(reconciliation.move_id.amount_total),
+        }
+    return wanted
 
 
 def _units_convert(ordered, billed) -> bool:

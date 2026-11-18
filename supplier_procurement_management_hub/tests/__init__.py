@@ -31,3 +31,4 @@ from . import test_purchase_request
 from . import test_qualification
 from . import test_portal_isolation
 from . import test_job_runner
+from . import test_exceptions_posting

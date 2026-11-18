@@ -1,7 +1,10 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Domain
 
 from ..services import reconciliation
+from .procurement_exception_route import EXCEPTION_KINDS
+from .procurement_reconciliation_exception import EXCEPTION_STATES, RELEASING_STATES
 
 # Changes of a bill that can alter its matching.
 MATCHED_MOVE_FIELDS = {
@@ -26,6 +29,9 @@ class AccountMove(models.Model):
         'procurement.reconciliation', string="Matching", compute='_compute_spm_match')
     spm_match_state = fields.Selection(
         MATCH_STATES, string="Matching state", compute='_compute_spm_match', search='_search_spm_match_state')
+    spm_open_exception_count = fields.Integer(string="Open exceptions", compute='_compute_spm_match')
+    spm_possible_duplicate_ids = fields.Many2many(
+        'account.move', string="Possible duplicates", compute='_compute_spm_match')
 
     @api.depends('state', 'move_type')
     def _compute_spm_match(self):
@@ -37,12 +43,35 @@ class AccountMove(models.Model):
         for move in self:
             recon = found.get(move.id)
             move.spm_reconciliation_id = recon
+            move.spm_open_exception_count = len(recon._spm_holding_exceptions()) if recon else 0
+            move.spm_possible_duplicate_ids = recon.duplicate_move_ids if recon else False
             if recon:
                 move.spm_match_state = recon.state
             elif move in bills and move.state == 'draft':
                 move.spm_match_state = 'unmatched'
             else:
                 move.spm_match_state = False
+
+    def _post(self, soft=True):
+        """Refuse to post a bill that holds an exception its company wants approved.
+
+        Requirements: FR-SPM-0077, BR-SPM-0016
+        Only the posting is held; Odoo's own posting then runs unchanged.
+        """
+        # sudo: the posting user may lack access to the hub's exceptions; only the held bills are read
+        # the approval setting is read from the routes now, not from a copy taken at matching time
+        routes = self.env['procurement.exception.route'].sudo().search([('requires_approval', '=', True)])
+        approval_scopes = Domain.OR([[('company_id', '=', route.company_id.id), ('kind', '=', route.kind)]
+                                     for route in routes]) if routes else Domain.FALSE
+        held = self.env['procurement.reconciliation.exception'].sudo().search(
+            Domain([('move_id', 'in', self.ids), ('state', 'not in', RELEASING_STATES)]) & approval_scopes)
+        if held:
+            lines = [self.env._("%(kind)s (%(state)s) on %(bill)s", kind=dict(EXCEPTION_KINDS)[exc.kind],
+                                state=dict(EXCEPTION_STATES)[exc.state], bill=exc.move_id.display_name)
+                     for exc in held]
+            raise UserError(self.env._(
+                "These exceptions need approval before the bill can be posted:\n%s", "\n".join(lines)))
+        return super()._post(soft=soft)
 
     def _search_spm_match_state(self, operator, value):
         """Requirements: FR-SPM-0072"""

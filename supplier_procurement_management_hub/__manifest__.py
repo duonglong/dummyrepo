@@ -30,6 +30,7 @@
         'views/portal_templates.xml',
         'views/procurement_override_views.xml',
         'views/procurement_reconciliation_views.xml',
+        'views/procurement_exception_views.xml',
         'views/procurement_request_views.xml',
         'views/procurement_questionnaire_views.xml',
         'views/procurement_job_views.xml',
