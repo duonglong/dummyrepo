@@ -23,6 +23,7 @@
                         </group>
                         <group>
                             <field name="spm_requalification_date"/>
+                            <field name="spm_responsible_user_id"/>
                             <field name="spm_risk_level"/>
                         </group>
                     </group>

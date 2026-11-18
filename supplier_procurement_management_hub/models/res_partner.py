@@ -39,6 +39,9 @@ class ResPartner(models.Model):
     spm_operating_locations = fields.Text(string="Operating locations")
     spm_requalification_date = fields.Date(
         string="Re-qualification date", index=True, copy=False)
+    spm_responsible_user_id = fields.Many2one(
+        'res.users', string="Responsible buyer", copy=False, ondelete='set null',
+        help="The buyer who looks after this supplier: notified when its re-qualification is due.")
     spm_risk_level = fields.Selection([
         ('low', 'Low'), ('medium', 'Medium'), ('high', 'High'),
     ], string="Risk level", copy=False, groups=SPM_RESTRICTED_GROUPS)

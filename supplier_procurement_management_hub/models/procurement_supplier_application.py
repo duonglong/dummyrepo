@@ -1,3 +1,5 @@
+from dateutil.relativedelta import relativedelta
+
 from odoo import api, fields, models
 from odoo.addons.base.models.res_partner_bank import sanitize_account_number
 from odoo.exceptions import AccessError, UserError
@@ -38,6 +40,9 @@ class ProcurementSupplierApplication(models.Model):
     company_id = fields.Many2one(
         'res.company', default=lambda self: self.env.company, required=True, index=True)
     partner_id = fields.Many2one('res.partner', string="Supplier", copy=False, ondelete='restrict')
+    is_requalification = fields.Boolean(
+        string="Re-qualification", copy=False, readonly=True,
+        help="Set when the application re-qualifies a supplier that is already approved.")
     change_request_comment = fields.Text(copy=False, readonly=True)
     rejection_reason = fields.Text(copy=False, readonly=True)
 
@@ -307,7 +312,9 @@ class ProcurementSupplierApplication(models.Model):
             raise UserError(self.env._(
                 "No default status of the Approved kind is configured: set one in the supplier statuses before approving."))
         onboarding.lock_tax_id(self.env, data['vat'])
-        partner = onboarding.find_company_contact(self.env, data['vat'])
+        partner = (self.partner_id or onboarding.find_company_contact(self.env, data['vat'])).sudo()  # elevated: see above
+        next_requalification = fields.Date.context_today(self) + relativedelta(
+            months=self.company_id.spm_requalification_months)
         partner_model = self.env['res.partner'].sudo().with_context(  # elevated: see above
             spm_change_origin='approval')
         if partner:
@@ -315,12 +322,14 @@ class ProcurementSupplierApplication(models.Model):
             data = {name: value for name, value in data.items()
                     if name not in ('name', 'is_company', 'company_id') and not partner[name]}
             data.pop('spm_product_category_ids', None)
+            if self.is_requalification:
+                data.pop('email', None)  # the address of a re-qualification only reaches the supplier, never fills its contact
             partner = partner.with_context(spm_change_origin='approval')
-            partner.write(dict(data, spm_status_id=status.id,
+            partner.write(dict(data, spm_status_id=status.id, spm_requalification_date=next_requalification,
                                spm_product_category_ids=[(4, category.id) for category in self.product_category_ids]))
         else:
             partner = partner_model.create(  # shared contact and status, see above
-                dict(data, spm_status_id=status.id))
+                dict(data, spm_status_id=status.id, spm_requalification_date=next_requalification))
         self._spm_copy_children(partner)
         return partner
 

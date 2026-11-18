@@ -123,3 +123,9 @@ access_spm_request_line_manager,Purchase request line manager,procurement.reques
 access_spm_request_line_auditor,Purchase request line auditor,procurement.request.line,group_spm_auditor,r,
 access_spm_request_line_admin,Purchase request line admin,procurement.request.line,group_spm_admin,crud,
 spm_request_line_comp_rule,procurement.request.line: allowed companies,procurement.request.line,,crud,"[('request_id.company_id', 'in', company_ids)]"
+access_spm_job_manager,Scheduled job manager,procurement.job,group_spm_manager,r,
+access_spm_job_auditor,Scheduled job auditor,procurement.job,group_spm_auditor,r,
+access_spm_job_admin,Scheduled job admin,procurement.job,group_spm_admin,ru,
+access_spm_job_run_manager,Job run manager,procurement.job.run,group_spm_manager,r,
+access_spm_job_run_auditor,Job run auditor,procurement.job.run,group_spm_auditor,r,
+access_spm_job_run_admin,Job run admin,procurement.job.run,group_spm_admin,r,

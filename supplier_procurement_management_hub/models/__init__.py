@@ -29,3 +29,5 @@ from . import procurement_assessment_answer
 from . import procurement_request
 from . import procurement_request_line
 from . import portal_wizard
+from . import procurement_job
+from . import procurement_job_run
