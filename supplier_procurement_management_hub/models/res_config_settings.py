@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 from ..services import audit
@@ -35,8 +35,8 @@ class ResConfigSettings(models.TransientModel):
     def _check_spm_risk_bands(self):
         """Requirements: FR-SPM-0108"""
         for settings in self:
-            if not 0 <= settings.spm_risk_medium_from < settings.spm_risk_high_from:
-                raise ValidationError(_("The medium risk band must start below the high risk band."))
+            if not 0 <= settings.spm_risk_medium_from < settings.spm_risk_high_from <= 100:
+                raise ValidationError(self.env._("The medium risk band must start below the high risk band, which is at most 100."))
 
     def set_values(self):
         """Save the settings and audit a change of the shared risk bands.

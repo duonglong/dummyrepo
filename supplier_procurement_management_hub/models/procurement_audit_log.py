@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import fields, models
 from odoo.exceptions import UserError
 
 
@@ -13,7 +13,7 @@ class ProcurementAuditLog(models.Model):
 
     date = fields.Datetime(required=True, index=True, readonly=True,
                            default=fields.Datetime.now)
-    user_id = fields.Many2one('res.users', readonly=True, default=lambda self: self.env.user)
+    user_id = fields.Many2one('res.users', readonly=True, ondelete='restrict', default=lambda self: self.env.user)
     company_id = fields.Many2one('res.company', readonly=True, ondelete='restrict',
                                  help="Empty for a record shared by all companies.")
     event = fields.Selection([
@@ -40,8 +40,8 @@ class ProcurementAuditLog(models.Model):
 
     def write(self, vals):
         """Requirements: BR-SPM-0018, FR-SPM-0109 (refused for everyone)."""
-        raise UserError(_("Audit entries cannot be changed."))
+        raise UserError(self.env._("Audit entries cannot be changed."))
 
     def unlink(self):
         """Requirements: BR-SPM-0018, FR-SPM-0109 (refused for everyone)."""
-        raise UserError(_("Audit entries cannot be deleted."))
+        raise UserError(self.env._("Audit entries cannot be deleted."))
