@@ -78,13 +78,25 @@ class ProcurementSupplierApplication(models.Model):
 
         Requirements: FR-SPM-0003
         """
+        if not self.env.su:
+            # A context default is added inside super().create, after the check: drop it for a user.
+            context = {key: value for key, value in self.env.context.items()
+                       if not (key.startswith('default_') and key[len('default_'):] in onboarding.WORKFLOW_FIELDS)}
+            self = self.with_context(context)
         for vals in vals_list:
-            self._spm_refuse_workflow_values(vals)
-        return super().create(vals_list)
+            self._spm_refuse_workflow_values(vals, creating=True)
+        return super(ProcurementSupplierApplication, self).create(vals_list)
 
-    def _spm_refuse_workflow_values(self, vals):
-        """Raise when ``vals`` hold a workflow or invitation field and the caller is not elevated."""
-        if not self.env.su and set(onboarding.WORKFLOW_FIELDS).intersection(vals):
+    def _spm_refuse_workflow_values(self, vals, creating=False):
+        """Raise when ``vals`` hold a workflow or invitation field and the caller is not elevated.
+
+        On creation the starting value of a field (the state Invited, an empty field) is accepted.
+        """
+        if self.env.su:
+            return
+        starting = {'state': 'invited'}
+        if any(not creating or vals[name] != starting.get(name, False)
+               for name in onboarding.WORKFLOW_FIELDS if name in vals):
             raise AccessError(self.env._(
                 "The state, the invitation and the supplier link of an application change through its actions only."))
 

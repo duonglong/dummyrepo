@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tests import Form
 from odoo.tests.common import HttpCase, TransactionCase
 
 from ..services import onboarding
@@ -82,6 +83,22 @@ class TestOnboardingApplication(TransactionCase):
         with self.assertRaises(AccessError):
             self.Application.with_user(self.buyer).create({
                 'email': 'a@example.com', 'supplier_type_id': self.goods.id, 'state': 'approved'})
+
+    def test_buyer_creates_an_application_in_the_form(self):
+        """FR-SPM-0001: New > Save as a buyer works (Form sends the statusbar; the button is not pressed)."""
+        form = Form(self.Application.with_user(self.buyer))
+        form.email = 'form@example.com'
+        form.supplier_type_id = self.goods
+        application = form.save()
+        self.assertEqual(application.state, 'invited')
+
+    def test_context_default_cannot_set_the_workflow(self):
+        """FR-SPM-0003: a default_state or default_invitation_expiry in the context is dropped for a user."""
+        application = self.Application.with_user(self.buyer).with_context(
+            default_state='approved', default_invitation_expiry=fields.Datetime.now() + timedelta(days=90),
+        ).create({'email': 'ctx@example.com', 'supplier_type_id': self.goods.id})
+        self.assertEqual(application.state, 'invited')
+        self.assertFalse(application.invitation_expiry)
 
     def test_closed_application_is_read_only(self):
         """FR-SPM-0003: an approved or rejected application accepts no write from a user."""
@@ -175,6 +192,14 @@ class TestOnboardingPortal(HttpCase):
         self.assertEqual(
             sorted(self.application.contact_ids.mapped('name')), ['Contact 0', 'Contact 2', 'Contact 3', 'Fifth'])
         self.assertEqual(contacts[0].function, 'Sales')
+
+    def test_contact_added_meanwhile_is_kept(self):
+        """FR-SPM-0002: a contact absent from the post (added after the page opened) is not deleted."""
+        contact = self.env['procurement.supplier.application.contact'].create({
+            'application_id': self.application.id, 'name': 'Added by the buyer'})
+        self.env.flush_all()
+        self._post({'legal_name': 'Acme'})
+        self.assertTrue(contact.exists())
 
     def test_email_cannot_be_changed_by_a_crafted_post(self):
         """FR-SPM-0001: the invitation address stays what the buyer entered."""

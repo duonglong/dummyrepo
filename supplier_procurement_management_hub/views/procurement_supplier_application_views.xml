@@ -26,7 +26,7 @@
                             invisible="state not in ('invited', 'changes_requested')"/>
                     <button name="action_spm_submit" string="Submit" type="object" class="btn-primary"
                             invisible="state not in ('invited', 'changes_requested')"/>
-                    <field name="state" widget="statusbar"/>
+                    <field name="state" widget="statusbar" readonly="1"/>
                 </header>
                 <sheet>
                     <field name="field_rules" invisible="True"/>
@@ -39,12 +39,12 @@
                         </group>
                         <group>
                             <field name="legal_name"/>
-                            <field name="phone" invisible="field_rules.phone == 'hidden'"/>
-                            <field name="website" invisible="field_rules.website == 'hidden'"/>
-                            <field name="vat" invisible="field_rules.vat == 'hidden'"/>
+                            <field name="phone" invisible="field_rules['phone'] == 'hidden'"/>
+                            <field name="website" invisible="field_rules['website'] == 'hidden'"/>
+                            <field name="vat" invisible="field_rules['vat'] == 'hidden'"/>
                         </group>
                     </group>
-                    <group invisible="field_rules.street == 'hidden'">
+                    <group invisible="field_rules['street'] == 'hidden'">
                         <group string="Address">
                             <field name="street"/>
                             <field name="zip"/>
@@ -52,7 +52,7 @@
                             <field name="country_id"/>
                         </group>
                     </group>
-                    <group string="Bank account" invisible="field_rules.bank == 'hidden'">
+                    <group string="Bank account" invisible="field_rules['bank'] == 'hidden'">
                         <field name="bank_account_number"/>
                         <field name="bank_name"/>
                         <field name="bank_bic"/>
@@ -60,12 +60,12 @@
                     </group>
                     <group>
                         <field name="product_category_ids" widget="many2many_tags"
-                               invisible="field_rules.categories == 'hidden'"/>
+                               invisible="field_rules['categories'] == 'hidden'"/>
                         <field name="operating_locations"
-                               invisible="field_rules.operating_locations == 'hidden'"/>
+                               invisible="field_rules['operating_locations'] == 'hidden'"/>
                     </group>
                     <notebook>
-                        <page string="Contacts" invisible="field_rules.contacts == 'hidden'">
+                        <page string="Contacts" invisible="field_rules['contacts'] == 'hidden'">
                             <field name="contact_ids">
                                 <list editable="bottom">
                                     <field name="name"/>

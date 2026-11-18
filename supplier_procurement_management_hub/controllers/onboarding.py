@@ -159,6 +159,8 @@ class SupplierOnboarding(http.Controller):
             return
         commands = []
         for contact in application.contact_ids:
+            if f'contact_name_{contact.id}' not in post:
+                continue  # added after the page was opened: keep it
             row = self._contact_row(post, f'contact_{{}}_{contact.id}')
             commands.append((1, contact.id, row) if row['name'] else (2, contact.id, 0))
         for index in range(SPARE_CONTACT_ROWS):
