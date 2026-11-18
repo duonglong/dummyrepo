@@ -84,13 +84,13 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
     ordered_uom, billed_uom = purchase_line.uom_id, move_line.product_uom_id
     billed_qty = ordered_billed_qty = move_line.quantity
     # price per ordered unit of the net (after discount) billed price
-    billed_net = move_line.price_unit * (1 - move_line.discount / 100.0)
+    billed_price = billed_net = move_line.price_unit * (1 - move_line.discount / 100.0)
     units_convert = True
     if ordered_uom and billed_uom and billed_uom != ordered_uom:
         units_convert = _units_convert(ordered_uom, billed_uom)
         if units_convert:
             ordered_billed_qty = billed_uom._compute_quantity(billed_qty, ordered_uom, raise_if_failure=False)
-            billed_net = billed_net / billed_uom._compute_quantity(1.0, ordered_uom, raise_if_failure=False)
+            billed_net = billed_uom._compute_price(billed_net, ordered_uom)
     currency, order_currency = bill.currency_id, order.currency_id
     ordered_price = purchase_line.price_unit_discounted
     if order_currency != currency:
@@ -113,7 +113,7 @@ def _line_values(env, bill, move_line, policies, tolerances) -> dict:
         'received_qty': received_qty,
         'billed_qty': billed_qty,
         'ordered_price': purchase_line.price_unit_discounted,
-        'billed_price': move_line.price_unit * (1 - move_line.discount / 100.0),
+        'billed_price': billed_price,
         'currency_id': currency.id,
         'order_currency_id': order_currency.id,
         'ordered_tax_ids': [(6, 0, purchase_line.tax_ids.ids)],

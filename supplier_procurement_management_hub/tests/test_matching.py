@@ -228,6 +228,16 @@ class TestMatching(SpmMatchingCommon):
         self.assertEqual(line.qty_difference, 0.0)
         self.assertEqual(self._recon(bill).state, 'matched')
 
+    def test_bill_in_units_for_an_order_in_dozens_is_compared_per_ordered_unit(self):
+        """Requirements: FR-SPM-0073"""
+        order = self._order(qty=10, price=138.0)
+        order.order_line.write({'uom_id': self.env.ref('uom.product_uom_dozen').id, 'product_qty': 10,
+                                'price_unit': 138.0})
+        bill = self._bill(order, 120, 11.5)
+        line = self._recon(bill).line_ids
+        self.assertEqual(line.billed_qty, 120)
+        self.assertEqual(line.price_difference, 0.0)
+
     def test_read_only_user_cannot_run_matching(self):
         """Requirements: FR-SPM-0072"""
         bill = self._bill(self._order(receive=100), 100, 11.5)
