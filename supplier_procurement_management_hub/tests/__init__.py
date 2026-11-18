@@ -4,3 +4,10 @@ from . import test_supplier_document_acceptance
 from . import test_onboarding_acceptance
 from . import test_job_runner_acceptance
 from . import test_supplier_control_acceptance
+from . import test_security_groups_acceptance
+from . import test_company_isolation_acceptance
+from . import test_supplier_status_acceptance
+from . import test_onboarding_flow_acceptance
+from . import test_application_review_acceptance
+from . import test_qualification_acceptance
+from . import test_job_log_acceptance
