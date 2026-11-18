@@ -4,12 +4,17 @@ from odoo import fields, models
 class ProcurementSupplierType(models.Model):
     """A kind of supplier deciding application fields and documents.
 
-    Requirements: FR-SPM-0106
-    Built for T-005 (minimal: the T-001 acceptance test needs it).
+    Requirements: FR-SPM-0106, FR-SPM-0108
     """
     _name = 'procurement.supplier.type'
+    _inherit = ['procurement.audit.mixin']
     _description = 'Supplier Type'
     _order = 'name'
 
     name = fields.Char(required=True, translate=True)
     active = fields.Boolean(default=True)
+    field_ids = fields.One2many('procurement.supplier.type.field', 'type_id', string="Application fields")
+    required_document_type_ids = fields.Many2many(
+        'procurement.document.type', string="Required documents")
+
+    _spm_audited_fields = ('name', 'active', 'required_document_type_ids')
