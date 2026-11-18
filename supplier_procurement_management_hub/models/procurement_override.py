@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 from ..services import audit, supplier_control
 
@@ -29,13 +30,29 @@ class ProcurementOverride(models.Model):
     date = fields.Datetime(readonly=True, default=fields.Datetime.now)
     company_id = fields.Many2one('res.company', required=True, readonly=True)
 
+    def _spm_scoped_values(self, vals):
+        """Return the values with scope, author and date taken from the record and the session.
+
+        Requirements: FR-SPM-0013, BR-SPM-0001
+        The client names only the record, action, kind and reason; the company
+        and the supplier come from the record the user can read.
+        """
+        record = supplier_control.controlled_record(self.env, vals.get('res_model'), vals.get('res_id'))
+        reason = (vals.get('reason') or '').strip()
+        if not reason:
+            raise UserError(self.env._("An override needs a reason."))
+        return dict(
+            vals, reason=reason, user_id=self.env.user.id, date=fields.Datetime.now(),
+            company_id=record.company_id.id,
+            partner_id=record.partner_id.commercial_partner_id.id)
+
     @api.model_create_multi
     def create(self, vals_list):
         """Record the override and its audit entry.
 
         Requirements: FR-SPM-0013
         """
-        vals_list = [dict(vals, user_id=self.env.user.id) for vals in vals_list]
+        vals_list = [self._spm_scoped_values(vals) for vals in vals_list]
         overrides = super().create(vals_list)
         for override in overrides:
             audit.log(

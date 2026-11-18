@@ -23,4 +23,16 @@
         <field name="res_model">procurement.override</field>
         <field name="view_mode">list</field>
     </record>
+    <record id="purchase_order_form_spm_override" model="ir.ui.view">
+        <field name="name">purchase.order.form.spm.override</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <button id="draft_confirm" position="after">
+                <button name="action_spm_open_override_wizard" type="object" string="Override"
+                        invisible="state not in ('draft', 'sent', 'to approve')"
+                        groups="supplier_procurement_management_hub.group_spm_manager"/>
+            </button>
+        </field>
+    </record>
 </odoo>

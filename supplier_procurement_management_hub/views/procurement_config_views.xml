@@ -108,7 +108,7 @@
                     <field name="status_id" invisible="action != 'set_status'"
                            required="action == 'set_status'" options="{'no_create': True}"/>
                     <field name="reason"
-                           required="status_kind in ('suspended', 'blocked')"/>
+                           required="action == 'override' or status_kind in ('suspended', 'blocked')"/>
                 </group>
                 <footer>
                     <button name="action_confirm" string="Confirm" type="object" class="btn-primary" data-hotkey="q"/>

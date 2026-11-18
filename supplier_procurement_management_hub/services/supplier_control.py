@@ -82,6 +82,8 @@ def compliance_state(rows):
 
 # Status kinds a supplier may have to take part in a controlled flow (BR-SPM-0006).
 CONTROL_ALLOWED_KINDS = ('approved', 'conditional')
+# Models whose records a controlled flow acts on (an override can name only these).
+CONTROLLED_MODELS = ('purchase.order',)
 # The override event of each override kind in the audit trail.
 OVERRIDE_AUDIT_EVENTS = {'status': 'status_override', 'risk': 'risk_override'}
 
@@ -96,8 +98,25 @@ def has_status_override(env, record, partner, action):
     """
     return bool(env['procurement.override'].sudo().search_count([
         ('res_model', '=', record._name), ('res_id', '=', record.id),
+        ('company_id', '=', record.company_id.id),
         ('partner_id', '=', partner.id), ('action', '=', action),
         ('kind', '=', 'status')], limit=1))
+
+
+def controlled_record(env, res_model, res_id):
+    """Return the record an override names, read as the acting user.
+
+    Requirements: FR-SPM-0013, BR-SPM-0001
+    Refuses a model that no controlled flow uses, a record that does not exist
+    and a record the user cannot read (for example one of another company).
+    """
+    if res_model not in CONTROLLED_MODELS:
+        raise UserError(env._("An override cannot be recorded for this kind of record."))
+    record = env[res_model].browse(res_id).exists()
+    if not record:
+        raise UserError(env._("The record of the override does not exist."))
+    record.check_access('read')
+    return record
 
 
 def check_supplier_allowed(env, record, partner, company, action):
