@@ -46,3 +46,12 @@ access_spm_override_admin,Override admin,procurement.override,group_spm_admin,cr
 access_spm_override_buyer,Override buyer,procurement.override,group_spm_buyer,r,
 access_spm_override_finance,Override finance,procurement.override,group_spm_finance,r,
 spm_override_comp_rule,Procurement override: allowed companies,procurement.override,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_application_contact_department_manager,Application contact department_manager,procurement.supplier.application.contact,group_spm_department_manager,r,
+access_spm_application_contact_buyer,Application contact buyer,procurement.supplier.application.contact,group_spm_buyer,cru,
+access_spm_application_contact_manager,Application contact manager,procurement.supplier.application.contact,group_spm_manager,crud,
+access_spm_application_contact_finance,Application contact finance,procurement.supplier.application.contact,group_spm_finance,r,
+access_spm_application_contact_auditor,Application contact auditor,procurement.supplier.application.contact,group_spm_auditor,r,
+access_spm_application_contact_admin,Application contact admin,procurement.supplier.application.contact,group_spm_admin,crud,
+access_spm_portal_log_manager,Portal activity manager,procurement.portal.log,group_spm_manager,r,
+access_spm_portal_log_auditor,Portal activity auditor,procurement.portal.log,group_spm_auditor,r,
+access_spm_portal_log_admin,Portal activity admin,procurement.portal.log,group_spm_admin,r,
