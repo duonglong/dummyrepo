@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0001, FR-SPM-0002, FR-SPM-0003 -->
+    <record id="procurement_supplier_application_view_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.application.list</field>
+        <field name="model">procurement.supplier.application</field>
+        <field name="arch" type="xml">
+            <list decoration-info="state == 'submitted'" decoration-muted="state == 'rejected'">
+                <field name="name"/>
+                <field name="email"/>
+                <field name="supplier_type_id"/>
+                <field name="user_id"/>
+                <field name="submitted_date" optional="show"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="procurement_supplier_application_view_form" model="ir.ui.view">
+        <field name="name">procurement.supplier.application.form</field>
+        <field name="model">procurement.supplier.application</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_spm_send_invitation" string="Send invitation" type="object"
+                            invisible="state not in ('invited', 'changes_requested')"/>
+                    <button name="action_spm_submit" string="Submit" type="object" class="btn-primary"
+                            invisible="state not in ('invited', 'changes_requested')"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <field name="field_rules" invisible="True"/>
+                    <group>
+                        <group>
+                            <field name="email"/>
+                            <field name="supplier_type_id"/>
+                            <field name="user_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="legal_name" required="True"/>
+                            <field name="phone" invisible="field_rules.phone == 'hidden'"
+                                   required="field_rules.phone == 'required'"/>
+                            <field name="website" invisible="field_rules.website == 'hidden'"
+                                   required="field_rules.website == 'required'"/>
+                            <field name="vat" invisible="field_rules.vat == 'hidden'"
+                                   required="field_rules.vat == 'required'"/>
+                        </group>
+                    </group>
+                    <group invisible="field_rules.street == 'hidden'">
+                        <group string="Address">
+                            <field name="street" required="field_rules.street == 'required'"/>
+                            <field name="zip"/>
+                            <field name="city"/>
+                            <field name="country_id"/>
+                        </group>
+                    </group>
+                    <group string="Bank account" invisible="field_rules.bank == 'hidden'">
+                        <field name="bank_account_number" required="field_rules.bank == 'required'"/>
+                        <field name="bank_name"/>
+                        <field name="bank_bic"/>
+                        <field name="bank_holder"/>
+                    </group>
+                    <group>
+                        <field name="product_category_ids" widget="many2many_tags"
+                               invisible="field_rules.categories == 'hidden'"
+                               required="field_rules.categories == 'required'"/>
+                        <field name="operating_locations"
+                               invisible="field_rules.operating_locations == 'hidden'"
+                               required="field_rules.operating_locations == 'required'"/>
+                    </group>
+                    <notebook>
+                        <page string="Contacts" invisible="field_rules.contacts == 'hidden'">
+                            <field name="contact_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                    <field name="phone"/>
+                                    <field name="function"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Documents">
+                            <field name="document_ids">
+                                <list>
+                                    <field name="document_type_id"/>
+                                    <field name="file_name"/>
+                                    <field name="verification_state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="procurement_supplier_application_view_search" model="ir.ui.view">
+        <field name="name">procurement.supplier.application.search</field>
+        <field name="model">procurement.supplier.application</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="email"/>
+                <field name="supplier_type_id"/>
+                <filter name="submitted" string="Submitted" domain="[('state', '=', 'submitted')]"/>
+                <filter name="mine" string="My applications" domain="[('user_id', '=', uid)]"/>
+                <group>
+                    <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="procurement_supplier_application_action" model="ir.actions.act_window">
+        <field name="name">Supplier applications</field>
+        <field name="res_model">procurement.supplier.application</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Create an application to invite a supplier to onboard.</field>
+    </record>
+
+    <menuitem id="menu_spm_application" name="Supplier applications" parent="menu_spm_root" sequence="10"
+              action="procurement_supplier_application_action" groups="group_spm_buyer"/>
+</odoo>

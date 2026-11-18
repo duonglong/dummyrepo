@@ -15,3 +15,4 @@ from . import test_qualification_acceptance
 from . import test_job_log_acceptance
 from . import test_contract_company_acceptance
 from . import test_supplier_document
+from . import test_onboarding_application
