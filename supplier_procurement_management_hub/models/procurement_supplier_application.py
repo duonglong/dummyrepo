@@ -310,7 +310,7 @@ class ProcurementSupplierApplication(models.Model):
             raise UserError(self.env._(
                 "No default status of the Approved kind is configured: set one in the supplier statuses before approving."))
         onboarding.lock_tax_id(self.env, data['vat'])
-        partner = onboarding.find_company_contact(self.env, data['vat'])
+        partner = self.partner_id or onboarding.find_company_contact(self.env, data['vat'])
         partner_model = self.env['res.partner'].sudo().with_context(  # elevated: see above
             spm_change_origin='approval')
         if partner:
@@ -318,6 +318,8 @@ class ProcurementSupplierApplication(models.Model):
             data = {name: value for name, value in data.items()
                     if name not in ('name', 'is_company', 'company_id') and not partner[name]}
             data.pop('spm_product_category_ids', None)
+            if self.is_requalification:
+                data.pop('email', None)  # the address of a re-qualification only reaches the supplier, never fills its contact
             partner = partner.with_context(spm_change_origin='approval')
             partner.write(dict(data, spm_status_id=status.id,
                                spm_product_category_ids=[(4, category.id) for category in self.product_category_ids]))

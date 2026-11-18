@@ -30,16 +30,19 @@ class ProcurementJobRun(models.Model):
     sent_count = fields.Integer(string="Notifications sent", readonly=True)
     errors = fields.Json(readonly=True, help="One entry per record that failed: model, id, name and message.")
     error_count = fields.Integer(compute='_compute_error_count', store=True)
-    error_summary = fields.Text(compute='_compute_error_count')
+    error_summary = fields.Text(compute='_compute_error_summary')
 
     @api.depends('errors')
     def _compute_error_count(self):
         for run in self:
-            entries = run.errors or []
-            run.error_count = len(entries)
+            run.error_count = len(run.errors or [])
+
+    @api.depends('errors')
+    def _compute_error_summary(self):
+        for run in self:
             run.error_summary = '\n'.join(
                 '%s: %s' % (entry.get('name') or entry.get('id') or '', entry.get('message', ''))
-                for entry in entries)
+                for entry in run.errors or [])
 
     def action_spm_mark_failed(self):
         """Close a run that is stuck as Running (the server stopped during it), so the job can run again.

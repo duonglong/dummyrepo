@@ -2,11 +2,14 @@
 
 Requirements: FR-SPM-0012, FR-SPM-0096, FR-SPM-0097
 """
+from ast import literal_eval
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import fields, modules, sql_db
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase
+
+from ..services import job_runner
 
 MODULE = 'supplier_procurement_management_hub'
 
@@ -91,3 +94,49 @@ class TestJobRunner(TransactionCase):
         applications = self.env['procurement.supplier.application'].search(
             [('partner_id', '=', acme.id), ('is_requalification', '=', True)])
         self.assertEqual(len(applications), 1)
+
+    def _due_supplier(self, **extra):
+        approved = self.env['procurement.supplier.status'].search([('kind', '=', 'approved')], limit=1)
+        supplier_type = self.env['procurement.supplier.type'].create({'name': 'Goods T008Q'})
+        return self.env['res.partner'].create(dict({
+            'name': 'Quiet Co', 'is_company': True, 'spm_supplier_type_id': supplier_type.id,
+            'spm_status_id': approved.id, 'spm_requalification_date': fields.Date.context_today(self.job),
+            'spm_responsible_user_id': self.buyer.id}, **extra))
+
+    def test_a_switched_off_job_stays_on_the_jobs_screen(self):
+        """FR-SPM-0096: the jobs action lists a switched-off job, so it can be switched back on."""
+        self.job.write({'active': False})
+        action = self.env.ref(f'{MODULE}.procurement_job_action')
+        listed = self.env['procurement.job'].with_context(literal_eval(action.context)).search([])
+        self.assertIn(self.job, listed)
+
+    def test_approving_a_requalification_keeps_the_contact_and_its_empty_email(self):
+        """FR-SPM-0012: approval updates the supplier named by the application and never copies the buyer's address."""
+        acme = self._due_supplier()
+        self.env['procurement.job']._spm_run('requalification')
+        application = self.env['procurement.supplier.application'].search([('partner_id', '=', acme.id)])
+        self.assertEqual(application.email, self.buyer.email)
+        partners = self.env['res.partner'].search_count([('name', '=', 'Quiet Co')])
+        self.assertEqual(application._spm_contact_for_approval(), acme)
+        self.assertEqual(self.env['res.partner'].search_count([('name', '=', 'Quiet Co')]), partners)
+        self.assertFalse(acme.email)
+
+    def test_run_now_commits_only_inside_the_scheduler_loop(self):
+        """NFR-SPM-0007: the request of Run now keeps one transaction; the cron loop reports its progress."""
+        self._due_supplier()
+        with patch.object(modules.module, 'current_test', None), \
+                patch.object(type(self.env['ir.cron']), '_commit_progress') as progress:
+            self.env['procurement.job']._spm_run('requalification', trigger='manual')
+            progress.assert_not_called()
+            self.env['procurement.job'].with_context(ir_cron_progress_id=1)._spm_run('requalification')
+            progress.assert_called()
+
+    def test_a_run_started_while_another_cursor_holds_the_lock_is_skipped(self):
+        """NFR-SPM-0007: two runs at the same moment; the second is skipped and logged."""
+        other = sql_db.db_connect(self.env.cr.dbname).cursor()
+        self.addCleanup(other.close)
+        other.execute("SELECT pg_advisory_lock(hashtextextended(%s, 0))", [job_runner._lock_key(self.job)])
+        run = self.env['procurement.job']._spm_run('requalification')
+        self.assertEqual(run.state, 'skipped')
+        other.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [job_runner._lock_key(self.job)])
+        self.assertEqual(self.env['procurement.job']._spm_run('requalification').state, 'done')

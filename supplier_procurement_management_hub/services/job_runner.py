@@ -15,25 +15,38 @@ def _acquire(env, job, trigger):
     """Return a new Running run of ``job``, or a Skipped run when another run is going.
 
     Requirements: FR-SPM-0097
-    The advisory lock closes the gap between two starts at the same moment; the
-    committed Running row covers the runs that follow once the lock is released.
+    The session advisory lock is held until the run ends (see ``_release``), so two starts
+    at the same moment never both go on, whatever their transaction snapshot shows; the
+    Running row covers a run seen as going by its row.
     """
     runs = env['procurement.job.run']
-    env.cr.execute("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))", ['spm_job:%s' % job.code])
+    env.cr.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [_lock_key(job)])
     locked = env.cr.fetchone()[0]
     now = fields.Datetime.now()
     values = {'job_id': job.id, 'trigger': trigger, 'date_start': now}
-    if not locked or runs.search_count([('job_id', '=', job.id), ('state', '=', 'running')]):
-        return runs.create(dict(values, state='skipped', date_end=now))
-    return runs.create(dict(values, state='running'))
+    if locked and not runs.search_count([('job_id', '=', job.id), ('state', '=', 'running')]):
+        return runs.create(dict(values, state='running'))
+    if locked:
+        _release(env, job)
+    return runs.create(dict(values, state='skipped', date_end=now))
+
+
+def _lock_key(job):
+    return 'spm_job:%s' % job.code
+
+
+def _release(env, job):
+    """Release the session lock taken by ``_acquire``."""
+    env.cr.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [_lock_key(job)])
 
 
 def _commit(env, processed=0, remaining=None):
     """Commit the work done so far and report the progress to the scheduler.
 
-    Skipped in tests, where a commit is forbidden and the test rolls everything back.
+    Only inside the scheduler's loop (ADR-SPM-007): Run now stays in its request transaction,
+    and a test, where a commit is forbidden, never commits.
     """
-    if not modules.module.current_test:
+    if env.context.get('ir_cron_progress_id') and not modules.module.current_test:
         env['ir.cron']._commit_progress(processed, remaining=remaining)
 
 
@@ -69,6 +82,14 @@ def execute(env, job, trigger='scheduled'):
     if run.state == 'skipped':
         _commit(env)
         return run
+    try:
+        return _run(env, job, run)
+    finally:
+        _release(env, job)
+
+
+def _run(env, job, run):
+    """Process the records due of ``job`` into ``run`` and close it."""
     _commit(env)  # the Running row is now visible to any other start
     processed = sent = 0
     errors = []

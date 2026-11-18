@@ -90,7 +90,10 @@ class ProcurementJob(models.Model):
         open_partners = self.env['procurement.supplier.application'].search([
             ('is_requalification', '=', True), ('state', 'not in', ('approved', 'rejected')),
         ]).partner_id
-        return self.env['res.partner'].search([
+        status = self.env['procurement.supplier.status'].search(
+            [('kind', '=', 'requalification_due'), ('default_for_kind', '=', True)], limit=1)
+        # the status is looked up once per run and travels with the records
+        return self.env['res.partner'].with_context(spm_requalification_status_id=status.id).search([
             ('spm_status_kind', 'in', ('approved', 'conditional')),
             ('spm_requalification_date', '<=', today),
             ('id', 'not in', open_partners.ids),
@@ -110,8 +113,8 @@ class ProcurementJob(models.Model):
             raise UserError(self.env._("The buyer %s has no e-mail address.", buyer.name))
         if not partner.spm_supplier_type_id:
             raise UserError(self.env._("%s has no supplier type.", partner.display_name))
-        status = self.env['procurement.supplier.status'].search(
-            [('kind', '=', 'requalification_due'), ('default_for_kind', '=', True)], limit=1)
+        status = self.env['procurement.supplier.status'].browse(
+            partner.env.context.get('spm_requalification_status_id'))
         if not status:
             raise UserError(self.env._("No default status of the Re-qualification due kind is configured."))
         application = self.env['procurement.supplier.application'].create(
