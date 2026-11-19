@@ -147,3 +147,23 @@ class TestSupplierMessages(SpmPortalCase):
         contact_bodies = ' '.join(self.env['mail.message'].with_user(self.acme_user).search([
             ('model', '=', 'res.partner'), ('res_id', '=', self.acme.id)]).mapped('body'))
         self.assertNotIn('Contact colleagues only', contact_bodies)
+
+    def test_the_chatter_domain_of_a_bill_and_of_a_contact_is_their_own(self):
+        """Requirements: FR-SPM-0026 - the portal chatter calls the method of the thread's own model."""
+        bill = self.env['account.move'].create({
+            'move_type': 'in_invoice', 'partner_id': self.acme.id, 'invoice_date': '2026-01-05',
+            'invoice_line_ids': [(0, 0, {'name': 'Line', 'quantity': 1, 'price_unit': 10})]})
+        for record in (bill, self.acme):
+            record.with_user(self.buyer).message_post(
+                body='Internal only', message_type='comment',
+                subtype_xmlid='mail.mt_comment', partner_ids=[self.manager.partner_id.id])
+            record.with_user(self.buyer).message_post(
+                body='For the supplier', message_type='comment',
+                subtype_xmlid='mail.mt_comment', partner_ids=[self.acme_user.partner_id.id])
+            self.env.flush_all()
+            chatter = self.env['mail.message'].sudo().search(
+                record.with_user(self.acme_user)._get_share_message_domain())
+            bodies = ' '.join(chatter.filtered(
+                lambda m: m.res_id == record.id and m.model == record._name).mapped('body'))
+            self.assertIn('For the supplier', bodies)
+            self.assertNotIn('Internal only', bodies)
