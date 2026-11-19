@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.addons.base.models.res_partner_bank import sanitize_account_number
 from odoo.exceptions import AccessError, UserError
 
 # Roles that may read restricted supplier values (BR-SPM-0004); named once here.
@@ -134,7 +135,7 @@ class ProcurementSupplierChange(models.Model):
         self.ensure_one()
         Bank = self.env['res.partner.bank'].with_context(active_test=False)
         existing = Bank.search([('partner_id', '=', self.partner_id.id)])
-        number = self.bank_account_number.replace(' ', '').upper()
+        number = sanitize_account_number(self.bank_account_number)
         values = {
             'holder_name': self.bank_holder or self.partner_id.name,
             'sequence': min(existing.mapped('sequence') or [1]) - 1,
@@ -146,8 +147,10 @@ class ProcurementSupplierChange(models.Model):
             bank = self.env['res.bank'].search(domain, limit=1) or self.env['res.bank'].create({
                 'name': self.bank_name or self.bank_bic, 'bic': self.bank_bic or False})
             values['bank_id'] = bank.id
-        known = existing.filtered(lambda row: (row.sanitized_account_number or '').upper() == number)
+        known = existing.filtered(lambda row: row.sanitized_account_number == number)
         if known:
+            if not self.bank_holder:
+                values.pop('holder_name')
             known[:1].write(values)
         else:
             Bank.create(dict(values, partner_id=self.partner_id.id, account_number=self.bank_account_number))

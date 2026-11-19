@@ -7,6 +7,7 @@ import base64
 import os
 
 from odoo import fields
+from odoo.addons.base.models.res_partner_bank import sanitize_account_number
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import mimetypes
 
@@ -224,8 +225,8 @@ def bank_details(post):
 
 
 def plain_account(number):
-    """An account number without spaces and in capitals, to tell whether two are the same."""
-    return (number or '').replace(' ', '').upper()
+    """An account number as the native unique constraint reads it, to tell whether two are the same."""
+    return sanitize_account_number(number) or ''
 
 
 def _bank_is_known(supplier, details):
