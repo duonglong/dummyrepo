@@ -1,3 +1,5 @@
+from werkzeug.urls import url_encode
+
 from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
@@ -25,11 +27,14 @@ class SupplierPortalMessages(SupplierPortal):
         if refusal_page:
             return refusal_page
         try:
-            request.env['procurement.sourcing.question'].spm_ask(event_id, post.get('question'))
+            question = request.env['procurement.sourcing.question'].spm_ask(event_id, post.get('question'))
+        except portal_access.SupplierAccessRefused as refusal:
+            return self._refuse(refusal)
         except AccessError:
             portal_access.log(request.env, 'denied', 'refused', res_model='procurement.sourcing.event',
                               res_id=event_id, detail='not found')
             return self._refusal_page(404)
         except UserError as error:
-            return request.redirect('/my/procurement?error=%s' % error.args[0])
+            return request.redirect('/my/procurement?' + url_encode({'error': error.args[0]}))
+        portal_access.log(request.env, 'submit', 'ok', record=question.event_id)
         return request.redirect(request.httprequest.referrer or '/my/procurement')

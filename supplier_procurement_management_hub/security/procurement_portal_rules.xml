@@ -22,23 +22,26 @@
         <field name="operation">r</field>
         <field name="domain">[('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')]</field>
     </record>
-    <!-- Requirements: FR-SPM-0023, BR-SPM-0003 (a supplier portal user reads its own questions and the
-         shared ones of the events it is invited to; who asked is hidden by a field group) -->
+    <!-- Requirements: FR-SPM-0023, BR-SPM-0003 (a portal user of a supplier that is not Blocked reads its own questions and the
+         answers already sent and shared on events the supplier is invited to; the status is a condition of
+         the domain, as a value evaluated here would stay cached;
+         who asked is hidden because the asker field is internal-only and the creator is the superuser) -->
     <record id="access_spm_sourcing_question_portal" model="ir.access">
         <field name="name">Sourcing question portal: own and shared</field>
         <field name="model_id" ref="model_procurement_sourcing_question"/>
         <field name="group_id" ref="base.group_portal"/>
         <field name="operation">r</field>
-        <field name="domain">[('partner_id.spm_status_kind', '!=', 'blocked'), '|', ('partner_id', '=', user.commercial_partner_id.id), '&amp;', ('shared', '=', True), ('event_id.response_ids.partner_id', '=', user.commercial_partner_id.id)]</field>
+        <field name="domain">['|', '&amp;', ('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked'), '&amp;', ('shared', '=', True), '&amp;', ('answered_date', '!=', False), ('event_id.response_ids', 'any', [('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')])]</field>
     </record>
-    <!-- Requirements: FR-SPM-0026, BR-SPM-0003 (on the records of the hub a supplier portal user reads
-         only the messages sent to its company or written by it, never an internal note or a
-         discussion between colleagues) -->
+    <!-- Requirements: FR-SPM-0026, BR-SPM-0003 (on the records of the hub and on the supplier contact a
+         portal user reads only the messages sent to its company or written by it, never an internal note
+         or a discussion between colleagues; the chatter route applies the same condition, see
+         services/portal_access.py) -->
     <record id="access_spm_message_supplier_portal" model="ir.access">
         <field name="name">Messages: only those sent to the supplier for portal users</field>
         <field name="model_id" ref="mail.model_mail_message"/>
         <field name="operation">r</field>
-        <field name="domain">['|', '|', ('model', 'not in', ('purchase.order', 'account.move')), ('partner_ids', 'child_of', user.commercial_partner_id.id), ('author_id', 'child_of', user.commercial_partner_id.id)] if user.share else []</field>
+        <field name="domain">['|', '|', ('model', 'not in', ('purchase.order', 'account.move', 'res.partner')), ('partner_ids', 'child_of', user.commercial_partner_id.id), ('author_id', 'child_of', user.commercial_partner_id.id)] if user.share else []</field>
     </record>
     <!-- Requirements: FR-SPM-0028 (a Blocked supplier's portal users read none of its orders and vendor
          bills, through pages or direct data calls; messages and attachments follow their record) -->

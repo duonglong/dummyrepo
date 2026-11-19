@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import audit, supplier_control
+from ..services import audit, portal_access, supplier_control
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
 # Watched fields whose values only the restricted groups may read (BR-SPM-0004).
@@ -347,3 +347,10 @@ class ResPartnerBank(models.Model):
         """Requirements: FR-SPM-0014"""
         self._spm_log_banks([(bank.partner_id, bank._spm_describe(), '') for bank in self])
         return super().unlink()
+
+    def _get_share_message_domain(self):
+        """Messages of the portal page: a supplier portal user sees only those to or from its company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(self.env, super()._get_share_message_domain())

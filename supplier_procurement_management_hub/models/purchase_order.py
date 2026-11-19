@@ -1,6 +1,6 @@
 from odoo import models
 
-from ..services import supplier_control
+from ..services import portal_access, supplier_control
 
 
 class PurchaseOrder(models.Model):
@@ -53,3 +53,10 @@ class PurchaseOrder(models.Model):
                 'default_action': 'override',
             },
         }
+
+    def _get_share_message_domain(self):
+        """Messages of the portal page: a supplier portal user sees only those to or from its company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(self.env, super()._get_share_message_domain())

@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 
-from ..services import reconciliation
+from ..services import portal_access, reconciliation
 from .procurement_exception_route import EXCEPTION_KINDS
 from .procurement_reconciliation_exception import EXCEPTION_STATES, RELEASING_STATES
 
@@ -141,3 +141,10 @@ class AccountMoveLine(models.Model):
         if MATCHED_LINE_FIELDS & set(vals) and not self.env.context.get('spm_skip_line_matching'):
             self.move_id._spm_refresh_matching()
         return result
+
+    def _get_share_message_domain(self):
+        """Messages of the portal page: a supplier portal user sees only those to or from its company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(self.env, super()._get_share_message_domain())

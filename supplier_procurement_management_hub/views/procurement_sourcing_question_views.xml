@@ -29,7 +29,8 @@
                         <field name="event_id"/>
                         <field name="partner_id"/>
                         <field name="question" readonly="1"/>
-                        <field name="answer" readonly="answered_date"/>
+                        <field name="draft_answer" invisible="answered_date"/>
+                        <field name="answer" invisible="not answered_date"/>
                         <field name="shared" readonly="answered_date"/>
                         <field name="answered_by_id"/>
                         <field name="answered_date" invisible="not answered_date"/>
