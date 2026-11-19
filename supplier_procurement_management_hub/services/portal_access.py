@@ -1,7 +1,26 @@
 """Who a supplier portal user is, what they own, and the portal activity log.
 
 Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+The portal profile and upload rules (FR-SPM-0015, FR-SPM-0018, FR-SPM-0019, NFR-SPM-0003) follow.
 """
+import base64
+import os
+
+from odoo import fields
+from odoo.addons.base.models.res_partner_bank import sanitize_account_number
+from odoo.exceptions import UserError, ValidationError
+from odoo.tools import mimetypes
+
+from . import onboarding
+
+# The longest text a profile field takes from the portal.
+PROFILE_TEXT_MAX = 1000
+BANK_FIELDS = {
+    'bank_account_number': 'account_number', 'bank_name': 'bank_name',
+    'bank_bic': 'bank_bic', 'bank_holder': 'holder_name'}
+UPLOAD_KEYS = ('document_type_id', 'issue_date', 'expiry_date', 'file')
+BOOLEAN_TRUE = ('1', 'true', 'on', 'yes')
+BOOLEAN_FALSE = ('0', 'false', 'off', 'no')
 
 # The portal's page size (DESIGN section 6).
 PORTAL_PAGE_SIZE = 20
@@ -172,3 +191,186 @@ def quote_rows(env, responses):
         'deadline': event.deadline,
         'state': state_labels.get(event.state, ''),
     } for response in responses for event in response.event_id.sudo()]  # sudo: four plain values of an invited event
+
+
+def editable_fields(env):
+    """The contact fields the administrator marked editable in the portal, as ``name: field``.
+
+    Requirements: FR-SPM-0018
+    """
+    # sudo: the field list is configuration a portal user cannot read; it holds names only
+    rows = env['procurement.portal.field'].sudo().search([('editable', '=', True)])
+    partner_fields = env['res.partner']._fields
+    return {row.field_id.name: partner_fields[row.field_id.name]
+            for row in rows if row.field_id.name in partner_fields}
+
+
+def parse_field_value(env, field, raw):
+    """The value of a submitted profile field, or a ValueError with the refusal text.
+
+    Requirements: FR-SPM-0018
+    """
+    raw = (raw or '').strip()
+    label = field._description_string(env)
+    if len(raw) > PROFILE_TEXT_MAX:
+        raise ValueError(env._("%s is too long.", label))
+    if not raw:
+        return False
+    try:
+        if field.type == 'boolean':
+            if raw.lower() not in BOOLEAN_TRUE + BOOLEAN_FALSE:
+                raise ValueError(raw)
+            return raw.lower() in BOOLEAN_TRUE
+        if field.type == 'integer':
+            return int(raw)
+        if field.type == 'float':
+            return float(raw)
+        if field.type == 'date':
+            return fields.Date.to_date(raw) or False
+        if field.type == 'selection':
+            if raw not in dict(field._description_selection(env)):
+                raise ValueError(raw)
+    except (ValueError, TypeError):
+        raise ValueError(env._("%s has an invalid value.", label)) from None
+    return raw
+
+
+def bank_details(post):
+    """The bank details of a submitted profile, keyed by the account fields; empty without an account number."""
+    details = {target: (post.get(source) or '').strip() for source, target in BANK_FIELDS.items()}
+    return details if details['account_number'] else {}
+
+
+def plain_account(number):
+    """An account number as the native unique constraint reads it, to tell whether two are the same."""
+    return sanitize_account_number(number) or ''
+
+
+def _bank_is_known(supplier, details):
+    """Whether an active account of the supplier already has this number and every given detail.
+
+    Requirements: FR-SPM-0015
+
+    A same number with another holder, bank or BIC is a change; so is an archived number.
+    """
+    number = plain_account(details['account_number'])
+    for bank in supplier.sudo().bank_ids:  # sudo: compare only
+        if plain_account(bank.account_number) != number:
+            continue
+        same_holder = not details['holder_name'] or details['holder_name'] == (bank.holder_name or '')
+        same_bank = not details['bank_name'] or details['bank_name'] == (bank.bank_id.name or '')
+        same_bic = not details['bank_bic'] or details['bank_bic'] == (bank.bank_id.bic or '')
+        if same_holder and same_bank and same_bic:
+            return True
+    return False
+
+
+def log_unknown_keys(env, supplier, post, known, route):
+    """Log the names of the posted keys the route does not know; they are ignored.
+
+    Requirements: FR-SPM-0018
+    """
+    unknown = sorted(key for key in post if key not in known and key != 'csrf_token')
+    if unknown:
+        log(env, 'submit', 'ok', supplier=supplier, detail='%s ignored keys: %s' % (route, ', '.join(unknown)))
+
+
+def update_profile(env, supplier, post):
+    """Write the editable fields of the post and hold a bank change; return the refusal texts.
+
+    Requirements: FR-SPM-0015, FR-SPM-0018
+
+    Only the fields marked editable are looked at; every other key of the post is ignored.
+    A bank change never touches the supplier's accounts: it waits as a pending change.
+    """
+    errors = []
+    values = {}
+    editable = editable_fields(env)
+    log_unknown_keys(env, supplier, post, set(editable) | set(BANK_FIELDS), 'profile')
+    for name, field in editable.items():
+        if name not in post:
+            continue
+        try:
+            value = parse_field_value(env, field, post[name])
+        except ValueError as error:
+            errors.append(str(error))
+            continue
+        if value != supplier.sudo()[name] and (value or supplier.sudo()[name]):  # sudo: plain values of the own company
+            values[name] = value
+    if errors:
+        return errors
+    if values:
+        try:
+            with env.cr.savepoint():
+                supplier._spm_portal_write(values)
+        except (UserError, ValidationError) as error:
+            return [str(error)]
+    details = bank_details(post)
+    if details and not _bank_is_known(supplier, details):
+        change = env['procurement.supplier.change']._spm_hold_bank_change(supplier, details)
+        log(env, 'submit', 'ok', supplier=supplier, record=change, detail='bank change pending')
+    log(env, 'submit', 'ok', supplier=supplier, detail='profile')
+    return []
+
+
+def upload_refusal_text(env):
+    """The refusal of an upload: the allowed formats and the size."""
+    return env._("Only PDF, PNG or JPEG files up to %s MB are accepted.", onboarding.UPLOAD_MAX_MB)
+
+
+def read_upload(env, upload):
+    """Return ``(data, mimetype)`` of an uploaded file, or raise ValueError with the refusal text.
+
+    Requirements: FR-SPM-0019, NFR-SPM-0003
+
+    The size is capped while reading and the type is the one of the content, never the extension.
+    """
+    data = upload.read(onboarding.UPLOAD_MAX_BYTES + 1) if upload else b''
+    mimetype = mimetypes.guess_mimetype(data) if data else ''
+    if not data or len(data) > onboarding.UPLOAD_MAX_BYTES or mimetype not in onboarding.UPLOAD_MIMETYPES:
+        raise ValueError(upload_refusal_text(env))
+    return data, mimetype
+
+
+def upload_document(env, supplier, post, upload):
+    """Store a portal upload as a To verify document and keep the replaced one as an earlier version.
+
+    Requirements: FR-SPM-0019, NFR-SPM-0003
+
+    Raises ValueError with the refusal text. The document type is searched with the user's own rights.
+    """
+    log_unknown_keys(env, supplier, post, UPLOAD_KEYS, 'upload')
+    document_type = get_owned(env, 'procurement.document.type', int(post['document_type_id'])
+                              if str(post.get('document_type_id', '')).isdigit() else 0)
+    if not document_type:
+        raise ValueError(env._("Choose a document type from the list."))
+    try:
+        issue_date = fields.Date.to_date(post.get('issue_date') or None)
+        expiry_date = fields.Date.to_date(post.get('expiry_date') or None)
+    except ValueError:
+        raise ValueError(env._("A date is not valid.")) from None
+    if document_type.needs_expiry and not expiry_date:
+        raise ValueError(env._("The expiry date is required for this document."))
+    data, mimetype = read_upload(env, upload)
+    # sudo: a portal user may only read documents; one new document and its file, for the checked supplier
+    documents = env['procurement.supplier.document'].sudo()
+    previous = documents.search([
+        ('partner_id', '=', supplier.id), ('document_type_id', '=', document_type.id),
+        ('is_current', '=', True)], order='id desc')
+    try:
+        with env.cr.savepoint():
+            document = documents.create({
+                'partner_id': supplier.id, 'document_type_id': document_type.id,
+                'issue_date': issue_date, 'expiry_date': expiry_date,
+                'verification_state': 'to_verify', 'uploaded_from_portal': True,
+                'previous_version_id': previous[:1].id})
+            attachment = env['ir.attachment'].sudo().create({  # sudo: the file of the document just created
+                'name': (os.path.basename(upload.filename) or 'file')[:255],
+                'datas': base64.b64encode(data), 'mimetype': mimetype,
+                'res_model': document._name, 'res_id': document.id})
+            document.attachment_id = attachment
+            previous.write({'is_current': False, 'replaced_date': fields.Datetime.now()})
+    except ValidationError as error:
+        raise ValueError(str(error)) from None
+    log(env, 'submit', 'ok', supplier=supplier, record=document, detail='upload')
+    return document
