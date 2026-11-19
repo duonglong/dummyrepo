@@ -77,3 +77,23 @@ class TestContractUse(SpmContractCase):
         self.assertEqual(late.spm_contract_line_id, contract.line_ids)
         contract.line_ids.invalidate_recordset()
         self.assertEqual(contract.line_ids.consumed_qty, 35.0)
+
+    def test_variantless_price_of_a_multi_variant_template_is_not_taken_over(self):
+        """Requirements: FR-SPM-0067: a contract price for one variant never overwrites the price of all variants."""
+        attribute = self.env['product.attribute'].create({
+            'name': 'Colour M4', 'value_ids': [(0, 0, {'name': 'Red'}), (0, 0, {'name': 'Blue'})]})
+        template = self.env['product.template'].create({
+            'name': 'Stool M4', 'type': 'consu',
+            'attribute_line_ids': [(0, 0, {
+                'attribute_id': attribute.id, 'value_ids': [(6, 0, attribute.value_ids.ids)]})]})
+        red = template.product_variant_ids[0]
+        shared = self.env['product.supplierinfo'].create({
+            'partner_id': self.acme.id, 'product_tmpl_id': template.id, 'price': 12.0,
+            'min_qty': 20.0, 'company_id': self.company.id})
+        contract = self._active_contract(lines=[self._line_vals(price=11.5, product=red)])
+        dialog = self._dialog(contract)
+        self.assertEqual(dialog.line_ids.operation, 'create')
+        dialog.with_user(self.bob).action_confirm()
+        self.assertEqual(shared.price, 12.0)
+        created = self.env['product.supplierinfo'].search([('spm_contract_id', '=', contract.id)])
+        self.assertEqual(created.product_id, red)

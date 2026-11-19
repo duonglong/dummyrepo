@@ -30,16 +30,21 @@ class ProcurementContractPriceUpdate(models.TransientModel):
                 Command.create(values) for values in wizard._spm_preview_rows()]
 
     def _spm_find_supplierinfo(self, line):
-        """Return the vendor price line of the contract line: the linked one, else the same vendor, product, contract company and minimum quantity (a shared vendor price is not touched)."""
+        """Return the vendor price line of the contract line: the linked one, else the same vendor, exact variant (a variant-less price only for a single-variant template), contract company and minimum quantity (a shared vendor price is not touched)."""
         contract = line.contract_id
         info = self.env['product.supplierinfo']
         linked = info.search([('spm_contract_line_id', '=', line.id)], limit=1)
         if linked:
             return linked
+        # a vendor price without a variant is native for every variant of the template: it is taken
+        # over only when the template has a single variant, else the exact variant is matched
+        variants = [line.product_id.id]
+        if len(line.product_id.product_tmpl_id.product_variant_ids) == 1:
+            variants.append(False)
         return info.search([
             ('partner_id', '=', contract.partner_id.id),
             ('product_tmpl_id', '=', line.product_id.product_tmpl_id.id),
-            ('product_id', 'in', [False, line.product_id.id]),
+            ('product_id', 'in', variants),
             ('company_id', '=', contract.company_id.id),
             ('min_qty', '=', line.min_qty),
         ], limit=1)
