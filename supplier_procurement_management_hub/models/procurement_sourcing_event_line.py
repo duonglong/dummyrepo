@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProcurementSourcingEventLine(models.Model):
@@ -9,10 +10,12 @@ class ProcurementSourcingEventLine(models.Model):
     _name = 'procurement.sourcing.event.line'
     _description = 'Sourcing Event Line'
     _order = 'sequence, id'
+    _check_company_auto = True
 
     event_id = fields.Many2one('procurement.sourcing.event', required=True, ondelete='cascade', index=True)
+    company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
     sequence = fields.Integer(default=10)
-    product_id = fields.Many2one('product.product', ondelete='restrict')
+    product_id = fields.Many2one('product.product', ondelete='restrict', check_company=True)
     name = fields.Char(
         string="Description", compute='_compute_name', store=True, readonly=False, required=True)
     quantity = fields.Float(default=1.0, digits='Product Unit', required=True)
@@ -36,3 +39,13 @@ class ProcurementSourcingEventLine(models.Model):
         for line in self:
             if line.product_id:
                 line.uom_id = line.product_id.uom_id
+
+    @api.constrains('request_line_ids', 'event_id')
+    def _check_request_lines_company(self):
+        """Refuse request lines that belong to a request of another company.
+
+        Requirements: FR-SPM-0031
+        """
+        for line in self:
+            if any(rl.request_id.company_id != line.event_id.company_id for rl in line.request_line_ids):
+                raise ValidationError(_("The request lines must belong to the company of the event."))

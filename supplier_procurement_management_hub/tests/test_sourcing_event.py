@@ -4,7 +4,7 @@ Requirements: FR-SPM-0031, FR-SPM-0032, FR-SPM-0033, FR-SPM-0042
 """
 from datetime import timedelta
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError
 
 from .portal_common import SpmPortalCase
@@ -147,6 +147,23 @@ class TestSourcingEvent(SpmPortalCase):
         mails = self.env['mail.mail'].sudo().search([('model', '=', event._name), ('res_id', '=', event.id)])
         self.assertTrue(mails)
         self.assertTrue(all('2031-05-06 10:30' in (mail.body_html or '') for mail in mails))
+
+    def test_event_line_links_must_belong_to_the_company(self):
+        """FR-SPM-0031: a product or request line of another company is refused."""
+        other = self.env['res.company'].sudo().create({'name': 'Other company lines'})
+        product = self.env['product.product'].sudo().create({'name': 'Foreign product', 'company_id': other.id})
+        event = self._event(self.acme, send=False)
+        line = event.line_ids[:1]
+        with self.assertRaises(UserError):
+            line.write({'product_id': product.id})
+        request = self.env['procurement.request'].sudo().create({
+            'company_id': other.id,
+            'needed_date': fields.Date.today() + timedelta(days=5),
+            'reason': 'Other company need',
+            'line_ids': [Command.create({'name': 'x', 'quantity': 1})],
+        })
+        with self.assertRaises(UserError):
+            line.write({'request_line_ids': [Command.link(request.line_ids.id)]})
 
     def test_event_links_must_belong_to_the_company(self):
         """FR-SPM-0031: a delivery location of another company is refused."""
