@@ -71,6 +71,16 @@ class ProcurementContract(models.Model):
     version_ids = fields.One2many('procurement.contract.version', 'contract_id', string="Earlier versions")
     consumed_value = fields.Monetary(
         string="Consumed value", compute='_compute_use', currency_field='currency_id')
+    remaining_value = fields.Monetary(
+        string="Remaining value", compute='_compute_use', currency_field='currency_id')
+    consumed_qty = fields.Float(string="Consumed", compute='_compute_use', digits='Product Unit')
+    remaining_qty = fields.Float(string="Remaining", compute='_compute_use', digits='Product Unit')
+    spm_product_ids = fields.Many2many(
+        'product.product', string="Products", compute='_compute_spm_groups', store=True,
+        relation='procurement_contract_spm_product_rel')
+    spm_category_ids = fields.Many2many(
+        'product.category', string="Categories", compute='_compute_spm_groups', store=True,
+        relation='procurement_contract_spm_category_rel')
     used_share = fields.Float(
         string="Used (%)", compute='_compute_use', digits=(16, 1),
         help="Share of the ceiling used: the value ceiling, else the quantity ceiling, else the most used line.")
@@ -82,8 +92,19 @@ class ProcurementContract(models.Model):
             contract.notice_date = (
                 contract.date_end - timedelta(days=contract.notice_days) if contract.date_end else False)
 
-    @api.depends('line_ids.consumed_value', 'line_ids.consumed_qty', 'line_ids.used_share',
-                 'ceiling_value', 'ceiling_qty')
+    @api.depends('line_ids.product_id.categ_id', 'line_ids.product_category_id')
+    def _compute_spm_groups(self):
+        """List the products and categories of the lines, to search and group the contracts by them.
+
+        Requirements: FR-SPM-0070
+        """
+        for contract in self:
+            lines = contract.line_ids
+            contract.spm_product_ids = lines.product_id
+            contract.spm_category_ids = lines.product_category_id | lines.product_id.categ_id
+
+    @api.depends('line_ids.consumed_value', 'line_ids.consumed_qty', 'line_ids.remaining_qty',
+                 'line_ids.used_share', 'ceiling_value', 'ceiling_qty')
     def _compute_use(self):
         """Sum the consumption of the lines and give the share of the contract ceiling used.
 
@@ -92,6 +113,11 @@ class ProcurementContract(models.Model):
         for contract in self:
             lines = contract.line_ids
             contract.consumed_value = sum(lines.mapped('consumed_value'))
+            contract.consumed_qty = sum(lines.mapped('consumed_qty'))
+            contract.remaining_value = contract.ceiling_value - contract.consumed_value if contract.ceiling_value else 0.0
+            contract.remaining_qty = (
+                contract.ceiling_qty - contract.consumed_qty if contract.ceiling_qty
+                else sum(lines.mapped('remaining_qty')))
             if contract.ceiling_value:
                 share = contract.consumed_value / contract.ceiling_value * 100
             elif contract.ceiling_qty:

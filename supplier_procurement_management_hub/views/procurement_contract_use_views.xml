@@ -8,13 +8,18 @@
         <field name="arch" type="xml">
             <button name="action_spm_revise" position="after">
                 <button name="action_spm_open_renew" type="object" string="Renew"
-                        invisible="state != 'active'"/>
+                        invisible="state != 'active'"
+                        groups="supplier_procurement_management_hub.group_spm_buyer"/>
                 <button name="action_spm_update_vendor_prices" type="object" string="Update vendor prices"
                         invisible="state != 'active'"
                         groups="supplier_procurement_management_hub.group_spm_manager"/>
             </button>
             <field name="notice_date" position="after">
                 <field name="days_to_notice" invisible="state != 'active'"/>
+                <field name="consumed_value"/>
+                <field name="remaining_value"/>
+                <field name="consumed_qty"/>
+                <field name="remaining_qty"/>
             </field>
             <xpath expr="//field[@name='line_ids']/list/field[@name='ceiling_qty']" position="after">
                 <field name="consumed_qty" optional="show"/>
@@ -51,6 +56,8 @@
                                  ('notice_date', '&lt;=', (context_today() + datetime.timedelta(days=60)).strftime('%Y-%m-%d'))]"/>
             </filter>
             <filter name="group_state" position="after">
+                <filter string="Product" name="group_product" context="{'group_by': 'spm_product_ids'}"/>
+                <filter string="Product category" name="group_category" context="{'group_by': 'spm_category_ids'}"/>
                 <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
                 <filter string="End date" name="group_date_end" context="{'group_by': 'date_end:month'}"/>
                 <filter string="Notice date" name="group_notice_date" context="{'group_by': 'notice_date:month'}"/>

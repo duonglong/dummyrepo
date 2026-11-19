@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class ProductSupplierinfo(models.Model):
@@ -35,3 +35,14 @@ class ProductSupplierinfo(models.Model):
         for vals in vals_list:
             self._spm_refuse_link(vals)
         return super().create(vals_list)
+
+    @api.constrains('company_id', 'spm_contract_id', 'spm_contract_line_id')
+    def _check_spm_contract_company(self):
+        """Refuse a contract link from another company than the vendor price's (a shared price carries none).
+
+        Requirements: FR-SPM-0067
+        """
+        for info in self.filtered('spm_contract_id'):
+            if info.company_id != info.spm_contract_id.company_id or (
+                    info.spm_contract_line_id and info.spm_contract_line_id.contract_id != info.spm_contract_id):
+                raise ValidationError(self.env._("The vendor price and its contract must belong to the same company."))

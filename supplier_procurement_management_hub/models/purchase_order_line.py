@@ -12,6 +12,28 @@ class PurchaseOrderLine(models.Model):  # sdd-allow: model-split the contract li
 
     spm_contract_warning = fields.Char(string="Contract warning", compute='_compute_spm_contract_warning')
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Link a line added to an order already confirmed to the contract line it is bought under.
+
+        Requirements: FR-SPM-0068
+        """
+        lines = super().create(vals_list)
+        lines.order_id.filtered(lambda order: order.state == 'purchase')._spm_link_contract_lines()
+        return lines
+
+    def write(self, vals):
+        """Link a line whose product changes on a confirmed order to its contract line.
+
+        Requirements: FR-SPM-0068
+        """
+        if 'product_id' in vals:
+            vals = dict(vals, spm_contract_line_id=False)
+        result = super().write(vals)
+        if 'product_id' in vals:
+            self.order_id.filtered(lambda order: order.state == 'purchase')._spm_link_contract_lines()
+        return result
+
     @api.depends('product_id', 'product_qty', 'price_unit', 'date_planned', 'uom_id', 'order_id.partner_id',
                  'order_id.date_order', 'order_id.state', 'spm_contract_line_id')
     def _compute_spm_contract_warning(self):
