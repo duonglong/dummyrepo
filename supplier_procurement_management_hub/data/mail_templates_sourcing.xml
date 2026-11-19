@@ -19,7 +19,7 @@
 <div>
     <p>Hello,</p>
     <p><t t-out="object.company_id.name"/> invites you to quote for <t t-out="object.name"/>: <t t-out="object.title"/>.</p>
-    <p>Quotations are accepted until <t t-out="format_datetime(object.deadline, dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
+    <p>Quotations are accepted until <t t-out="format_datetime(object.deadline, tz='UTC', dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
     <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
 </div>
         </field>
@@ -36,7 +36,7 @@
 <div>
     <p>Hello,</p>
     <p>The deadline of <t t-out="object.name"/>: <t t-out="object.title"/> is now
-       <t t-out="format_datetime(object.deadline, dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
+       <t t-out="format_datetime(object.deadline, tz='UTC', dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
     <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
 </div>
         </field>

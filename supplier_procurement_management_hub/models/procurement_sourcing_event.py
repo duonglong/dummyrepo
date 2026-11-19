@@ -20,6 +20,7 @@ class ProcurementSourcingEvent(models.Model):
     _inherit = ['mail.thread']
     _description = 'Sourcing Event'
     _order = 'id desc'
+    _check_company_auto = True
 
     name = fields.Char(readonly=True, copy=False, default='New')
     title = fields.Char(required=True)
@@ -36,10 +37,10 @@ class ProcurementSourcingEvent(models.Model):
     criterion_ids = fields.One2many('procurement.sourcing.criterion', 'event_id', string="Criteria", copy=True)
     request_ids = fields.Many2many(
         'procurement.request', 'procurement_sourcing_event_request_rel', 'event_id', 'request_id',
-        string="Purchase requests", copy=False)
-    template_id = fields.Many2one('procurement.sourcing.template', string="Template", ondelete='set null')
+        string="Purchase requests", copy=False, check_company=True)
+    template_id = fields.Many2one('procurement.sourcing.template', string="Template", ondelete='set null', check_company=True)
     picking_type_id = fields.Many2one(
-        'stock.picking.type', string="Delivery location", ondelete='restrict',
+        'stock.picking.type', string="Delivery location", ondelete='restrict', check_company=True,
         domain="[('code', '=', 'incoming')]")
     terms = fields.Html(string="Commercial terms")
     company_id = fields.Many2one(
@@ -134,6 +135,10 @@ class ProcurementSourcingEvent(models.Model):
             event.check_access('write')
             if event.state != 'draft':
                 raise UserError(self.env._("Only a draft event is sent."))
+            if event.deadline <= fields.Datetime.now():
+                raise UserError(self.env._(
+                    "The deadline %(deadline)s has passed: set a later deadline before sending.",
+                    deadline=fields.Datetime.to_string(event.deadline)))
             sourcing.check_invitable(self.env, event)
             suppliers = event.invited_partner_ids.commercial_partner_id
             self.env['procurement.sourcing.response'].create([

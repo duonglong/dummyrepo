@@ -127,3 +127,34 @@ class TestSourcingEvent(SpmPortalCase):
             'title': 'From template', 'template_id': template.id})
         self.assertEqual(event.criterion_ids.mapped('name'), ['Price'])
         self.assertEqual(event.criterion_ids.weight, 60.0)
+
+    def test_send_refuses_a_deadline_that_has_passed(self):
+        """FR-SPM-0032: a draft whose deadline went by while it waited is not sent."""
+        event = self._event(self.acme, send=False)
+        self.env.cr.execute(
+            "UPDATE procurement_sourcing_event SET deadline = %s WHERE id = %s",
+            (fields.Datetime.now() - timedelta(hours=1), event.id))
+        event.invalidate_recordset(['deadline'])
+        with self.assertRaises(UserError):
+            event.with_user(self.buyer).action_spm_send()
+        self.assertEqual(event.state, 'draft')
+        self.assertFalse(event.response_ids)
+
+    def test_mail_shows_the_deadline_in_utc_whatever_the_buyer_zone(self):
+        """FR-SPM-0033: the (UTC) hour of the mail does not follow the buyer's time zone."""
+        self.buyer.tz = 'Asia/Tokyo'
+        event = self._event(self.acme, deadline=fields.Datetime.from_string('2031-05-06 10:30:00'))
+        mails = self.env['mail.mail'].sudo().search([('model', '=', event._name), ('res_id', '=', event.id)])
+        self.assertTrue(mails)
+        self.assertTrue(all('2031-05-06 10:30' in (mail.body_html or '') for mail in mails))
+
+    def test_event_links_must_belong_to_the_company(self):
+        """FR-SPM-0031: a delivery location of another company is refused."""
+        other = self.env['res.company'].sudo().create({'name': 'Other company'})
+        picking_type = self.env['stock.picking.type'].sudo().search(
+            [('code', '=', 'incoming'), ('company_id', '=', other.id)], limit=1)
+        if not picking_type:
+            self.skipTest("no receipt operation type for the second company")
+        event = self._event(self.acme, send=False)
+        with self.assertRaises(UserError):
+            event.write({'picking_type_id': picking_type.id})
