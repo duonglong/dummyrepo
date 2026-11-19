@@ -224,3 +224,24 @@ access_spm_event_finance,Delivery event finance,procurement.delivery.event,group
 access_spm_event_auditor,Delivery event auditor,procurement.delivery.event,group_spm_auditor,r,
 access_spm_event_admin,Delivery event admin,procurement.delivery.event,group_spm_admin,crud,
 spm_event_comp_rule,procurement.delivery.event: allowed companies,procurement.delivery.event,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_negotiation_buyer,Sourcing negotiation buyer,procurement.sourcing.negotiation,group_spm_buyer,r,
+access_spm_negotiation_manager,Sourcing negotiation manager,procurement.sourcing.negotiation,group_spm_manager,r,
+access_spm_negotiation_finance,Sourcing negotiation finance,procurement.sourcing.negotiation,group_spm_finance,r,
+access_spm_negotiation_auditor,Sourcing negotiation auditor,procurement.sourcing.negotiation,group_spm_auditor,r,
+access_spm_negotiation_admin,Sourcing negotiation admin,procurement.sourcing.negotiation,group_spm_admin,r,
+spm_negotiation_comp_rule,procurement.sourcing.negotiation: allowed companies,procurement.sourcing.negotiation,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_comparison_buyer,Quotation comparison buyer,procurement.comparison,group_spm_buyer,crud,
+access_spm_comparison_manager,Quotation comparison manager,procurement.comparison,group_spm_manager,crud,
+access_spm_comparison_finance,Quotation comparison finance,procurement.comparison,group_spm_finance,r,
+access_spm_comparison_auditor,Quotation comparison auditor,procurement.comparison,group_spm_auditor,r,
+access_spm_comparison_admin,Quotation comparison admin,procurement.comparison,group_spm_admin,crud,
+spm_comparison_comp_rule,procurement.comparison: allowed companies,procurement.comparison,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_comparison_line_buyer,Quotation comparison line buyer,procurement.comparison.line,group_spm_buyer,crud,
+access_spm_comparison_line_manager,Quotation comparison line manager,procurement.comparison.line,group_spm_manager,crud,
+access_spm_comparison_line_finance,Quotation comparison line finance,procurement.comparison.line,group_spm_finance,r,
+access_spm_comparison_line_auditor,Quotation comparison line auditor,procurement.comparison.line,group_spm_auditor,r,
+access_spm_comparison_line_admin,Quotation comparison line admin,procurement.comparison.line,group_spm_admin,crud,
+spm_comparison_line_comp_rule,procurement.comparison.line: allowed companies,procurement.comparison.line,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_revision_wizard_buyer,Revision dialog buyer,procurement.revision.wizard,group_spm_buyer,crud,
+access_spm_revision_wizard_manager,Revision dialog manager,procurement.revision.wizard,group_spm_manager,crud,
+access_spm_revision_wizard_admin,Revision dialog admin,procurement.revision.wizard,group_spm_admin,crud,

@@ -48,6 +48,18 @@ class ProcurementSourcingEvent(models.Model):
     currency_id = fields.Many2one(
         'res.currency', compute='_compute_currency_id', store=True, precompute=True, readonly=False,
         required=True)
+    rate_date = fields.Date(
+        string="Exchange rate date", tracking=True,
+        help="Prices are converted at the rate of this day when the comparison is normalized.")
+    tax_basis = fields.Selection([
+        ('unset', 'Not stated'), ('excluded', 'Without tax'), ('included', 'With tax'),
+    ], string="Tax basis", default='unset', required=True, tracking=True,
+        help="Whether prices are compared with or without tax.")
+    is_normalized = fields.Boolean(
+        compute='_compute_is_normalized',
+        help="Set when the currency, rate date, tax basis and every line's comparison unit are stated.")
+    negotiation_ids = fields.One2many(
+        'procurement.sourcing.negotiation', 'event_id', string="Negotiation history", copy=False)
     invited_partner_ids = fields.Many2many(
         'res.partner', 'procurement_sourcing_event_partner_rel', 'event_id', 'partner_id',
         string="Invited suppliers", domain="[('spm_is_supplier', '=', True)]", copy=False)
@@ -63,6 +75,17 @@ class ProcurementSourcingEvent(models.Model):
     def _compute_currency_id(self):
         for event in self:
             event.currency_id = event.company_id.currency_id
+
+    @api.depends('currency_id', 'rate_date', 'tax_basis', 'line_ids.comparison_uom_id')
+    def _compute_is_normalized(self):
+        """Quotations are comparable only when every assumption is stated.
+
+        Requirements: BR-SPM-0007
+        """
+        for event in self:
+            event.is_normalized = bool(
+                event.currency_id and event.rate_date and event.tax_basis in ('excluded', 'included')
+                and event.line_ids and all(line.comparison_uom_id for line in event.line_ids))
 
     @api.onchange('template_id')
     def _onchange_template_id(self):
@@ -203,6 +226,21 @@ class ProcurementSourcingEvent(models.Model):
         free = self.request_ids.filtered(lambda request: request.state == 'sourcing' and not any(
             other.state in ('draft', 'open', 'awarded') for other in request.sourcing_event_ids - self))
         free.write({'state': 'submitted'})
+
+    def action_spm_compare(self):
+        """Rebuild the comparison of the current quotations and open it.
+
+        Requirements: FR-SPM-0035, FR-SPM-0037
+        """
+        self.ensure_one()
+        comparison = sourcing.compare(self)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Comparison"),
+            'res_model': comparison._name,
+            'res_id': comparison.id,
+            'view_mode': 'form',
+        }
 
     def action_spm_open_cancel_wizard(self):
         """Open the dialog asking the cancellation reason."""
