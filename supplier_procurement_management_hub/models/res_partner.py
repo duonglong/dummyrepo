@@ -283,12 +283,13 @@ class ResPartner(models.Model):
         }
 
     def _get_share_message_domain(self):
-        """Messages of the portal page: a supplier portal user sees only those to or from its company.
+        """Messages of the portal page: the supplier sees only those to or from its own company.
 
         Requirements: FR-SPM-0026
         """
-        return portal_access.supplier_message_domain(self.env, super()._get_share_message_domain())
-
+        return portal_access.supplier_message_domain(
+            self.env, super()._get_share_message_domain(),
+            self.sudo().commercial_partner_id)  # sudo: ids of the page's own supplier only
 
 
 class ResPartnerBank(models.Model):

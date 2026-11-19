@@ -167,3 +167,21 @@ class TestSupplierMessages(SpmPortalCase):
                 lambda m: m.res_id == record.id and m.model == record._name).mapped('body'))
             self.assertIn('For the supplier', bodies)
             self.assertNotIn('Internal only', bodies)
+
+    def test_a_visitor_with_the_order_link_sees_the_messages_sent_to_the_supplier(self):
+        """Requirements: FR-SPM-0026 - the access token makes the session user the public user; the
+        page's supplier decides, not the session user."""
+        order = self._order(self.acme)
+        order.with_user(self.buyer).message_post(
+            body='Colleagues only: renegotiate', message_type='comment',
+            subtype_xmlid='mail.mt_comment', partner_ids=[self.manager.partner_id.id])
+        order.with_user(self.buyer).message_post(
+            body='Delivery planned', message_type='comment',
+            subtype_xmlid='mail.mt_comment', partner_ids=[self.acme.id])
+        self.env.flush_all()
+        public = self.env.ref('base.public_user')
+        chatter = self.env['mail.message'].sudo().search(
+            order.with_user(public)._get_share_message_domain())
+        bodies = ' '.join(chatter.filtered(lambda m: m.res_id == order.id and m.model == order._name).mapped('body'))
+        self.assertIn('Delivery planned', bodies)
+        self.assertNotIn('Colleagues only', bodies)

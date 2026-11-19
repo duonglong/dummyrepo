@@ -153,19 +153,20 @@ def log(env, action, result, supplier=None, record=None, res_model=None, res_id=
     })
 
 
-def supplier_message_domain(env, domain):
-    """Narrow the messages of a portal page to those sent to the user's company or written by it.
+def supplier_message_domain(env, domain, suppliers):
+    """Narrow the messages of a portal page to those sent to the page's supplier or written by it.
 
     Requirements: FR-SPM-0026
     The portal chatter reads messages as the superuser, so the message record rule never runs
-    there; a portal user's page repeats its condition. Other users keep the native domain.
+    there; the page repeats its condition. The supplier is the company of the page's record, not
+    the session user: a visitor who opens the page through its access token is the public user.
+    Internal users keep the native domain.
     """
-    user = env.user
-    if not user.share:
+    if not env.user.share:
         return domain
-    company = user.commercial_partner_id.id
+    company_ids = suppliers.ids
     return Domain(domain) & (
-        Domain('partner_ids', 'child_of', company) | Domain('author_id', 'child_of', company))
+        Domain('partner_ids', 'child_of', company_ids) | Domain('author_id', 'child_of', company_ids))
 
 
 def order_rows(env, orders):
