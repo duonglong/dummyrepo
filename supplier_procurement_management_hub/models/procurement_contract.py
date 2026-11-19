@@ -228,6 +228,8 @@ class ProcurementContract(models.Model):
         Returns the number of notifications sent (none).
         """
         self.ensure_one()
+        if self not in self._spm_collect_due():
+            return 0
         if self.state == 'approved':
             self._spm_write_lifecycle({'state': 'active'})
             audit.log(self.env, 'contract', self, {}, {'version': self.version}, 'activated')

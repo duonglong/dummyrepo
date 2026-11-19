@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from ..services.contract import EDITABLE_STATES
+from ..services.contract import EDITABLE_STATES, LINE_FIELDS
 
 
 class ProcurementContractLine(models.Model):
@@ -74,7 +74,12 @@ class ProcurementContractLine(models.Model):
             raise UserError(self.env._("Orders were placed from this line, it cannot be removed or given another product."))
 
     def write(self, vals):
-        """Requirements: FR-SPM-0063, FR-SPM-0065"""
+        """Allow only the agreed terms to be written; the contract and the order links are fixed.
+
+        Requirements: FR-SPM-0063, FR-SPM-0065
+        """
+        if not self.env.su and not set(vals) <= set(LINE_FIELDS):
+            raise UserError(self.env._("Only the agreed terms of a contract line can be changed."))
         self._spm_check_editable()
         if 'product_id' in vals or 'product_category_id' in vals:
             self.filtered(lambda line: any(

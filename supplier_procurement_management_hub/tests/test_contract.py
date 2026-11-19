@@ -4,6 +4,7 @@ Requirements: FR-SPM-0063, FR-SPM-0064, FR-SPM-0065
 """
 from freezegun import freeze_time
 
+from odoo import Command
 from odoo.exceptions import AccessError, UserError
 
 from .contract_common import MODULE, SpmContractCase
@@ -108,9 +109,32 @@ class TestContract(SpmContractCase):
             contract.line_ids.with_user(self.ann).write({'product_id': other.id})
         with self.assertRaises(UserError):
             contract.line_ids.with_user(self.ann).unlink()
-        contract.line_ids.with_user(self.ann).write({'price_unit': 10.0})
-        contract.with_user(self.ann).action_spm_submit()
-        contract.invalidate_recordset()
+        line = contract.line_ids
+        line.with_user(self.ann).write({'price_unit': 10.0})
+        self.assertEqual(line.price_unit, 10.0)
+        self.assertEqual(line.purchase_line_ids.spm_contract_line_id, line)
+
+    def test_line_cannot_be_moved_or_lose_its_orders(self):
+        """Requirements: FR-SPM-0064, FR-SPM-0065: only the agreed terms of a line are written."""
+        draft = self._contract()
+        active = self._active_contract()
+        with self.assertRaises(UserError):
+            draft.line_ids.with_user(self.ann).write({'contract_id': active.id})
+        self.assertNotEqual(draft.line_ids.contract_id, active)
+        self._ordered_line(active)
+        active.with_user(self.ann).action_spm_revise()
+        line = active.line_ids
+        with self.assertRaises(UserError):
+            line.with_user(self.ann).write({'purchase_line_ids': [Command.clear()]})
+        self.assertTrue(line.purchase_line_ids)
+
+    def test_daily_step_skips_a_contract_revised_meanwhile(self):
+        """Requirements: FR-SPM-0064: a contract no longer due is left as it is."""
+        contract = self._active_contract()
+        contract.with_user(self.ann).action_spm_revise()
+        with freeze_time('2099-01-01 06:00:00'):
+            self.assertEqual(contract._spm_advance_state(), 0)
+        self.assertEqual(contract.state, 'revision')
 
     def test_diff_pairs_lines_by_id_when_one_is_removed(self):
         """Requirements: FR-SPM-0065: removing the first line is not a price change of the second."""
