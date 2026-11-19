@@ -268,18 +268,18 @@ def _unit_price(rline):
     return rline.price_unit * (1 - rline.discount / 100.0)
 
 
-def _normalized_amount(event, rline, amount, version, uom_to=None):
+def _normalized_amount(event, rline, amount, version, rate, uom_to=None, basis=None):
     """An amount of the offered line in the event's currency, on its tax basis and unit.
 
     Requirements: FR-SPM-0037, BR-SPM-0007
-    ``uom_to`` converts a price per offered unit to a price per comparison unit.
+    ``uom_to`` converts a price per offered unit to a price per comparison unit; ``rate`` is the
+    conversion rate of the version's currency at the event's rate date, looked up once per response.
     """
     if uom_to and rline.uom_id:
         amount = rline.uom_id._compute_price(amount, uom_to)
     taxes = rline.tax_ids.compute_all(amount, currency=version.currency_id, quantity=1.0)
-    amount = taxes['total_included' if event.tax_basis == 'included' else 'total_excluded']
-    return version.currency_id._convert(
-        amount, event.currency_id, event.company_id, event.rate_date, round=False)
+    included = (basis or event.tax_basis) == 'included'
+    return taxes['total_included' if included else 'total_excluded'] * rate
 
 
 def comparison_assumptions(env, event):
@@ -313,15 +313,52 @@ def _criterion_value(criterion, version, total, lines):
     return 0.0
 
 
+# Rows built from the quotation terms whatever the criteria: key -> 'higher' is better (None: no best).
+TERM_ROWS = {
+    'total_cost': False, 'lead_time': False, 'payment_terms': None, 'warranty': True, 'validity': True}
+# Rows that add up or take the maximum over the lines: an offer that left a line out never wins them.
+AGGREGATE_KINDS = ('price', 'total_cost', 'lead_time')
+
+
+def _term_cell(version, key, total_cost, normalized_cost, incomplete):
+    """The cell of one fixed term row of a response (total cost, lead time, terms, warranty, validity)."""
+    currency = version.currency_id
+    cell = {'row_kind': 'term', 'term_key': key, 'raw_display': '', 'rankable': True}
+    if key == 'total_cost':
+        cell.update(raw_value=total_cost, currency=currency.id, normalized_value=normalized_cost or 0.0,
+                    has_normalized=normalized_cost is not None,
+                    raw_display=f"{total_cost:.{currency.decimal_places}f} {currency.name}")
+    elif key == 'lead_time':
+        days = max((line.lead_time_days for line in version.line_ids), default=0)
+        cell.update(raw_value=days, raw_display=f"{days}")
+    elif key == 'payment_terms':
+        cell.update(raw_value=version.payment_days,
+                    raw_display=version.payment_term_id.name or f"{version.payment_days}")
+    elif key == 'warranty':
+        cell.update(raw_value=version.warranty_months, raw_display=f"{version.warranty_months}",
+                    rankable=bool(version.warranty_months))
+    else:
+        cell.update(raw_value=version.validity_date.toordinal() if version.validity_date else 0,
+                    raw_display=fields.Date.to_string(version.validity_date) if version.validity_date else '',
+                    rankable=bool(version.validity_date))
+    cell['missing'] = incomplete and key in AGGREGATE_KINDS
+    return cell
+
+
 def _cells_of_response(env, event, response, normalized):
-    """The cells of one response: its lines, its criteria and its total.
+    """The cells of one response: its lines, its total, its term rows and its criteria.
 
     Requirements: FR-SPM-0035, FR-SPM-0037
+    Cells that aggregate over the lines of an offer that left a line out carry ``missing``.
     """
     version = response.current_version_id
     quoted = {line.event_line_id: line for line in version.line_ids}
+    incomplete = len(quoted) < len(event.line_ids)
+    currency = version.currency_id
+    rate = currency._get_conversion_rate(
+        currency, event.currency_id, event.company_id, event.rate_date) if normalized else 1.0
     cells = []
-    total = total_normalized = 0.0
+    total = total_normalized = cost_normalized = 0.0
     for event_line in event.line_ids:
         rline = quoted.get(event_line)
         base = {'row_kind': 'line', 'event_line_id': event_line.id, 'response_id': response.id}
@@ -330,48 +367,64 @@ def _cells_of_response(env, event, response, normalized):
             continue
         price = _unit_price(rline)
         cells.append(dict(
-            base, raw_value=price, currency=version.currency_id.id, uom=rline.uom_id.id,
-            raw_display=f"{price:.2f} {version.currency_id.name} / {rline.uom_id.name or event_line.uom_id.name}",
+            base, raw_value=price, currency=currency.id, uom=rline.uom_id.id,
+            raw_display=f"{price:.{currency.decimal_places}f} {currency.name} / "
+                        f"{rline.uom_id.name or event_line.uom_id.name}",
+            has_normalized=normalized,
             normalized_value=_normalized_amount(
-                event, rline, price, version, event_line.comparison_uom_id) if normalized else 0.0))
+                event, rline, price, version, rate, event_line.comparison_uom_id) if normalized else 0.0))
         total += rline.price_subtotal
         if normalized:
-            total_normalized += _normalized_amount(event, rline, rline.price_subtotal, version)
+            total_normalized += _normalized_amount(event, rline, rline.price_subtotal, version, rate)
+            cost_normalized += _normalized_amount(
+                event, rline, rline.price_subtotal, version, rate, basis='included')
     cells.append({
-        'row_kind': 'total', 'response_id': response.id, 'raw_value': total,
-        'currency': version.currency_id.id, 'missing': len(quoted) < len(event.line_ids),
-        'raw_display': f"{total:.2f} {version.currency_id.name}", 'normalized_value': total_normalized})
+        'row_kind': 'total', 'response_id': response.id, 'raw_value': total, 'currency': currency.id,
+        'missing': incomplete, 'has_normalized': normalized, 'normalized_value': total_normalized,
+        'raw_display': f"{total:.{currency.decimal_places}f} {currency.name}"})
+    for key in TERM_ROWS:
+        cells.append(dict(
+            _term_cell(version, key, version.amount_total, cost_normalized if normalized else None, incomplete),
+            response_id=response.id))
     for criterion in event.criterion_ids:
         value = _criterion_value(criterion, version, total, version.line_ids)
         money = criterion.kind in ('price', 'total_cost')
+        normalized_value = {'price': total_normalized, 'total_cost': cost_normalized}.get(criterion.kind, 0.0)
         cells.append({
             'row_kind': 'criterion', 'criterion_id': criterion.id, 'response_id': response.id,
-            'raw_value': value, 'raw_display': f"{value:g}",
-            'currency': version.currency_id.id if money else False,
-            'normalized_value': total_normalized if normalized and criterion.kind == 'price' else 0.0})
+            'raw_value': value, 'raw_display': f"{value:.{currency.decimal_places}f}" if money else f"{value:g}",
+            'currency': currency.id if money else False,
+            'has_normalized': normalized and money,
+            'normalized_value': normalized_value if normalized else 0.0,
+            'missing': incomplete and criterion.kind in AGGREGATE_KINDS})
     return cells
 
 
-def _mark_best(event, cells, normalized):
-    """Mark the best cell of each row: the lowest price, total and lead time, or the criterion's direction.
+def _mark_best(event, cells):
+    """Mark the best cell of each row: the lowest price, total and lead time, or the row's direction.
 
     Requirements: FR-SPM-0035
-    Cells of an offer that left a line out never win a total; raw prices in several
-    currencies are not comparable, so none of them is marked.
+    A row is ranked on normalized values only when every cell of it holds one; cells of an offer
+    that left a line out never win, and raw money in several currencies is not ranked.
     """
     criteria = {criterion.id: criterion for criterion in event.criterion_ids}
     rows = {}
     for cell in cells:
-        if cell.get('missing') or cell['row_kind'] == 'criterion' and (
+        if cell.get('missing') or not cell.get('rankable', True) or cell['row_kind'] == 'criterion' and (
                 criteria[cell['criterion_id']].kind == 'manual'):
             continue
-        key = (cell['row_kind'], cell.get('event_line_id'), cell.get('criterion_id'))
+        key = (cell['row_kind'], cell.get('event_line_id'), cell.get('criterion_id'), cell.get('term_key'))
         rows.setdefault(key, []).append(cell)
-    for (kind, _line, criterion_id), row in rows.items():
-        higher = kind == 'criterion' and criteria[criterion_id].direction == 'higher'
-        money = kind != 'criterion' or row[0]['currency']
-        use_normalized = normalized and money
-        if money and not normalized and len({cell['currency'] for cell in row}) > 1:
+    for (kind, _line, criterion_id, term_key), row in rows.items():
+        if kind == 'term':
+            higher = TERM_ROWS[term_key]
+            if higher is None:
+                continue
+        else:
+            higher = kind == 'criterion' and criteria[criterion_id].direction == 'higher'
+        money = bool(row[0].get('currency'))
+        use_normalized = money and all(cell.get('has_normalized') for cell in row)
+        if money and not use_normalized and len({cell['currency'] for cell in row}) > 1:
             continue
         values = [cell['normalized_value'] if use_normalized else cell['raw_value'] for cell in row]
         best = max(values) if higher else min(values)
@@ -393,7 +446,7 @@ def compare(event):
     cells = []
     for response in responses:
         cells.extend(_cells_of_response(env, event, response, normalized))
-    _mark_best(event, cells, normalized)
+    _mark_best(event, cells)
     comparison = env['procurement.comparison'].search([('event_id', '=', event.id)])
     kept = {(cell.criterion_id.id, cell.response_id.id): (cell.manual_score, cell.manual_comment)
             for cell in comparison.line_ids if cell.row_kind == 'criterion'
@@ -407,8 +460,8 @@ def compare(event):
         comparison = env['procurement.comparison'].create(dict(values, event_id=event.id))
     rows = []
     for cell in cells:
-        cell.pop('currency', None)
-        cell.pop('uom', None)
+        for internal in ('currency', 'uom', 'has_normalized', 'rankable'):
+            cell.pop(internal, None)
         manual = kept.get((cell.get('criterion_id'), cell['response_id']))
         if manual:
             cell['manual_score'], cell['manual_comment'] = manual

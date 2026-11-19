@@ -4,7 +4,7 @@ from odoo.exceptions import AccessError
 from ..services import portal_access, sourcing
 
 # Fields only the submission service writes (it writes with elevated rights after its checks).
-WORKFLOW_FIELDS = ('state', 'current_version_id', 'version_ids')
+WORKFLOW_FIELDS = ('state', 'current_version_id', 'version_ids', 'reopened_deadline')
 
 
 class ProcurementSourcingResponse(models.Model):

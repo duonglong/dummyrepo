@@ -227,13 +227,29 @@ class ProcurementSourcingEvent(models.Model):
             other.state in ('draft', 'open', 'awarded') for other in request.sourcing_event_ids - self))
         free.write({'state': 'submitted'})
 
+    def _spm_comparison_to_open(self):
+        """The comparison the Compare button opens: rebuilt, or the stored one when it must not change.
+
+        Requirements: FR-SPM-0035
+        An awarded or cancelled event keeps its comparison as evidence, and the roles that only
+        read comparisons open the stored one.
+        """
+        stored = self.env['procurement.comparison'].search([('event_id', '=', self.id)])
+        comparisons = self.env['procurement.comparison']
+        frozen = self.state in ('awarded', 'cancelled')
+        if not frozen and comparisons.has_access('create'):
+            return sourcing.compare(self)
+        if not stored:
+            raise UserError(self.env._("No comparison was built for this event."))
+        return stored
+
     def action_spm_compare(self):
         """Rebuild the comparison of the current quotations and open it.
 
         Requirements: FR-SPM-0035, FR-SPM-0037
         """
         self.ensure_one()
-        comparison = sourcing.compare(self)
+        comparison = self._spm_comparison_to_open()
         return {
             'type': 'ir.actions.act_window',
             'name': self.env._("Comparison"),

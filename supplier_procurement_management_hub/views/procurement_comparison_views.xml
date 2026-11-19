@@ -18,11 +18,12 @@
                         </group>
                     </group>
                     <field name="line_ids" readonly="True">
-                        <list default_order="row_kind, event_line_id, criterion_id, response_id"
+                        <list default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
                               decoration-success="is_best" decoration-warning="missing">
                             <field name="row_kind"/>
                             <field name="event_line_id"/>
                             <field name="criterion_id"/>
+                            <field name="term_key"/>
                             <field name="partner_id"/>
                             <field name="raw_display"/>
                             <field name="normalized_value" column_invisible="not parent.is_normalized"/>

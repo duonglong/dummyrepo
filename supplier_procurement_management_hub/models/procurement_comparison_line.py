@@ -9,13 +9,17 @@ class ProcurementComparisonLine(models.Model):
     """
     _name = 'procurement.comparison.line'
     _description = 'Quotation Comparison Cell'
-    _order = 'row_kind, event_line_id, criterion_id, response_id'
+    _order = 'row_kind, event_line_id, criterion_id, term_key, response_id'
 
     comparison_id = fields.Many2one('procurement.comparison', required=True, ondelete='cascade', index=True)
     company_id = fields.Many2one(related='comparison_id.company_id', store=True, index=True)
     row_kind = fields.Selection([
-        ('line', 'Unit price'), ('criterion', 'Criterion'), ('total', 'Total'),
+        ('line', 'Unit price'), ('criterion', 'Criterion'), ('total', 'Total'), ('term', 'Term'),
     ], required=True)
+    term_key = fields.Selection([
+        ('total_cost', 'Total cost'), ('lead_time', 'Lead time'), ('payment_terms', 'Payment terms'),
+        ('warranty', 'Warranty (months)'), ('validity', 'Valid until'),
+    ])
     event_line_id = fields.Many2one('procurement.sourcing.event.line', ondelete='cascade')
     criterion_id = fields.Many2one('procurement.sourcing.criterion', ondelete='cascade')
     response_id = fields.Many2one('procurement.sourcing.response', required=True, ondelete='cascade', index=True)

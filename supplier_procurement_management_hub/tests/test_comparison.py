@@ -107,3 +107,69 @@ class TestComparison(SpmComparisonCase):
             wizard.action_confirm()
         self.assertEqual(event.negotiation_ids.note_to_supplier, 'Best price?')
         self.assertEqual(acme.state, 'reopened')
+
+    def test_total_cost_criterion_on_a_normalized_event_has_one_best(self):
+        """FR-SPM-0035 (Q1): a total cost criterion is ranked on normalized values; only the lowest wins."""
+        event, chairs, acme, beta = self._two(criteria=[('Total cost', 'total_cost', 'lower', 1.0)])
+        self._assume(event)
+        self._quote(acme, [(chairs, 11.9, 10)])
+        self._quote(beta, [(chairs, 12.4, 5)])
+        comparison = self._compare(event)
+        criterion = event.criterion_ids
+        self.assertTrue(self._cell(comparison, acme, 'criterion', criterion=criterion).is_best)
+        self.assertFalse(self._cell(comparison, beta, 'criterion', criterion=criterion).is_best)
+
+    def test_an_incomplete_offer_never_wins_an_aggregate_row(self):
+        """FR-SPM-0035 (Q2): a partial offer wins neither the price, total cost nor lead time rows."""
+        criteria = [('Price', 'price', 'lower', 1.0), ('Cost', 'total_cost', 'lower', 1.0),
+                    ('Lead', 'lead_time', 'lower', 1.0)]
+        event = self._sourcing(self.acme | self.gamma, criteria=criteria, lines=[
+            ('Chair', self.chair, 60.0), ('Desk', self.desk, 10.0)])
+        chairs, desks = event.line_ids.sorted('id')
+        acme, gamma = self._response(event, self.acme), self._response(event, self.gamma)
+        self._quote(acme, [(chairs, 11.0, 10), (desks, 100.0, 12)])
+        self._quote(gamma, [(chairs, 11.0, 2)])
+        comparison = self._compare(event)
+        for criterion in event.criterion_ids:
+            partial = self._cell(comparison, gamma, 'criterion', criterion=criterion)
+            self.assertTrue(partial.missing, criterion.name)
+            self.assertFalse(partial.is_best, criterion.name)
+            self.assertTrue(self._cell(comparison, acme, 'criterion', criterion=criterion).is_best)
+
+    def test_term_rows_show_cost_lead_time_terms_warranty_and_validity(self):
+        """FR-SPM-0035 (Q3): the fixed term rows appear without any configured criterion."""
+        event, chairs, acme, beta = self._two()
+        self._quote(acme, [(chairs, 11.9, 10)], warranty_months=12, validity_date='2026-12-31')
+        self._quote(beta, [(chairs, 12.4, 5)], warranty_months=24)
+        comparison = self._compare(event)
+        terms = comparison.line_ids.filtered(lambda c: c.row_kind == 'term')
+        self.assertEqual(set(terms.mapped('term_key')),
+                         {'total_cost', 'lead_time', 'payment_terms', 'warranty', 'validity'})
+
+        def term(response, key):
+            return terms.filtered(lambda c: c.response_id == response and c.term_key == key)
+        self.assertTrue(term(acme, 'total_cost').is_best)
+        self.assertTrue(term(beta, 'lead_time').is_best)
+        self.assertTrue(term(beta, 'warranty').is_best)
+        self.assertEqual(term(acme, 'validity').raw_display, '2026-12-31')
+        self.assertFalse(term(beta, 'validity').is_best)
+
+    def test_read_only_roles_open_the_stored_comparison_and_an_award_freezes_it(self):
+        """FR-SPM-0035 (Q4, Q6): finance opens the stored comparison; an awarded event is not rebuilt."""
+        event, chairs, acme, beta = self._two()
+        self._quote(acme, [(chairs, 11.9, 10)])
+        with self.assertRaises(UserError):
+            event.with_user(self.finance).action_spm_compare()
+        comparison = self._compare(event)
+        action = event.with_user(self.finance).action_spm_compare()
+        self.assertEqual(action['res_id'], comparison.id)
+        self._quote(beta, [(chairs, 12.4, 5)])
+        event.sudo().write({'state': 'awarded'})
+        self._compare(event)
+        self.assertEqual(comparison.line_ids.response_id, acme)
+
+    def test_a_buyer_cannot_write_the_reopened_deadline(self):
+        """FR-SPM-0036 (Q5): the supplier's own deadline changes only through the revision request."""
+        event, chairs, acme, beta = self._two()
+        with self.assertRaises(AccessError):
+            acme.with_user(self.buyer).write({'reopened_deadline': datetime(2027, 1, 1)})
