@@ -58,4 +58,24 @@
         </field>
         <field name="auto_delete" eval="True"/>
     </record>
+
+    <!-- Requirements: FR-SPM-0036 -->
+    <record id="mail_template_sourcing_revision" model="mail.template">
+        <field name="name">Sourcing event: revised quotation requested</field>
+        <field name="model_id" ref="model_procurement_sourcing_negotiation"/>
+        <field name="subject">Revised quotation requested for {{ object.event_id.name }}: {{ object.event_id.title }}</field>
+        <field name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p><t t-out="object.company_id.name"/> asks you to revise your quotation for
+       <t t-out="object.event_id.name"/>: <t t-out="object.event_id.title"/>.</p>
+    <p t-out="object.note_to_supplier"/>
+    <p>You can submit a new version until
+       <t t-out="format_datetime(object.new_deadline, tz='UTC', dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
+    <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
+</div>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
 </odoo>

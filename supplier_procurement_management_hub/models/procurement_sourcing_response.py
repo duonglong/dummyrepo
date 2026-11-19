@@ -4,7 +4,7 @@ from odoo.exceptions import AccessError
 from ..services import portal_access, sourcing
 
 # Fields only the submission service writes (it writes with elevated rights after its checks).
-WORKFLOW_FIELDS = ('state', 'current_version_id', 'version_ids')
+WORKFLOW_FIELDS = ('state', 'current_version_id', 'version_ids', 'reopened_deadline')
 
 
 class ProcurementSourcingResponse(models.Model):
@@ -103,6 +103,29 @@ class ProcurementSourcingResponse(models.Model):
             'type': 'ir.actions.act_window',
             'name': self.env._("Enter quotation"),
             'res_model': 'procurement.quotation.entry',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_response_id': self.id},
+        }
+
+    def action_spm_request_revision(self, note_to_supplier, new_deadline, internal_note=None):
+        """The Buyer asks this supplier for a revised quotation until a new deadline.
+
+        Requirements: FR-SPM-0036
+        """
+        self.ensure_one()
+        return sourcing.request_revision(self, note_to_supplier, new_deadline, internal_note)
+
+    def action_spm_open_revision_wizard(self):
+        """Open the dialog asking the note and the new deadline of a revised quotation.
+
+        Requirements: FR-SPM-0036
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Request revision"),
+            'res_model': 'procurement.revision.wizard',
             'view_mode': 'form',
             'target': 'new',
             'context': {'default_response_id': self.id},
