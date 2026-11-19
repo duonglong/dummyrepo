@@ -3,12 +3,14 @@
 Requirements: FR-SPM-0020, FR-SPM-0021, FR-SPM-0022, FR-SPM-0034
 """
 from datetime import datetime
+from unittest.mock import patch
 
 from freezegun import freeze_time
 
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form
 
+from ..services import onboarding
 from .portal_common import SpmPortalCase
 
 DEADLINE = datetime(2026, 11, 30, 17, 0, 0)
@@ -69,7 +71,7 @@ class TestQuotationVersions(SpmPortalCase):
 
     def test_a_file_of_a_version_takes_no_access_token(self):
         """Requirements: FR-SPM-0017 - a token written on a quotation file is dropped."""
-        own = self.env['ir.attachment'].with_user(self.acme_user).create({'name': 'o.pdf', 'raw': b'o'})
+        own = self.env['ir.attachment'].with_user(self.acme_user).create({'name': 'o.pdf', 'raw': b'%PDF-1.4 o'})
         own.sudo().generate_access_token()
         version = self._submit(attachment_ids=[own.id])
         self.assertEqual(own.sudo().res_id, version.id)
@@ -115,3 +117,71 @@ class TestQuotationVersions(SpmPortalCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('has passed', response.text)
         self.assertFalse(self.response.version_ids)
+
+    def test_a_supplier_file_over_the_limit_or_of_another_type_is_refused(self):
+        """Requirements: NFR-SPM-0003 - a file made by a direct data call keeps to the portal's limits."""
+        attachments = self.env['ir.attachment'].with_user(self.acme_user)
+        exe = attachments.create({'name': 'x.exe', 'raw': b'MZ' + b'\x00' * 64})
+        with self.assertRaises(UserError):
+            self._submit(attachment_ids=[exe.id])
+        big = attachments.create({'name': 'big.pdf', 'raw': b'%PDF-1.4 ' + b'a' * 64})
+        with patch.object(onboarding, 'UPLOAD_MAX_BYTES', 32), self.assertRaises(UserError):
+            self._submit(attachment_ids=[big.id])
+        self.assertFalse(self.response.version_ids)
+
+    def test_portal_form_stores_the_chosen_tax_and_a_decimal_comma_discount(self):
+        """Requirements: FR-SPM-0020 - the tax of each line and the discount typed with a comma."""
+        tax = self.env['account.tax'].create({
+            'name': 'VAT 10', 'type_tax_use': 'purchase', 'amount': 10.0, 'company_id': self.event.company_id.id})
+        self._login(self.acme_user)
+        with freeze_time('2026-11-20 10:00:00'):
+            response = self._post(f'/my/procurement/rfq/{self.event.id}/submit', {
+                f'price_unit_{self.line.id}': '10', f'discount_{self.line.id}': '5,5',
+                f'tax_{self.line.id}': str(tax.id)})
+        self.assertEqual(response.status_code, 303)
+        line = self.response.current_version_id.line_ids
+        self.assertEqual(line.tax_ids, tax)
+        self.assertEqual(line.discount, 5.5)
+        with freeze_time('2026-11-21 10:00:00'):
+            page = self._get(f'/my/procurement/rfq/{self.event.id}')
+        self.assertIn('VAT 10', page.text)
+
+    def test_a_tax_of_another_kind_is_refused(self):
+        """Requirements: FR-SPM-0020 - only purchase taxes of the event's company."""
+        sale_tax = self.env['account.tax'].create({
+            'name': 'Sale 5', 'type_tax_use': 'sale', 'amount': 5.0, 'company_id': self.event.company_id.id})
+        with self.assertRaises(UserError):
+            self._submit(self._offer(tax_ids=[sale_tax.id]))
+
+    def test_buyer_dialog_takes_a_file_the_widget_uploaded_and_a_line_at_zero(self):
+        """Requirements: FR-SPM-0034 - Form sets the fields the widget would; the Enter button is checked on screen."""
+        gamma_response = self._response(self._event(self.gamma, title='G2'), self.gamma)
+        mail_file = self.env['ir.attachment'].with_user(self.buyer).create({
+            'name': 'mail.pdf', 'raw': b'%PDF-1.4 mail', 'res_model': 'procurement.quotation.entry', 'res_id': 0})
+        with Form(self.env['procurement.quotation.entry'].with_user(self.buyer).with_context(
+                default_response_id=gamma_response.id)) as form:
+            with form.line_ids.edit(0) as line:
+                line.quoted = True
+            form.attachment_ids.add(mail_file)
+        form.save().action_confirm()
+        version = gamma_response.current_version_id
+        self.assertEqual(version.attachment_ids, mail_file)
+        self.assertEqual(mail_file.sudo().res_model, version._name)
+        self.assertEqual(len(version.line_ids), 1)
+        self.assertEqual(version.line_ids.price_unit, 0.0)
+
+    def test_event_files_exclude_the_files_of_its_message_thread(self):
+        """Requirements: BR-SPM-0003 - a file of an internal note is neither listed nor downloadable."""
+        attach = self.env['ir.attachment'].create
+        shared = attach({'name': 'drawing.pdf', 'raw': b'%PDF-1.4 d', 'res_model': self.event._name,
+                         'res_id': self.event.id})
+        note_file = attach({'name': 'internal.pdf', 'raw': b'%PDF-1.4 internal price',
+                            'res_model': self.event._name, 'res_id': self.event.id})
+        self.event.message_post(body='internal', attachment_ids=[note_file.id], message_type='comment',
+                                subtype_xmlid='mail.mt_note')
+        self._login(self.acme_user)
+        page = self._get(f'/my/procurement/rfq/{self.event.id}')
+        self.assertIn('drawing.pdf', page.text)
+        self.assertNotIn('internal.pdf', page.text)
+        self.assertEqual(self._get(f'/my/procurement/quote-file/{shared.id}').status_code, 200)
+        self.assertEqual(self._get(f'/my/procurement/quote-file/{note_file.id}').status_code, 404)

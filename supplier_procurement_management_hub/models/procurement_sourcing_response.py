@@ -94,7 +94,10 @@ class ProcurementSourcingResponse(models.Model):
         return sourcing.add_version(self, lines, attachment_ids, terms, by_buyer=True)
 
     def action_spm_open_entry_wizard(self):
-        """Open the dialog where the Buyer types a quotation received outside the portal."""
+        """Open the dialog where the Buyer types a quotation received outside the portal.
+
+        Requirements: FR-SPM-0034
+        """
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

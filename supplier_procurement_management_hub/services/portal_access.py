@@ -315,9 +315,7 @@ def update_profile(env, supplier, post):
     return []
 
 
-def upload_refusal_text(env):
-    """The refusal of an upload: the allowed formats and the size."""
-    return env._("Only PDF, PNG or JPEG files up to %s MB are accepted.", onboarding.UPLOAD_MAX_MB)
+upload_refusal_text = onboarding.upload_refusal_text
 
 
 def read_upload(env, upload):
@@ -420,6 +418,28 @@ def owned_response(env, event_id):
     return supplier, response
 
 
+def event_files(env, event):
+    """The files the buyer attached to the event itself, never those of its message thread.
+
+    Requirements: BR-SPM-0003, FR-SPM-0017
+    A file of an internal note or of an e-mailed reply belongs to a message; only a file that
+    belongs to no message is the buyer's own attachment to the event.
+    """
+    # sudo: the files of an event the user is invited to, and the files its messages carry
+    thread_files = env['mail.message'].sudo().search([
+        ('model', '=', EVENT_MODEL), ('res_id', '=', event.id)]).attachment_ids
+    return env['ir.attachment'].sudo().search([
+        ('res_model', '=', EVENT_MODEL), ('res_id', '=', event.id), ('id', 'not in', thread_files.ids)])
+
+
+def purchase_taxes(env, event):
+    """Plain ``{id, name}`` of the purchase taxes of the event's company, for the form's tax choice."""
+    # sudo: the purchase taxes of the event's company, offered as plain values to an invited supplier
+    taxes = env['account.tax'].sudo().search([
+        ('company_id', '=', event.company_id.id), ('type_tax_use', '=', 'purchase')])
+    return [{'id': tax.id, 'name': tax.name} for tax in taxes]
+
+
 def quote_page_values(env, response):
     """Plain values of the quotation page: the event's lines and files and the supplier's own versions.
 
@@ -428,11 +448,13 @@ def quote_page_values(env, response):
     event = response.event_id.sudo()  # sudo: plain values of an event the user is invited to
     current = response.current_version_id
     offered = {line.event_line_id.id: line for line in current.line_ids}
-    files = env['ir.attachment'].sudo().search([  # sudo: the files the buyer attached to the invited event
-        ('res_model', '=', EVENT_MODEL), ('res_id', '=', event.id)])
+    files = event_files(env, event)
+    offered_taxes = {line.event_line_id.id: line.tax_ids.ids for line in current.line_ids}
     return {
         'event': {'id': event.id, 'name': event.name, 'title': event.title, 'terms': event.terms,
                   'currency': event.currency_id.name},
+        'currency': event.currency_id,
+        'taxes': purchase_taxes(env, event),
         'deadline': response.effective_deadline,
         'accepting': event.state == 'open' and fields.Datetime.now() <= response.effective_deadline,
         'lines': [{
@@ -440,6 +462,7 @@ def quote_page_values(env, response):
             'price_unit': offered[line.id].price_unit if line.id in offered else '',
             'discount': offered[line.id].discount if line.id in offered else '',
             'lead_time_days': offered[line.id].lead_time_days if line.id in offered else '',
+            'tax_id': (offered_taxes[line.id] or [''])[0] if line.id in offered else '',
         } for line in event.line_ids],
         'files': [{'id': attachment.id, 'name': attachment.name} for attachment in files],
         'versions': [{
@@ -454,8 +477,8 @@ def parse_quotation_post(env, response, post):
 
     Requirements: FR-SPM-0020
 
-    The keys are price_unit_<line id>, discount_<line id> and lead_time_<line id>; the ids are only
-    checked against the lines of the event when the version is stored.
+    The keys are price_unit_<line id>, discount_<line id>, lead_time_<line id> and tax_<line id>;
+    the ids are only checked against the lines of the event when the version is stored.
     """
     lines = []
     for key, price in post.items():
@@ -464,10 +487,12 @@ def parse_quotation_post(env, response, post):
         line_id = key[len('price_unit_'):]
         if not line_id.isdigit():
             continue
+        tax = str(post.get('tax_' + line_id) or '').strip()
         lines.append({
             'event_line_id': int(line_id), 'price_unit': str(price).strip().replace(',', '.'),
-            'discount': post.get('discount_' + line_id) or 0,
-            'lead_time_days': post.get('lead_time_' + line_id) or 0})
+            'discount': str(post.get('discount_' + line_id) or 0).strip().replace(',', '.'),
+            'lead_time_days': post.get('lead_time_' + line_id) or 0,
+            'tax_ids': [int(tax)] if tax.isdigit() else []})
     terms = {key: post[key].strip() for key in QUOTE_TERM_KEYS if str(post.get(key) or '').strip()}
     return lines, terms
 
@@ -506,8 +531,9 @@ def check_quote_file(env, attachment_id):
         attachment_id if isinstance(attachment_id, int) and attachment_id > 0 else 0).exists()
     allowed = False
     if attachment.res_model == EVENT_MODEL:
-        allowed = bool(env[RESPONSE_MODEL].search_count(
-            [('event_id', '=', attachment.res_id), ('partner_id', '=', supplier.id)]))
+        invited = env[RESPONSE_MODEL].search(
+            [('event_id', '=', attachment.res_id), ('partner_id', '=', supplier.id)], limit=1)
+        allowed = bool(invited) and attachment in event_files(env, invited.event_id.sudo())
     elif attachment.res_model == VERSION_MODEL:
         allowed = bool(get_owned(env, VERSION_MODEL, attachment.res_id))
     if not allowed:

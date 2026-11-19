@@ -9,7 +9,7 @@ import math
 from odoo import fields
 from odoo.exceptions import UserError
 
-from . import supplier_control
+from . import onboarding, supplier_control
 
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_invitation'
 DEADLINE_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_deadline'
@@ -101,6 +101,15 @@ def _number(env, value, label, integer=False):
     return int(number) if integer else number
 
 
+def check_purchase_taxes(env, event, tax_ids):
+    """Refuse a tax that is not a purchase tax of the event's company (one search for all lines)."""
+    # sudo: only to count the purchase taxes of the event's company the offers name
+    if tax_ids and env['account.tax'].sudo().search_count([
+            ('id', 'in', list(tax_ids)), ('company_id', '=', event.company_id.id),
+            ('type_tax_use', '=', 'purchase')]) != len(tax_ids):
+        raise UserError(env._("A tax of the quotation is not a purchase tax of the company."))
+
+
 def prepare_lines(env, response, lines):
     """The creation values of the version lines; only lines the event asked for, each once.
 
@@ -110,6 +119,7 @@ def prepare_lines(env, response, lines):
     asked = {line.id: line for line in event.line_ids}
     seen = set()
     values = []
+    taxes_by_line = []
     for offer in lines or []:
         event_line = asked.get(offer.get('event_line_id'))
         if not event_line:
@@ -121,11 +131,7 @@ def prepare_lines(env, response, lines):
         if discount > DISCOUNT_MAX:
             raise UserError(env._("The discount is between 0 and 100 percent."))
         tax_ids = list(offer.get('tax_ids') or [])
-        # sudo: only to count the purchase taxes of the event's company the offer names
-        if tax_ids and env['account.tax'].sudo().search_count([
-                ('id', 'in', tax_ids), ('company_id', '=', event.company_id.id),
-                ('type_tax_use', '=', 'purchase')]) != len(set(tax_ids)):
-            raise UserError(env._("A tax of the quotation is not a purchase tax of the company."))
+        taxes_by_line.append(tax_ids)
         values.append({
             'event_line_id': event_line.id, 'quantity': event_line.quantity, 'uom_id': event_line.uom_id.id,
             'price_unit': _number(env, offer.get('price_unit'), env._("The price")),
@@ -134,6 +140,7 @@ def prepare_lines(env, response, lines):
             'tax_ids': [(6, 0, tax_ids)]})
     if not values:
         raise UserError(env._("Quote at least one line."))
+    check_purchase_taxes(env, event, set().union(*taxes_by_line))
     return values
 
 
@@ -158,19 +165,30 @@ def prepare_terms(env, terms):
     return values
 
 
+ENTRY_MODEL = 'procurement.quotation.entry'
+
+
 def bind_attachments(env, attachment_ids):
     """The files of a quotation: they exist, the user made them, and they belong to nothing yet.
 
-    Requirements: FR-SPM-0020
+    Requirements: FR-SPM-0020, FR-SPM-0034, NFR-SPM-0003
+    A file the buyer's dialog uploaded belongs to the dialog's model and counts as unattached.
+    A supplier's file keeps to the portal's size and type limits, whatever way it was made.
     """
     ids = list(dict.fromkeys(attachment_ids or []))
     if not all(isinstance(attachment_id, int) and attachment_id > 0 for attachment_id in ids):
         raise UserError(env._("A file of the quotation is not available."))
     attachments = env['ir.attachment'].browse(ids).exists()
     # sudo: reads who made each file and what it is attached to, to refuse a file of someone else
-    unfit = attachments.sudo().filtered(lambda a: a.create_uid != env.user or a.res_model or a.res_id)
+    unfit = attachments.sudo().filtered(
+        lambda a: a.create_uid != env.user or (a.res_model or a.res_id) and a.res_model != ENTRY_MODEL)
     if len(attachments) != len(ids) or unfit:
         raise UserError(env._("A file of the quotation is not available."))
+    # sudo: reads the content of the user's own files to check their size and type
+    if env.user.share and not all(
+            a.file_size <= onboarding.UPLOAD_MAX_BYTES and onboarding.is_allowed_upload(a.raw.content)
+            for a in attachments.sudo()):
+        raise UserError(onboarding.upload_refusal_text(env))
     return attachments
 
 
@@ -189,6 +207,8 @@ def add_version(response, lines, attachment_ids, terms, by_buyer):
     attachments = bind_attachments(env, attachment_ids)
     env.flush_all()
     env.cr.execute('SELECT id FROM procurement_sourcing_response WHERE id = %s FOR UPDATE', [response.id])
+    env.invalidate_all()
+    check_accepts_quotation(env, response, by_buyer)
     # sudo: a portal user and a buyer have no create right on versions; the checks are above
     versions = env['procurement.sourcing.response.version'].sudo()
     previous = versions.search([('response_id', '=', response.id)])

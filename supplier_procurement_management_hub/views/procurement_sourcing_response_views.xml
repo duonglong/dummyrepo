@@ -90,6 +90,7 @@
                         <field name="validity_date"/>
                     </group>
                     <group>
+                        <field name="payment_term_id"/>
                         <field name="payment_days"/>
                         <field name="warranty_months"/>
                     </group>
@@ -99,8 +100,11 @@
                         <field name="event_line_id" column_invisible="1" force_save="1"/>
                         <field name="name"/>
                         <field name="quantity"/>
+                        <field name="company_id" column_invisible="1"/>
+                        <field name="quoted"/>
                         <field name="price_unit"/>
                         <field name="discount"/>
+                        <field name="tax_ids" widget="many2many_tags"/>
                         <field name="lead_time_days"/>
                     </list>
                 </field>

@@ -25,7 +25,7 @@
                             <tr>
                                 <th>Item</th><th>Quantity</th>
                                 <th>Price (<t t-out="event['currency']"/>)</th>
-                                <th>Discount (%)</th><th>Lead time (days)</th>
+                                <th>Discount (%)</th><th>Tax</th><th>Lead time (days)</th>
                             </tr>
                         </thead>
                         <tr t-foreach="lines" t-as="line">
@@ -37,6 +37,13 @@
                             <td><input type="text" inputmode="decimal" class="form-control"
                                        t-attf-name="discount_#{line['id']}" t-att-value="line['discount']"
                                        t-att-disabled="None if accepting else 'disabled'"/></td>
+                            <td><select class="form-select" t-attf-name="tax_#{line['id']}"
+                                        t-att-disabled="None if accepting else 'disabled'">
+                                <option value="">No tax</option>
+                                <option t-foreach="taxes" t-as="tax" t-att-value="tax['id']"
+                                        t-att-selected="'selected' if tax['id'] == line['tax_id'] else None"
+                                        t-out="tax['name']"/>
+                            </select></td>
                             <td><input type="number" min="0" class="form-control"
                                        t-attf-name="lead_time_#{line['id']}" t-att-value="line['lead_time_days']"
                                        t-att-disabled="None if accepting else 'disabled'"/></td>
@@ -74,7 +81,7 @@
                     <tr t-foreach="versions" t-as="version">
                         <td t-out="version['version']"/>
                         <td t-out="version['date']" t-options="{'widget': 'datetime'}"/>
-                        <td t-out="version['total']" t-options="{'widget': 'float', 'precision': 2}"/>
+                        <td t-out="version['total']" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
                         <td><span class="badge text-bg-info" t-if="version['current']">Current</span></td>
                         <td><span class="badge text-bg-light" t-if="version['by_buyer']">Entered by the buyer</span></td>
                     </tr>

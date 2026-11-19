@@ -126,13 +126,14 @@ class ProcurementQuotationEntry(models.TransientModel):
     """The dialog where the Buyer types a quotation received by e-mail or phone.
 
     Requirements: FR-SPM-0034
-    Lines left at a price of zero are not quoted.
+    A line is quoted when its Quoted mark is set or it has a price; the rest are left out.
     """
     _name = 'procurement.quotation.entry'
     _description = 'Enter Quotation'
 
     response_id = fields.Many2one('procurement.sourcing.response', required=True, readonly=True)
     line_ids = fields.One2many('procurement.quotation.entry.line', 'entry_id', string="Lines")
+    payment_term_id = fields.Many2one('account.payment.term', string="Payment terms")
     payment_days = fields.Integer()
     validity_date = fields.Date(string="Valid until")
     warranty_months = fields.Integer()
@@ -153,12 +154,14 @@ class ProcurementQuotationEntry(models.TransientModel):
         Requirements: FR-SPM-0034
         """
         self.ensure_one()
-        quoted = self.line_ids.filtered(lambda line: line.price_unit)
+        quoted = self.line_ids.filtered(lambda line: line.quoted or line.price_unit)
         self.response_id.spm_enter_quotation(
             [{'event_line_id': line.event_line_id.id, 'price_unit': line.price_unit,
-              'discount': line.discount, 'lead_time_days': line.lead_time_days} for line in quoted],
+              'discount': line.discount, 'lead_time_days': line.lead_time_days,
+               'tax_ids': line.tax_ids.ids} for line in quoted],
             attachment_ids=self.attachment_ids.ids,
-            payment_days=self.payment_days, validity_date=self.validity_date or False,
+            payment_term_id=self.payment_term_id.id, payment_days=self.payment_days,
+            validity_date=self.validity_date or False,
             warranty_months=self.warranty_months, notes=self.notes or False)
         return {'type': 'ir.actions.act_window_close'}
 
@@ -173,6 +176,11 @@ class ProcurementQuotationEntryLine(models.TransientModel):
     name = fields.Char(related='event_line_id.name')
     quantity = fields.Float(related='event_line_id.quantity', digits='Product Unit')
     currency_id = fields.Many2one(related='event_line_id.event_id.currency_id')
+    quoted = fields.Boolean(string="Quoted", help="Tick to record a line offered at a price of zero.")
     price_unit = fields.Monetary()
     discount = fields.Float(string="Discount (%)")  # sdd-allow: money-float a percentage between 0 and 100, not an amount
+    tax_ids = fields.Many2many(
+        'account.tax', 'procurement_quotation_entry_line_tax_rel', 'line_id', 'tax_id', string="Taxes",
+        domain="[('type_tax_use', '=', 'purchase'), ('company_id', '=', company_id)]")
+    company_id = fields.Many2one(related='event_line_id.event_id.company_id')
     lead_time_days = fields.Integer()
