@@ -1,6 +1,7 @@
 """Who a supplier portal user is, what they own, and the portal activity log.
 
 Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+The quotation page, form and file rules (FR-SPM-0017, FR-SPM-0020, FR-SPM-0027) are at the end.
 The portal profile and upload rules (FR-SPM-0015, FR-SPM-0018, FR-SPM-0019, NFR-SPM-0003) follow.
 """
 import base64
@@ -8,7 +9,7 @@ import os
 
 from odoo import fields
 from odoo.addons.base.models.res_partner_bank import sanitize_account_number
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import mimetypes
 
 from . import onboarding
@@ -186,6 +187,7 @@ def quote_rows(env, responses):
     state_labels = dict(env['procurement.sourcing.event']._fields['state']._description_selection(env))
     return [{
         'response': response,
+        'event_id': event.id,
         'name': event.name,
         'title': event.title,
         'deadline': event.deadline,
@@ -313,9 +315,7 @@ def update_profile(env, supplier, post):
     return []
 
 
-def upload_refusal_text(env):
-    """The refusal of an upload: the allowed formats and the size."""
-    return env._("Only PDF, PNG or JPEG files up to %s MB are accepted.", onboarding.UPLOAD_MAX_MB)
+upload_refusal_text = onboarding.upload_refusal_text
 
 
 def read_upload(env, upload):
@@ -374,3 +374,170 @@ def upload_document(env, supplier, post, upload):
         raise ValueError(str(error)) from None
     log(env, 'submit', 'ok', supplier=supplier, record=document, detail='upload')
     return document
+
+
+RESPONSE_MODEL = 'procurement.sourcing.response'
+VERSION_MODEL = 'procurement.sourcing.response.version'
+EVENT_MODEL = 'procurement.sourcing.event'
+QUOTE_TERM_KEYS = ('validity_date', 'warranty_months', 'payment_days', 'notes')
+
+
+def check_own_response(env, response):
+    """Refuse a response that is not the session user's own supplier's, or a user who may not use the portal.
+
+    Requirements: BR-SPM-0002, FR-SPM-0020, FR-SPM-0028
+    """
+    try:
+        supplier = current_supplier(env)
+    except SupplierAccessRefused as refused:
+        raise AccessError(env._("You no longer have access to the supplier portal.")) from refused
+    response.check_access('read')
+    if response.partner_id != supplier:
+        raise AccessError(env._("This quotation is not yours."))
+
+
+def owned_response(env, event_id):
+    """Return ``(supplier, response)`` of the session user for the event of the address, or refuse and log.
+
+    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0028
+
+    The event is never read by the user: the user's own response to it (portal rule) is the proof
+    of the invitation, and an event of someone else looks like one that does not exist.
+    """
+    try:
+        supplier = current_supplier(env)
+    except SupplierAccessRefused as refused:
+        log(env, 'denied', 'refused', res_model=EVENT_MODEL, res_id=event_id, detail=refused.reason)
+        raise
+    response = env[RESPONSE_MODEL].search(
+        [('event_id', '=', event_id), ('partner_id', '=', supplier.id)], limit=1)
+    if not response:
+        log(env, 'denied', 'refused', supplier=supplier, res_model=EVENT_MODEL, res_id=event_id,
+            detail='not found')
+        raise SupplierAccessRefused('not found')
+    return supplier, response
+
+
+def event_files(env, event):
+    """The files the buyer chose to share with the invited suppliers, nothing else of the event.
+
+    Requirements: BR-SPM-0003, FR-SPM-0017
+    An allow-list: a file stored on the event or on its messages stays private unless the buyer
+    put it in the event's supplier files.
+    """
+    # sudo: the shared files of an event the user is invited to
+    return event.sudo().supplier_file_ids
+
+
+def purchase_taxes(env, event):
+    """Plain ``{id, name}`` of the purchase taxes of the event's company, for the form's tax choice."""
+    # sudo: the purchase taxes of the event's company, offered as plain values to an invited supplier
+    taxes = env['account.tax'].sudo().search([
+        *env['account.tax']._check_company_domain(event.company_id), ('type_tax_use', '=', 'purchase')])
+    return [{'id': tax.id, 'name': tax.name} for tax in taxes]
+
+
+def quote_page_values(env, response):
+    """Plain values of the quotation page: the event's lines and files and the supplier's own versions.
+
+    Requirements: FR-SPM-0020, FR-SPM-0021, FR-SPM-0022
+    """
+    event = response.event_id.sudo()  # sudo: plain values of an event the user is invited to
+    current = response.current_version_id
+    offered = {line.event_line_id.id: line for line in current.line_ids}
+    files = event_files(env, event)
+    offered_taxes = {line.event_line_id.id: line.tax_ids.ids for line in current.line_ids}
+    return {
+        'event': {'id': event.id, 'name': event.name, 'title': event.title, 'terms': event.terms,
+                  'currency': event.currency_id.name},
+        'currency': event.currency_id,
+        'taxes': purchase_taxes(env, event),
+        'deadline': response.effective_deadline,
+        'accepting': event.state == 'open' and fields.Datetime.now() <= response.effective_deadline,
+        'lines': [{
+            'id': line.id, 'name': line.name, 'quantity': line.quantity, 'uom': line.uom_id.name,
+            'price_unit': offered[line.id].price_unit if line.id in offered else '',
+            'discount': offered[line.id].discount if line.id in offered else '',
+            'lead_time_days': offered[line.id].lead_time_days if line.id in offered else '',
+            'tax_id': (offered_taxes[line.id] or [''])[0] if line.id in offered else '',
+        } for line in event.line_ids],
+        'files': [{'id': attachment.id, 'name': attachment.name} for attachment in files],
+        'versions': [{
+            'version': version.version, 'date': version.submitted_date, 'total': version.amount_untaxed,
+            'current': version.is_current, 'by_buyer': version.entered_by_buyer,
+        } for version in response.version_ids],
+    }
+
+
+def parse_quotation_post(env, response, post):
+    """The ``(lines, terms)`` of a submitted quotation form; the fields of lines left empty are not quoted.
+
+    Requirements: FR-SPM-0020
+
+    The keys are price_unit_<line id>, discount_<line id>, lead_time_<line id> and tax_<line id>;
+    the ids are only checked against the lines of the event when the version is stored.
+    """
+    lines = []
+    for key, price in post.items():
+        if not key.startswith('price_unit_') or not str(price).strip():
+            continue
+        line_id = key[len('price_unit_'):]
+        if not line_id.isdigit():
+            continue
+        tax = str(post.get('tax_' + line_id) or '').strip()
+        lines.append({
+            'event_line_id': int(line_id), 'price_unit': str(price).strip().replace(',', '.'),
+            'discount': str(post.get('discount_' + line_id) or 0).strip().replace(',', '.'),
+            'lead_time_days': post.get('lead_time_' + line_id) or 0,
+            'tax_ids': [int(tax)] if tax.isdigit() else []})
+    terms = {key: post[key].strip() for key in QUOTE_TERM_KEYS if str(post.get(key) or '').strip()}
+    return lines, terms
+
+
+def create_quote_attachments(env, uploads):
+    """Create the checked files of a quotation form as the user's own unbound attachments.
+
+    Requirements: FR-SPM-0020, NFR-SPM-0003
+    Raises ValueError with the refusal text.
+    """
+    attachments = env['ir.attachment']
+    for upload in uploads:
+        if not upload or not upload.filename:
+            continue
+        data, mimetype = read_upload(env, upload)
+        attachments |= env['ir.attachment'].sudo().create({  # sudo: a portal user's own file, made after the checks
+            'name': (os.path.basename(upload.filename) or 'file')[:255],
+            'raw': data, 'mimetype': mimetype})
+    return attachments
+
+
+def check_quote_file(env, attachment_id):
+    """Return the file of an invited event or of the user's own quotation, and log the download.
+
+    Requirements: BR-SPM-0002, FR-SPM-0017, FR-SPM-0027, FR-SPM-0028
+
+    A token is never looked at. Anything else answers not found and is logged as denied.
+    """
+    try:
+        supplier = current_supplier(env)
+    except SupplierAccessRefused as refused:
+        log(env, 'denied', 'refused', res_model='ir.attachment', res_id=attachment_id, detail=refused.reason)
+        raise
+    # sudo: reads the owner of the file only; the access is decided below
+    attachment = env['ir.attachment'].sudo().browse(
+        attachment_id if isinstance(attachment_id, int) and attachment_id > 0 else 0).exists()
+    # a shared file is decided by membership in the supplier files of an event the supplier is invited to,
+    # never by the file's res_model/res_id (a file added before the event's first save has res_id 0)
+    # sudo: finds the events that share this file; the supplier's own response (under its rules) decides
+    sharing = env['procurement.sourcing.event'].sudo().search([('supplier_file_ids', '=', attachment.id)]).ids \
+        if attachment else []
+    allowed = bool(sharing) and bool(env[RESPONSE_MODEL].search(
+        [('partner_id', '=', supplier.id), ('event_id', 'in', sharing)], limit=1))
+    if not allowed and attachment.res_model == VERSION_MODEL:
+        allowed = bool(get_owned(env, VERSION_MODEL, attachment.res_id))
+    if not allowed:
+        log(env, 'denied', 'refused', supplier=supplier, res_model='ir.attachment', res_id=attachment_id,
+            detail='not found')
+        raise SupplierAccessRefused('not found')
+    log(env, 'download', 'ok', supplier=supplier, res_model=attachment.res_model, res_id=attachment.res_id)
+    return attachment

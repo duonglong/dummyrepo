@@ -51,6 +51,10 @@ class ProcurementSourcingEvent(models.Model):
     invited_partner_ids = fields.Many2many(
         'res.partner', 'procurement_sourcing_event_partner_rel', 'event_id', 'partner_id',
         string="Invited suppliers", domain="[('spm_is_supplier', '=', True)]", copy=False)
+    supplier_file_ids = fields.Many2many(
+        'ir.attachment', 'procurement_sourcing_event_file_rel', 'event_id', 'attachment_id',
+        string="Files for suppliers", copy=False,
+        help="The only files of this event that invited suppliers can see and download.")
     response_ids = fields.One2many('procurement.sourcing.response', 'event_id', string="Responses", copy=False)
     inform_unsuccessful = fields.Boolean(string="Inform unsuccessful suppliers")
     cancel_reason = fields.Text(readonly=True, copy=False)
@@ -102,7 +106,25 @@ class ProcurementSourcingEvent(models.Model):
         events = super().create(vals_list)
         for event in events.filtered(lambda e: e.template_id and not e.criterion_ids):
             event._onchange_template_id()
+        events._bind_supplier_files(events.supplier_file_ids)
         return events
+
+    def _bind_supplier_files(self, files):
+        """Attach the files shared with suppliers to their event, so every buyer of it sees them.
+
+        Requirements: BR-SPM-0003
+        A file added before the event's first save belongs to nobody; only the user's own
+        files that belong to no other record may be shared.
+        """
+        for event in self:
+            # sudo: reads who made each file and what it belongs to, to refuse a file of someone else
+            for attachment in (files & event.supplier_file_ids).sudo():
+                if attachment.res_model == self._name and attachment.res_id == event.id:
+                    continue
+                if (attachment.create_uid != self.env.user or attachment.res_id
+                        or attachment.res_model not in (False, self._name)):
+                    raise UserError(self.env._("A file shared with suppliers is not available."))
+                attachment.write({'res_model': self._name, 'res_id': event.id})
 
     def write(self, vals):
         """Guard the workflow fields, and tell the suppliers when an open event's deadline moves.
@@ -117,7 +139,10 @@ class ProcurementSourcingEvent(models.Model):
         if 'deadline' in vals and any(event.state in ('awarded', 'cancelled') for event in self):
             raise UserError(self.env._("The deadline of an awarded or cancelled event cannot change."))
         previous = {event: event.deadline for event in self}
+        shared_before = self.supplier_file_ids
         result = super().write(vals)
+        if 'supplier_file_ids' in vals:
+            self._bind_supplier_files(self.supplier_file_ids - shared_before)
         if 'deadline' in vals:
             for event in self.filtered(lambda e: e.state == 'open' and e.deadline != previous[e]):
                 sourcing.notify_suppliers(
