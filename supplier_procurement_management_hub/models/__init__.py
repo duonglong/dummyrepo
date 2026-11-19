@@ -15,6 +15,9 @@ from . import res_config_settings
 from . import res_partner
 from . import procurement_override
 from . import purchase_order
+from . import procurement_delivery_commitment
+from . import procurement_delivery_schedule
+from . import procurement_delivery_event
 from . import procurement_matching_policy
 from . import procurement_matching_tolerance
 from . import procurement_exception_route

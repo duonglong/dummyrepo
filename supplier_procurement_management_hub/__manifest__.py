@@ -34,6 +34,7 @@
         'views/procurement_request_views.xml',
         'views/procurement_questionnaire_views.xml',
         'views/procurement_job_views.xml',
+        'views/procurement_delivery_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,
