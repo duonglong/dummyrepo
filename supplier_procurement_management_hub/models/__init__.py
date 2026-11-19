@@ -18,6 +18,10 @@ from . import purchase_order
 from . import procurement_delivery_commitment
 from . import procurement_delivery_schedule
 from . import procurement_delivery_event
+from . import procurement_delivery_proposal
+from . import procurement_delivery_proposal_line
+from . import procurement_discrepancy_reason
+from . import procurement_delivery_discrepancy
 from . import procurement_matching_policy
 from . import procurement_matching_tolerance
 from . import procurement_exception_route
@@ -35,8 +39,8 @@ from . import procurement_request_line
 from . import portal_wizard
 from . import procurement_job
 from . import procurement_job_run
-from . import procurement_contract
 from . import procurement_contract_line
+from . import procurement_contract
 from . import procurement_contract_version
 from . import procurement_sourcing_template
 from . import procurement_sourcing_criterion

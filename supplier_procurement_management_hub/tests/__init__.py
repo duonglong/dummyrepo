@@ -42,3 +42,4 @@ from . import test_sourcing_event
 from . import test_merge_sourcing_contract
 from . import test_contract_use
 from . import test_delivery_commitment
+from . import test_delivery_proposal

@@ -17,7 +17,7 @@ class ProcurementReasonWizard(models.TransientModel):
         ('request_changes', 'Request changes on an application'), ('reject', 'Reject an application'),
         ('accept_exception', 'Accept an exception'), ('reject_exception', 'Reject an exception'),
         ('resolve_exception', 'Resolve an exception'), ('not_duplicate', 'Mark a bill as not a duplicate'),
-        ('cancel', 'Cancel a sourcing event'),
+        ('cancel', 'Cancel a sourcing event'), ('refuse_proposal', 'Refuse a delivery date proposal'),
     ], required=True)
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
@@ -44,7 +44,20 @@ class ProcurementReasonWizard(models.TransientModel):
             self._spm_decide_matching()
         if self.action == 'cancel':
             self._spm_cancel_events()
+        if self.action == 'refuse_proposal':
+            self._spm_refuse_proposals()
         return {'type': 'ir.actions.act_window_close'}
+
+    def _spm_refuse_proposals(self):
+        """Forward the reason to the refusal of the delivery date proposals.
+
+        Requirements: FR-SPM-0058
+        Rights, state and the required reason are those of the proposal's action.
+        """
+        if self.res_model != 'procurement.delivery.proposal':
+            raise UserError(self.env._("This action only applies to delivery date proposals."))
+        for proposal in self.env[self.res_model].browse(self.res_ids):
+            proposal.action_spm_refuse(self.reason)
 
     def _spm_cancel_events(self):
         """Forward the reason to the cancellation of the sourcing events.

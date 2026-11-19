@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0024, FR-SPM-0025 -->
+    <template id="purchase_order_portal_delivery_spm" name="Supplier portal: acknowledgement and date proposals"
+              inherit_id="purchase.purchase_order_portal_content">
+        <xpath expr="//div[@id='informations']" position="after">
+            <div id="spm_delivery" t-if="spm_delivery" class="mt-3">
+                <div t-if="spm_delivery['error']" class="alert alert-danger" role="alert"
+                     t-out="spm_delivery['error']"/>
+                <div t-if="spm_delivery['done'] == 'acknowledged'" class="alert alert-success" role="alert">Order acknowledged</div>
+                <div t-if="spm_delivery['done'] == 'proposed'" class="alert alert-success" role="alert">Proposal sent</div>
+                <form t-if="spm_delivery['can_act'] and not spm_delivery['acknowledged'] and spm_delivery['rows']"
+                      t-attf-action="/my/procurement/orders/#{order.id}/acknowledge" method="post">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <table class="table table-sm">
+                        <thead><tr><th>Product</th><th>Quantity</th><th>Confirmed date</th></tr></thead>
+                        <tbody>
+                            <tr t-foreach="spm_delivery['rows']" t-as="row">
+                                <td t-out="row['name']"/>
+                                <td t-out="row['quantity']"/>
+                                <td><input type="date" class="form-control form-control-sm"
+                                           t-attf-name="date_#{row['commitment'].order_line_id.id}"
+                                           t-att-value="row['date'] and row['date'].strftime('%Y-%m-%d')"/></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button type="submit" class="btn btn-primary btn-sm">Acknowledge order</button>
+                </form>
+                <div t-if="spm_delivery['acknowledged']">
+                    <span class="badge text-bg-success">Acknowledged</span>
+                    <form t-foreach="spm_delivery['rows']" t-as="row" t-if="row['open'] and spm_delivery['can_act']"
+                          t-attf-action="/my/procurement/orders/#{order.id}/propose" method="post" class="border-top py-2">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="commitment_id" t-att-value="row['commitment'].id"/>
+                        <strong t-out="row['name']"/>
+                        <span t-if="row['pending']" class="badge text-bg-warning">Proposal pending</span>
+                        <div t-else="" class="row g-2 mt-1">
+                            <div class="col-md-3"><input type="date" name="date" aria-label="New date" title="New date" required="required" class="form-control form-control-sm"/></div>
+                            <div class="col-md-3"><input type="date" name="date_2" aria-label="Second date" title="Second date" class="form-control form-control-sm"/></div>
+                            <div class="col-md-2"><input type="number" step="any" min="0" name="quantity_2" placeholder="Second quantity" class="form-control form-control-sm"/></div>
+                            <div class="col-md-3"><input type="text" name="reason" placeholder="Reason" required="required" maxlength="500" class="form-control form-control-sm"/></div>
+                            <div class="col-md-1"><button type="submit" class="btn btn-secondary btn-sm">Propose</button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>
