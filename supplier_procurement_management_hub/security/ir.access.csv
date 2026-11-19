@@ -154,3 +154,7 @@ access_spm_contract_version_finance,Purchase contract version finance,procuremen
 access_spm_contract_version_auditor,Purchase contract version auditor,procurement.contract.version,group_spm_auditor,r,
 access_spm_contract_version_admin,Purchase contract version admin,procurement.contract.version,group_spm_admin,r,
 spm_contract_version_comp_rule,procurement.contract.version: allowed companies,procurement.contract.version,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_contract_price_update_manager,Contract vendor price update manager,procurement.contract.price.update,group_spm_manager,crud,
+access_spm_contract_price_update_line_manager,Contract vendor price update row manager,procurement.contract.price.update.line,group_spm_manager,crud,
+access_spm_contract_renew_buyer,Contract renewal dialog,procurement.contract.renew,group_spm_buyer,crud,
+access_spm_scrap_reason_tag_buyer,Scrap reason tags read by buyers (returns to suppliers),stock.scrap.reason.tag,group_spm_buyer,r,

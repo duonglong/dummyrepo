@@ -69,12 +69,46 @@ class ProcurementContract(models.Model):
     ceiling_qty = fields.Float(string="Quantity ceiling", digits='Product Unit')
     line_ids = fields.One2many('procurement.contract.line', 'contract_id', string="Lines", copy=True)
     version_ids = fields.One2many('procurement.contract.version', 'contract_id', string="Earlier versions")
+    consumed_value = fields.Monetary(
+        string="Consumed value", compute='_compute_use', currency_field='currency_id')
+    used_share = fields.Float(
+        string="Used (%)", compute='_compute_use', digits=(16, 1),
+        help="Share of the ceiling used: the value ceiling, else the quantity ceiling, else the most used line.")
+    days_to_notice = fields.Integer(string="Days to notice", compute='_compute_days_to_notice')
 
     @api.depends('date_end', 'notice_days')
     def _compute_notice_date(self):
         for contract in self:
             contract.notice_date = (
                 contract.date_end - timedelta(days=contract.notice_days) if contract.date_end else False)
+
+    @api.depends('line_ids.consumed_value', 'line_ids.consumed_qty', 'line_ids.used_share',
+                 'ceiling_value', 'ceiling_qty')
+    def _compute_use(self):
+        """Sum the consumption of the lines and give the share of the contract ceiling used.
+
+        Requirements: FR-SPM-0068, FR-SPM-0070
+        """
+        for contract in self:
+            lines = contract.line_ids
+            contract.consumed_value = sum(lines.mapped('consumed_value'))
+            if contract.ceiling_value:
+                share = contract.consumed_value / contract.ceiling_value * 100
+            elif contract.ceiling_qty:
+                share = sum(lines.mapped('consumed_qty')) / contract.ceiling_qty * 100
+            else:
+                share = max(lines.mapped('used_share'), default=0.0)
+            contract.used_share = share
+
+    @api.depends('notice_date')
+    def _compute_days_to_notice(self):
+        """Count the days from today to the notice date (negative once it has passed).
+
+        Requirements: FR-SPM-0070
+        """
+        today = fields.Date.context_today(self)
+        for contract in self:
+            contract.days_to_notice = (contract.notice_date - today).days if contract.notice_date else 0
 
     @api.constrains('date_start', 'date_end')
     def _check_dates(self):
@@ -210,6 +244,73 @@ class ProcurementContract(models.Model):
             contract._spm_write_lifecycle({'state': 'revision', 'revised_by_id': self.env.user.id})
         return True
 
+    def action_spm_renew(self, date_end):
+        """Renew an active contract to a later end date as a new version; it stays Active.
+
+        Requirements: FR-SPM-0066
+        The owner or a Procurement manager renews. The earlier terms are kept as a renewal
+        version; the notice date follows the new end date.
+        """
+        date_end = fields.Date.to_date(date_end)
+        for contract in self:
+            if self.env.user != contract.owner_id and not (
+                    self.env.user.has_group(MANAGER_GROUP) or self._spm_is_admin()):
+                raise AccessError(self.env._("Only the owner or a Procurement manager renews a contract."))
+            contract.check_access('write')
+            if contract.state != 'active':
+                raise UserError(self.env._("Only an active contract is renewed."))
+            if not date_end or date_end <= contract.date_end:
+                raise UserError(self.env._("The new end date must be after the current end date."))
+            # sudo: no group may create versions directly, the version is read-only for every user;
+            # the owner or manager and write-access checks are above
+            self.env['procurement.contract.version'].sudo().create({
+                'contract_id': contract.id,
+                'version': contract.version,
+                'kind': 'renewal',
+                'author_id': (contract.revised_by_id or contract.author_id).id,
+                'approved_by_id': contract.approved_by_id.id,
+                'date_start': contract.date_start,
+                'date_end': contract.date_end,
+                'terms': contract_service.build_terms(contract),
+            })
+            contract._spm_write_lifecycle({'date_end': date_end, 'version': contract.version + 1})
+            audit.log(self.env, 'contract', contract, {}, {'version': contract.version, 'date_end': str(date_end)},
+                      'renewed')
+        return True
+
+    def action_spm_open_renew(self):
+        """Open the dialog asking for the new end date.
+
+        Requirements: FR-SPM-0066
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Renew contract"),
+            'res_model': 'procurement.contract.renew',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_contract_id': self.id},
+        }
+
+    def action_spm_update_vendor_prices(self):
+        """Open the preview of the vendor price lines the contract would create or change.
+
+        Requirements: FR-SPM-0067
+        """
+        self.ensure_one()
+        self._spm_check_manager()
+        if self.state != 'active':
+            raise UserError(self.env._("Vendor prices are updated from an active contract."))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Update vendor prices"),
+            'res_model': 'procurement.contract.price.update',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_contract_id': self.id},
+        }
+
     @api.model
     def _spm_collect_due(self):
         """Return the contracts to move on today: approved ones at their start, active ones past their end.
@@ -245,6 +346,37 @@ class ProcurementContract(models.Model):
         """
         for contract in self._spm_collect_due():
             contract._spm_advance_state()
+
+
+class ProcurementContractLine(models.Model):  # sdd-allow: model-split the consumption of a line is built by the use task (T-022), the line model by T-021
+    """Consumption of a contract line by the confirmed orders linked to it.
+
+    Requirements: BR-SPM-0011, FR-SPM-0068
+    """
+    _inherit = 'procurement.contract.line'
+
+    consumed_qty = fields.Float(string="Consumed", compute='_compute_consumption', digits='Product Unit')
+    remaining_qty = fields.Float(string="Remaining", compute='_compute_consumption', digits='Product Unit')
+    consumed_value = fields.Monetary(
+        string="Consumed value", compute='_compute_consumption', currency_field='currency_id')
+    used_share = fields.Float(string="Used (%)", compute='_compute_consumption', digits=(16, 1))
+
+    @api.depends('ceiling_qty', 'purchase_line_ids.product_qty', 'purchase_line_ids.price_unit',
+                 'purchase_line_ids.uom_id', 'purchase_line_ids.order_id.state')
+    def _compute_consumption(self):
+        """Compute the consumed and remaining quantity, the consumed value and the share of the ceiling.
+
+        Requirements: BR-SPM-0011, FR-SPM-0068
+        Orders confirmed minus cancellations and returns (see ``services.contract.consumption``).
+        """
+        saved = self.filtered(lambda line: isinstance(line.id, int))
+        used = contract_service.consumption(saved) if saved else {}
+        for line in self:
+            qty, value = used.get(line.id, (0.0, 0.0))
+            line.consumed_qty = qty
+            line.consumed_value = value
+            line.remaining_qty = line.ceiling_qty - qty if line.ceiling_qty else 0.0
+            line.used_share = qty / line.ceiling_qty * 100 if line.ceiling_qty else 0.0
 
 
 class ProcurementJob(models.Model):  # sdd-allow: model-split the job runner is extended per code by the task that owns the job (procurement_job.py, not a file of this task)
