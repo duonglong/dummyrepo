@@ -62,6 +62,18 @@ class TestPortalProfile(SpmPortalCase):
         self._post('/my/procurement/profile', {'bank_account_number': 'BE11 1111', 'bank_holder': 'Old'})
         self.assertEqual(len(self._pending()), 1, 'an identical account is no change')
 
+    def test_number_with_other_punctuation_is_the_same_number(self):
+        """FR-SPM-0015: BE11-1111 is the known BE11 1111 (native sanitized number), and verifies cleanly."""
+        bank = self.env['res.partner.bank'].create({
+            'partner_id': self.acme.id, 'account_number': 'BE11 1111', 'holder_name': 'Old'})
+        self._login(self.acme_user)
+        self._post('/my/procurement/profile', {'bank_account_number': 'BE11-1111', 'bank_holder': 'Old'})
+        self.assertEqual(len(self._pending()), 0)
+        self._post('/my/procurement/profile', {'bank_account_number': 'BE11-1111', 'bank_holder': 'New'})
+        self._finance_verify(self._pending())
+        self.assertEqual(bank.holder_name, 'New')
+        self.assertEqual(len(self.acme.bank_ids), 1)
+
     def test_verified_account_is_trusted_and_archived_number_is_reused(self):
         """FR-SPM-0015: a verified account can be paid; an archived number is activated."""
         old = self.env['res.partner.bank'].create({
