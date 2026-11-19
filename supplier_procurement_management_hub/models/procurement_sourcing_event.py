@@ -51,6 +51,10 @@ class ProcurementSourcingEvent(models.Model):
     invited_partner_ids = fields.Many2many(
         'res.partner', 'procurement_sourcing_event_partner_rel', 'event_id', 'partner_id',
         string="Invited suppliers", domain="[('spm_is_supplier', '=', True)]", copy=False)
+    supplier_file_ids = fields.Many2many(
+        'ir.attachment', 'procurement_sourcing_event_file_rel', 'event_id', 'attachment_id',
+        string="Files for suppliers", copy=False,
+        help="The only files of this event that invited suppliers can see and download.")
     response_ids = fields.One2many('procurement.sourcing.response', 'event_id', string="Responses", copy=False)
     inform_unsuccessful = fields.Boolean(string="Inform unsuccessful suppliers")
     cancel_reason = fields.Text(readonly=True, copy=False)

@@ -419,17 +419,14 @@ def owned_response(env, event_id):
 
 
 def event_files(env, event):
-    """The files the buyer attached to the event itself, never those of its message thread.
+    """The files the buyer chose to share with the invited suppliers, nothing else of the event.
 
     Requirements: BR-SPM-0003, FR-SPM-0017
-    A file of an internal note or of an e-mailed reply belongs to a message; only a file that
-    belongs to no message is the buyer's own attachment to the event.
+    An allow-list: a file stored on the event or on its messages stays private unless the buyer
+    put it in the event's supplier files.
     """
-    # sudo: the files of an event the user is invited to, and the files its messages carry
-    thread_files = env['mail.message'].sudo().search([
-        ('model', '=', EVENT_MODEL), ('res_id', '=', event.id)]).attachment_ids
-    return env['ir.attachment'].sudo().search([
-        ('res_model', '=', EVENT_MODEL), ('res_id', '=', event.id), ('id', 'not in', thread_files.ids)])
+    # sudo: the shared files of an event the user is invited to
+    return event.sudo().supplier_file_ids
 
 
 def purchase_taxes(env, event):

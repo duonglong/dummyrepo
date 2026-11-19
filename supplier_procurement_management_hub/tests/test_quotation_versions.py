@@ -180,18 +180,23 @@ class TestQuotationVersions(SpmPortalCase):
         self.assertEqual(len(version.line_ids), 1)
         self.assertEqual(version.line_ids.price_unit, 0.0)
 
-    def test_event_files_exclude_the_files_of_its_message_thread(self):
-        """Requirements: BR-SPM-0003 - a file of an internal note is neither listed nor downloadable."""
+    def test_event_files_are_only_the_supplier_files_of_the_event(self):
+        """Requirements: BR-SPM-0003 - only a file in the event's supplier files is listed and downloadable."""
         attach = self.env['ir.attachment'].create
         shared = attach({'name': 'drawing.pdf', 'raw': b'%PDF-1.4 d', 'res_model': self.event._name,
                          'res_id': self.event.id})
+        stray = attach({'name': 'stray.pdf', 'raw': b'%PDF-1.4 stray price',
+                        'res_model': self.event._name, 'res_id': self.event.id})
         note_file = attach({'name': 'internal.pdf', 'raw': b'%PDF-1.4 internal price',
                             'res_model': self.event._name, 'res_id': self.event.id})
         self.event.message_post(body='internal', attachment_ids=[note_file.id], message_type='comment',
                                 subtype_xmlid='mail.mt_note')
+        self.event.supplier_file_ids = shared
         self._login(self.acme_user)
         page = self._get(f'/my/procurement/rfq/{self.event.id}')
         self.assertIn('drawing.pdf', page.text)
         self.assertNotIn('internal.pdf', page.text)
+        self.assertNotIn('stray.pdf', page.text)
         self.assertEqual(self._get(f'/my/procurement/quote-file/{shared.id}').status_code, 200)
+        self.assertEqual(self._get(f'/my/procurement/quote-file/{stray.id}').status_code, 404)
         self.assertEqual(self._get(f'/my/procurement/quote-file/{note_file.id}').status_code, 404)
