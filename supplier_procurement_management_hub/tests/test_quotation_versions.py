@@ -200,3 +200,11 @@ class TestQuotationVersions(SpmPortalCase):
         self.assertEqual(self._get(f'/my/procurement/quote-file/{shared.id}').status_code, 200)
         self.assertEqual(self._get(f'/my/procurement/quote-file/{stray.id}').status_code, 404)
         self.assertEqual(self._get(f'/my/procurement/quote-file/{note_file.id}').status_code, 404)
+
+    def test_shared_file_added_before_the_first_save_is_downloadable(self):
+        """Requirements: BR-SPM-0003 - a shared file stored with res_id 0 is served by membership, not by res_id."""
+        unbound = self.env['ir.attachment'].create({
+            'name': 'early.pdf', 'raw': b'%PDF-1.4 early', 'res_model': self.event._name, 'res_id': 0})
+        self.event.sudo().supplier_file_ids = unbound
+        self._login(self.acme_user)
+        self.assertEqual(self._get(f'/my/procurement/quote-file/{unbound.id}').status_code, 200)

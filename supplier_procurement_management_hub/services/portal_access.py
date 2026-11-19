@@ -526,12 +526,11 @@ def check_quote_file(env, attachment_id):
     # sudo: reads the owner of the file only; the access is decided below
     attachment = env['ir.attachment'].sudo().browse(
         attachment_id if isinstance(attachment_id, int) and attachment_id > 0 else 0).exists()
-    allowed = False
-    if attachment.res_model == EVENT_MODEL:
-        invited = env[RESPONSE_MODEL].search(
-            [('event_id', '=', attachment.res_id), ('partner_id', '=', supplier.id)], limit=1)
-        allowed = bool(invited) and attachment in event_files(env, invited.event_id.sudo())
-    elif attachment.res_model == VERSION_MODEL:
+    # a shared file is decided by membership in the supplier files of an event the supplier is invited to,
+    # never by the file's res_model/res_id (a file added before the event's first save has res_id 0)
+    invited = env[RESPONSE_MODEL].search([('partner_id', '=', supplier.id)])
+    allowed = bool(attachment) and attachment in invited.event_id.sudo().supplier_file_ids
+    if not allowed and attachment.res_model == VERSION_MODEL:
         allowed = bool(get_owned(env, VERSION_MODEL, attachment.res_id))
     if not allowed:
         log(env, 'denied', 'refused', supplier=supplier, res_model='ir.attachment', res_id=attachment_id,
