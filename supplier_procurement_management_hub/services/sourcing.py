@@ -1,10 +1,12 @@
 """Sourcing rules: merging requests into event lines, inviting suppliers, notifying them.
 
 Requirements: FR-SPM-0020, FR-SPM-0021, FR-SPM-0022, FR-SPM-0031, FR-SPM-0032, FR-SPM-0033,
-FR-SPM-0034, FR-SPM-0035, FR-SPM-0036, FR-SPM-0037, FR-SPM-0042, BR-SPM-0007
+FR-SPM-0034, FR-SPM-0035, FR-SPM-0036, FR-SPM-0037, FR-SPM-0038, FR-SPM-0039, FR-SPM-0040,
+FR-SPM-0041, FR-SPM-0042, BR-SPM-0007, BR-SPM-0008
 Plain functions on an environment, called by the models (and later by the portal).
 """
 import math
+from datetime import timedelta
 
 from odoo import fields
 from odoo.exceptions import UserError
@@ -14,6 +16,7 @@ from . import onboarding, supplier_control
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_invitation'
 DEADLINE_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_deadline'
 CANCEL_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_cancelled'
+AWARDED_OTHER_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_awarded_other'
 REVISION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_revision'
 
 
@@ -468,3 +471,250 @@ def compare(event):
         rows.append(dict(cell, comparison_id=comparison.id))
     env['procurement.comparison.line'].create(rows)
     return comparison
+
+
+SCORE_MAX = 100.0
+# Order states in which the order linked to an event is still a draft the award may update.
+DRAFT_ORDER_STATES = ('draft', 'sent')
+
+
+def _lock_event(event):
+    """Take the row lock of the event and reload it, so two awards or generations at once queue up."""
+    env = event.env
+    env.flush_all()
+    env.cr.execute('SELECT id FROM procurement_sourcing_event WHERE id = %s FOR UPDATE', [event.id])
+    env.invalidate_all()
+
+
+def _score_row(values, higher):
+    """The 0-100 scores of one criterion row: ``values`` maps a cell to its value, None when missing.
+
+    Requirements: BR-SPM-0008
+    100 x best / value where lower is better, 100 x value / best where higher is better; a missing
+    value scores 0.
+    """
+    present = [value for value in values.values() if value is not None]
+    best = (max(present) if higher else min(present)) if present else 0.0
+    scores = {}
+    for cell, value in values.items():
+        if value is None:
+            scores[cell] = 0.0
+        elif higher:
+            scores[cell] = SCORE_MAX * value / best if best > 0 else 0.0
+        else:
+            scores[cell] = SCORE_MAX * best / value if value > 0 else SCORE_MAX
+    return scores
+
+
+def _criterion_scores(event, criterion, cells):
+    """The scores of the cells of one criterion, or None when the criterion cannot be scored.
+
+    Requirements: BR-SPM-0008
+    A price criterion is scored on normalized values only; without normalization it is left out.
+    A manual criterion scores what the buyer gave, and nothing (flagged) when nothing was given.
+    """
+    if criterion.kind == 'manual':
+        return {cell: (cell.manual_score if cell.manual_score else None) for cell in cells}, True
+    money = criterion.kind in ('price', 'total_cost')
+    if money and not event.is_normalized:
+        return None, False
+    values = {
+        cell: None if cell.missing else (cell.normalized_value if money else cell.raw_value)
+        for cell in cells}
+    return values, criterion.direction == 'higher'
+
+
+def evaluate(event):
+    """Rebuild the comparison, score every response by the weighted criteria and rank them.
+
+    Requirements: FR-SPM-0038, BR-SPM-0008
+    A response score is the weighted average of its criterion scores; a missing value scores 0
+    and is flagged on its cell. Scores and ranks are written with elevated rights after the
+    checks, since only this evaluation sets them.
+    """
+    env = event.env
+    event.check_access('write')
+    if event.state != 'open':
+        raise UserError(env._("Only an open event can be evaluated."))
+    comparison = compare(event)
+    cells = comparison.line_ids.filtered(lambda cell: cell.row_kind == 'criterion')
+    responses = event.response_ids.filtered('current_version_id')
+    totals = {response: 0.0 for response in responses}
+    weight_sum = 0.0
+    for criterion in event.criterion_ids:
+        row = cells.filtered(lambda cell: cell.criterion_id == criterion)
+        values, higher = _criterion_scores(event, criterion, row)
+        if values is None:
+            continue
+        scores = _score_row(values, higher)
+        weight_sum += criterion.weight
+        for cell, score in scores.items():
+            cell.write({'score': score, 'missing': cell.missing or values[cell] is None})
+            totals[cell.response_id] += criterion.weight * score
+    result = {response: totals[response] / weight_sum if weight_sum else 0.0 for response in responses}
+    ordered = sorted(result.values(), reverse=True)
+    for response in event.response_ids:
+        # sudo: the score, rank and missing count are internal results only this evaluation writes
+        response.sudo().write({
+            'score': result.get(response, 0.0),
+            'rank': ordered.index(result[response]) + 1 if response in result else 0,
+            'missing_line_count': len(event.line_ids - response.current_version_id.line_ids.event_line_id)})
+    return True
+
+
+def _check_choices(env, event, choices):
+    """Refuse a choice of a line or a response that is not the event's, unreadable, or not quoted."""
+    if not choices:
+        raise UserError(env._("Choose the response that wins at least one line."))
+    for line, response in choices.items():
+        if line.event_id != event or response.event_id != event:
+            raise UserError(env._("A chosen line or response does not belong to this event."))
+        response.check_access('read')
+        version = response.current_version_id
+        if not version.line_ids.filtered(lambda offer: offer.event_line_id == line):
+            raise UserError(env._(
+                "%(supplier)s did not quote %(line)s.", supplier=response.partner_id.name, line=line.name))
+
+
+def _tell_unsuccessful(env, event, partners):
+    """Tell each unsuccessful supplier that the event went to another offer.
+
+    Requirements: FR-SPM-0041
+    The mail goes to the supplier's own address; a supplier without one is told through its portal users.
+    The text names neither the winner nor a price.
+    """
+    template = env.ref(AWARDED_OTHER_TEMPLATE)
+    without_address = env['res.partner']
+    for partner in partners:
+        if partner.email:
+            template.send_mail(event.id, force_send=False, email_values={
+                'recipient_ids': [(6, 0, partner.ids)], 'email_to': False})
+        else:
+            without_address |= partner
+    notify_suppliers(env, event, AWARDED_OTHER_TEMPLATE, without_address)
+
+
+def award(event, choices, rationale):
+    """Award the lines of the event to the chosen responses and close the event.
+
+    Requirements: FR-SPM-0039, FR-SPM-0041
+    ``choices`` maps an event line to the response that wins it. A rationale is required. The
+    chosen offers' lines are marked awarded and the other responses not awarded; the unsuccessful
+    suppliers are told when the event says so, without the winner or any price.
+    """
+    env = event.env
+    event.check_access('write')
+    rationale = (rationale or '').strip()
+    if not rationale:
+        raise UserError(env._("An award rationale is required: say why this offer won."))
+    _lock_event(event)
+    if event.state != 'open':
+        raise UserError(env._("Only an open event can be awarded."))
+    _check_choices(env, event, choices)
+    evaluate(event)
+    offers = env['procurement.sourcing.response.line']
+    for line, response in choices.items():
+        offers |= response.current_version_id.line_ids.filtered(lambda offer: offer.event_line_id == line)
+    # sudo: the award mark of an offered line is written by the award only; the checks are above
+    offers.sudo().write({'awarded': True})
+    winners = env['procurement.sourcing.response']
+    for response in event.response_ids:
+        if response in choices.values():
+            winners |= response
+            whole = all(offer.awarded for offer in response.current_version_id.line_ids)
+            state = 'awarded' if whole else 'partly_awarded'
+        else:
+            state = 'not_awarded'
+        # sudo: the state of a response is a workflow field no user writes directly
+        response.sudo().write({'state': state})
+    # sudo: the state and the award evidence are workflow fields no user writes directly
+    event.sudo().write({
+        'state': 'awarded', 'award_rationale': rationale, 'awarded_date': fields.Datetime.now()})
+    if event.inform_unsuccessful:
+        _tell_unsuccessful(env, event, (event.response_ids - winners).partner_id)
+    return True
+
+
+def _order_values(event, response, version, request_ids):
+    """The values of the draft order of one awarded supplier."""
+    values = {
+        'partner_id': response.partner_id.id, 'company_id': event.company_id.id,
+        'currency_id': version.currency_id.id, 'payment_term_id': version.payment_term_id.id,
+        'spm_sourcing_event_id': event.id, 'spm_request_ids': [(6, 0, request_ids)],
+        'origin': event.name}
+    if event.picking_type_id:
+        values['picking_type_id'] = event.picking_type_id.id
+    return values
+
+
+def _order_line_values(offer, order_date):
+    """The values of the order line of one awarded offer; the expected date follows its lead time."""
+    event_line = offer.event_line_id
+    return {
+        'spm_sourcing_event_line_id': event_line.id, 'product_id': event_line.product_id.id,
+        'name': event_line.name, 'product_qty': offer.quantity, 'uom_id': offer.uom_id.id,
+        'price_unit': offer.price_unit, 'discount': offer.discount, 'tax_ids': [(6, 0, offer.tax_ids.ids)],
+        'date_planned': order_date + timedelta(days=offer.lead_time_days)}
+
+
+def _sync_order(env, event, response, offers):
+    """Create the draft order of a supplier or update the one linked to the event; None when confirmed.
+
+    Requirements: FR-SPM-0040
+    """
+    orders = env['purchase.order'].search([
+        ('spm_sourcing_event_id', '=', event.id), ('partner_id', '=', response.partner_id.id),
+        ('state', '!=', 'cancel')])
+    if orders and not orders.filtered(lambda order: order.state in DRAFT_ORDER_STATES):
+        return orders[0], False
+    version = response.current_version_id
+    values = _order_values(event, response, version, event.request_ids.ids)
+    order = orders[:1]
+    if order:
+        order.write(values)
+        order.order_line.filtered(
+            lambda line: line.spm_sourcing_event_line_id
+            and line.spm_sourcing_event_line_id not in offers.event_line_id).unlink()
+    else:
+        order = env['purchase.order'].create(dict(values, date_order=fields.Datetime.now()))
+    existing = {line.spm_sourcing_event_line_id: line for line in order.order_line}
+    lines = []
+    for offer in offers:
+        line_values = _order_line_values(offer, order.date_order)
+        current = existing.get(offer.event_line_id)
+        lines.append((1, current.id, line_values) if current else (0, 0, line_values))
+    order.write({'order_line': lines})
+    return order, True
+
+
+def generate_orders(event):
+    """Create or update one draft purchase order per awarded supplier; a confirmed order is left alone.
+
+    Requirements: FR-SPM-0040
+    Rights are the user's own. An order is never confirmed here. The result opens the orders, or
+    names the orders found already confirmed.
+    """
+    env = event.env
+    event.check_access('write')
+    _lock_event(event)
+    if event.state != 'awarded':
+        raise UserError(env._("Award the event before generating its purchase orders."))
+    orders = env['purchase.order']
+    confirmed = []
+    for response in event.response_ids.filtered(lambda r: r.state in ('awarded', 'partly_awarded')):
+        offers = response.current_version_id.line_ids.filtered('awarded')
+        order, changed = _sync_order(env, event, response, offers)
+        orders |= order
+        if not changed:
+            confirmed.append(order.name)
+    action = {
+        'type': 'ir.actions.act_window', 'name': env._("Purchase orders"), 'res_model': 'purchase.order',
+        'view_mode': 'list,form', 'domain': [('id', 'in', orders.ids)]}
+    if confirmed:
+        return {
+            'type': 'ir.actions.client', 'tag': 'display_notification',
+            'params': {
+                'type': 'warning', 'sticky': True, 'next': action,
+                'message': env._(
+                    "The existing order %s is confirmed and was not changed.", ', '.join(confirmed))}}
+    return action

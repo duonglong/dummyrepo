@@ -10,6 +10,12 @@ class PurchaseOrder(models.Model):
     """
     _inherit = 'purchase.order'
 
+    spm_sourcing_event_id = fields.Many2one(
+        'procurement.sourcing.event', string="Sourcing event", copy=False, ondelete='set null',
+        index='btree_not_null', check_company=True)
+    spm_request_ids = fields.Many2many(
+        'procurement.request', 'procurement_purchase_order_request_rel', 'order_id', 'request_id',
+        string="Purchase requests", copy=False, check_company=True)
     spm_delivery_event_ids = fields.One2many('procurement.delivery.event', 'order_id', string="Delivery history")
     spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_id', string="Delivery commitments")
 

@@ -24,6 +24,12 @@
                             invisible="state != 'draft' or not id"/>
                     <button name="action_spm_compare" type="object" string="Compare"
                             invisible="state == 'draft' or not id"/>
+                    <button name="action_spm_evaluate" type="object" string="Evaluate"
+                            invisible="state != 'open' or not id"/>
+                    <button name="action_spm_open_award_wizard" type="object" string="Award" class="btn-primary"
+                            invisible="state != 'open' or not id"/>
+                    <button name="action_spm_generate_orders" type="object" string="Generate orders"
+                            invisible="state != 'awarded'"/>
                     <button name="action_spm_open_cancel_wizard" type="object" string="Cancel"
                             invisible="state not in ('draft', 'open') or not id"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,open,awarded"/>
@@ -44,6 +50,8 @@
                             <field name="tax_basis"/>
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                             <field name="cancel_reason" invisible="not cancel_reason"/>
+                            <field name="award_rationale" invisible="not award_rationale"/>
+                            <field name="awarded_date" invisible="not awarded_date"/>
                         </group>
                     </group>
                     <notebook>
@@ -65,6 +73,9 @@
                                 <list>
                                     <field name="partner_id"/>
                                     <field name="state" widget="badge"/>
+                                    <field name="score" groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,supplier_procurement_management_hub.group_spm_admin"/>
+                                    <field name="rank" groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,supplier_procurement_management_hub.group_spm_admin"/>
+                                    <field name="missing_line_count" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -78,6 +89,9 @@
                                     <field name="weight"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Purchase orders" name="orders" invisible="not purchase_order_ids">
+                            <field name="purchase_order_ids" readonly="True"/>
                         </page>
                         <page string="Negotiation" name="negotiation">
                             <field name="negotiation_ids" readonly="True">

@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 class ProcurementComparisonLine(models.Model):
@@ -42,3 +42,13 @@ class ProcurementComparisonLine(models.Model):
         for cell in self:
             if cell.manual_score and not (cell.manual_comment or '').strip():
                 raise ValidationError(self.env._("A manual score needs a comment."))
+
+    def write(self, vals):
+        """Manual scores are given while the event is open; once awarded they are evidence.
+
+        Requirements: FR-SPM-0038
+        """
+        if not self.env.su and ('manual_score' in vals or 'manual_comment' in vals) and any(
+                cell.comparison_id.event_id.state != 'open' for cell in self):
+            raise UserError(self.env._("Manual scores can only be given while the event is open."))
+        return super().write(vals)

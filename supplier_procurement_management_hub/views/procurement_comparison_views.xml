@@ -17,18 +17,21 @@
                             <field name="assumptions"/>
                         </group>
                     </group>
-                    <field name="line_ids" readonly="True">
-                        <list default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
+                    <field name="line_ids">
+                        <list editable="bottom" create="0" delete="0" default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
                               decoration-success="is_best" decoration-warning="missing">
-                            <field name="row_kind"/>
-                            <field name="event_line_id"/>
-                            <field name="criterion_id"/>
-                            <field name="term_key"/>
-                            <field name="partner_id"/>
-                            <field name="raw_display"/>
-                            <field name="normalized_value" column_invisible="not parent.is_normalized"/>
-                            <field name="is_best"/>
-                            <field name="missing"/>
+                            <field name="row_kind" readonly="True"/>
+                            <field name="event_line_id" readonly="True"/>
+                            <field name="criterion_id" readonly="True"/>
+                            <field name="term_key" readonly="True"/>
+                            <field name="partner_id" readonly="True"/>
+                            <field name="raw_display" readonly="True"/>
+                            <field name="normalized_value" column_invisible="not parent.is_normalized" readonly="True"/>
+                            <field name="score" readonly="True"/>
+                            <field name="manual_score" readonly="row_kind != 'criterion'"/>
+                            <field name="manual_comment" readonly="row_kind != 'criterion'"/>
+                            <field name="is_best" readonly="True"/>
+                            <field name="missing" readonly="True"/>
                         </list>
                     </field>
                 </sheet>

@@ -2,9 +2,14 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError
 
 from ..services import portal_access, sourcing
+from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
+
+# Roles that read the internal score and rank of a response (BR-SPM-0003): never the supplier.
+SPM_SCORE_GROUPS = SPM_RESTRICTED_GROUPS + ',supplier_procurement_management_hub.group_spm_buyer'
 
 # Fields only the submission service writes (it writes with elevated rights after its checks).
-WORKFLOW_FIELDS = ('state', 'current_version_id', 'version_ids', 'reopened_deadline')
+WORKFLOW_FIELDS = (
+    'state', 'current_version_id', 'version_ids', 'reopened_deadline', 'score', 'rank', 'missing_line_count')
 
 
 class ProcurementSourcingResponse(models.Model):
@@ -22,7 +27,11 @@ class ProcurementSourcingResponse(models.Model):
     partner_id = fields.Many2one('res.partner', string="Supplier", required=True, ondelete='restrict', index=True)
     state = fields.Selection([
         ('invited', 'Invited'), ('submitted', 'Submitted'), ('reopened', 'Reopened'),
+        ('awarded', 'Awarded'), ('partly_awarded', 'Partly awarded'), ('not_awarded', 'Not awarded'),
     ], required=True, default='invited')
+    score = fields.Float(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
+    rank = fields.Integer(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
+    missing_line_count = fields.Integer(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
     version_ids = fields.One2many('procurement.sourcing.response.version', 'response_id', string="Versions")
     current_version_id = fields.Many2one(
         'procurement.sourcing.response.version', string="Current version", readonly=True,
@@ -56,7 +65,8 @@ class ProcurementSourcingResponse(models.Model):
         if not self.env.su:
             for vals in vals_list:
                 if vals.get('current_version_id') or vals.get('version_ids') \
-                        or vals.get('state', 'invited') != 'invited':
+                        or vals.get('state', 'invited') != 'invited' \
+                        or any(field in vals for field in ('score', 'rank', 'missing_line_count')):
                     raise AccessError(self.env._("The versions of a response change with its submissions only."))
         return super().create(vals_list)
 
