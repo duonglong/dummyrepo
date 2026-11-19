@@ -57,6 +57,7 @@
                             <field name="has_backorder"/>
                         </group>
                     </group>
+                    <field name="receipt_ids" widget="many2many_tags"/>
                     <field name="schedule_ids">
                         <list editable="bottom" decoration-danger="overdue_days &gt; 0">
                             <field name="date"/>
@@ -78,10 +79,11 @@
                 <field name="order_id"/>
                 <field name="partner_id"/>
                 <field name="product_id"/>
-                <filter name="overdue" string="Overdue"
-                        domain="[('remaining_qty', '&gt;', 0), ('agreed_date', '&lt;', datetime.datetime.combine(context_today(), datetime.time(0, 0, 0)).strftime('%Y-%m-%d %H:%M:%S'))]"/>
+                <filter name="overdue" string="Overdue" domain="[('is_overdue', '=', True)]"/>
+                <separator/>
                 <filter name="partial" string="Partial" domain="[('is_partial', '=', True)]"/>
                 <filter name="backorder" string="Backorder" domain="[('has_backorder', '=', True)]"/>
+                <separator/>
                 <filter name="open" string="Open" domain="[('state', '=', 'open')]"/>
                 <group>
                     <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>

@@ -45,32 +45,24 @@ class ProcurementDeliverySchedule(models.Model):
         for schedule in self - self.commitment_id.schedule_ids:
             schedule.received_qty = schedule.remaining_qty = schedule.overdue_days = 0
 
-    def _check_commitments(self):
-        """Check the totals unless a commitment write is still adding its other schedules.
-
-        Requirements: FR-SPM-0056
-        """
-        if not self.env.context.get('spm_schedule_batch'):
-            self.commitment_id._check_schedule_total()
-
     @api.model_create_multi
     def create(self, vals_list):
         """Requirements: FR-SPM-0056"""
         schedules = super().create(vals_list)
-        schedules._check_commitments()
+        schedules.commitment_id._spm_check_outside_batch()
         return schedules
 
     def write(self, vals):
         """Requirements: FR-SPM-0056"""
+        commitments = self.commitment_id
         result = super().write(vals)
         if 'quantity' in vals or 'commitment_id' in vals:
-            self._check_commitments()
+            (self.commitment_id | commitments)._spm_check_outside_batch()
         return result
 
     def unlink(self):
         """Requirements: FR-SPM-0056"""
         commitments = self.commitment_id
         result = super().unlink()
-        if not self.env.context.get('spm_schedule_batch'):
-            commitments._check_schedule_total()
+        commitments._spm_check_outside_batch()
         return result
