@@ -62,6 +62,15 @@ class ProcurementSourcingQuestion(models.Model):
                 raise UserError(self.env._("This question is already answered."))
         return super().write(vals)
 
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_answered(self):
+        """Keep an answered question: suppliers read it in the portal and the chatter refers to it.
+
+        Requirements: FR-SPM-0023
+        """
+        if not self.env.su and self.filtered('answered_date'):
+            raise UserError(self.env._("An answered question cannot be deleted."))
+
     def spm_ask(self, event_id, text):
         """Record a question of the session user's supplier on an open event it is invited to.
 

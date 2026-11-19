@@ -85,6 +85,26 @@ class TestSourcingQuestion(SpmPortalCase):
         with self.assertRaises(UserError):
             question.with_user(self.buyer).action_spm_answer('Again')
 
+    def test_a_buyer_cannot_create_copy_or_retarget_a_question(self):
+        """Requirements: FR-SPM-0023, BR-SPM-0003 - the event and the asker stay as the supplier asked."""
+        question = self.Question.with_user(self.acme_user).spm_ask(self.event.id, 'Colour?')
+        as_buyer = question.with_user(self.buyer)
+        other_event = self._event(self.beta, title='Other')
+        with self.assertRaises(AccessError):
+            self.Question.with_user(self.buyer).create({
+                'event_id': self.event.id, 'partner_id': self.beta.id, 'question': 'Forged'})
+        with self.assertRaises(AccessError):
+            as_buyer.copy()
+        for vals in ({'event_id': other_event.id}, {'partner_id': self.beta.id}, {'question': 'x'}):
+            with self.assertRaises(AccessError, msg=str(vals)):
+                as_buyer.write(vals)
+        as_buyer.write({'draft_answer': 'y', 'shared': True})
+        as_buyer.action_spm_send_answer()
+        with self.assertRaises(UserError):
+            as_buyer.write({'draft_answer': 'z'})
+        with self.assertRaises(UserError):
+            as_buyer.unlink()
+
     def test_blocking_is_judged_on_the_reader_not_the_asker(self):
         """Requirements: FR-SPM-0023, FR-SPM-0028 - a blocked asker's shared answer stays; a blocked reader sees none."""
         question = self.Question.with_user(self.acme_user).spm_ask(self.event.id, 'Colour?')
