@@ -1,12 +1,14 @@
 from markupsafe import Markup
 
-from odoo import SUPERUSER_ID, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 from ..services import portal_access, sourcing
 
 # The longest question a supplier asks from the portal.
 QUESTION_MAX = 2000
+# The fields a buyer edits by hand; the others are set by the ask and the answer.
+BUYER_FIELDS = {'draft_answer', 'shared'}
 
 
 class ProcurementSourcingQuestion(models.Model):
@@ -34,6 +36,31 @@ class ProcurementSourcingQuestion(models.Model):
     asked_date = fields.Datetime(default=fields.Datetime.now, readonly=True)
     answered_date = fields.Datetime(readonly=True, copy=False)
     company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Refuse a question made outside spm_ask (a form, an import or a copy).
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        spm_ask creates as the superuser; any other creator could name an event or an asker
+        that never asked, and the answer would then be mailed to that supplier.
+        """
+        if not self.env.su:
+            raise AccessError(self.env._("A question is recorded only when a supplier asks it."))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        """Let a buyer edit only the draft answer and the Shared choice, before the answer is sent.
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        The event, the asker and the question stay as the supplier asked them.
+        """
+        if not self.env.su:
+            if set(vals) - BUYER_FIELDS:
+                raise AccessError(self.env._("Only the answer and its Shared choice can be changed."))
+            if self.filtered('answered_date'):
+                raise UserError(self.env._("This question is already answered."))
+        return super().write(vals)
 
     def spm_ask(self, event_id, text):
         """Record a question of the session user's supplier on an open event it is invited to.
@@ -78,7 +105,8 @@ class ProcurementSourcingQuestion(models.Model):
             question.check_access('write')
             if question.answered_date:
                 raise UserError(self.env._("This question is already answered."))
-            question.write({
+            # sudo: the answer fields are not hand-editable; the write right was checked above
+            question.sudo().write({
                 'answer': answer, 'draft_answer': False, 'shared': bool(shared), 'answered_by_id': self.env.user.id,
                 'answered_date': fields.Datetime.now()})
             event = question.event_id
