@@ -5,10 +5,13 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 
 from ..services import audit
 from ..services import contract as contract_service
+from ..services.contract import EDITABLE_STATES
 
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 ADMIN_GROUP = 'supplier_procurement_management_hub.group_spm_admin'
-EDITABLE_STATES = ('draft', 'revision')
+# fields only the workflow actions and the daily job write, through _spm_write_lifecycle
+LIFECYCLE_FIELDS = (
+    'name', 'state', 'author_id', 'revised_by_id', 'approved_by_id', 'version', 'version_ids')
 
 
 class ProcurementContract(models.Model):
@@ -20,6 +23,7 @@ class ProcurementContract(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Purchase Contract'
     _order = 'date_start desc, id desc'
+    _check_company_auto = True
 
     name = fields.Char(readonly=True, copy=False, default='New')
     reference = fields.Char(string="Supplier reference", copy=False)
@@ -31,6 +35,9 @@ class ProcurementContract(models.Model):
     author_id = fields.Many2one(
         'res.users', string="Author", default=lambda self: self.env.user, readonly=True,
         copy=False, ondelete='restrict')
+    revised_by_id = fields.Many2one(
+        'res.users', string="Revised by", readonly=True, copy=False, ondelete='restrict',
+        help="Who made the changes of the version in preparation; empty for the first version.")
     approved_by_id = fields.Many2one('res.users', string="Approved by", readonly=True, copy=False, ondelete='restrict')
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -49,7 +56,8 @@ class ProcurementContract(models.Model):
     notice_date = fields.Date(compute='_compute_notice_date', store=True)
     currency_id = fields.Many2one(
         'res.currency', required=True, default=lambda self: self.env.company.currency_id)
-    payment_term_id = fields.Many2one('account.payment.term', string="Payment terms", ondelete='restrict')
+    payment_term_id = fields.Many2one(
+        'account.payment.term', string="Payment terms", ondelete='restrict', check_company=True)
     scope_kind = fields.Selection([
         ('products', 'Products'),
         ('categories', 'Product categories'),
@@ -95,20 +103,42 @@ class ProcurementContract(models.Model):
             vals['state'] = 'draft'
             vals['version'] = 1
             vals['author_id'] = self.env.user.id
-            vals.pop('approved_by_id', None)
-            if vals.get('name', 'New') == 'New':
-                vals['name'] = self.env['ir.sequence'].next_by_code('procurement.contract') or 'New'
+            for name in ('approved_by_id', 'revised_by_id', 'version_ids'):
+                vals.pop(name, None)
+            vals['name'] = self.env['ir.sequence'].next_by_code('procurement.contract') or 'New'
         return super().create(vals_list)
 
     def write(self, vals):
-        """Refuse a change of the terms of a contract that is waiting for approval or in force.
+        """Refuse a change of the workflow fields, and of the terms outside a draft or a revision.
 
-        Requirements: FR-SPM-0062, FR-SPM-0065
+        Requirements: FR-SPM-0062, FR-SPM-0064, FR-SPM-0065
+        The number, state, authors, approver and version change only through the workflow actions
+        and the daily job; the company only while the contract is a draft.
         """
-        if set(vals) & set(contract_service.TERM_FIELDS):
-            if any(contract.state not in EDITABLE_STATES for contract in self):
-                raise UserError(self.env._("The terms of a contract can only be changed in a draft or a revision."))
+        if set(vals) & set(LIFECYCLE_FIELDS):
+            raise UserError(self.env._("The state, the authors and the version of a contract change through its actions."))
+        guarded = set(contract_service.TERM_FIELDS) | {'partner_id'}
+        if set(vals) & guarded and any(contract.state not in EDITABLE_STATES for contract in self):
+            raise UserError(self.env._("The terms of a contract can only be changed in a draft or a revision."))
+        if 'company_id' in vals and any(contract.state != 'draft' for contract in self):
+            raise UserError(self.env._("The company of a contract can only be changed in a draft."))
         return super().write(vals)
+
+    def _spm_write_lifecycle(self, vals):
+        """Write the workflow fields (the actions and the daily job only), tracking included."""
+        return super().write(vals)
+
+    def unlink(self):
+        """Refuse the deletion of a contract that left the draft, or whose lines were ordered from.
+
+        Requirements: FR-SPM-0065
+        """
+        if any(contract.state != 'draft' for contract in self):
+            raise UserError(self.env._("Only a draft contract can be deleted."))
+        # sudo: a contract manager may lack the right to read purchase orders; only a count is read
+        if self.env['purchase.order.line'].sudo().search_count([('spm_contract_line_id.contract_id', 'in', self.ids)]):
+            raise UserError(self.env._("Orders were placed under this contract, it cannot be deleted."))
+        return super().unlink()
 
     def _spm_is_admin(self):
         return self.env.user.has_group(ADMIN_GROUP) or self.env.user.has_group('base.group_system')
@@ -127,9 +157,7 @@ class ProcurementContract(models.Model):
         for contract in self:
             if contract.state not in EDITABLE_STATES:
                 raise UserError(self.env._("Only a draft contract or a revision is sent to approval."))
-            if not contract.line_ids and contract.scope_kind != 'service':
-                raise UserError(self.env._("Add at least one line to the contract."))
-        self.write({'state': 'to_approve'})
+        self._spm_write_lifecycle({'state': 'to_approve'})
         return True
 
     def action_spm_approve(self):
@@ -145,17 +173,16 @@ class ProcurementContract(models.Model):
         for contract in self:
             if contract.state != 'to_approve':
                 raise UserError(self.env._("Only a contract waiting for approval is approved."))
-            if contract.author_id == self.env.user and not self._spm_is_admin():
+            if self.env.user in (contract.author_id | contract.revised_by_id) and not self._spm_is_admin():
                 raise UserError(self.env._("Another manager must approve this contract."))
             revising = contract.version_ids.filtered(lambda version: version.version == contract.version)
             state = 'active' if contract.date_start <= today else 'approved'
             values = {'state': state, 'approved_by_id': self.env.user.id}
             if revising:
                 values['version'] = contract.version + 1
-            contract.write(values)
-            if state == 'active':
-                audit.log(self.env, 'contract', contract, {}, {'version': contract.version},
-                          'revised' if revising else 'activated')
+            contract._spm_write_lifecycle(values)
+            audit.log(self.env, 'contract', contract, {}, {'version': contract.version},
+                      'revised' if revising else 'activated' if state == 'active' else 'approved')
         return True
 
     def action_spm_revise(self):
@@ -174,24 +201,70 @@ class ProcurementContract(models.Model):
                 'contract_id': contract.id,
                 'version': contract.version,
                 'kind': 'revision',
-                'author_id': self.env.user.id,
+                'author_id': (contract.revised_by_id or contract.author_id).id,
                 'approved_by_id': contract.approved_by_id.id,
                 'date_start': contract.date_start,
                 'date_end': contract.date_end,
                 'terms': contract_service.build_terms(contract),
             })
-            contract.write({'state': 'revision', 'author_id': self.env.user.id})
+            contract._spm_write_lifecycle({'state': 'revision', 'revised_by_id': self.env.user.id})
         return True
 
     @api.model
-    def _spm_update_states(self):
-        """Daily step: an approved contract becomes Active at its start date, an ended one Expired.
+    def _spm_collect_due(self):
+        """Return the contracts to move on today: approved ones at their start, active ones past their end.
 
         Requirements: FR-SPM-0064
         """
         today = fields.Date.context_today(self)
-        starting = self.search([('state', '=', 'approved'), ('date_start', '<=', today)])
-        starting.write({'state': 'active'})
-        for contract in starting:
-            audit.log(self.env, 'contract', contract, {}, {'version': contract.version}, 'activated')
-        self.search([('state', '=', 'active'), ('date_end', '<', today)]).write({'state': 'expired'})
+        return self.search([
+            '|', '&', ('state', '=', 'approved'), ('date_start', '<=', today),
+            '&', ('state', '=', 'active'), ('date_end', '<', today)], order='id')
+
+    def _spm_advance_state(self):
+        """Make an approved contract Active at its start date, an active one Expired after its end.
+
+        Requirements: FR-SPM-0064
+        Returns the number of notifications sent (none).
+        """
+        self.ensure_one()
+        if self.state == 'approved':
+            self._spm_write_lifecycle({'state': 'active'})
+            audit.log(self.env, 'contract', self, {}, {'version': self.version}, 'activated')
+        else:
+            self._spm_write_lifecycle({'state': 'expired'})
+        return 0
+
+    @api.model
+    def _spm_update_states(self):
+        """Run the daily step of the contracts in one go (the scheduled job runs it record by record).
+
+        Requirements: FR-SPM-0064
+        """
+        for contract in self._spm_collect_due():
+            contract._spm_advance_state()
+
+
+class ProcurementJob(models.Model):  # sdd-allow: model-split the job runner is extended per code by the task that owns the job (procurement_job.py, not a file of this task)
+    """The daily start and expiry of contracts runs as a job of the app (ADR-SPM-007).
+
+    Requirements: FR-SPM-0064, FR-SPM-0096
+    """
+    _inherit = 'procurement.job'
+
+    code = fields.Selection(selection_add=[('contract_states', 'Contract start and expiry')],
+        ondelete={'contract_states': 'cascade'})
+
+    def _spm_collect_contract_states(self):
+        """Return the contracts due today (see ``procurement.contract._spm_collect_due``).
+
+        Requirements: FR-SPM-0064
+        """
+        return self.env['procurement.contract']._spm_collect_due()
+
+    def _spm_process_contract_states(self, contract):
+        """Move one contract on and return the notifications sent.
+
+        Requirements: FR-SPM-0064
+        """
+        return contract._spm_advance_state()

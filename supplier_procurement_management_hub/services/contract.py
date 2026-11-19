@@ -4,6 +4,7 @@ Requirements: FR-SPM-0065
 """
 from markupsafe import Markup, escape
 
+EDITABLE_STATES = ('draft', 'revision')
 TERM_FIELDS = (
     'reference', 'date_start', 'date_end', 'notice_days', 'currency_id', 'payment_term_id',
     'scope_kind', 'product_category_ids', 'service_description', 'ceiling_value', 'ceiling_qty',
@@ -35,45 +36,74 @@ def build_terms(contract):
     contract.ensure_one()
     terms = {name: _plain(contract, name) for name in TERM_FIELDS}
     terms['lines'] = [
-        {name: _plain(line, name) for name in LINE_FIELDS}
+        dict({name: _plain(line, name) for name in LINE_FIELDS}, id=line.id)
         for line in contract.line_ids.sorted('id')
     ]
     return terms
 
 
-def _label(env, model, value):
-    """Return the display name of a record id, or the plain value."""
-    if model and value:
-        record = env[model].browse(value).exists()
-        return record.display_name if record else value
-    return value
+def _ids(value):
+    """Return the record ids held by a snapshot value of a relational field."""
+    return value if isinstance(value, list) else [value] if value else []
+
+
+def _labels(env, wanted):
+    """Return the display names of ``wanted`` ({model: ids}) with one read per model."""
+    names = {}
+    for model, ids in wanted.items():
+        for record in env[model].browse(sorted(ids)).exists():
+            names[model, record.id] = record.display_name
+    return names
+
+
+def _show(names, model, value):
+    """Return the text of a snapshot value: names of the records of a relation, else the value."""
+    if not model:
+        return value
+    return ", ".join(names.get((model, id_), str(id_)) for id_ in _ids(value))
+
+
+def _line_changes(old_lines, new_lines):
+    """Pair the lines of two snapshots by line id; a line seen once is added or removed."""
+    old_by_id = {line.get('id'): line for line in old_lines}
+    pairs = [(old_by_id.pop(line.get('id'), {}), line) for line in new_lines]
+    return [(line, {}) for line in old_by_id.values()] + pairs
 
 
 def diff_rows(env, old, new):
     """Return ``(label, before, after)`` for every term that differs between two snapshots.
 
     Requirements: FR-SPM-0065
+    Lines are paired by their id, so a removed line is a removal and never a price change.
     """
-    rows = []
+    raw = []
     contract_fields = env['procurement.contract']._fields
     for name in TERM_FIELDS:
         if old.get(name) != new.get(name):
             field = contract_fields[name]
-            comodel = field.comodel_name if field.relational else None
-            rows.append((field.string, _label(env, comodel, old.get(name)),
-                         _label(env, comodel, new.get(name))))
-    old_lines, new_lines = old.get('lines', []), new.get('lines', [])
+            raw.append((field.string, field.comodel_name if field.relational else None,
+                        old.get(name), new.get(name)))
     line_fields = env['procurement.contract.line']._fields
-    for index in range(max(len(old_lines), len(new_lines))):
-        before = old_lines[index] if index < len(old_lines) else {}
-        after = new_lines[index] if index < len(new_lines) else {}
-        item = _label(env, 'product.product', (after or before).get('product_id')) or env._("Line")
+    for before, after in _line_changes(old.get('lines', []), new.get('lines', [])):
+        product = (after or before).get('product_id')
         for name in LINE_FIELDS:
             if before.get(name) != after.get(name):
                 field = line_fields[name]
-                comodel = field.comodel_name if field.relational else None
-                rows.append((f"{item}: {field.string}", _label(env, comodel, before.get(name)),
-                             _label(env, comodel, after.get(name))))
+                raw.append(((product, field.string), field.comodel_name if field.relational else None,
+                            before.get(name), after.get(name)))
+    wanted = {}
+    for label, model, before, after in raw:
+        if model:
+            wanted.setdefault(model, set()).update(_ids(before) + _ids(after))
+        if isinstance(label, tuple) and label[0]:
+            wanted.setdefault('product.product', set()).add(label[0])
+    names = _labels(env, wanted)
+    rows = []
+    for label, model, before, after in raw:
+        if isinstance(label, tuple):
+            item = names.get(('product.product', label[0])) or env._("Line")
+            label = f"{item}: {label[1]}"
+        rows.append((label, _show(names, model, before), _show(names, model, after)))
     return rows
 
 

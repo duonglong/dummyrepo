@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-EDITABLE_STATES = ('draft', 'revision')
+from ..services.contract import EDITABLE_STATES
 
 
 class ProcurementContractLine(models.Model):
@@ -12,11 +12,12 @@ class ProcurementContractLine(models.Model):
     _name = 'procurement.contract.line'
     _description = 'Purchase Contract Line'
     _order = 'contract_id, id'
+    _check_company_auto = True
 
     contract_id = fields.Many2one('procurement.contract', required=True, ondelete='cascade', index=True)
     company_id = fields.Many2one(related='contract_id.company_id', store=True, index=True)
     currency_id = fields.Many2one(related='contract_id.currency_id')
-    product_id = fields.Many2one('product.product', ondelete='restrict')
+    product_id = fields.Many2one('product.product', ondelete='restrict', check_company=True)
     product_category_id = fields.Many2one('product.category', string="Product category", ondelete='restrict')
     price_unit = fields.Monetary(string="Unit price", currency_field='currency_id')
     uom_id = fields.Many2one(
@@ -66,18 +67,30 @@ class ProcurementContractLine(models.Model):
         lines._spm_check_editable()
         return lines
 
+    def _spm_check_not_ordered(self):
+        """Refuse to drop or re-target a line that orders were placed from (their link and use would be lost)."""
+        # sudo: a contract manager may lack the right to read purchase orders; only a count is read
+        if self.env['purchase.order.line'].sudo().search_count([('spm_contract_line_id', 'in', self.ids)]):
+            raise UserError(self.env._("Orders were placed from this line, it cannot be removed or given another product."))
+
     def write(self, vals):
-        """Requirements: FR-SPM-0063"""
+        """Requirements: FR-SPM-0063, FR-SPM-0065"""
         self._spm_check_editable()
+        if 'product_id' in vals or 'product_category_id' in vals:
+            self.filtered(lambda line: any(
+                line[name].id != vals[name] for name in ('product_id', 'product_category_id') if name in vals
+            ))._spm_check_not_ordered()
         return super().write(vals)
 
     def unlink(self):
+        """Requirements: FR-SPM-0065"""
         self._spm_check_editable()
+        self._spm_check_not_ordered()
         return super().unlink()
 
 
 class PurchaseOrderLine(models.Model):
-    """Order line linked to the contract line it is bought under (built for T-0xx FR-SPM-0107).
+    """Order line linked to the contract line it is bought under (FR-SPM-0107).
 
     Requirements: BR-SPM-0001, FR-SPM-0107
     """
