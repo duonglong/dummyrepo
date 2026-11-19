@@ -36,4 +36,12 @@
         <field name="operation">crud</field>
         <field name="domain">['|', ('move_type', 'not in', ('in_invoice', 'in_refund', 'in_receipt')), '!', ('partner_id.commercial_partner_id.spm_status_kind', '=', 'blocked')] if user.share else []</field>
     </record>
+    <!-- Requirements: FR-SPM-0057 (a supplier portal user reads the delivery history of its own orders) -->
+    <record id="access_spm_delivery_event_portal" model="ir.access">
+        <field name="name">Delivery events portal: own orders</field>
+        <field name="model_id" ref="model_procurement_delivery_event"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('order_id.partner_id.commercial_partner_id', '=', user.commercial_partner_id.id), ('order_id.partner_id.commercial_partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
 </odoo>
