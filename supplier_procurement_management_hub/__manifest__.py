@@ -39,6 +39,8 @@
         'views/procurement_questionnaire_views.xml',
         'views/procurement_job_views.xml',
         'views/procurement_sourcing_event_views.xml',
+        'views/procurement_sourcing_response_views.xml',
+        'views/portal_quotation_templates.xml',
         'views/procurement_contract_views.xml',
     ],
     'license': 'LGPL-3',

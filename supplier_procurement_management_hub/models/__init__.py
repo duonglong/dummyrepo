@@ -37,6 +37,8 @@ from . import procurement_sourcing_criterion
 from . import procurement_sourcing_event
 from . import procurement_sourcing_event_line
 from . import procurement_sourcing_response
+from . import procurement_sourcing_response_version
+from . import ir_attachment
 from . import procurement_contract
 from . import procurement_contract_line
 from . import procurement_contract_version

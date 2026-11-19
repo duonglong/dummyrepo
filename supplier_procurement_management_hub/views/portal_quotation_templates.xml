@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0017, FR-SPM-0020, FR-SPM-0021, FR-SPM-0022 -->
+    <template id="portal_quotation" name="Supplier portal: quotation">
+        <t t-call="portal.portal_layout">
+            <div class="container py-3" id="spm_portal_quotation">
+                <h1 class="h3"><span t-out="event['name']"/> <span t-out="event['title']"/></h1>
+                <p>
+                    <span class="badge text-bg-secondary" t-out="deadline" t-options="{'widget': 'datetime'}"/>
+                    <span class="badge text-bg-success" t-if="saved">Saved</span>
+                    <span class="badge text-bg-warning" t-if="not accepting">Closed</span>
+                </p>
+                <div class="alert alert-danger" role="alert" t-foreach="errors" t-as="error" t-out="error"/>
+                <div t-if="event['terms']" t-out="event['terms']"/>
+                <ul t-if="files">
+                    <li t-foreach="files" t-as="file">
+                        <a t-attf-href="/my/procurement/quote-file/#{file['id']}" t-out="file['name']"/>
+                    </li>
+                </ul>
+                <form t-attf-action="/my/procurement/rfq/#{event['id']}/submit" method="post"
+                      enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Item</th><th>Quantity</th>
+                                <th>Price (<t t-out="event['currency']"/>)</th>
+                                <th>Discount (%)</th><th>Lead time (days)</th>
+                            </tr>
+                        </thead>
+                        <tr t-foreach="lines" t-as="line">
+                            <td t-out="line['name']"/>
+                            <td><span t-out="line['quantity']"/> <span t-out="line['uom']"/></td>
+                            <td><input type="text" inputmode="decimal" class="form-control"
+                                       t-attf-name="price_unit_#{line['id']}" t-att-value="line['price_unit']"
+                                       t-att-disabled="None if accepting else 'disabled'"/></td>
+                            <td><input type="text" inputmode="decimal" class="form-control"
+                                       t-attf-name="discount_#{line['id']}" t-att-value="line['discount']"
+                                       t-att-disabled="None if accepting else 'disabled'"/></td>
+                            <td><input type="number" min="0" class="form-control"
+                                       t-attf-name="lead_time_#{line['id']}" t-att-value="line['lead_time_days']"
+                                       t-att-disabled="None if accepting else 'disabled'"/></td>
+                        </tr>
+                    </table>
+                    <div class="row g-3" t-if="accepting">
+                        <div class="col-md-4">
+                            <label class="form-label" for="spm_validity_date">Valid until</label>
+                            <input type="date" id="spm_validity_date" name="validity_date" class="form-control"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="spm_warranty_months">Warranty (months)</label>
+                            <input type="number" min="0" id="spm_warranty_months" name="warranty_months" class="form-control"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="spm_payment_days">Payment (days)</label>
+                            <input type="number" min="0" id="spm_payment_days" name="payment_days" class="form-control"/>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="spm_notes">Notes</label>
+                            <textarea id="spm_notes" name="notes" class="form-control" rows="2"/>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="spm_attachments">Files</label>
+                            <input type="file" id="spm_attachments" name="attachments" class="form-control"
+                                   multiple="multiple" accept=".pdf,.png,.jpg,.jpeg"/>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Submit</button>
+                        </div>
+                    </div>
+                </form>
+                <h2 class="h5 mt-4" t-if="versions">Versions</h2>
+                <table class="table table-sm" t-if="versions">
+                    <tr t-foreach="versions" t-as="version">
+                        <td t-out="version['version']"/>
+                        <td t-out="version['date']" t-options="{'widget': 'datetime'}"/>
+                        <td t-out="version['total']" t-options="{'widget': 'float', 'precision': 2}"/>
+                        <td><span class="badge text-bg-info" t-if="version['current']">Current</span></td>
+                        <td><span class="badge text-bg-light" t-if="version['by_buyer']">Entered by the buyer</span></td>
+                    </tr>
+                </table>
+            </div>
+        </t>
+    </template>
+</odoo>
