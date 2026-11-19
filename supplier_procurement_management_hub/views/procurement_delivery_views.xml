@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0055, FR-SPM-0056, FR-SPM-0057, FR-SPM-0059 -->
+    <record id="procurement_delivery_commitment_view_list" model="ir.ui.view">
+        <field name="name">procurement.delivery.commitment.list</field>
+        <field name="model">procurement.delivery.commitment</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" decoration-danger="overdue_days &gt; 0" decoration-warning="is_partial">
+                <field name="order_id"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="expected_date" optional="show"/>
+                <field name="confirmed_date" optional="show"/>
+                <field name="actual_date" optional="show"/>
+                <field name="ordered_qty"/>
+                <field name="received_qty"/>
+                <field name="remaining_qty"/>
+                <field name="overdue_days"/>
+                <field name="is_partial" optional="show"/>
+                <field name="has_backorder" optional="show"/>
+                <field name="state" widget="badge" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_delivery_commitment_view_form" model="ir.ui.view">
+        <field name="name">procurement.delivery.commitment.form</field>
+        <field name="model">procurement.delivery.commitment</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="order_id"/>
+                            <field name="order_line_id"/>
+                            <field name="partner_id"/>
+                            <field name="product_id"/>
+                        </group>
+                        <group>
+                            <field name="expected_date"/>
+                            <field name="confirmed_date"/>
+                            <field name="agreed_date"/>
+                            <field name="actual_date"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="ordered_qty"/>
+                            <field name="received_qty"/>
+                            <field name="remaining_qty"/>
+                        </group>
+                        <group>
+                            <field name="overdue_days"/>
+                            <field name="is_partial"/>
+                            <field name="has_backorder"/>
+                        </group>
+                    </group>
+                    <field name="receipt_ids" widget="many2many_tags"/>
+                    <field name="schedule_ids">
+                        <list editable="bottom" decoration-danger="overdue_days &gt; 0">
+                            <field name="date"/>
+                            <field name="quantity"/>
+                            <field name="received_qty"/>
+                            <field name="remaining_qty"/>
+                            <field name="overdue_days"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_delivery_commitment_view_search" model="ir.ui.view">
+        <field name="name">procurement.delivery.commitment.search</field>
+        <field name="model">procurement.delivery.commitment</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="order_id"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <filter name="overdue" string="Overdue" domain="[('is_overdue', '=', True)]"/>
+                <separator/>
+                <filter name="partial" string="Partial" domain="[('is_partial', '=', True)]"/>
+                <filter name="backorder" string="Backorder" domain="[('has_backorder', '=', True)]"/>
+                <separator/>
+                <filter name="open" string="Open" domain="[('state', '=', 'open')]"/>
+                <group>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_order" string="Order" context="{'group_by': 'order_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_delivery_commitment_action" model="ir.actions.act_window">
+        <field name="name">Deliveries</field>
+        <field name="res_model">procurement.delivery.commitment</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+        <field name="help">Confirming an order with goods lines creates its delivery commitments here.</field>
+    </record>
+    <record id="procurement_delivery_event_view_list" model="ir.ui.view">
+        <field name="name">procurement.delivery.event.list</field>
+        <field name="model">procurement.delivery.event</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="date"/>
+                <field name="kind"/>
+                <field name="shipment_reference"/>
+                <field name="carrier"/>
+                <field name="eta"/>
+                <field name="origin"/>
+                <field name="user_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_delivery_event_view_form" model="ir.ui.view">
+        <field name="name">procurement.delivery.event.form</field>
+        <field name="model">procurement.delivery.event</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="order_id"/>
+                            <field name="kind"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="shipment_reference"/>
+                            <field name="carrier"/>
+                            <field name="eta"/>
+                        </group>
+                    </group>
+                    <field name="note"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="purchase_order_view_form_delivery" model="ir.ui.view">
+        <field name="name">purchase.order.form.spm.delivery</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Delivery" name="spm_delivery" invisible="state not in ('purchase', 'done')">
+                    <field name="spm_commitment_ids" readonly="1">
+                        <list decoration-danger="overdue_days &gt; 0" decoration-warning="is_partial">
+                            <field name="product_id"/>
+                            <field name="agreed_date"/>
+                            <field name="ordered_qty"/>
+                            <field name="received_qty"/>
+                            <field name="remaining_qty"/>
+                            <field name="overdue_days"/>
+                        </list>
+                    </field>
+                    <field name="spm_delivery_event_ids" context="{'default_order_id': id}"
+                           groups="group_spm_buyer,group_spm_manager,group_spm_admin"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+    <menuitem id="menu_spm_deliveries" name="Deliveries" parent="menu_spm_root" sequence="46"
+              action="procurement_delivery_commitment_action"
+              groups="group_spm_buyer,group_spm_finance,group_spm_auditor,group_spm_manager,group_spm_admin"/>
+</odoo>

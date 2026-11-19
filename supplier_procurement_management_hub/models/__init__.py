@@ -15,6 +15,9 @@ from . import res_config_settings
 from . import res_partner
 from . import procurement_override
 from . import purchase_order
+from . import procurement_delivery_commitment
+from . import procurement_delivery_schedule
+from . import procurement_delivery_event
 from . import procurement_matching_policy
 from . import procurement_matching_tolerance
 from . import procurement_exception_route
@@ -32,12 +35,14 @@ from . import procurement_request_line
 from . import portal_wizard
 from . import procurement_job
 from . import procurement_job_run
+from . import procurement_contract_line
+from . import procurement_contract
+from . import procurement_contract_version
 from . import procurement_sourcing_template
 from . import procurement_sourcing_criterion
 from . import procurement_sourcing_event
 from . import procurement_sourcing_event_line
 from . import procurement_sourcing_response
-from . import procurement_contract
-from . import procurement_contract_line
-from . import procurement_contract_version
 from . import procurement_sourcing_question
+from . import purchase_order_line
+from . import product_supplierinfo

@@ -185,3 +185,14 @@ class TestSupplierMessages(SpmPortalCase):
         bodies = ' '.join(chatter.filtered(lambda m: m.res_id == order.id and m.model == order._name).mapped('body'))
         self.assertIn('Delivery planned', bodies)
         self.assertNotIn('Colleagues only', bodies)
+
+    def test_bug_b_0251_order_page_filter_and_line_commitment_live_together(self):
+        """Regression test for B-0251: the order model keeps the page's message filter and the
+        delivery commitment of its lines after the merge with the epic.
+
+        Requirements: FR-SPM-0026, FR-SPM-0055
+        """
+        order = self._order(self.acme)
+        self.assertIn('spm_commitment_ids', order.order_line._fields)
+        self.assertIn('spm_contract_warning', order.order_line._fields)
+        self.assertTrue(order.with_user(self.acme_user)._get_share_message_domain())

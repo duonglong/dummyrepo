@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import api, fields, models
 
 from ..services import portal_access, supplier_control
 
@@ -9,6 +9,36 @@ class PurchaseOrder(models.Model):
     Requirements: BR-SPM-0006, FR-SPM-0013
     """
     _inherit = 'purchase.order'
+
+    spm_delivery_event_ids = fields.One2many('procurement.delivery.event', 'order_id', string="Delivery history")
+    spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_id', string="Delivery commitments")
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Give the goods lines of an order created already confirmed their delivery commitment.
+
+        Requirements: FR-SPM-0055
+        """
+        orders = super().create(vals_list)
+        orders._spm_ensure_commitments()
+        return orders
+
+    def write(self, vals):
+        """Give the goods lines of an order its delivery commitments when it becomes confirmed.
+
+        Requirements: FR-SPM-0055
+        """
+        result = super().write(vals)
+        if vals.get('state') == 'purchase':
+            self._spm_ensure_commitments()
+        return result
+
+    def _spm_ensure_commitments(self):
+        """Create the missing delivery commitment of each goods line of the confirmed orders.
+
+        Requirements: FR-SPM-0055, FR-SPM-0061
+        """
+        self.order_line._spm_ensure_commitment()
 
     def _spm_check_supplier(self):
         """Refuse when the supplier of an order is not allowed to be confirmed with.
@@ -62,3 +92,36 @@ class PurchaseOrder(models.Model):
         return portal_access.supplier_message_domain(
             self.env, super()._get_share_message_domain(),
             self.sudo().partner_id.commercial_partner_id)  # sudo: ids of the page's own supplier only
+
+
+class PurchaseOrderLine(models.Model):
+    """Order line carrying its delivery commitment.
+
+    Requirements: FR-SPM-0055
+    """
+    _inherit = 'purchase.order.line'
+
+    spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_line_id')
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Give a goods line added to a confirmed order its delivery commitment.
+
+        Requirements: FR-SPM-0055
+        """
+        lines = super().create(vals_list)
+        lines._spm_ensure_commitment()
+        return lines
+
+    def _spm_ensure_commitment(self):
+        """Create the missing commitment of the goods lines of confirmed orders; nothing else is written.
+
+        Requirements: FR-SPM-0055, FR-SPM-0061
+        """
+        lines = self.filtered(
+            lambda line: line.order_id.state == 'purchase' and not line.display_type
+            and line.product_id.type == 'consu' and not line.spm_commitment_ids)
+        if lines:
+            # a Buyer confirming an order has no create right on commitments, which only the system creates
+            self.env['procurement.delivery.commitment'].sudo().create(
+                [{'order_line_id': line.id} for line in lines])

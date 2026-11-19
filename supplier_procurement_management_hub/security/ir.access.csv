@@ -190,3 +190,25 @@ access_spm_sourcing_question_finance,Sourcing question finance,procurement.sourc
 access_spm_sourcing_question_auditor,Sourcing question auditor,procurement.sourcing.question,group_spm_auditor,r,
 access_spm_sourcing_question_admin,Sourcing question admin,procurement.sourcing.question,group_spm_admin,crud,
 spm_sourcing_question_comp_rule,procurement.sourcing.question: allowed companies,procurement.sourcing.question,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_contract_price_update_manager,Contract vendor price update manager,procurement.contract.price.update,group_spm_manager,crud,
+access_spm_contract_price_update_line_manager,Contract vendor price update row manager,procurement.contract.price.update.line,group_spm_manager,crud,
+access_spm_contract_renew_buyer,Contract renewal dialog,procurement.contract.renew,group_spm_buyer,crud,
+access_spm_scrap_reason_tag_buyer,Scrap reason tags read by buyers (returns to suppliers),stock.scrap.reason.tag,group_spm_buyer,r,
+access_spm_commitment_buyer,Delivery commitment buyer,procurement.delivery.commitment,group_spm_buyer,ru,
+access_spm_commitment_manager,Delivery commitment manager,procurement.delivery.commitment,group_spm_manager,ru,
+access_spm_commitment_finance,Delivery commitment finance,procurement.delivery.commitment,group_spm_finance,r,
+access_spm_commitment_auditor,Delivery commitment auditor,procurement.delivery.commitment,group_spm_auditor,r,
+access_spm_commitment_admin,Delivery commitment admin,procurement.delivery.commitment,group_spm_admin,crud,
+spm_commitment_comp_rule,procurement.delivery.commitment: allowed companies,procurement.delivery.commitment,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_schedule_buyer,Delivery schedule buyer,procurement.delivery.schedule,group_spm_buyer,crud,
+access_spm_schedule_manager,Delivery schedule manager,procurement.delivery.schedule,group_spm_manager,crud,
+access_spm_schedule_finance,Delivery schedule finance,procurement.delivery.schedule,group_spm_finance,r,
+access_spm_schedule_auditor,Delivery schedule auditor,procurement.delivery.schedule,group_spm_auditor,r,
+access_spm_schedule_admin,Delivery schedule admin,procurement.delivery.schedule,group_spm_admin,crud,
+spm_schedule_comp_rule,procurement.delivery.schedule: allowed companies,procurement.delivery.schedule,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_event_buyer,Delivery event buyer,procurement.delivery.event,group_spm_buyer,cr,
+access_spm_event_manager,Delivery event manager,procurement.delivery.event,group_spm_manager,cr,
+access_spm_event_finance,Delivery event finance,procurement.delivery.event,group_spm_finance,r,
+access_spm_event_auditor,Delivery event auditor,procurement.delivery.event,group_spm_auditor,r,
+access_spm_event_admin,Delivery event admin,procurement.delivery.event,group_spm_admin,crud,
+spm_event_comp_rule,procurement.delivery.event: allowed companies,procurement.delivery.event,,crud,"[('company_id', 'in', company_ids)]"
