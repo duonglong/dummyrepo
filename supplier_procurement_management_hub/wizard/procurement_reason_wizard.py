@@ -17,6 +17,7 @@ class ProcurementReasonWizard(models.TransientModel):
         ('request_changes', 'Request changes on an application'), ('reject', 'Reject an application'),
         ('accept_exception', 'Accept an exception'), ('reject_exception', 'Reject an exception'),
         ('resolve_exception', 'Resolve an exception'), ('not_duplicate', 'Mark a bill as not a duplicate'),
+        ('cancel', 'Cancel a sourcing event'),
     ], required=True)
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
@@ -41,7 +42,19 @@ class ProcurementReasonWizard(models.TransientModel):
             self._spm_review_applications()
         if self.action in ('accept_exception', 'reject_exception', 'resolve_exception', 'not_duplicate'):
             self._spm_decide_matching()
+        if self.action == 'cancel':
+            self._spm_cancel_events()
         return {'type': 'ir.actions.act_window_close'}
+
+    def _spm_cancel_events(self):
+        """Forward the reason to the cancellation of the sourcing events.
+
+        Requirements: FR-SPM-0042
+        Rights, state and the required reason are those of the event's action.
+        """
+        if self.res_model != 'procurement.sourcing.event':
+            raise UserError(self.env._("This action only applies to sourcing events."))
+        self.env[self.res_model].browse(self.res_ids).action_spm_cancel(self.reason)
 
     def _spm_decide_matching(self):
         """Forward the comment to the decision of the exceptions or reconciliations.

@@ -155,3 +155,20 @@ def order_rows(env, orders):
             'payment': payment_labels.get(bill.payment_state, ''),
         } for bill in bills.filtered(lambda bill: bill.id in order_bill_ids[order.id])],
     } for order in orders]
+
+
+def quote_rows(env, responses):
+    """One row per quote request the supplier is invited to: number, title, deadline and state.
+
+    Requirements: FR-SPM-0016, FR-SPM-0032
+    The responses are already the user's own (portal rule); the event is read elevated for
+    these four plain values only, as the portal user has no right on the event record.
+    """
+    state_labels = dict(env['procurement.sourcing.event']._fields['state']._description_selection(env))
+    return [{
+        'response': response,
+        'name': event.name,
+        'title': event.title,
+        'deadline': event.deadline,
+        'state': state_labels.get(event.state, ''),
+    } for response in responses for event in response.event_id.sudo()]  # sudo: four plain values of an invited event

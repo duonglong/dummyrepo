@@ -8,6 +8,7 @@
         'portal',
         'purchase',
         'hr',
+        'mail_tracking',
     ],
     'data': [
         'security/procurement_security.xml',
@@ -19,6 +20,7 @@
         'data/mail_templates_onboarding.xml',
         'data/procurement_request_data.xml',
         'data/ir_cron.xml',
+        'data/mail_templates_sourcing.xml',
         'views/procurement_audit_views.xml',
         'views/res_config_settings_views.xml',
         'views/procurement_config_views.xml',
@@ -34,6 +36,7 @@
         'views/procurement_request_views.xml',
         'views/procurement_questionnaire_views.xml',
         'views/procurement_job_views.xml',
+        'views/procurement_sourcing_event_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

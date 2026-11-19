@@ -32,3 +32,8 @@ from . import procurement_request_line
 from . import portal_wizard
 from . import procurement_job
 from . import procurement_job_run
+from . import procurement_sourcing_template
+from . import procurement_sourcing_criterion
+from . import procurement_sourcing_event
+from . import procurement_sourcing_event_line
+from . import procurement_sourcing_response
