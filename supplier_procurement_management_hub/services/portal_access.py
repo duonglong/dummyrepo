@@ -17,6 +17,7 @@ PROFILE_TEXT_MAX = 1000
 BANK_FIELDS = {
     'bank_account_number': 'account_number', 'bank_name': 'bank_name',
     'bank_bic': 'bank_bic', 'bank_holder': 'holder_name'}
+UPLOAD_KEYS = ('document_type_id', 'issue_date', 'expiry_date', 'file')
 BOOLEAN_TRUE = ('1', 'true', 'on', 'yes')
 BOOLEAN_FALSE = ('0', 'false', 'off', 'no')
 
@@ -227,6 +228,35 @@ def plain_account(number):
     return (number or '').replace(' ', '').upper()
 
 
+def _bank_is_known(supplier, details):
+    """Whether an active account of the supplier already has this number and every given detail.
+
+    Requirements: FR-SPM-0015
+
+    A same number with another holder, bank or BIC is a change; so is an archived number.
+    """
+    number = plain_account(details['account_number'])
+    for bank in supplier.sudo().bank_ids:  # sudo: compare only
+        if plain_account(bank.account_number) != number:
+            continue
+        same_holder = not details['holder_name'] or details['holder_name'] == (bank.holder_name or '')
+        same_bank = not details['bank_name'] or details['bank_name'] == (bank.bank_id.name or '')
+        same_bic = not details['bank_bic'] or details['bank_bic'] == (bank.bank_id.bic or '')
+        if same_holder and same_bank and same_bic:
+            return True
+    return False
+
+
+def log_unknown_keys(env, supplier, post, known, route):
+    """Log the names of the posted keys the route does not know; they are ignored.
+
+    Requirements: FR-SPM-0018
+    """
+    unknown = sorted(key for key in post if key not in known and key != 'csrf_token')
+    if unknown:
+        log(env, 'submit', 'ok', supplier=supplier, detail='%s ignored keys: %s' % (route, ', '.join(unknown)))
+
+
 def update_profile(env, supplier, post):
     """Write the editable fields of the post and hold a bank change; return the refusal texts.
 
@@ -237,7 +267,9 @@ def update_profile(env, supplier, post):
     """
     errors = []
     values = {}
-    for name, field in editable_fields(env).items():
+    editable = editable_fields(env)
+    log_unknown_keys(env, supplier, post, set(editable) | set(BANK_FIELDS), 'profile')
+    for name, field in editable.items():
         if name not in post:
             continue
         try:
@@ -256,8 +288,7 @@ def update_profile(env, supplier, post):
         except (UserError, ValidationError) as error:
             return [str(error)]
     details = bank_details(post)
-    known = {plain_account(bank.account_number) for bank in supplier.sudo().bank_ids}  # sudo: compare only
-    if details and plain_account(details['account_number']) not in known:
+    if details and not _bank_is_known(supplier, details):
         change = env['procurement.supplier.change']._spm_hold_bank_change(supplier, details)
         log(env, 'submit', 'ok', supplier=supplier, record=change, detail='bank change pending')
     log(env, 'submit', 'ok', supplier=supplier, detail='profile')
@@ -290,6 +321,7 @@ def upload_document(env, supplier, post, upload):
 
     Raises ValueError with the refusal text. The document type is searched with the user's own rights.
     """
+    log_unknown_keys(env, supplier, post, UPLOAD_KEYS, 'upload')
     document_type = get_owned(env, 'procurement.document.type', int(post['document_type_id'])
                               if str(post.get('document_type_id', '')).isdigit() else 0)
     if not document_type:

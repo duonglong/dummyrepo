@@ -122,19 +122,32 @@ class ProcurementSupplierChange(models.Model):
         return True
 
     def _spm_apply_bank_change(self):
-        """Create the verified account, ahead of the supplier's earlier ones (called elevated)."""
+        """Make the verified account the supplier's first, trusted account (called elevated).
+
+        Requirements: FR-SPM-0015
+
+        A known number, archived or not, is updated and activated instead of created again:
+        the account number is unique per supplier, archived rows included. The account is
+        created trusted (allow_out_payment): finance verified it, and an untrusted one could
+        never be paid while an older trusted account stays the bill's default.
+        """
         self.ensure_one()
-        Bank = self.env['res.partner.bank']
-        existing = Bank.with_context(active_test=False).search([('partner_id', '=', self.partner_id.id)])
+        Bank = self.env['res.partner.bank'].with_context(active_test=False)
+        existing = Bank.search([('partner_id', '=', self.partner_id.id)])
+        number = self.bank_account_number.replace(' ', '').upper()
         values = {
-            'partner_id': self.partner_id.id,
-            'account_number': self.bank_account_number,
             'holder_name': self.bank_holder or self.partner_id.name,
             'sequence': min(existing.mapped('sequence') or [1]) - 1,
+            'active': True,
+            'allow_out_payment': True,
         }
         if self.bank_name or self.bank_bic:
             domain = [('bic', '=', self.bank_bic)] if self.bank_bic else [('name', '=', self.bank_name)]
             bank = self.env['res.bank'].search(domain, limit=1) or self.env['res.bank'].create({
                 'name': self.bank_name or self.bank_bic, 'bic': self.bank_bic or False})
             values['bank_id'] = bank.id
-        Bank.create(values)
+        known = existing.filtered(lambda row: (row.sanitized_account_number or '').upper() == number)
+        if known:
+            known[:1].write(values)
+        else:
+            Bank.create(dict(values, partner_id=self.partner_id.id, account_number=self.bank_account_number))
