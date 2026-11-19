@@ -32,3 +32,6 @@ from . import procurement_request_line
 from . import portal_wizard
 from . import procurement_job
 from . import procurement_job_run
+from . import procurement_contract
+from . import procurement_contract_line
+from . import procurement_contract_version

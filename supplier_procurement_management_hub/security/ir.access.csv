@@ -136,3 +136,21 @@ access_spm_exception_finance,Procurement Reconciliation Exception finance,procur
 access_spm_exception_auditor,Procurement Reconciliation Exception auditor,procurement.reconciliation.exception,group_spm_auditor,r,
 access_spm_exception_admin,Procurement Reconciliation Exception admin,procurement.reconciliation.exception,group_spm_admin,r,
 spm_exception_comp_rule,procurement.reconciliation.exception: allowed companies,procurement.reconciliation.exception,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_contract_buyer,Purchase contract buyer,procurement.contract,group_spm_buyer,r,
+access_spm_contract_manager,Purchase contract manager,procurement.contract,group_spm_manager,crud,
+access_spm_contract_finance,Purchase contract finance,procurement.contract,group_spm_finance,r,
+access_spm_contract_auditor,Purchase contract auditor,procurement.contract,group_spm_auditor,r,
+access_spm_contract_admin,Purchase contract admin,procurement.contract,group_spm_admin,crud,
+spm_contract_comp_rule,procurement.contract: allowed companies,procurement.contract,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_contract_line_buyer,Purchase contract line buyer,procurement.contract.line,group_spm_buyer,r,
+access_spm_contract_line_manager,Purchase contract line manager,procurement.contract.line,group_spm_manager,crud,
+access_spm_contract_line_finance,Purchase contract line finance,procurement.contract.line,group_spm_finance,r,
+access_spm_contract_line_auditor,Purchase contract line auditor,procurement.contract.line,group_spm_auditor,r,
+access_spm_contract_line_admin,Purchase contract line admin,procurement.contract.line,group_spm_admin,crud,
+spm_contract_line_comp_rule,procurement.contract.line: allowed companies,procurement.contract.line,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_contract_version_buyer,Purchase contract version buyer,procurement.contract.version,group_spm_buyer,r,
+access_spm_contract_version_manager,Purchase contract version manager,procurement.contract.version,group_spm_manager,r,
+access_spm_contract_version_finance,Purchase contract version finance,procurement.contract.version,group_spm_finance,r,
+access_spm_contract_version_auditor,Purchase contract version auditor,procurement.contract.version,group_spm_auditor,r,
+access_spm_contract_version_admin,Purchase contract version admin,procurement.contract.version,group_spm_admin,r,
+spm_contract_version_comp_rule,procurement.contract.version: allowed companies,procurement.contract.version,,crud,"[('company_id', 'in', company_ids)]"

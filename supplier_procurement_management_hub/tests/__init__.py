@@ -37,3 +37,4 @@ from . import test_contract_use_acceptance
 from . import test_delivery_commitment_acceptance
 from . import test_delivery_proposal_acceptance
 from . import test_portal_profile
+from . import test_contract
