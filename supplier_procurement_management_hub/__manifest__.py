@@ -28,6 +28,7 @@
         'views/procurement_supplier_application_review_views.xml',
         'views/onboarding_templates.xml',
         'views/portal_templates.xml',
+        'views/portal_profile_templates.xml',
         'views/procurement_override_views.xml',
         'views/procurement_reconciliation_views.xml',
         'views/procurement_exception_views.xml',
