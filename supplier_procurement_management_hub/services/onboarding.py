@@ -7,6 +7,7 @@ import secrets
 from datetime import timedelta
 
 from odoo import fields
+from odoo.tools import mimetypes
 
 # A link works for 14 days (answer of the administrator, FR-SPM-0001); named once here.
 INVITATION_VALID_DAYS = 14
@@ -83,6 +84,19 @@ def link_state(application, now=None):
 UPLOAD_MAX_MB = 20
 UPLOAD_MAX_BYTES = UPLOAD_MAX_MB * 1024 * 1024
 UPLOAD_MIMETYPES = ('application/pdf', 'image/png', 'image/jpeg')
+
+
+def upload_refusal_text(env):
+    """The refusal of an upload: the allowed formats and the size."""
+    return env._("Only PDF, PNG or JPEG files up to %s MB are accepted.", UPLOAD_MAX_MB)
+
+
+def is_allowed_upload(data):
+    """Whether the content is within the size limit and is, by its content, a PDF, PNG or JPEG.
+
+    Requirements: NFR-SPM-0003
+    """
+    return bool(data) and len(data) <= UPLOAD_MAX_BYTES and mimetypes.guess_mimetype(data) in UPLOAD_MIMETYPES
 
 
 # --- review: approval into one supplier contact (FR-SPM-0005) -----------------------------

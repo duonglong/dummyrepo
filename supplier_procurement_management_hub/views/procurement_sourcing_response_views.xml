@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0021, FR-SPM-0034 -->
+    <record id="procurement_sourcing_response_view_form" model="ir.ui.view">
+        <field name="name">procurement.sourcing.response.form</field>
+        <field name="model">procurement.sourcing.response</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                <header>
+                    <button name="action_spm_open_entry_wizard" type="object" string="Enter quotation"
+                            class="btn-primary" invisible="not id"/>
+                    <button name="action_spm_open_revision_wizard" type="object" string="Request revision"
+                            invisible="not id or state == 'invited'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="invited,submitted"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="event_id"/>
+                            <field name="partner_id"/>
+                        </group>
+                        <group>
+                            <field name="effective_deadline"/>
+                            <field name="reopened_deadline" readonly="True"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <field name="version_ids" readonly="True">
+                        <list>
+                            <field name="version"/>
+                            <field name="submitted_date"/>
+                            <field name="submitted_by_id"/>
+                            <field name="entered_by_buyer"/>
+                            <field name="amount_untaxed"/>
+                            <field name="currency_id" column_invisible="True"/>
+                            <field name="is_current"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="procurement_sourcing_response_version_view_form" model="ir.ui.view">
+        <field name="name">procurement.sourcing.response.version.form</field>
+        <field name="model">procurement.sourcing.response.version</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="response_id"/>
+                            <field name="version"/>
+                            <field name="submitted_date"/>
+                            <field name="submitted_by_id"/>
+                            <field name="entered_by_buyer"/>
+                        </group>
+                        <group>
+                            <field name="currency_id"/>
+                            <field name="validity_date"/>
+                            <field name="payment_term_id"/>
+                            <field name="payment_days"/>
+                            <field name="warranty_months"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list>
+                            <field name="event_line_id"/>
+                            <field name="quantity"/>
+                            <field name="price_unit"/>
+                            <field name="discount"/>
+                            <field name="lead_time_days"/>
+                            <field name="price_subtotal"/>
+                            <field name="currency_id" column_invisible="True"/>
+                        </list>
+                    </field>
+                    <field name="notes"/>
+                    <field name="attachment_ids" widget="many2many_binary"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="procurement_quotation_entry_view_form" model="ir.ui.view">
+        <field name="name">procurement.quotation.entry.form</field>
+        <field name="model">procurement.quotation.entry</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <group>
+                        <field name="response_id"/>
+                        <field name="validity_date"/>
+                    </group>
+                    <group>
+                        <field name="payment_term_id"/>
+                        <field name="payment_days"/>
+                        <field name="warranty_months"/>
+                    </group>
+                </group>
+                <field name="line_ids">
+                    <list editable="bottom" create="0" delete="0">
+                        <field name="event_line_id" column_invisible="1" force_save="1"/>
+                        <field name="name"/>
+                        <field name="quantity"/>
+                        <field name="company_id" column_invisible="1"/>
+                        <field name="quoted"/>
+                        <field name="price_unit"/>
+                        <field name="discount"/>
+                        <field name="tax_ids" widget="many2many_tags"/>
+                        <field name="lead_time_days"/>
+                    </list>
+                </field>
+                <field name="notes" placeholder="Notes"/>
+                <field name="attachment_ids" widget="many2many_binary"/>
+                <footer>
+                    <button name="action_confirm" type="object" string="Enter" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

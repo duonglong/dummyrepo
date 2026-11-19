@@ -43,6 +43,30 @@
         <field name="operation">r</field>
         <field name="domain">['|', '|', ('model', 'not in', ('purchase.order', 'account.move', 'res.partner')), ('partner_ids', 'child_of', user.commercial_partner_id.id), ('author_id', 'child_of', user.commercial_partner_id.id)] if user.share else []</field>
     </record>
+    <!-- Requirements: FR-SPM-0017, FR-SPM-0021 (a supplier portal user reads only the quotation versions of its own responses) -->
+    <record id="access_spm_response_version_portal" model="ir.access">
+        <field name="name">Quotation version portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response_version"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('response_id.partner_id', '=', user.commercial_partner_id.id), ('response_id.partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <record id="access_spm_response_line_portal" model="ir.access">
+        <field name="name">Quotation line portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response_line"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('version_id.response_id.partner_id', '=', user.commercial_partner_id.id), ('version_id.response_id.partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0020, NFR-SPM-0003 (a supplier portal user may make a file of its own that belongs to
+         nothing yet; the quotation then binds it. Native Odoo grants portal users no attachment right.) -->
+    <record id="access_spm_attachment_portal_create" model="ir.access">
+        <field name="name">Attachments: a portal user's own unbound file</field>
+        <field name="model_id" ref="base.model_ir_attachment"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">c</field>
+        <field name="domain">[('res_model', '=', False), ('create_uid', '=', user.id)]</field>
+    </record>
     <!-- Requirements: FR-SPM-0028 (a Blocked supplier's portal users read none of its orders and vendor
          bills, through pages or direct data calls; messages and attachments follow their record) -->
     <record id="access_spm_purchase_order_blocked_supplier" model="ir.access">
