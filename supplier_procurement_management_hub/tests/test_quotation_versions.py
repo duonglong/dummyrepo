@@ -10,7 +10,7 @@ from freezegun import freeze_time
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form
 
-from ..services import onboarding
+from ..services import onboarding, portal_access, sourcing
 from .portal_common import SpmPortalCase
 
 DEADLINE = datetime(2026, 11, 30, 17, 0, 0)
@@ -152,6 +152,16 @@ class TestQuotationVersions(SpmPortalCase):
             'name': 'Sale 5', 'type_tax_use': 'sale', 'amount': 5.0, 'company_id': self.event.company_id.id})
         with self.assertRaises(UserError):
             self._submit(self._offer(tax_ids=[sale_tax.id]))
+
+    def test_a_tax_of_the_parent_company_is_offered_and_accepted_for_a_branch_event(self):
+        """Requirements: FR-SPM-0020 - a branch company uses the purchase taxes of its parent."""
+        parent = self.event.company_id
+        branch = self.env['res.company'].create({'name': 'Branch', 'parent_id': parent.id})
+        tax = self.env['account.tax'].create({
+            'name': 'Parent VAT', 'type_tax_use': 'purchase', 'amount': 8.0, 'company_id': parent.id})
+        self.event.sudo().company_id = branch
+        self.assertIn(tax.id, [t['id'] for t in portal_access.purchase_taxes(self.env, self.event)])
+        sourcing.check_purchase_taxes(self.env, self.event, {tax.id})
 
     def test_buyer_dialog_takes_a_file_the_widget_uploaded_and_a_line_at_zero(self):
         """Requirements: FR-SPM-0034 - Form sets the fields the widget would; the Enter button is checked on screen."""

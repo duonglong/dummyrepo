@@ -436,7 +436,7 @@ def purchase_taxes(env, event):
     """Plain ``{id, name}`` of the purchase taxes of the event's company, for the form's tax choice."""
     # sudo: the purchase taxes of the event's company, offered as plain values to an invited supplier
     taxes = env['account.tax'].sudo().search([
-        ('company_id', '=', event.company_id.id), ('type_tax_use', '=', 'purchase')])
+        *env['account.tax']._check_company_domain(event.company_id), ('type_tax_use', '=', 'purchase')])
     return [{'id': tax.id, 'name': tax.name} for tax in taxes]
 
 

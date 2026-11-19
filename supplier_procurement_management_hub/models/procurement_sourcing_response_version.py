@@ -181,6 +181,6 @@ class ProcurementQuotationEntryLine(models.TransientModel):
     discount = fields.Float(string="Discount (%)")  # sdd-allow: money-float a percentage between 0 and 100, not an amount
     tax_ids = fields.Many2many(
         'account.tax', 'procurement_quotation_entry_line_tax_rel', 'line_id', 'tax_id', string="Taxes",
-        domain="[('type_tax_use', '=', 'purchase'), ('company_id', '=', company_id)]")
+        domain="[('type_tax_use', '=', 'purchase'), ('company_id', 'parent_of', company_id)]")
     company_id = fields.Many2one(related='event_line_id.event_id.company_id')
     lead_time_days = fields.Integer()

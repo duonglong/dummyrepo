@@ -105,7 +105,7 @@ def check_purchase_taxes(env, event, tax_ids):
     """Refuse a tax that is not a purchase tax of the event's company (one search for all lines)."""
     # sudo: only to count the purchase taxes of the event's company the offers name
     if tax_ids and env['account.tax'].sudo().search_count([
-            ('id', 'in', list(tax_ids)), ('company_id', '=', event.company_id.id),
+            ('id', 'in', list(tax_ids)), *env['account.tax']._check_company_domain(event.company_id),
             ('type_tax_use', '=', 'purchase')]) != len(tax_ids):
         raise UserError(env._("A tax of the quotation is not a purchase tax of the company."))
 
