@@ -528,8 +528,11 @@ def check_quote_file(env, attachment_id):
         attachment_id if isinstance(attachment_id, int) and attachment_id > 0 else 0).exists()
     # a shared file is decided by membership in the supplier files of an event the supplier is invited to,
     # never by the file's res_model/res_id (a file added before the event's first save has res_id 0)
-    invited = env[RESPONSE_MODEL].search([('partner_id', '=', supplier.id)])
-    allowed = bool(attachment) and attachment in invited.event_id.sudo().supplier_file_ids
+    # sudo: finds the events that share this file; the supplier's own response (under its rules) decides
+    sharing = env['procurement.sourcing.event'].sudo().search([('supplier_file_ids', '=', attachment.id)]).ids \
+        if attachment else []
+    allowed = bool(sharing) and bool(env[RESPONSE_MODEL].search(
+        [('partner_id', '=', supplier.id), ('event_id', 'in', sharing)], limit=1))
     if not allowed and attachment.res_model == VERSION_MODEL:
         allowed = bool(get_owned(env, VERSION_MODEL, attachment.res_id))
     if not allowed:
