@@ -203,8 +203,21 @@ class TestQuotationVersions(SpmPortalCase):
 
     def test_shared_file_added_before_the_first_save_is_downloadable(self):
         """Requirements: BR-SPM-0003 - a shared file stored with res_id 0 is served by membership, not by res_id."""
-        unbound = self.env['ir.attachment'].create({
+        unbound = self.env['ir.attachment'].with_user(self.buyer).create({
             'name': 'early.pdf', 'raw': b'%PDF-1.4 early', 'res_model': self.event._name, 'res_id': 0})
-        self.event.sudo().supplier_file_ids = unbound
+        self.event.with_user(self.buyer).supplier_file_ids = unbound
         self._login(self.acme_user)
         self.assertEqual(self._get(f'/my/procurement/quote-file/{unbound.id}').status_code, 200)
+
+    def test_shared_file_added_before_the_first_save_is_bound_to_the_event(self):
+        """Requirements: BR-SPM-0003 - a file shared before the first save is bound, so a second buyer sees it."""
+        unbound = self.env['ir.attachment'].with_user(self.buyer).create({
+            'name': 'early2.pdf', 'raw': b'%PDF-1.4 early', 'res_model': self.event._name, 'res_id': 0})
+        self.event.with_user(self.buyer).supplier_file_ids = unbound
+        self.assertEqual((unbound.res_model, unbound.res_id), (self.event._name, self.event.id))
+        self.assertEqual(self.event.with_user(self.buyer2).supplier_file_ids.name, 'early2.pdf')
+        other = self.env['ir.attachment'].with_user(self.buyer).create({
+            'name': 'other.pdf', 'raw': b'%PDF-1.4 o', 'res_model': 'res.partner',
+            'res_id': self.event.company_id.partner_id.id})
+        with self.assertRaises(UserError):
+            self.event.with_user(self.buyer).supplier_file_ids = other
