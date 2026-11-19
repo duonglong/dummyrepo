@@ -145,6 +145,15 @@ class PurchaseOrder(models.Model):
             },
         }
 
+    def _get_share_message_domain(self):
+        """Messages of the portal page: the supplier sees only those to or from its own company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(
+            self.env, super()._get_share_message_domain(),
+            self.sudo().partner_id.commercial_partner_id)  # sudo: ids of the page's own supplier only
+
 
 class PurchaseOrderLine(models.Model):
     """Order line carrying its delivery commitment.

@@ -41,7 +41,7 @@
                 <table class="table table-sm" t-if="quote_rows">
                     <thead><tr><th>Request</th><th>Title</th><th>Deadline</th><th>Status</th></tr></thead>
                     <tr t-foreach="quote_rows" t-as="row">
-                        <td t-out="row['name']"/>
+                        <td><a t-attf-href="/my/procurement/rfq/#{row['event_id']}" t-out="row['name']"/></td>
                         <td t-out="row['title']"/>
                         <td t-out="row['deadline']" t-options="{'widget': 'datetime'}"/>
                         <td t-out="row['state']"/>

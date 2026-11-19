@@ -21,7 +21,8 @@ class ProcurementSourcingEventLine(models.Model):
     quantity = fields.Float(default=1.0, digits='Product Unit', required=True)
     uom_id = fields.Many2one(
         'uom.uom', string="Unit", compute='_compute_uom_id', store=True, readonly=False, required=True)
-    comparison_uom_id = fields.Many2one('uom.uom', string="Comparison unit")
+    comparison_uom_id = fields.Many2one('uom.uom', string="Comparison unit",
+        help="The unit prices are converted to when the comparison is normalized.")
     request_line_ids = fields.Many2many(
         'procurement.request.line', 'procurement_sourcing_event_line_request_line_rel',
         'event_line_id', 'request_line_id', string="Request lines")

@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 
-from ..services import reconciliation
+from ..services import portal_access, reconciliation
 from .procurement_exception_route import EXCEPTION_KINDS
 from .procurement_reconciliation_exception import EXCEPTION_STATES, RELEASING_STATES
 
@@ -126,6 +126,15 @@ class AccountMove(models.Model):
             raise AccessError(self.env._("You are not allowed to run the matching."))
         self._spm_refresh_matching()
         return True
+
+    def _get_share_message_domain(self):
+        """Messages of the portal page: the supplier sees only those to or from its own company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(
+            self.env, super()._get_share_message_domain(),
+            self.sudo().partner_id.commercial_partner_id)  # sudo: ids of the page's own supplier only
 
 
 class AccountMoveLine(models.Model):

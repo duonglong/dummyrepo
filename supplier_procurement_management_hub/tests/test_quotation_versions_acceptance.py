@@ -274,6 +274,9 @@ class TestQuotationPortalAcceptance(SpmPortalCase):
         drawing = self.env['ir.attachment'].create({
             'name': 'drawing.pdf', 'raw': b'%PDF-1.4 drawing', 'mimetype': 'application/pdf',
             'res_model': 'procurement.sourcing.event', 'res_id': self.shared.id})
+        # BR-SPM-0003: only files in the supplier files field of the event are
+        # served to its invited suppliers; the Buyer puts the drawing there.
+        self.shared.write({'supplier_file_ids': [(4, drawing.id)]})
         self._login(self.acme_user)
         response = self._get(f'/my/procurement/quote-file/{drawing.id}')
         self.assertEqual(response.status_code, 200)

@@ -47,5 +47,11 @@ from . import procurement_sourcing_criterion
 from . import procurement_sourcing_event
 from . import procurement_sourcing_event_line
 from . import procurement_sourcing_response
+from . import procurement_sourcing_question
+from . import procurement_sourcing_negotiation
+from . import procurement_comparison
+from . import procurement_comparison_line
+from . import procurement_sourcing_response_version
+from . import ir_attachment
 from . import purchase_order_line
 from . import product_supplierinfo
