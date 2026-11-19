@@ -35,7 +35,8 @@ def _company_amount(order):
 
 def _cumulated_amount(order, period):
     """Return the order's amount plus the same vendor's counted orders of its company in the period."""
-    start, end = _period_bounds(period, _order_day(order))
+    # The period is the current one: an RFQ with a deadline in another month is still counted against today's.
+    start, end = _period_bounds(period, fields.Date.context_today(order))
     # sudo: the evaluating user may see only their own orders, the sum covers every buyer's orders
     # of this vendor and company, which the domain below fixes.
     others = order.sudo().search([

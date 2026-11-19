@@ -12,8 +12,9 @@ class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
     spm_requester_id = fields.Many2one(
-        'res.users', string="Requester", default=lambda self: self.env.user, copy=False, ondelete='restrict',
-        help="The person the approval policies take the department and the managers from.")
+        'res.users', string="Requester", copy=False,
+        help="The person the approval policies take the department and the managers from. "
+             "Empty: the buyer of the order.")
     spm_delivery_event_ids = fields.One2many('procurement.delivery.event', 'order_id', string="Delivery history")
     spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_id', string="Delivery commitments")
 
@@ -23,6 +24,10 @@ class PurchaseOrder(models.Model):
 
         Requirements: FR-SPM-0055
         """
+        # No field default: a default would stamp the installing or system user on existing and replenishment orders.
+        if not self.env.su and self.env.user._is_internal():
+            for vals in vals_list:
+                vals.setdefault('spm_requester_id', self.env.user.id)
         orders = super().create(vals_list)
         orders._spm_ensure_commitments()
         return orders
