@@ -136,6 +136,36 @@ access_spm_exception_finance,Procurement Reconciliation Exception finance,procur
 access_spm_exception_auditor,Procurement Reconciliation Exception auditor,procurement.reconciliation.exception,group_spm_auditor,r,
 access_spm_exception_admin,Procurement Reconciliation Exception admin,procurement.reconciliation.exception,group_spm_admin,r,
 spm_exception_comp_rule,procurement.reconciliation.exception: allowed companies,procurement.reconciliation.exception,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_sourcing_event_buyer,Sourcing event buyer,procurement.sourcing.event,group_spm_buyer,crud,
+access_spm_sourcing_event_manager,Sourcing event manager,procurement.sourcing.event,group_spm_manager,crud,
+access_spm_sourcing_event_finance,Sourcing event finance,procurement.sourcing.event,group_spm_finance,r,
+access_spm_sourcing_event_auditor,Sourcing event auditor,procurement.sourcing.event,group_spm_auditor,r,
+access_spm_sourcing_event_admin,Sourcing event admin,procurement.sourcing.event,group_spm_admin,crud,
+spm_sourcing_event_comp_rule,procurement.sourcing.event: allowed companies,procurement.sourcing.event,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_sourcing_event_line_buyer,Sourcing event line buyer,procurement.sourcing.event.line,group_spm_buyer,crud,
+access_spm_sourcing_event_line_manager,Sourcing event line manager,procurement.sourcing.event.line,group_spm_manager,crud,
+access_spm_sourcing_event_line_finance,Sourcing event line finance,procurement.sourcing.event.line,group_spm_finance,r,
+access_spm_sourcing_event_line_auditor,Sourcing event line auditor,procurement.sourcing.event.line,group_spm_auditor,r,
+access_spm_sourcing_event_line_admin,Sourcing event line admin,procurement.sourcing.event.line,group_spm_admin,crud,
+spm_sourcing_event_line_comp_rule,procurement.sourcing.event.line: allowed companies,procurement.sourcing.event.line,,crud,"[('event_id.company_id', 'in', company_ids)]"
+access_spm_sourcing_response_buyer,Sourcing response buyer,procurement.sourcing.response,group_spm_buyer,crud,
+access_spm_sourcing_response_manager,Sourcing response manager,procurement.sourcing.response,group_spm_manager,crud,
+access_spm_sourcing_response_finance,Sourcing response finance,procurement.sourcing.response,group_spm_finance,r,
+access_spm_sourcing_response_auditor,Sourcing response auditor,procurement.sourcing.response,group_spm_auditor,r,
+access_spm_sourcing_response_admin,Sourcing response admin,procurement.sourcing.response,group_spm_admin,crud,
+spm_sourcing_response_comp_rule,procurement.sourcing.response: allowed companies,procurement.sourcing.response,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_sourcing_template_buyer,Sourcing template buyer,procurement.sourcing.template,group_spm_buyer,r,
+access_spm_sourcing_template_manager,Sourcing template manager,procurement.sourcing.template,group_spm_manager,crud,
+access_spm_sourcing_template_finance,Sourcing template finance,procurement.sourcing.template,group_spm_finance,r,
+access_spm_sourcing_template_auditor,Sourcing template auditor,procurement.sourcing.template,group_spm_auditor,r,
+access_spm_sourcing_template_admin,Sourcing template admin,procurement.sourcing.template,group_spm_admin,crud,
+spm_sourcing_template_comp_rule,procurement.sourcing.template: allowed companies and shared,procurement.sourcing.template,,crud,"[('company_id', 'in', company_ids + [False])]"
+access_spm_sourcing_criterion_buyer,Sourcing criterion buyer,procurement.sourcing.criterion,group_spm_buyer,crud,
+access_spm_sourcing_criterion_manager,Sourcing criterion manager,procurement.sourcing.criterion,group_spm_manager,crud,
+access_spm_sourcing_criterion_finance,Sourcing criterion finance,procurement.sourcing.criterion,group_spm_finance,r,
+access_spm_sourcing_criterion_auditor,Sourcing criterion auditor,procurement.sourcing.criterion,group_spm_auditor,r,
+access_spm_sourcing_criterion_admin,Sourcing criterion admin,procurement.sourcing.criterion,group_spm_admin,crud,
+spm_sourcing_criterion_comp_rule,procurement.sourcing.criterion: allowed companies,procurement.sourcing.criterion,,crud,"['|', ('event_id.company_id', 'in', company_ids), ('template_id.company_id', 'in', company_ids + [False])]"
 access_spm_contract_buyer,Purchase contract buyer,procurement.contract,group_spm_buyer,r,
 access_spm_contract_manager,Purchase contract manager,procurement.contract,group_spm_manager,crud,
 access_spm_contract_finance,Purchase contract finance,procurement.contract,group_spm_finance,r,

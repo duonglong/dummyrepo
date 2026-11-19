@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..services import sourcing
+
 BUYER_GROUP = 'supplier_procurement_management_hub.group_spm_buyer'
 # Fields a Requester never writes directly: the workflow and the scope of the request.
 BUYER_ONLY_FIELDS = ('state', 'requester_id', 'buyer_id', 'company_id')
@@ -34,6 +36,9 @@ class ProcurementRequest(models.Model):
     buyer_id = fields.Many2one('res.users', string="Buyer", ondelete='set null', copy=False)
     company_id = fields.Many2one(
         'res.company', required=True, default=lambda self: self.env.company, index=True)
+    sourcing_event_ids = fields.Many2many(
+        'procurement.sourcing.event', 'procurement_sourcing_event_request_rel', 'request_id', 'event_id',
+        string="Sourcing events", copy=False, bypass_search_access=True)
 
     def _spm_is_buyer(self) -> bool:
         return self.env.su or self.env.user.has_group(BUYER_GROUP)
@@ -98,3 +103,31 @@ class ProcurementRequest(models.Model):
                         requester=request.requester_id.name, name=request.name,
                         date=request.needed_date))
         return True
+
+    def action_spm_create_sourcing_event(self):
+        """Create one sourcing event from the submitted requests and mark them In sourcing.
+
+        Requirements: FR-SPM-0031
+        Lines of the same product and unit are merged. The buyer's own rights apply to every
+        request and to the new event.
+        """
+        if not self._spm_is_buyer():
+            raise AccessError(self.env._("Only a Buyer creates a sourcing event."))
+        if not self:
+            raise UserError(self.env._("Select at least one submitted request."))
+        self.check_access('write')
+        if any(request.state != 'submitted' for request in self):
+            raise UserError(self.env._("Only submitted requests are sourced: submit the draft ones first."))
+        if len(self.company_id) > 1:
+            raise UserError(self.env._("Requests of different companies cannot share a sourcing event."))
+        event = self.env['procurement.sourcing.event'].create({
+            'title': ", ".join(self.mapped('name')),
+            'company_id': self.company_id.id,
+            'request_ids': [(6, 0, self.ids)],
+            'line_ids': [(0, 0, values) for values in sourcing.merge_request_lines(self)],
+        })
+        self.write({'state': 'sourcing'})
+        return {
+            'type': 'ir.actions.act_window', 'res_model': event._name, 'res_id': event.id,
+            'view_mode': 'form', 'target': 'current',
+        }

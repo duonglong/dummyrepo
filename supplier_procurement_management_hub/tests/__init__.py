@@ -32,9 +32,11 @@ from . import test_qualification
 from . import test_portal_isolation
 from . import test_job_runner
 from . import test_exceptions_posting
+from . import test_sourcing_event
 from . import test_contract_acceptance
 from . import test_contract_use_acceptance
 from . import test_delivery_commitment_acceptance
 from . import test_delivery_proposal_acceptance
 from . import test_portal_profile
 from . import test_contract
+from . import test_merge_sourcing_contract

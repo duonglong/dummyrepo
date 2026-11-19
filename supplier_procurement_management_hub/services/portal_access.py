@@ -176,6 +176,23 @@ def order_rows(env, orders):
     } for order in orders]
 
 
+def quote_rows(env, responses):
+    """One row per quote request the supplier is invited to: number, title, deadline and state.
+
+    Requirements: FR-SPM-0016, FR-SPM-0032
+    The responses are already the user's own (portal rule); the event is read elevated for
+    these four plain values only, as the portal user has no right on the event record.
+    """
+    state_labels = dict(env['procurement.sourcing.event']._fields['state']._description_selection(env))
+    return [{
+        'response': response,
+        'name': event.name,
+        'title': event.title,
+        'deadline': event.deadline,
+        'state': state_labels.get(event.state, ''),
+    } for response in responses for event in response.event_id.sudo()]  # sudo: four plain values of an invited event
+
+
 def editable_fields(env):
     """The contact fields the administrator marked editable in the portal, as ``name: field``.
 

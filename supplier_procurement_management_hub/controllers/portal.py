@@ -134,6 +134,8 @@ class SupplierPortal(CustomerPortal):
             'documents': request.env['procurement.supplier.document'].search(
                 [('partner_id', '=', supplier.id), ('is_current', '=', True)]),
             'order_rows': portal_access.order_rows(request.env, orders),
+            'quote_rows': portal_access.quote_rows(request.env, request.env['procurement.sourcing.response'].search(
+                [('partner_id', '=', supplier.id)], order='id desc')),
         })
         return request.render('supplier_procurement_management_hub.portal_home', values)
 

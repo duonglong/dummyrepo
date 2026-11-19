@@ -14,6 +14,14 @@
         <field name="group_id" ref="base.group_portal"/>
         <field name="operation">r</field>
     </record>
+    <!-- Requirements: FR-SPM-0016, FR-SPM-0032 (a supplier portal user reads only the responses of its company contact) -->
+    <record id="access_spm_sourcing_response_portal" model="ir.access">
+        <field name="name">Sourcing response portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
     <!-- Requirements: FR-SPM-0028 (a Blocked supplier's portal users read none of its orders and vendor
          bills, through pages or direct data calls; messages and attachments follow their record) -->
     <record id="access_spm_purchase_order_blocked_supplier" model="ir.access">
