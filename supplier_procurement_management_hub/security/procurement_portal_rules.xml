@@ -22,6 +22,24 @@
         <field name="operation">r</field>
         <field name="domain">[('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')]</field>
     </record>
+    <!-- Requirements: FR-SPM-0023, BR-SPM-0003 (a supplier portal user reads its own questions and the
+         shared ones of the events it is invited to; who asked is hidden by a field group) -->
+    <record id="access_spm_sourcing_question_portal" model="ir.access">
+        <field name="name">Sourcing question portal: own and shared</field>
+        <field name="model_id" ref="model_procurement_sourcing_question"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('partner_id.spm_status_kind', '!=', 'blocked'), '|', ('partner_id', '=', user.commercial_partner_id.id), '&amp;', ('shared', '=', True), ('event_id.response_ids.partner_id', '=', user.commercial_partner_id.id)]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0026, BR-SPM-0003 (on the records of the hub a supplier portal user reads
+         only the messages sent to its company or written by it, never an internal note or a
+         discussion between colleagues) -->
+    <record id="access_spm_message_supplier_portal" model="ir.access">
+        <field name="name">Messages: only those sent to the supplier for portal users</field>
+        <field name="model_id" ref="mail.model_mail_message"/>
+        <field name="operation">r</field>
+        <field name="domain">['|', '|', ('model', 'not in', ('purchase.order', 'account.move')), ('partner_ids', 'child_of', user.commercial_partner_id.id), ('author_id', 'child_of', user.commercial_partner_id.id)] if user.share else []</field>
+    </record>
     <!-- Requirements: FR-SPM-0028 (a Blocked supplier's portal users read none of its orders and vendor
          bills, through pages or direct data calls; messages and attachments follow their record) -->
     <record id="access_spm_purchase_order_blocked_supplier" model="ir.access">

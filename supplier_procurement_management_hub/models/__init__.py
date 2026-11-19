@@ -40,3 +40,4 @@ from . import procurement_sourcing_response
 from . import procurement_contract
 from . import procurement_contract_line
 from . import procurement_contract_version
+from . import procurement_sourcing_question

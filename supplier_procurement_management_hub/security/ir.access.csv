@@ -184,3 +184,9 @@ access_spm_contract_version_finance,Purchase contract version finance,procuremen
 access_spm_contract_version_auditor,Purchase contract version auditor,procurement.contract.version,group_spm_auditor,r,
 access_spm_contract_version_admin,Purchase contract version admin,procurement.contract.version,group_spm_admin,r,
 spm_contract_version_comp_rule,procurement.contract.version: allowed companies,procurement.contract.version,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_sourcing_question_buyer,Sourcing question buyer,procurement.sourcing.question,group_spm_buyer,crud,
+access_spm_sourcing_question_manager,Sourcing question manager,procurement.sourcing.question,group_spm_manager,crud,
+access_spm_sourcing_question_finance,Sourcing question finance,procurement.sourcing.question,group_spm_finance,r,
+access_spm_sourcing_question_auditor,Sourcing question auditor,procurement.sourcing.question,group_spm_auditor,r,
+access_spm_sourcing_question_admin,Sourcing question admin,procurement.sourcing.question,group_spm_admin,crud,
+spm_sourcing_question_comp_rule,procurement.sourcing.question: allowed companies,procurement.sourcing.question,,crud,"[('company_id', 'in', company_ids)]"

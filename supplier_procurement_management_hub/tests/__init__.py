@@ -40,3 +40,4 @@ from . import test_delivery_proposal_acceptance
 from . import test_portal_profile
 from . import test_contract
 from . import test_merge_sourcing_contract
+from . import test_portal_messages
