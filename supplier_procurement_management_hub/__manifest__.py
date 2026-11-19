@@ -40,6 +40,7 @@
         'views/procurement_job_views.xml',
         'views/procurement_sourcing_event_views.xml',
         'views/procurement_contract_views.xml',
+        'views/procurement_contract_use_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

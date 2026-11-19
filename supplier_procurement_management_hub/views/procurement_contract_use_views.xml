@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0066, FR-SPM-0067, FR-SPM-0068, FR-SPM-0069, FR-SPM-0070 -->
+    <record id="procurement_contract_view_form_use" model="ir.ui.view">
+        <field name="name">procurement.contract.form.use</field>
+        <field name="model">procurement.contract</field>
+        <field name="inherit_id" ref="procurement_contract_view_form"/>
+        <field name="arch" type="xml">
+            <button name="action_spm_revise" position="after">
+                <button name="action_spm_open_renew" type="object" string="Renew"
+                        invisible="state != 'active'"
+                        groups="supplier_procurement_management_hub.group_spm_buyer"/>
+                <button name="action_spm_update_vendor_prices" type="object" string="Update vendor prices"
+                        invisible="state != 'active'"
+                        groups="supplier_procurement_management_hub.group_spm_manager"/>
+            </button>
+            <field name="notice_date" position="after">
+                <field name="days_to_notice" invisible="state != 'active'"/>
+                <field name="consumed_value"/>
+                <field name="remaining_value"/>
+                <field name="consumed_qty"/>
+                <field name="remaining_qty"/>
+            </field>
+            <xpath expr="//field[@name='line_ids']/list/field[@name='ceiling_qty']" position="after">
+                <field name="consumed_qty" optional="show"/>
+                <field name="remaining_qty" optional="show"/>
+                <field name="consumed_value" optional="hide"/>
+                <field name="used_share" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="procurement_contract_view_list_use" model="ir.ui.view">
+        <field name="name">procurement.contract.list.use</field>
+        <field name="model">procurement.contract</field>
+        <field name="inherit_id" ref="procurement_contract_view_list"/>
+        <field name="arch" type="xml">
+            <field name="notice_date" position="after">
+                <field name="days_to_notice" optional="show"/>
+                <field name="used_share" optional="show"/>
+            </field>
+        </field>
+    </record>
+    <record id="procurement_contract_view_search_use" model="ir.ui.view">
+        <field name="name">procurement.contract.search.use</field>
+        <field name="model">procurement.contract</field>
+        <field name="inherit_id" ref="procurement_contract_view_search"/>
+        <field name="arch" type="xml">
+            <field name="owner_id" position="after">
+                <field name="line_ids" string="Product"
+                       filter_domain="['|', ('line_ids.product_id', 'ilike', self), ('line_ids.product_category_id', 'ilike', self)]"/>
+            </field>
+            <filter name="active_contracts" position="after">
+                <filter string="Expired" name="expired" domain="[('state', '=', 'expired')]"/>
+                <filter string="Notice within 60 days" name="notice_60"
+                        domain="[('state', '=', 'active'), ('notice_date', '&gt;=', context_today().strftime('%Y-%m-%d')),
+                                 ('notice_date', '&lt;=', (context_today() + datetime.timedelta(days=60)).strftime('%Y-%m-%d'))]"/>
+            </filter>
+            <filter name="group_state" position="after">
+                <filter string="Product" name="group_product" context="{'group_by': 'spm_product_ids'}"/>
+                <filter string="Product category" name="group_category" context="{'group_by': 'spm_category_ids'}"/>
+                <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
+                <filter string="End date" name="group_date_end" context="{'group_by': 'date_end:month'}"/>
+                <filter string="Notice date" name="group_notice_date" context="{'group_by': 'notice_date:month'}"/>
+            </filter>
+        </field>
+    </record>
+
+    <record id="procurement_contract_price_update_view_form" model="ir.ui.view">
+        <field name="name">procurement.contract.price.update.form</field>
+        <field name="model">procurement.contract.price.update</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="contract_id" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="line_ids" nolabel="1" readonly="1">
+                    <list create="0" delete="0" decoration-info="operation == 'create'">
+                        <field name="product_id"/>
+                        <field name="operation" widget="badge"/>
+                        <field name="old_price"/>
+                        <field name="new_price"/>
+                        <field name="min_qty"/>
+                        <field name="delay"/>
+                        <field name="date_start"/>
+                        <field name="date_end"/>
+                        <field name="currency_id" column_invisible="1"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_confirm" type="object" string="Confirm" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_contract_renew_view_form" model="ir.ui.view">
+        <field name="name">procurement.contract.renew.form</field>
+        <field name="model">procurement.contract.renew</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="contract_id" invisible="1"/>
+                <group>
+                    <field name="date_end"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Renew" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="purchase_order_view_form_spm_contract" model="ir.ui.view">
+        <field name="name">purchase.order.form.spm.contract</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <sheet position="before">
+                <div class="alert alert-warning mb-0" role="alert" invisible="not spm_contract_warning"
+                     groups="supplier_procurement_management_hub.group_spm_buyer">
+                    <field name="spm_contract_warning" readonly="1" class="mb-0"/>
+                </div>
+            </sheet>
+            <xpath expr="//field[@name='order_line']/list/field[@name='date_planned']" position="after">
+                <field name="spm_contract_warning" optional="hide"
+                       groups="supplier_procurement_management_hub.group_spm_buyer"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
