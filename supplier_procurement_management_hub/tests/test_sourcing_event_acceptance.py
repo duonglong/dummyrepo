@@ -117,9 +117,14 @@ class TestSourcingEventAcceptance(SpmPortalCase):
         old = (fields.Datetime.now() + timedelta(days=10)).replace(**noon)
         new = (fields.Datetime.now() + timedelta(days=24)).replace(**noon)
         event = self._event(self.acme | self.beta | self.gamma, deadline=old)
+        # Odoo 20 writes tracking values at cr.precommit, not at flush, and
+        # none for a record created in the same transaction: run it after
+        # the creation so the later write is tracked against the old value.
         self.env.flush_all()
+        self.env.cr.precommit.run()
         event.with_user(self.buyer).write({'deadline': new})
         self.env.flush_all()
+        self.env.cr.precommit.run()
         tokens = [new.strftime(fmt) for fmt in (
             '%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%d.%m.%Y', '%d-%m-%Y', '%b %d, %Y', '%B %d, %Y',
             '%d %B %Y', '%d %b %Y')]
@@ -128,7 +133,8 @@ class TestSourcingEventAcceptance(SpmPortalCase):
             self.assertTrue(
                 any(self._sent_to(user.partner_id, event.name, token) for token in tokens),
                 f"{user.name} is told of the new deadline")
-        values = event.message_ids.tracking_value_ids.filtered(
+        # mail.message.tracking_value_ids is readable by base.group_system only
+        values = event.sudo().message_ids.tracking_value_ids.filtered(
             lambda tracking: tracking.field_id.name == 'deadline')
         self.assertEqual(len(values), 1)
         self.assertEqual(values.old_value_datetime, old.replace(microsecond=0))
