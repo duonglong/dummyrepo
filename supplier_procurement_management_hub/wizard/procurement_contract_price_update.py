@@ -29,25 +29,25 @@ class ProcurementContractPriceUpdate(models.TransientModel):
             wizard.line_ids = [Command.clear()] + [
                 Command.create(values) for values in wizard._spm_preview_rows()]
 
-    def _spm_find_supplierinfo(self, line):
-        """Return the vendor price line of the contract line: the linked one, else the same vendor, exact variant (a variant-less price only for a single-variant template), contract company and minimum quantity (a shared vendor price is not touched)."""
+    def _spm_scope_domain(self, line):
+        """Return the domain of the vendor prices in the scope of a contract line: same vendor, company and exact variant (a variant-less price only for a single-variant template)."""
         contract = line.contract_id
-        info = self.env['product.supplierinfo']
-        linked = info.search([('spm_contract_line_id', '=', line.id)], limit=1)
-        if linked:
-            return linked
-        # a vendor price without a variant is native for every variant of the template: it is taken
-        # over only when the template has a single variant, else the exact variant is matched
         variants = [line.product_id.id]
-        if len(line.product_id.product_tmpl_id.product_variant_ids) == 1:
+        if line.product_id.product_tmpl_id.product_variant_count == 1:
             variants.append(False)
-        return info.search([
+        return [
             ('partner_id', '=', contract.partner_id.id),
             ('product_tmpl_id', '=', line.product_id.product_tmpl_id.id),
             ('product_id', 'in', variants),
             ('company_id', '=', contract.company_id.id),
-            ('min_qty', '=', line.min_qty),
-        ], limit=1)
+        ]
+
+    def _spm_find_supplierinfo(self, line):
+        """Return the vendor price line of the contract line: the linked one when it is in scope, else the one of the same scope and minimum quantity (a shared vendor price is not touched)."""
+        info = self.env['product.supplierinfo']
+        scope = self._spm_scope_domain(line)
+        linked = info.search([('spm_contract_line_id', '=', line.id)] + scope, limit=1)
+        return linked or info.search(scope + [('min_qty', '=', line.min_qty)], limit=1)
 
     def _spm_preview_rows(self):
         """Return the values of the preview rows of the contract (lines of a category have no product price)."""
@@ -102,7 +102,12 @@ class ProcurementContractPriceUpdate(models.TransientModel):
                 'spm_contract_id': contract.id,
                 'spm_contract_line_id': line.id,
             }
+            # a price linked to the line but out of its scope (vendor or product changed in a revision)
+            # loses its link and keeps its price
             info = self.sudo()._spm_find_supplierinfo(line)  # sudo: see above, the vendor price of this contract line
+            stale = info_model.search([('spm_contract_line_id', '=', line.id), ('id', '!=', info.id)])
+            if stale:
+                stale.write({'spm_contract_id': False, 'spm_contract_line_id': False})
             if info:
                 info.write(values)
             else:

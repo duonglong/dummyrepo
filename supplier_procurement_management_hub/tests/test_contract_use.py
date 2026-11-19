@@ -97,3 +97,20 @@ class TestContractUse(SpmContractCase):
         self.assertEqual(shared.price, 12.0)
         created = self.env['product.supplierinfo'].search([('spm_contract_id', '=', contract.id)])
         self.assertEqual(created.product_id, red)
+
+    def test_out_of_scope_linked_price_loses_its_link_but_keeps_its_price(self):
+        """Requirements: FR-SPM-0067: a price linked to the line for another vendor or product is never overwritten."""
+        contract = self._active_contract(lines=[self._line_vals(price=11.5)])
+        other_product = self.env['product.product'].create({'name': 'Desk M4', 'type': 'consu'})
+        old = self.env['product.supplierinfo'].sudo().create({
+            'partner_id': self.beta.id, 'product_tmpl_id': other_product.product_tmpl_id.id,
+            'product_id': other_product.id, 'price': 99.0, 'min_qty': 20.0, 'company_id': self.company.id,
+            'spm_contract_id': contract.id, 'spm_contract_line_id': contract.line_ids.id})
+        dialog = self._dialog(contract)
+        self.assertEqual(dialog.line_ids.operation, 'create')
+        dialog.with_user(self.bob).action_confirm()
+        self.assertEqual(old.price, 99.0)
+        self.assertFalse(old.spm_contract_line_id)
+        mine = self.env['product.supplierinfo'].search([('spm_contract_line_id', '=', contract.line_ids.id)])
+        self.assertEqual(mine.product_id, self.chair)
+        self.assertEqual(mine.price, 11.5)
