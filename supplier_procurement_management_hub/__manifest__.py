@@ -40,6 +40,7 @@
         'views/procurement_job_views.xml',
         'views/procurement_delivery_views.xml',
         'views/procurement_sourcing_event_views.xml',
+        'views/procurement_sourcing_question_views.xml',
         'views/procurement_sourcing_response_views.xml',
         'views/portal_quotation_templates.xml',
         'views/procurement_comparison_views.xml',
