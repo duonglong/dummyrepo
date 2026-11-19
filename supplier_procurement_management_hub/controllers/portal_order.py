@@ -1,7 +1,5 @@
 from datetime import datetime, time
 
-from werkzeug.urls import url_encode
-
 from odoo import http
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
@@ -36,9 +34,12 @@ class SupplierPortalOrder(SupplierPortalProfile):
         return datetime.strptime(value, DATE_FORMAT).date() if value else None
 
     def _back(self, order, error=None, done=None):
-        """Redirect to the order page with a one-word status; the page words it."""
-        query = url_encode({k: v for k, v in (('spm_error', error), ('spm_done', done)) if v})
-        return request.redirect(ORDER_URL % order.id + (f'?{query}' if query else ''))
+        """Redirect to the order page; the words to show wait in the session, never in the address.
+
+        An address can be written by anyone, so the page reads the status only from the visitor's own session.
+        """
+        request.session['spm_flash'] = {'error': error, 'done': done}
+        return request.redirect(ORDER_URL % order.id)
 
     @http.route('/my/procurement/orders/<int:order_id>/acknowledge', type='http', auth='user',
                 website=True, methods=['POST'])
@@ -54,12 +55,12 @@ class SupplierPortalOrder(SupplierPortalProfile):
         try:
             dates = {c.order_line_id.id: self._day(post.get(f'date_{c.order_line_id.id}')) for c in commitments}
             order.spm_acknowledge({line: day for line, day in dates.items() if day})
-        except ValueError:
-            return self._back(order, error='date')
+        except (ValueError, OverflowError):
+            return self._back(order, error=request.env._("Enter each date as a valid day."))
         except (UserError, AccessError) as error:
             portal_access.log(request.env, 'submit', 'refused', record=order, detail='acknowledge')
             return self._back(order, error=str(error.args[0]))
-        return self._back(order, done='acknowledged')
+        return self._back(order, done=request.env._("Order acknowledged"))
 
     @http.route('/my/procurement/orders/<int:order_id>/propose', type='http', auth='user',
                 website=True, methods=['POST'])
@@ -74,7 +75,7 @@ class SupplierPortalOrder(SupplierPortalProfile):
         commitment = order.sudo().spm_commitment_ids.filtered(  # sudo: the line ids of an order the caller owns
             lambda c: str(c.id) == post.get('commitment_id'))
         if not commitment:
-            return self._back(order, error='line')
+            return self._back(order, error=request.env._("Choose a line of this order."))
         try:
             noon = commitment.order_line_id._convert_to_middle_of_day
             first, second = (noon(datetime.combine(day, time.min)) if day else None
@@ -82,35 +83,40 @@ class SupplierPortalOrder(SupplierPortalProfile):
             second_qty = float(post.get('quantity_2') or 0)
             if second and not first:
                 raise ValueError('first date missing')
+            if second and not 0 < second_qty < commitment.ordered_qty:
+                return self._back(order, error=request.env._("The second quantity must be above zero and below the ordered quantity."))
             if second:
                 lines = delivery.split_lines(first, second, commitment.ordered_qty, second_qty)
                 commitment.with_env(request.env).spm_propose(post.get('reason'), lines=lines)
             else:
                 commitment.with_env(request.env).spm_propose(post.get('reason'), date=first)
-        except (ValueError, TypeError):
-            return self._back(order, error='date')
+        except (ValueError, TypeError, OverflowError):
+            return self._back(order, error=request.env._("Enter each date as a valid day."))
         except (UserError, AccessError, ValidationError) as error:
             portal_access.log(request.env, 'submit', 'refused', record=order, detail='propose')
             return self._back(order, error=str(error.args[0]))
-        return self._back(order, done='proposed')
+        return self._back(order, done=request.env._("Proposal sent"))
 
     @http.route()
     def portal_my_purchase_order_update_dates(self, order_id=None, access_token=None, **kw):
-        """A supplier cannot write dates directly: a date change is a proposal the buyer decides.
+        """Only an internal user writes dates directly; a supplier or a visitor with the order's link proposes.
 
         Requirements: FR-SPM-0025
         """
-        if portal_access.is_supplier_user(request.env.user):
+        user = request.env.user
+        if user._is_internal():
+            return super().portal_my_purchase_order_update_dates(order_id=order_id, access_token=access_token, **kw)
+        if portal_access.is_supplier_user(user):
             if refusal_page := self._supplier_route_refusal('purchase.order', order_id, 'submit'):
                 return refusal_page  # not the supplier's order: refused and logged as for any native route
             portal_access.log(request.env, 'submit', 'refused', res_model='purchase.order',
                               res_id=order_id, detail='direct date update')
-            return self._refusal_page(403)
-        return super().portal_my_purchase_order_update_dates(order_id=order_id, access_token=access_token, **kw)
+        return self._refusal_page(403)  # a portal or public caller, with or without the order's link, only proposes
 
     def _purchase_order_get_page_view_values(self, order, access_token, **kwargs):
         values = super()._purchase_order_get_page_view_values(order, access_token, **kwargs)
         if portal_access.is_supplier_user(request.env.user):
+            flash = request.session.pop('spm_flash', None) or {}
             commitments = order.sudo().spm_commitment_ids  # sudo: plain values of the supplier's own order lines
             values['spm_delivery'] = {
                 'acknowledged': bool(order.sudo().spm_acknowledged_date),  # sudo: the acknowledgement flag of the own order
@@ -123,7 +129,7 @@ class SupplierPortalOrder(SupplierPortalProfile):
                     'pending': commitment.proposal_ids.filtered(lambda p: p.state == 'pending')[:1],
                     'open': commitment.state == 'open',
                 } for commitment in commitments],
-                'error': request.params.get('spm_error'),
-                'done': request.params.get('spm_done'),
+                'error': flash.get('error'),
+                'done': flash.get('done'),
             }
         return values

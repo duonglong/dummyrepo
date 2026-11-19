@@ -53,6 +53,25 @@ class PurchaseOrder(models.Model):
         """
         self.order_line._spm_ensure_commitment()
 
+    def _spm_require_own_supplier(self, refusal):
+        """Return the order (elevated) when the caller is a portal user of its supplier; raise ``refusal`` if not.
+
+        Requirements: FR-SPM-0024, FR-SPM-0025
+        The id comes from the client: the order must exist, be readable by the caller, belong to an
+        allowed company and to the caller's own supplier.
+        """
+        order = self.sudo().exists()  # sudo: the id is checked against the caller's own rights just below
+        if not order or not self.env.user.share or order.company_id not in self.env.companies \
+                or not self.has_access('read'):
+            raise refusal
+        try:
+            supplier = portal_access.current_supplier(self.env)
+        except portal_access.SupplierAccessRefused as supplier_refusal:
+            raise refusal from supplier_refusal
+        if order.partner_id.commercial_partner_id != supplier:
+            raise refusal
+        return order
+
     def spm_acknowledge(self, dates):
         """Record the supplier's acknowledgement and the confirmed date of each line.
 
@@ -61,17 +80,9 @@ class PurchaseOrder(models.Model):
         expected date. Called by a portal user of the order's own supplier on a confirmed order.
         """
         self.ensure_one()
-        refused = AccessError(self.env._("You cannot acknowledge this order."))
-        order = self.sudo().exists()  # sudo: the id is checked against the caller's own rights just below
-        if not order or not self.env.user.share or order.company_id not in self.env.companies \
-                or not order.with_env(self.env).has_access('read'):
-            raise refused
-        try:
-            supplier = portal_access.current_supplier(self.env)
-        except portal_access.SupplierAccessRefused as refusal:
-            raise refused from refusal
-        if order.partner_id.commercial_partner_id != supplier:
-            raise refused
+        order = self._spm_require_own_supplier(AccessError(self.env._("You cannot acknowledge this order.")))
+        order.lock_for_update()  # two posts of the same form wait for each other and see the first one's mark
+        order.invalidate_recordset(['spm_acknowledged_date'])
         if order.state != 'purchase':
             raise UserError(self.env._("Only a confirmed order can be acknowledged."))
         if order.spm_acknowledged_date:

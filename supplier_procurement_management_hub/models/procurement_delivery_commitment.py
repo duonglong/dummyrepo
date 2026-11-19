@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import float_compare
 
-from ..services import delivery, portal_access
+from ..services import delivery
 
 
 class ProcurementDeliveryCommitment(models.Model):
@@ -139,19 +139,8 @@ class ProcurementDeliveryCommitment(models.Model):
         allowed company and to the caller's own supplier.
         """
         self.ensure_one()
-        order = self.sudo().exists().order_id  # sudo: the id is checked against the caller's own rights just below
         refused = AccessError(self.env._("You cannot propose a delivery date for this line."))
-        if not order or not self.env.user.share or order.company_id not in self.env.companies:
-            raise refused
-        if not order.with_env(self.env).has_access('read'):
-            raise refused
-        try:
-            supplier = portal_access.current_supplier(self.env)
-        except portal_access.SupplierAccessRefused as refusal:
-            raise refused from refusal
-        if order.partner_id.commercial_partner_id != supplier:
-            raise refused
-        return order
+        return self.sudo().exists().order_id.with_env(self.env)._spm_require_own_supplier(refused)
 
     def spm_propose(self, reason, date=None, lines=None):
         """Store a pending date or split proposal of the supplier's portal user for the buyer.
@@ -169,6 +158,10 @@ class ProcurementDeliveryCommitment(models.Model):
             raise UserError(self.env._("A date can only be proposed for an open line of a confirmed order."))
         if bool(date) == bool(lines):
             raise UserError(self.env._("Propose one date, or split dates with their quantities."))
+        if any(line['quantity'] <= 0 for line in lines or []):
+            raise UserError(self.env._("Each part of a split needs a quantity above zero."))
+        commitment.lock_for_update()  # a double submit waits here and then sees the first proposal
+        commitment.invalidate_recordset(['proposal_ids'])
         if commitment.proposal_ids.filtered(lambda p: p.state == 'pending'):
             raise UserError(self.env._("A proposal for this line is already waiting for the buyer."))
         split = [(0, 0, {'date': fields.Datetime.to_datetime(line['date']), 'quantity': line['quantity']})
@@ -239,10 +232,10 @@ class ProcurementDeliveryCommitment(models.Model):
         """Check the schedules once the whole write is done, not after each of them.
 
         Requirements: FR-SPM-0056
-        Only the confirmed date and the schedules are edited by a person; the rest is read from the receipts.
+        Only the confirmed date, the schedules and the discrepancies are edited by a person; the rest is read from the receipts.
         """
-        if not self.env.su and set(vals) - {'confirmed_date', 'schedule_ids'}:
-            raise AccessError(self.env._("Only the confirmed date and the schedules of a commitment can be changed."))
+        if not self.env.su and set(vals) - {'confirmed_date', 'schedule_ids', 'discrepancy_ids'}:
+            raise AccessError(self.env._("Only the confirmed date, the schedules and the discrepancies of a commitment can be changed."))
         if 'schedule_ids' not in vals:
             return super().write(vals)
         with self._spm_schedule_batch():

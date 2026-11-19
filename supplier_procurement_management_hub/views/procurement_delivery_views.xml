@@ -258,7 +258,6 @@
         <field name="res_model">procurement.delivery.proposal</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_pending': 1}</field>
-        <field name="help">Date changes proposed by suppliers from the portal wait here for your decision.</field>
     </record>
     <record id="procurement_delivery_discrepancy_view_list" model="ir.ui.view">
         <field name="name">procurement.delivery.discrepancy.list</field>

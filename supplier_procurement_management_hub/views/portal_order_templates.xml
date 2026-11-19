@@ -7,8 +7,7 @@
             <div id="spm_delivery" t-if="spm_delivery" class="mt-3">
                 <div t-if="spm_delivery['error']" class="alert alert-danger" role="alert"
                      t-out="spm_delivery['error']"/>
-                <div t-if="spm_delivery['done'] == 'acknowledged'" class="alert alert-success" role="alert">Order acknowledged</div>
-                <div t-if="spm_delivery['done'] == 'proposed'" class="alert alert-success" role="alert">Proposal sent</div>
+                <div t-if="spm_delivery['done']" class="alert alert-success" role="alert" t-out="spm_delivery['done']"/>
                 <form t-if="spm_delivery['can_act'] and not spm_delivery['acknowledged'] and spm_delivery['rows']"
                       t-attf-action="/my/procurement/orders/#{order.id}/acknowledge" method="post">
                     <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
