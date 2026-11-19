@@ -6,10 +6,14 @@ from ..services import supplier_control
 class PurchaseOrder(models.Model):
     """Purchase order guarded by supplier control.
 
-    Requirements: BR-SPM-0006, FR-SPM-0013
+    Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0044
+    Built spm_requester_id for T-018 (the requester of the approval policies).
     """
     _inherit = 'purchase.order'
 
+    spm_requester_id = fields.Many2one(
+        'res.users', string="Requester", default=lambda self: self.env.user, copy=False, ondelete='restrict',
+        help="The person the approval policies take the department and the managers from.")
     spm_delivery_event_ids = fields.One2many('procurement.delivery.event', 'order_id', string="Delivery history")
     spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_id', string="Delivery commitments")
 

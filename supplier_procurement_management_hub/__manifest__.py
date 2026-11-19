@@ -44,6 +44,7 @@
         'views/portal_quotation_templates.xml',
         'views/procurement_contract_views.xml',
         'views/procurement_contract_use_views.xml',
+        'views/procurement_approval_policy_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

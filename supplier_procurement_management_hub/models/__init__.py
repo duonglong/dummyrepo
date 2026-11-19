@@ -47,3 +47,5 @@ from . import procurement_delivery_schedule
 from . import procurement_delivery_event
 from . import purchase_order_line
 from . import product_supplierinfo
+from . import procurement_approval_policy_step
+from . import procurement_approval_policy
