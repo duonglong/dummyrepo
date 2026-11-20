@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 # The days after its date during which the author may still change an evaluation.
 EDIT_WINDOW_DAYS = 7
@@ -20,17 +20,30 @@ class ProcurementSupplierEvaluation(models.Model):
     partner_id = fields.Many2one('res.partner', string="Supplier", required=True, ondelete='cascade', index=True)
     author_id = fields.Many2one('res.users', string="Author", required=True, default=lambda self: self.env.user,
                                 ondelete='restrict', index=True)
-    date = fields.Date(required=True, default=fields.Date.context_today)
+    date = fields.Date(required=True, default=fields.Date.context_today, help="The day the evaluation is about.")
+    recorded_on = fields.Date(readonly=True, copy=False, default=fields.Date.context_today,
+                              help="The day the evaluation was recorded; the edit window counts from it.")
     rating_ids = fields.One2many('procurement.supplier.evaluation.rating', 'evaluation_id', string="Ratings")
     comment = fields.Text()
     editable_until = fields.Date(compute='_compute_editable_until', store=True)
     company_id = fields.Many2one('res.company', required=True, default=lambda self: self.env.company, index=True)
 
-    @api.depends('date')
+    @api.depends('recorded_on')
     def _compute_editable_until(self):
         """Requirements: FR-SPM-0085"""
         for evaluation in self:
-            evaluation.editable_until = evaluation.date + timedelta(days=EDIT_WINDOW_DAYS) if evaluation.date else False
+            evaluation.editable_until = (
+                evaluation.recorded_on + timedelta(days=EDIT_WINDOW_DAYS) if evaluation.recorded_on else False)
+
+    @api.constrains('date')
+    def _check_date(self):
+        """An evaluation is dated today or earlier.
+
+        Requirements: FR-SPM-0085
+        """
+        today = fields.Date.context_today(self)
+        if self.filtered(lambda evaluation: evaluation.date > today):
+            raise ValidationError(self.env._("An evaluation cannot be dated in the future."))
 
     def _spm_check_editable(self):
         """Refuse a change by anyone but the author, or after the window.
@@ -42,21 +55,30 @@ class ProcurementSupplierEvaluation(models.Model):
         today = fields.Date.context_today(self)
         for evaluation in self:
             if evaluation.author_id != self.env.user:
-                raise AccessError(self.env._("Only the author can change an evaluation."))
+                raise AccessError(self.env._(
+                    "Only the author can change an evaluation. Record your own evaluation instead."))
             if evaluation.editable_until and today > evaluation.editable_until:
-                raise UserError(self.env._("An evaluation can only be changed within %s days of its date.",
-                                           EDIT_WINDOW_DAYS))
+                raise UserError(self.env._(
+                    "An evaluation can only be changed within %s days of being recorded. Record a new evaluation instead.",
+                    EDIT_WINDOW_DAYS))
 
     @api.model_create_multi
     def create(self, vals_list):
         """Requirements: FR-SPM-0085"""
-        evaluations = super().create(vals_list)
+        today = fields.Date.context_today(self)
+        evaluations = super().create([dict(vals, recorded_on=today) for vals in vals_list])
         if not self.env.su and any(author != self.env.user for author in evaluations.author_id):
             raise AccessError(self.env._("An evaluation is recorded under your own name."))
         return evaluations
 
     def write(self, vals):
-        """Requirements: FR-SPM-0085"""
+        """Requirements: FR-SPM-0085
+
+        The author and the recording day are fixed once the evaluation exists.
+        """
+        if not self.env.su and ('recorded_on' in vals or any(
+                'author_id' in vals and evaluation.author_id.id != vals['author_id'] for evaluation in self)):
+            raise UserError(self.env._("The author and the recording day of an evaluation cannot be changed."))
         self._spm_check_editable()
         return super().write(vals)
 

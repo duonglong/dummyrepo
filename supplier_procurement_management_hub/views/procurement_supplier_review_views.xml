@@ -85,6 +85,10 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_plan" type="object" string="Plan" class="btn-primary"
+                            invisible="state != 'to_plan'"/>
+                    <button name="action_done" type="object" string="Done" invisible="state not in ('to_plan', 'planned')"/>
+                    <button name="action_cancel" type="object" string="Cancel" invisible="state not in ('to_plan', 'planned')"/>
                     <field name="state" widget="statusbar" statusbar_visible="to_plan,planned,done"/>
                 </header>
                 <sheet>
@@ -145,7 +149,10 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="open,in_progress,done"/>
+                    <button name="action_done" type="object" string="Done" class="btn-primary" invisible="state != 'open'"/>
+                    <button name="action_cancel" type="object" string="Cancel" invisible="state != 'open'"/>
+                    <button name="action_reopen" type="object" string="Reopen" invisible="state == 'open'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="open,done"/>
                 </header>
                 <sheet>
                     <group>
@@ -174,7 +181,7 @@
                 <field name="name"/>
                 <field name="partner_id"/>
                 <field name="responsible_id"/>
-                <filter name="open" string="Open" domain="[('state', 'in', ('open', 'in_progress'))]"/>
+                <filter name="open" string="Open" domain="[('state', 'in', ('open',))]"/>
             </search>
         </field>
     </record>
@@ -185,7 +192,7 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
-                <button name="action_spm_open_actions" type="object" class="oe_stat_button" icon="oi_check"
+                <button name="action_spm_open_actions" type="object" class="oe_stat_button" icon="checklist"
                         invisible="spm_open_action_count == 0"
                         groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor">
                     <field name="spm_open_action_count" widget="statinfo" string="Open actions"/>

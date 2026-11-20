@@ -27,8 +27,13 @@ class ProcurementSupplierEvaluationRating(models.Model):
         return ratings
 
     def write(self, vals):
-        """Requirements: FR-SPM-0085"""
+        """Requirements: FR-SPM-0085
+
+        A rating moved to another evaluation needs that evaluation to be changeable too.
+        """
         self.evaluation_id._spm_check_editable()
+        if vals.get('evaluation_id'):
+            self.env['procurement.supplier.evaluation'].browse(vals['evaluation_id'])._spm_check_editable()
         return super().write(vals)
 
     def unlink(self):

@@ -1,6 +1,8 @@
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
-OPEN_STATES = ('open', 'in_progress')
+TODO_ACTIVITY = 'mail.mail_activity_data_todo'
+OPEN_STATES = ('open',)
 
 
 class ProcurementCorrectiveAction(models.Model):
@@ -19,17 +21,19 @@ class ProcurementCorrectiveAction(models.Model):
     responsible_id = fields.Many2one('res.users', string="Responsible", required=True, ondelete='restrict')
     deadline = fields.Date(required=True)
     state = fields.Selection([
-        ('open', 'Open'), ('in_progress', 'In progress'), ('done', 'Done'), ('cancelled', 'Cancelled'),
+        ('open', 'Open'), ('done', 'Done'), ('cancelled', 'Cancelled'),
     ], required=True, default='open', tracking=True)
     partner_id = fields.Many2one(related='review_id.partner_id', store=True, index=True)
     company_id = fields.Many2one(related='review_id.company_id', store=True, index=True)
 
     def _spm_schedule_activity(self):
-        """Give the responsible person one to-do due on the deadline of each open action."""
-        for action in self.filtered(lambda a: a.state in OPEN_STATES):
+        """Give the responsible person one to-do due on the deadline of each open action.
+
+        Requirements: FR-SPM-0086
+        """
+        for action in self.filtered(lambda a: a.state == 'open'):
             action.activity_schedule(
-                'mail.mail_activity_data_todo', date_deadline=action.deadline, user_id=action.responsible_id.id,
-                summary=action.name)
+                TODO_ACTIVITY, date_deadline=action.deadline, user_id=action.responsible_id.id, summary=action.name)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -41,10 +45,50 @@ class ProcurementCorrectiveAction(models.Model):
     def write(self, vals):
         """Requirements: FR-SPM-0086
 
-        The activity follows the action: closed with it, moved with its owner or deadline.
+        The activity follows the action: marked done with it, moved with its owner or deadline.
         """
+        reopened = self.filtered(lambda a: a.state != 'open') if vals.get('state') == 'open' else self.browse()
         result = super().write(vals)
-        if {'state', 'responsible_id', 'deadline', 'name'} & set(vals):
-            self.activity_unlink(['mail.mail_activity_data_todo'])
-            self._spm_schedule_activity()
+        closing = self.filtered(lambda a: a.state != 'open')
+        if closing:
+            closing.activity_feedback([TODO_ACTIVITY], feedback=self.env._("Action closed."))
+        if reopened:
+            reopened._spm_schedule_activity()
+        moved = (self - closing - reopened)
+        if moved and {'responsible_id', 'deadline', 'name'} & set(vals):
+            moved.activity_reschedule(
+                [TODO_ACTIVITY], date_deadline=vals.get('deadline'), new_user_id=vals.get('responsible_id'))
+            if 'name' in vals:
+                moved.activity_search([TODO_ACTIVITY]).write({'summary': vals['name']})
         return result
+
+    def _spm_close(self, state):
+        """Move the open actions to ``state`` (done or cancelled)."""
+        if self.filtered(lambda a: a.state != 'open'):
+            raise UserError(self.env._("Only an open action can be closed. Reopen it first, or create a new action."))
+        self.write({'state': state})
+        return True
+
+    def action_done(self):
+        """Mark the action as done.
+
+        Requirements: FR-SPM-0086
+        """
+        return self._spm_close('done')
+
+    def action_cancel(self):
+        """Cancel the action.
+
+        Requirements: FR-SPM-0086
+        """
+        return self._spm_close('cancelled')
+
+    def action_reopen(self):
+        """Reopen a closed action; its to-do comes back.
+
+        Requirements: FR-SPM-0086
+        """
+        if self.filtered(lambda a: a.state == 'open'):
+            raise UserError(self.env._("This action is already open."))
+        self.write({'state': 'open'})
+        return True
