@@ -12,6 +12,10 @@
                     <field name="response_id" invisible="mode != 'whole'" required="mode == 'whole'"
                            options="{'no_create': True}"/>
                     <field name="rationale"/>
+                    <field name="baseline_kind"/>
+                    <field name="budget_amount" invisible="baseline_kind != 'budget'"
+                           required="baseline_kind == 'budget'"/>
+                    <field name="company_currency_id" invisible="1"/>
                 </group>
                 <field name="line_choice_ids" invisible="mode != 'per_line'">
                     <list editable="bottom" create="0" delete="0">

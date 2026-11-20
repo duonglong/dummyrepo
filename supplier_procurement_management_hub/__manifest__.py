@@ -56,6 +56,8 @@
         'views/procurement_approval_inbox_views.xml',
         'views/procurement_risk_views.xml',
         'views/procurement_report_views.xml',
+        'views/procurement_report_performance_views.xml',
+        'report/procurement_report_templates.xml',
         'views/procurement_scorecard_template_views.xml',
         'views/procurement_supplier_scorecard_views.xml',
         'views/procurement_supplier_review_views.xml',
