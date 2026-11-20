@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from datetime import datetime, time, timezone
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import float_compare
 
 from ..services import delivery
@@ -40,6 +40,8 @@ class ProcurementDeliveryCommitment(models.Model):
         ('open', 'Open'), ('done', 'Received'), ('cancel', 'Cancelled'),
     ], compute='_compute_state', store=True)
     schedule_ids = fields.One2many('procurement.delivery.schedule', 'commitment_id', string="Schedules")
+    proposal_ids = fields.One2many('procurement.delivery.proposal', 'commitment_id', string="Date proposals")
+    discrepancy_ids = fields.One2many('procurement.delivery.discrepancy', 'commitment_id', string="Discrepancies")
 
     _order_line_unique = models.Constraint('UNIQUE(order_line_id)', 'An order line has one delivery commitment.')
 
@@ -129,6 +131,53 @@ class ProcurementDeliveryCommitment(models.Model):
             positive = (operator == '=') == bool(value)
         return overdue if positive else ['!'] + ['&'] * (len(overdue) - 1) + overdue
 
+    def _spm_proposing_supplier_check(self):
+        """Refuse unless the caller is a portal user of this commitment's own supplier, on a readable order.
+
+        Requirements: FR-SPM-0025
+        The id comes from the client: the order must exist, be readable by the caller, belong to an
+        allowed company and to the caller's own supplier.
+        """
+        self.ensure_one()
+        refused = AccessError(self.env._("You cannot propose a delivery date for this line."))
+        return self.sudo().exists().order_id.with_env(self.env)._spm_require_own_supplier(refused)
+
+    def spm_propose(self, reason, date=None, lines=None):
+        """Store a pending date or split proposal of the supplier's portal user for the buyer.
+
+        Requirements: FR-SPM-0025
+        ``lines`` is a list of ``{'date', 'quantity'}``; the agreed dates stay as they are until the Buyer
+        accepts. The order's buyer gets an activity.
+        """
+        order = self._spm_proposing_supplier_check()
+        commitment = self.sudo()  # sudo: the supplier has no right on commitments; checked above
+        reason = (reason or '').strip()
+        if not reason:
+            raise UserError(self.env._("Give the reason of the new date."))
+        if order.state != 'purchase' or commitment.state != 'open':
+            raise UserError(self.env._("A date can only be proposed for an open line of a confirmed order."))
+        if bool(date) == bool(lines):
+            raise UserError(self.env._("Propose one date, or split dates with their quantities."))
+        if any(line['quantity'] <= 0 for line in lines or []):
+            raise UserError(self.env._("Each part of a split needs a quantity above zero."))
+        commitment.lock_for_update()  # a double submit waits here and then sees the first proposal
+        commitment.invalidate_recordset(['proposal_ids'])
+        if commitment.proposal_ids.filtered(lambda p: p.state == 'pending'):
+            raise UserError(self.env._("A proposal for this line is already waiting for the buyer."))
+        split = [(0, 0, {'date': fields.Datetime.to_datetime(line['date']), 'quantity': line['quantity']})
+                 for line in lines or []]
+        proposal = self.env['procurement.delivery.proposal'].sudo().create({  # sudo: a portal user has no create right
+            'commitment_id': commitment.id, 'proposed_by_id': self.env.user.id, 'reason': reason,
+            'date': fields.Datetime.to_datetime(date) if date else min(
+                fields.Datetime.to_datetime(line['date']) for line in lines),
+            'line_ids': split,
+        })
+        if order.user_id:
+            proposal.activity_schedule(
+                'mail.mail_activity_data_todo', user_id=order.user_id.id,
+                summary=self.env._("Delivery date proposal for %(order)s", order=order.name), note=reason)
+        return proposal
+
     def _check_schedule_total(self):
         """Refuse schedules whose quantities do not add up to the ordered quantity.
 
@@ -183,10 +232,10 @@ class ProcurementDeliveryCommitment(models.Model):
         """Check the schedules once the whole write is done, not after each of them.
 
         Requirements: FR-SPM-0056
-        Only the confirmed date and the schedules are edited by a person; the rest is read from the receipts.
+        Only the confirmed date, the schedules and the discrepancies are edited by a person; the rest is read from the receipts.
         """
-        if not self.env.su and set(vals) - {'confirmed_date', 'schedule_ids'}:
-            raise AccessError(self.env._("Only the confirmed date and the schedules of a commitment can be changed."))
+        if not self.env.su and set(vals) - {'confirmed_date', 'schedule_ids', 'discrepancy_ids'}:
+            raise AccessError(self.env._("Only the confirmed date, the schedules and the discrepancies of a commitment can be changed."))
         if 'schedule_ids' not in vals:
             return super().write(vals)
         with self._spm_schedule_batch():
