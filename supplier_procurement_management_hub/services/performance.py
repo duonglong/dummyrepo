@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta
 from odoo import fields
 from odoo.tools import float_compare
 
-from . import sourcing
+from . import delivery, sourcing
 
 SCORE_MAX = 100.0
 PERIOD_MONTHS = {'month': 1, 'quarter': 3, 'year': 12}
@@ -73,8 +73,18 @@ def on_time(env, partner, company, start, end):
     commitments = {c.order_line_id: c for c in env['procurement.delivery.commitment'].search(
         [('order_line_id', 'in', receipts.purchase_line_id.ids)])}
     tolerance = timedelta(days=company.spm_on_time_tolerance_days)
-    punctual = receipts.filtered(lambda move: commitments.get(move.purchase_line_id) and
-                                 move.date <= commitments[move.purchase_line_id].agreed_date + tolerance)
+
+    def is_punctual(move):
+        line = move.purchase_line_id
+        commitment = commitments.get(line)
+        agreed = delivery.agreed(commitment.confirmed_date, commitment.expected_date) if commitment else \
+            delivery.agreed(False, line.date_planned)
+        if not agreed:
+            return False
+        done_day = fields.Date.context_today(move, move.date)
+        return done_day <= fields.Date.context_today(move, agreed) + tolerance
+
+    punctual = receipts.filtered(is_punctual)
     return _result(env, 'on_time', len(punctual), len(receipts), receipts,
                    env._("No receipt line was done in the period."))
 

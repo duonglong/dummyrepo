@@ -40,6 +40,19 @@ class TestScorecardMetrics(SpmScorecardCase, SpmComparisonCase):
         self.company.spm_on_time_tolerance_days = 8
         self.assertAlmostEqual(self._compute('on_time')['value'], 100.0)
 
+    def test_on_time_compares_days_not_hours(self):
+        """BR-SPM-0012: a receipt later in the agreed day than the agreed hour is on time."""
+        order = self._line_order(['2026-10-10 06:00:00'])
+        self._receive(order, 1.0, '2026-10-10 10:00:00')
+        self.assertAlmostEqual(self._compute('on_time')['value'], 100.0)
+
+    def test_on_time_falls_back_to_the_planned_date_without_commitment(self):
+        """BR-SPM-0012: a line without commitment is judged on its planned date, not counted late."""
+        order = self._line_order(['2026-10-12 12:00:00'])
+        self._commitment(order).unlink()
+        self._receive(order, 1.0, '2026-10-10 10:00:00')
+        self.assertAlmostEqual(self._compute('on_time')['value'], 100.0)
+
     def test_on_time_has_no_data_without_receipt(self):
         """BR-SPM-0013: a metric without source data reports no data, not 0 or 100."""
         result = self._compute('on_time')
