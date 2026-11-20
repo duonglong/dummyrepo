@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0050, FR-SPM-0051, FR-SPM-0054 -->
+    <record id="procurement_approval_step_inbox_list" model="ir.ui.view">
+        <field name="name">procurement.approval.step.inbox.list</field>
+        <field name="model">procurement.approval.step</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0" default_order="opened_date, id" decoration-warning="escalated">
+                <field name="order_id"/>
+                <field name="partner_id"/>
+                <field name="amount"/>
+                <field name="cumulated_amount"/>
+                <field name="requester_id"/>
+                <field name="waiting_hours" widget="float_time"/>
+                <field name="escalated" widget="boolean" optional="show"/>
+                <field name="on_behalf_of_id" widget="many2one_avatar_user"/>
+                <field name="currency_id" column_invisible="1"/>
+                <button name="action_spm_open_approve_wizard" type="object" string="Approve" icon="check"
+                        class="text-success"/>
+                <button name="action_spm_open_reject_wizard" type="object" string="Reject" icon="close"
+                        class="text-danger"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_approval_inbox_action" model="ir.actions.server">
+        <field name="name">Approval inbox</field>
+        <field name="model_id" ref="model_procurement_approval_step"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_spm_open_inbox()</field>
+    </record>
+
+    <record id="procurement_approval_delegation_list" model="ir.ui.view">
+        <field name="name">procurement.approval.delegation.list</field>
+        <field name="model">procurement.approval.delegation</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="delegator_id"/>
+                <field name="delegate_id"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_approval_delegation_form" model="ir.ui.view">
+        <field name="name">procurement.approval.delegation.form</field>
+        <field name="model">procurement.approval.delegation</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="delegator_id" options="{'no_create': True}"/>
+                            <field name="delegate_id" options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Reason"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_approval_delegation_action" model="ir.actions.act_window">
+        <field name="name">Approval delegations</field>
+        <field name="res_model">procurement.approval.delegation</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Delegate your approvals to a colleague while you are away.</field>
+    </record>
+
+    <menuitem id="menu_spm_approvals" name="Approvals" sequence="43" groups="base.group_user"/>
+    <menuitem id="menu_spm_approval_inbox" name="Inbox" parent="menu_spm_approvals" sequence="10"
+              action="procurement_approval_inbox_action"/>
+    <menuitem id="menu_spm_approval_delegation" name="Delegations" parent="menu_spm_approvals" sequence="20"
+              action="procurement_approval_delegation_action"/>
+</odoo>

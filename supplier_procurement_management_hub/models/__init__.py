@@ -60,3 +60,4 @@ from . import procurement_approval_policy
 from . import procurement_approval_request
 from . import procurement_approval_step
 from . import procurement_approval_decision
+from . import procurement_approval_delegation

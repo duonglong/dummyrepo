@@ -317,3 +317,9 @@ access_spm_approval_decision_approver,Approval decision approver,procurement.app
 spm_approval_decision_comp_rule,procurement.approval.decision: allowed companies,procurement.approval.decision,,crud,"[('company_id', 'in', company_ids)]"
 access_spm_approval_approve_wizard_user,Approval comment dialog user,procurement.approval.approve.wizard,base.group_user,cru,
 access_spm_approval_reject_wizard_user,Approval rejection dialog user,procurement.approval.reject.wizard,base.group_user,cru,
+access_spm_approval_delegation_own,Approval delegation own,procurement.approval.delegation,base.group_user,crud,"[('delegator_id', '=', user.id)]"
+access_spm_approval_delegation_delegate,Approval delegation delegate,procurement.approval.delegation,base.group_user,r,"[('delegate_id', '=', user.id)]"
+access_spm_approval_delegation_auditor,Approval delegation auditor,procurement.approval.delegation,group_spm_auditor,r,
+access_spm_approval_delegation_admin,Approval delegation admin,procurement.approval.delegation,group_spm_admin,crud,
+access_spm_approval_step_delegate,Approval step delegate,procurement.approval.step,base.group_user,r,"[('approver_ids', 'any', [('spm_delegation_ids', 'any', [('delegate_id', '=', user.id)])])]"
+access_spm_approval_request_delegate,Approval request delegate,procurement.approval.request,base.group_user,r,"[('step_ids.approver_ids', 'any', [('spm_delegation_ids', 'any', [('delegate_id', '=', user.id)])])]"
