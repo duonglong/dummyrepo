@@ -1,12 +1,9 @@
 from odoo import api, fields, models
 from odoo.tools.sql import SQL
-from odoo.tools.translate import LazyTranslate
 
 from ..models.procurement_exception_route import EXCEPTION_KINDS
 
 STAGES = [('order_to_receipt', 'Order to receipt'), ('receipt_to_bill', 'Receipt to bill')]
-
-_lt = LazyTranslate(__name__)
 
 
 class ProcurementReportException(models.Model):
@@ -22,8 +19,6 @@ class ProcurementReportException(models.Model):
     _description = 'Exception Rate Report'
     _auto = False
     _order = 'date desc, id desc'
-    # (label, numerator, denominator, factor): rates the printed report adds to its figures
-    _spm_rates = ((_lt('Exceptions per hundred lines'), 'exception_count', 'line_count', 100.0),)
 
     date = fields.Date(readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
@@ -32,6 +27,10 @@ class ProcurementReportException(models.Model):
     stage = fields.Selection(STAGES, readonly=True)
     line_count = fields.Integer(string="Matched lines", readonly=True)
     exception_count = fields.Integer(string="Exceptions", readonly=True)
+    exception_rate = fields.Float(
+        string="Per hundred lines", digits=(16, 2), readonly=True,
+        help="Exceptions per hundred matched lines; under any grouping it is the sum of the exceptions "
+             "over the sum of the matched lines, never an average of rates.")
 
     @property
     def _table_sql(self) -> SQL:
@@ -42,7 +41,8 @@ class ProcurementReportException(models.Model):
         return SQL("""(
             SELECT ROW_NUMBER() OVER (ORDER BY rows.stage, rows.date, rows.source_id, rows.line_count) AS id,
                    rows.date, rows.company_id, rows.partner_id, rows.kind, rows.stage,
-                   rows.line_count, rows.exception_count
+                   rows.line_count, rows.exception_count,
+                   100.0 * rows.exception_count / NULLIF(rows.line_count, 0) AS exception_rate
               FROM (
                 SELECT COALESCE(move.invoice_date, move.date) AS date, recon.company_id, recon.partner_id,
                        NULL::varchar AS kind, 'receipt_to_bill' AS stage, 1 AS line_count,
@@ -61,11 +61,22 @@ class ProcurementReportException(models.Model):
                        NULL, 'order_to_receipt', 1, 0, commitment.id
                   FROM procurement_delivery_commitment commitment
                  WHERE commitment.state != 'cancel' AND commitment.agreed_date IS NOT NULL
+                   AND (commitment.state = 'done' OR commitment.agreed_date < NOW() AT TIME ZONE 'UTC')
                 UNION ALL
                 SELECT discrepancy.create_date::date, discrepancy.company_id, discrepancy.partner_id,
                        NULL, 'order_to_receipt', 0, 1, discrepancy.id
                   FROM procurement_delivery_discrepancy discrepancy
               ) AS rows)""")
+
+    def _read_group_select(self, table, aggregate_spec):
+        """Aggregate the rate as total exceptions over total lines, not as a sum of row rates.
+
+        Requirements: FR-SPM-0102
+        """
+        if aggregate_spec == 'exception_rate:sum':
+            return SQL(
+                "100.0 * SUM(%s) / NULLIF(SUM(%s), 0)", table['exception_count'], table['line_count'])
+        return super()._read_group_select(table, aggregate_spec)
 
     @api.model
     def spm_exception_rate(self, date_from, date_to, stage='receipt_to_bill'):

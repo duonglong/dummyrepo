@@ -5,7 +5,7 @@ Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104, FR-SPM-0105
 from freezegun import freeze_time
 
 from odoo.exceptions import AccessError, UserError
-from odoo.tests import tagged
+from odoo.tests import Form, tagged
 
 from .comparison_common import SpmComparisonCase
 from .delivery_common import SpmDeliveryCase
@@ -60,6 +60,31 @@ class TestSavingsBaseline(SpmComparisonCase):
         self.assertEqual(event.sudo().baseline_kind, 'last_price')
         self.assertAlmostEqual(event.sudo().baseline_amount, 800.0, places=2)
         self.assertAlmostEqual(event.sudo().savings_amount, 86.0, places=2)
+
+    def test_fr_0103_last_purchase_price_follows_the_unit_of_the_event_line(self):
+        """FR-SPM-0103: bought by the box of 10 at 100 and sourced by the unit, the baseline is 10 a unit."""
+        with freeze_time('2026-10-01 10:00:00'):
+            order = self.env['purchase.order'].create({
+                'partner_id': self.acme.id, 'user_id': self.buyer.id, 'date_order': '2026-10-01 10:00:00',
+                'order_line': [(0, 0, {
+                    'product_id': self.chair.id, 'name': 'Chair', 'product_qty': 5.0, 'uom_id': self.box.id,
+                    'price_unit': 100.0, 'tax_ids': [(6, 0, [])]})]})
+            order.button_confirm()
+            if order.state != 'purchase':
+                order.button_approve(force=True)
+        self.env.flush_all()
+        event = self._awarded_event(baseline_kind='last_price')
+        self.assertAlmostEqual(event.sudo().baseline_amount, 100.0, places=2)
+
+    def test_fr_0103_a_printout_of_the_savings_names_the_baseline_kind_of_each_total(self):
+        """FR-SPM-0103, FR-SPM-0104: with no grouping the printed savings are split by baseline kind."""
+        self._awarded_event()
+        self.env.flush_all()
+        wizard = self.env['procurement.report.pdf.wizard'].with_user(self.manager).create({
+            'report_model': 'procurement.report.sourcing', 'domain': "[('baseline_kind', '!=', False)]"})
+        _labels, rows = wizard.spm_figures()
+        self.assertEqual([row['label'] for row in rows], [
+            'Average of first offers', 'Total - Average of first offers'])
 
     def test_fr_0103_last_purchase_price_without_history_is_refused(self):
         """FR-SPM-0103: no earlier purchase, no last-price baseline: the award is refused."""
@@ -135,6 +160,52 @@ class TestPdfDialog(SpmComparisonCase):
         self.assertIn('Untaxed amount', labels)
 
 
+    def test_fr_0104_the_stated_filters_name_the_records_and_keep_the_operators(self):
+        """FR-SPM-0104: the filters of the printout are read from the domain, with names and an 'or'."""
+        domain = ['|', ('partner_id', '=', self.acme.id), ('company_id', 'in', [self.company.id]),
+                  ('date', '>=', '2026-10-01')]
+        wizard = self._wizard(self.manager, domain=repr(domain))
+        text = wizard.filter_text
+        self.assertIn(self.acme.name, text)
+        self.assertIn(self.company.name, text)
+        self.assertIn(' or ', text)
+        self.assertIn('2026-10-01', text)
+        self.assertNotIn(str(self.company.id) + ']', text)
+
+    def test_fr_0104_a_user_note_is_printed_beside_the_derived_filters(self):
+        """FR-SPM-0104: the note cannot replace the filters of the printout."""
+        wizard = self._wizard(self.manager, domain=repr([('company_id', '=', self.company.id)]),
+                              filter_description='Q4 review')
+        text = wizard.spm_filter_text()
+        self.assertIn(self.company.name, text)
+        self.assertIn('Q4 review', text)
+
+    def test_fr_0104_the_selected_rows_narrow_the_printout(self):
+        """FR-SPM-0104: opened on selected rows, the dialog holds the filter and the selection."""
+        context = {'active_model': 'procurement.report.spend', 'active_domain': [('company_id', '=', self.company.id)],
+                   'active_ids': [7, 8]}
+        values = self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(
+            **context).default_get(['report_model', 'domain'])
+        self.assertEqual(values['report_model'], 'procurement.report.spend')
+        self.assertIn("'id', 'in', [7, 8]", values['domain'])
+        self.assertIn('company_id', values['domain'])
+
+    def test_fr_0104_a_wrong_grouping_is_refused_with_a_message(self):
+        """FR-SPM-0104: a granularity the report cannot give ends in a message, not a traceback."""
+        for group in ('date:foo', 'partner_id:month', 'no_such_field'):
+            with self.subTest(group=group), self.assertRaises(UserError):
+                self._wizard(self.manager, group_by=group).action_print()
+
+    def test_fr_0104_the_print_dialog_opens_as_the_user_does(self):
+        """FR-SPM-0104: opened with Form in the list's context; the pressing of Print is the screen review's."""
+        context = {'active_model': 'procurement.report.spend', 'active_domain': [], 'active_ids': []}
+        form = Form(self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(**context))
+        form.group_by = 'partner_id'
+        wizard = form.save()
+        self.assertEqual(wizard.report_model, 'procurement.report.spend')
+        self.assertTrue(wizard.filter_text)
+
+
 @tagged('post_install', '-at_install')
 class TestDeliveryReport(SpmDeliveryCase):
     """Requirements: FR-SPM-0102"""
@@ -159,4 +230,56 @@ class TestDeliveryReport(SpmDeliveryCase):
         report = self.env['procurement.report.exception'].with_user(self.manager)
         self.assertEqual(report.spm_exception_rate('2026-10-01', '2026-10-31', stage='order_to_receipt'), 0.0)
         rows = report.search([('stage', '=', 'order_to_receipt'), ('date', '=', '2026-10-10')])
-        self.assertGreaterEqual(sum(rows.mapped('line_count')), 1)
+        self.assertEqual(sum(rows.mapped('line_count')), 1)
+
+    def test_fr_0102_on_time_boundary_one_day_late_and_with_a_tolerance(self):
+        """FR-SPM-0102: one day late is late with no tolerance and on time with a tolerance of one day."""
+        order = self._dorder(planned='2026-10-10 08:00:00')
+        self._receive(order, 100.0, '2026-10-11 09:00:00')
+        report = self.env['procurement.report.delivery'].with_user(self.manager)
+        ((rate,),) = report._read_group([('order_id', '=', order.id)], [], ['on_time_rate:sum'])
+        self.assertEqual(rate, 0.0)
+        order.company_id.spm_on_time_tolerance_days = 1
+        self.env.flush_all()
+        ((rate,),) = report._read_group([('order_id', '=', order.id)], [], ['on_time_rate:sum'])
+        self.assertEqual(rate, 100.0)
+
+    def test_fr_0102_the_rates_are_exact_under_any_grouping(self):
+        """FR-SPM-0102: one of two due lines on time and 200 of 300 received make 50 and 66.67 per hundred."""
+        punctual = self._dorder(planned='2026-10-10 08:00:00', qty=100.0)
+        late = self._dorder(planned='2026-10-10 08:00:00', qty=200.0)
+        self._receive(punctual, 100.0, '2026-10-10 09:00:00')
+        self._receive(late, 100.0, '2026-10-20 09:00:00')
+        orders = (punctual | late).ids
+        report = self.env['procurement.report.delivery'].with_user(self.manager)
+        ((on_time, fulfillment),) = report._read_group(
+            [('order_id', 'in', orders)], [], ['on_time_rate:sum', 'fulfillment_rate:sum'])
+        self.assertAlmostEqual(on_time, 50.0, places=2)
+        self.assertAlmostEqual(fulfillment, 200.0 / 3.0, places=2)
+        grouped = report._read_group([('order_id', 'in', orders)], ['partner_id'], ['on_time_rate:sum'])
+        self.assertAlmostEqual(grouped[0][1], 50.0, places=2)
+
+    def test_fr_0102_one_discrepancy_on_two_due_lines_is_fifty_per_hundred(self):
+        """FR-SPM-0102: order to receipt, one delivery discrepancy over two due lines gives 50."""
+        first = self._dorder(supplier=self.beta, planned='2026-10-10 08:00:00')
+        second = self._dorder(supplier=self.beta, planned='2026-10-11 08:00:00')
+        self._receive(first, 100.0, '2026-10-10 09:00:00')
+        self._receive(second, 100.0, '2026-10-11 09:00:00')
+        reason = self.env['procurement.discrepancy.reason'].search([('kind', '=', 'late')], limit=1)
+        self.env['procurement.delivery.discrepancy'].with_user(self.buyer).create({
+            'commitment_id': self._commitment(first).id, 'reason_id': reason.id, 'action': 'Chase',
+            'responsible_id': self.manager.id, 'deadline': '2026-12-20'})
+        self.env.flush_all()
+        report = self.env['procurement.report.exception'].with_user(self.manager)
+        ((rate,),) = report._read_group(
+            [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)], [], ['exception_rate:sum'])
+        self.assertAlmostEqual(rate, 50.0, places=2)
+
+    def test_fr_0102_a_commitment_not_yet_due_is_no_matched_line(self):
+        """FR-SPM-0102: a commitment due in 2030 counts neither as a delivery line nor as a matched line."""
+        order = self._dorder(planned='2030-10-10 08:00:00')
+        self.env.flush_all()
+        self.assertFalse(self.env['procurement.report.delivery'].with_user(self.manager).search(
+            [('order_id', '=', order.id)]))
+        self.assertFalse(self.env['procurement.report.exception'].with_user(self.manager).search(
+            [('stage', '=', 'order_to_receipt'), ('date', '=', '2030-10-10')]))

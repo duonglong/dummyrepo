@@ -15,14 +15,13 @@
                     <t t-set="figures" t-value="doc.spm_figures()"/>
                     <div class="page">
                         <h2 t-out="doc.env[doc.report_model]._description"/>
-                        <p><strong>Filters:</strong> <span t-out="doc.filter_description or 'No filter'"/></p>
+                        <p><strong>Filters:</strong> <span t-out="doc.spm_filter_text()"/></p>
                         <p><strong>Printed by:</strong> <span t-out="doc.env.user.name"/>
                             <strong> on </strong> <span t-out="doc.spm_print_time()"/></p>
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th><span t-out="doc.group_by or 'Group'"/></th>
-                                    <th t-foreach="figures[0]" t-as="label" class="text-end"><t t-out="label"/></th>
+                                    <th t-foreach="figures[0]" t-as="label" t-att-class="'text-end' if not label_first else ''"><t t-out="label"/></th>
                                 </tr>
                             </thead>
                             <tbody>

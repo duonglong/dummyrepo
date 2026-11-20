@@ -37,27 +37,41 @@ def price_trend(env, product, date_from, date_to):
     return rows
 
 
-def _first_offers(env, line):
-    """The first offer of each response for an event line, in the order they were answered."""
-    offers = env['procurement.sourcing.response.line'].search([('event_line_id', '=', line.id)])
+def _first_offers(env, lines):
+    """Return, per event line, the first offer of each response, in the order they were answered."""
+    offers = env['procurement.sourcing.response.line'].search([('event_line_id', 'in', lines.ids)])
     first = {}
     for offer in offers.sorted(lambda o: (o.version_id.version, o.id)):
-        first.setdefault(offer.version_id.response_id, offer)
-    return list(first.values())
+        first.setdefault((offer.event_line_id, offer.version_id.response_id), offer)
+    per_line = {line: [] for line in lines}
+    for (line, _response), offer in first.items():
+        per_line[line].append(offer)
+    return per_line
 
 
-def _last_price_total(env, line, company):
-    """The total of an event line at the price of the last confirmed purchase of its product."""
-    last = env['purchase.order.line'].search([
-        ('product_id', '=', line.product_id.id), ('company_id', '=', company.id),
+def _last_price_totals(env, lines, company):
+    """Return, per event line, its total at the price of the last confirmed purchase of its product.
+
+    The price is taken per unit of the purchase line and converted to the unit of the event line.
+    """
+    products = lines.product_id
+    purchases = env['purchase.order.line'].search([
+        ('product_id', 'in', products.ids), ('company_id', '=', company.id),
         ('order_id.state', 'in', ORDER_CONFIRMED_STATES), ('product_qty', '>', 0)],
-        order='date_order desc, id desc', limit=1)
-    if not last:
-        raise UserError(env._("There is no earlier purchase of %(product)s: choose another baseline.",
-                              product=line.product_id.display_name or line.name))
-    # the order's own currency rate converts the price to the company currency
-    unit = last.price_subtotal / last.product_qty / (last.order_id.currency_rate or 1.0)
-    return unit * line.quantity
+        order='date_order desc, id desc')
+    last = {}
+    for purchase in purchases:
+        last.setdefault(purchase.product_id, purchase)
+    totals = {}
+    for line in lines:
+        purchase = last.get(line.product_id)
+        if not purchase:
+            raise UserError(env._("There is no earlier purchase of %(product)s: choose another baseline.",
+                                  product=line.product_id.display_name or line.name))
+        # the order's own currency rate converts the price to the company currency
+        unit = purchase.price_subtotal / purchase.product_qty / (purchase.order_id.currency_rate or 1.0)
+        totals[line] = purchase.uom_id._compute_price(unit, line.uom_id) * line.quantity
+    return totals
 
 
 def award_savings(event, choices, kind, budget=0.0):
@@ -71,10 +85,11 @@ def award_savings(event, choices, kind, budget=0.0):
     env = event.env
     company = event.company_id
     target = company.currency_id
-    today = fields.Date.context_today(event)
+    lines = env['procurement.sourcing.event.line'].concat(*choices)
+    rate_date = event.rate_date or fields.Date.context_today(event)
 
     def convert(amount, currency):
-        return currency._convert(amount, target, company, today)
+        return currency._convert(amount, target, company, rate_date)
 
     awarded = sum(
         convert(offer.price_subtotal, offer.currency_id)
@@ -85,11 +100,10 @@ def award_savings(event, choices, kind, budget=0.0):
             raise UserError(env._("State the budget the award is compared with."))
         baseline = budget
     elif kind == 'last_price':
-        baseline = sum(_last_price_total(env, line, company) for line in choices)
+        baseline = sum(_last_price_totals(env, lines, company).values())
     else:
         baseline = 0.0
-        for line in choices:
-            offers = _first_offers(env, line)
+        for offers in _first_offers(env, lines).values():
             baseline += sum(convert(o.price_subtotal, o.currency_id) for o in offers) / len(offers)
     return {'baseline_kind': kind, 'budget_amount': budget if kind == 'budget' else 0.0,
             'baseline_amount': baseline, 'awarded_amount': awarded, 'savings_amount': baseline - awarded}
