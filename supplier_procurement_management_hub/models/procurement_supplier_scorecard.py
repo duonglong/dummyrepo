@@ -53,12 +53,17 @@ class ProcurementSupplierScorecard(models.Model):
 
     @api.model
     def _spm_close_ended(self, partner, today):
-        """Close the open scorecards of the supplier whose period ended; they keep their last snapshot.
+        """Compute the open scorecards of the supplier whose period ended over their whole length, then close them.
 
         Requirements: FR-SPM-0083
         """
-        self.search([('partner_id', '=', partner.id), ('period_closed', '=', False),
-                     ('period_end', '<', today)]).write({'period_closed': True})
+        ended = self.search([('partner_id', '=', partner.id), ('period_closed', '=', False),
+                             ('period_end', '<', today)])
+        for card in ended:
+            _start, end = performance.period_bounds(card.template_id.period, card.period_start)
+            if end == card.period_end:
+                self._spm_snapshot(card.template_id, partner, card.period_start)
+        ended.write({'period_closed': True})
 
     def spm_trend(self, metric):
         """Return the same metric of the earlier scorecards of the supplier and template, oldest first.
@@ -101,14 +106,16 @@ class ProcurementJob(models.Model):  # sdd-allow: model-split the job runner is 
                             ondelete={'scorecard': 'cascade'})
 
     def _spm_collect_scorecard(self):
-        """Return the suppliers a scorecard template applies to.
+        """Return the suppliers a scorecard template applies to and those with an ended period still open.
 
         Requirements: FR-SPM-0083
         """
-        return performance.suppliers_with_template(self.env)
+        ended = self.env['procurement.supplier.scorecard'].search([
+            ('period_closed', '=', False), ('period_end', '<', fields.Date.context_today(self))]).partner_id
+        return (performance.suppliers_with_template(self.env) | ended).sorted('id')
 
     def _spm_process_scorecard(self, partner):
-        """Snapshot the scorecards of one supplier for the period of today; return the number made.
+        """Finish the ended periods and snapshot the scorecards of one supplier for today; return 0 (no notification is sent).
 
         Requirements: FR-SPM-0083
         """

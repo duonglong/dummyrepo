@@ -12,7 +12,7 @@
                 <field name="template_id" optional="hide"/>
                 <field name="period_start"/>
                 <field name="period_end"/>
-                <field name="score"/>
+                <field name="score" invisible="not range"/>
                 <field name="range"/>
                 <field name="computed_at"/>
                 <field name="company_id" groups="base.group_multi_company"/>
@@ -38,7 +38,7 @@
                             <field name="period_closed"/>
                         </group>
                         <group>
-                            <field name="score"/>
+                            <field name="score" invisible="not range"/>
                             <field name="range"/>
                             <field name="computed_at"/>
                             <field name="company_id" groups="base.group_multi_company"/>

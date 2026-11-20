@@ -58,3 +58,23 @@ class TestScorecardSnapshot(SpmScorecardCase):
         metric = self._metric(self._scorecards(template), 'on_time')
         action = metric.action_spm_open_evidence()
         self.assertEqual(action['domain'], [('id', 'in', metric.evidence_ids)])
+
+    def test_closed_period_counts_the_last_day(self):
+        """FR-SPM-0083: a receipt done on the last day after the nightly run is in the closed card."""
+        template = self._template([('on_time', 1.0)], period='month')
+        order = self._line_order(['2026-10-31 12:00:00'])
+        with freeze_time('2026-10-31 02:00:00'):
+            self.env['procurement.job']._spm_run('scorecard')
+        self._receive(order, 1.0, '2026-10-31 15:00:00')
+        with freeze_time('2026-11-01 02:00:00'):
+            self.env['procurement.job']._spm_run('scorecard')
+        october = self._scorecards(template).filtered(lambda c: c.period_start == date(2026, 10, 1))
+        self.assertTrue(october.period_closed)
+        self.assertEqual(self._metric(october, 'on_time').denominator, 1.0)
+
+    def test_card_without_data_has_no_range(self):
+        """FR-SPM-0084: with no metric data the card has no range, so the screen hides its score."""
+        template = self._template([('responsiveness', 1.0)], period='month')
+        with freeze_time('2026-11-16 02:00:00'):
+            self.env['procurement.job']._spm_run('scorecard')
+        self.assertFalse(self._scorecards(template).range)
