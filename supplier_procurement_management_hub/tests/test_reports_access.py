@@ -4,6 +4,7 @@ Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104, FR-SPM-0105
 """
 from freezegun import freeze_time
 
+from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, tagged
 
@@ -276,10 +277,44 @@ class TestDeliveryReport(SpmDeliveryCase):
         self.assertAlmostEqual(rate, 50.0, places=2)
 
     def test_fr_0102_a_commitment_not_yet_due_is_no_matched_line(self):
-        """FR-SPM-0102: a commitment due in 2030 counts neither as a delivery line nor as a matched line."""
-        order = self._dorder(planned='2030-10-10 08:00:00')
+        """FR-SPM-0102: a commitment due in thirty days counts neither as a delivery line nor as a matched line."""
+        later = fields.Date.add(fields.Date.today(), days=30)
+        order = self._dorder(planned=f'{later} 08:00:00')
         self.env.flush_all()
         self.assertFalse(self.env['procurement.report.delivery'].with_user(self.manager).search(
             [('order_id', '=', order.id)]))
         self.assertFalse(self.env['procurement.report.exception'].with_user(self.manager).search(
-            [('stage', '=', 'order_to_receipt'), ('date', '=', '2030-10-10')]))
+            [('stage', '=', 'order_to_receipt'), ('date', '=', later)]))
+
+    def test_fr_0102_a_rate_grouped_by_kind_is_empty_not_zero(self):
+        """FR-SPM-0102: kind is known on exception rows only, so a group by kind has no denominator."""
+        first = self._dorder(supplier=self.beta, planned='2026-10-10 08:00:00')
+        second = self._dorder(supplier=self.beta, planned='2026-10-11 08:00:00')
+        self._receive(first, 100.0, '2026-10-10 09:00:00')
+        self._receive(second, 100.0, '2026-10-11 09:00:00')
+        self.env.flush_all()
+        report = self.env['procurement.report.exception'].with_user(self.manager)
+        rows = report._read_group(
+            [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)],
+            ['kind'], ['exception_rate:sum', 'line_count:sum'])
+        self.assertEqual([(rate, lines) for _kind, rate, lines in rows], [(None, 2)])
+
+    def test_fr_0102_a_missing_rate_prints_as_a_dash(self):
+        """FR-SPM-0102: the printout shows a dash for a rate with no denominator, never 0.00."""
+        wizard = self.env['procurement.report.pdf.wizard']
+        rate = self.env['procurement.report.exception']._fields['exception_rate']
+        self.assertEqual(wizard._spm_format(rate, False), '-')
+        self.assertEqual(wizard._spm_format(rate, 0.0), '0.00')
+
+
+@tagged('post_install', '-at_install')
+class TestSavingsScreen(SpmComparisonCase):
+    """Requirements: FR-SPM-0103"""
+
+    def test_fr_0103_the_savings_screen_adds_up_savings_of_one_baseline_only(self):
+        """FR-SPM-0103: grouped by baseline kind by default, with no total across kinds and no pivot."""
+        action = self.env.ref('supplier_procurement_management_hub.procurement_report_savings_action')
+        self.assertEqual(action.view_mode, 'list')
+        self.assertIn('group_baseline', action.context)
+        arch = self.env.ref('supplier_procurement_management_hub.procurement_report_savings_list').arch
+        self.assertNotIn('sum=', arch)

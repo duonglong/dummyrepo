@@ -152,32 +152,32 @@
                 <field name="awarded_partner_id"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="baseline_kind"/>
-                <field name="baseline_amount" sum="Baseline"/>
-                <field name="awarded_amount" sum="Awarded"/>
-                <field name="savings_amount" sum="Savings"/>
+                <field name="baseline_amount"/>
+                <field name="awarded_amount"/>
+                <field name="savings_amount"/>
             </list>
         </field>
     </record>
-    <record id="procurement_report_savings_pivot" model="ir.ui.view">
-        <field name="name">procurement.report.savings.pivot</field>
+    <record id="procurement_report_savings_search" model="ir.ui.view">
+        <field name="name">procurement.report.savings.search</field>
         <field name="model">procurement.report.sourcing</field>
         <field name="arch" type="xml">
-            <pivot string="Savings" sample="1">
-                <field name="baseline_kind" type="row"/>
-                <field name="date_awarded" interval="quarter" type="col"/>
-                <field name="baseline_amount" type="measure"/>
-                <field name="awarded_amount" type="measure"/>
-                <field name="savings_amount" type="measure"/>
-            </pivot>
+            <search>
+                <field name="event_id"/>
+                <field name="awarded_partner_id"/>
+                <group>
+                    <filter name="group_baseline" string="Baseline" context="{'group_by': 'baseline_kind'}"/>
+                </group>
+            </search>
         </field>
     </record>
     <record id="procurement_report_savings_action" model="ir.actions.act_window">
         <field name="name">Savings</field>
         <field name="res_model">procurement.report.sourcing</field>
-        <field name="view_mode">pivot,list</field>
-        <field name="view_ids" eval="[(5, 0, 0),
-            (0, 0, {'view_mode': 'pivot', 'view_id': ref('procurement_report_savings_pivot')}),
-            (0, 0, {'view_mode': 'list', 'view_id': ref('procurement_report_savings_list')})]"/>
+        <field name="view_mode">list</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('procurement_report_savings_list')})]"/>
+        <field name="search_view_id" ref="procurement_report_savings_search"/>
+        <field name="context">{'search_default_group_baseline': 1}</field>
         <field name="domain">[('baseline_kind', '!=', False)]</field>
         <field name="help">Award a sourcing event to see its savings.</field>
     </record>

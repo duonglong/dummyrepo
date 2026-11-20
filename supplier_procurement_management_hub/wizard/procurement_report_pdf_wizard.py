@@ -164,7 +164,7 @@ class ProcurementReportPdfWizard(models.TransientModel):
 
     @staticmethod
     def _spm_format(field, value):
-        if value is None:
+        if value is None or value is False:
             return '-'
         if field.type == 'integer':
             return f"{value:,.0f}"
