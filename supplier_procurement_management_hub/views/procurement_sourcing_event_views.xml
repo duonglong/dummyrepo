@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- The Override button of a sourcing event opens the reason dialog for the event -->
+    <record id="procurement_override_event_action" model="ir.actions.act_window">
+        <field name="name">Override supplier control</field>
+        <field name="res_model">procurement.reason.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'default_res_model': 'procurement.sourcing.event', 'default_res_ids': [active_id],
+            'default_action': 'override'}</field>
+    </record>
+
     <!-- Requirements: FR-SPM-0031, FR-SPM-0032, FR-SPM-0033, FR-SPM-0042 -->
     <record id="procurement_sourcing_event_view_list" model="ir.ui.view">
         <field name="name">procurement.sourcing.event.list</field>
@@ -32,6 +42,9 @@
                             invisible="state != 'awarded'"/>
                     <button name="action_spm_open_cancel_wizard" type="object" string="Cancel"
                             invisible="state not in ('draft', 'open') or not id"/>
+                    <button name="%(procurement_override_event_action)d" type="action" string="Override"
+                            invisible="state not in ('draft', 'open') or not id"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,open,awarded"/>
                 </header>
                 <sheet>
@@ -198,6 +211,14 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='reason']" position="attributes">
                 <attribute name="required">action in ('override', 'request_changes', 'reject', 'cancel') or status_kind in ('suspended', 'blocked')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='reason']" position="before">
+                <field name="override_partner_ids" invisible="True"/>
+                <field name="override_action" invisible="action != 'override' or res_model != 'procurement.sourcing.event'"
+                       required="action == 'override' and res_model == 'procurement.sourcing.event'"/>
+                <field name="override_partner_id" invisible="action != 'override' or res_model != 'procurement.sourcing.event'"
+                       required="action == 'override' and res_model == 'procurement.sourcing.event'"
+                       domain="[('id', 'in', override_partner_ids)]" options="{'no_create': True}"/>
             </xpath>
         </field>
     </record>

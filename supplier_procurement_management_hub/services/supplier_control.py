@@ -8,7 +8,6 @@ import pytz
 
 from odoo import fields
 from odoo.exceptions import UserError
-from odoo.tools import html2plaintext
 
 # Worst first: the supplier shows the worst state among its required documents.
 COMPLIANCE_ORDER = ('expired_or_missing', 'rejected', 'to_verify', 'expiring', 'valid')
@@ -84,7 +83,7 @@ def compliance_state(rows):
 # Status kinds a supplier may have to take part in a controlled flow (BR-SPM-0006).
 CONTROL_ALLOWED_KINDS = ('approved', 'conditional')
 # Models whose records a controlled flow acts on (an override can name only these).
-CONTROLLED_MODELS = ('purchase.order',)
+CONTROLLED_MODELS = ('purchase.order', 'procurement.sourcing.event')
 # The override event of each override kind in the audit trail.
 OVERRIDE_AUDIT_EVENTS = {'status': 'status_override', 'risk': 'risk_override'}
 
@@ -128,19 +127,39 @@ def controlled_record(env, res_model, res_id):
     return record
 
 
+def override_partner(env, record, partner_id):
+    """Return the supplier an override of this record covers.
+
+    Requirements: FR-SPM-0013, FR-SPM-0090, BR-SPM-0001
+    An order has one supplier. A sourcing event has several: the client names the
+    supplier, which must be invited to the event or have answered it.
+    """
+    if 'partner_id' in record._fields:
+        return record.partner_id.commercial_partner_id
+    partner = env['res.partner'].browse(partner_id).exists()
+    suppliers = (record.invited_partner_ids | record.response_ids.partner_id).commercial_partner_id
+    if not partner or partner.commercial_partner_id not in suppliers:
+        raise UserError(env._("The supplier of the override must be invited to this event or have answered it."))
+    return partner.commercial_partner_id
+
+
 def _status_control(company):
     """Return True when the company controls the supplier status (BR-SPM-0006)."""
     return company.sudo().spm_supplier_control  # elevated: company setting read
 
 
 def _already_noted(record, message):
-    """Return True when the record's chatter already holds this note.
+    """Return True when this note was already posted on the record in this transaction.
 
-    Elevated rights (read of the record's messages): the acting user may not read
-    the chatter; only the text of the notes is compared.
+    The mark lives in the transaction's cache: one confirmation passes the check twice
+    (confirm, then approve) and notes once; a later confirmation notes again.
     """
-    return any(html2plaintext(note.body or '').strip() == message
-               for note in record.sudo().message_ids)  # elevated: chatter read
+    noted = record.env.cr.cache.setdefault('spm_risk_noted', set())
+    key = (record._name, record.id, message)
+    if key in noted:
+        return True
+    noted.add(key)
+    return False
 
 
 def _status_refusal(env, record, partner, action):

@@ -155,7 +155,7 @@
               groups="group_spm_auditor,group_spm_manager,group_spm_admin"/>
     <menuitem id="menu_spm_screening" name="Screenings" parent="menu_spm_root" sequence="62"
               action="procurement_screening_action"
-              groups="group_spm_auditor,group_spm_manager,group_spm_admin"/>
+              groups="group_spm_buyer,group_spm_auditor,group_spm_manager,group_spm_admin"/>
     <menuitem id="menu_spm_risk_category" name="Risk categories" parent="menu_spm_configuration" sequence="60"
               action="procurement_risk_category_action"
               groups="group_spm_auditor,group_spm_manager,group_spm_admin"/>

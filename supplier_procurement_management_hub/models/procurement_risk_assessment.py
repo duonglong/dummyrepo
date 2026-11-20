@@ -18,9 +18,11 @@ def _is_real_change(records, name, value):
     field = records._fields[name]
     if field.type in ('one2many', 'many2many'):
         current = set(records.mapped(name).ids)
-        return any(not (command[0] == Command.CLEAR or (
-            command[0] == Command.SET and set(command[2]) == current)) for command in value or [])
-    held = {record[name] for record in records} if records else {'draft' if name == 'state' else False}
+        return any(not (command[0] == Command.CLEAR
+                        or (command[0] == Command.SET and set(command[2]) == current)
+                        or (command[0] == Command.LINK and command[1] in current))
+                   for command in value or [])
+    held = {record[name] for record in records} if records else {records.default_get([name]).get(name, False)}
     return any((held_value or False) != (value or False) for held_value in held)
 
 
@@ -107,6 +109,12 @@ class ProcurementRiskAssessment(models.Model):
             if missing:
                 raise UserError(self.env._(
                     "The assessment cannot be completed. Unanswered: %s.", "; ".join(missing)))
+            sourceless = assessment.category_score_ids.filtered(
+                lambda line: not risk.has_source(line.category_id, line.answer_ids))
+            if sourceless:
+                raise UserError(self.env._(
+                    "The assessment cannot be completed: no answer or document to score for %s.",
+                    ", ".join(sourceless.category_id.mapped('name'))))
             scores = [(line._spm_compute_score(), line.category_id.weight)
                       for line in assessment.category_score_ids]
             if not sum(weight for _score, weight in scores):

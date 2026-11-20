@@ -51,6 +51,19 @@ def missing_questions(questionnaire, answers):
         lambda question: question.kind == 'choice' and question.required and question not in answered)
 
 
+def has_source(category, answers):
+    """Return True when the category's score has something to come from.
+
+    Requirements: BR-SPM-0017, FR-SPM-0088
+    A category with a questionnaire needs an answered choice question; a category
+    with neither a questionnaire nor documents has no source at all. A category that
+    only uses documents keeps its score, even when no document type is required.
+    """
+    if category.questionnaire_id:
+        return bool(answers.filtered('option_id').question_id.filtered(lambda question: question.kind == 'choice'))
+    return bool(category.uses_documents)
+
+
 def documents_score(env, partner):
     """Return ``(score, documents)`` of the supplier's required documents.
 

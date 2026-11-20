@@ -176,3 +176,71 @@ class TestRisk(TransactionCase):
             supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
         notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
         self.assertEqual(len(notes), 1)
+
+    def test_complete_refuses_a_category_without_a_source(self):
+        """FR-SPM-0088, BR-SPM-0017: a category with nothing to score is not no risk."""
+        manager = self._manager('risk_source_manager')
+        partner = self.env['res.partner'].create({'name': 'Iota'})
+        optional = self.env['procurement.questionnaire'].create({
+            'name': 'Optional Q', 'purpose': 'risk', 'question_ids': [(0, 0, {
+                'name': 'Q', 'kind': 'choice', 'required': False,
+                'option_ids': [(0, 0, {'name': 'Yes', 'points': 10})]})]})
+        with_questions = self.env['procurement.risk.category'].create({
+            'name': 'Optional', 'weight': 1, 'questionnaire_id': optional.id})
+        empty = self.env['procurement.risk.category'].create({'name': 'Empty', 'weight': 1})
+        for category in (with_questions, empty):
+            assessment = self.env['procurement.risk.assessment'].with_user(manager).create({
+                'partner_id': partner.id, 'category_score_ids': [(0, 0, {'category_id': category.id})]})
+            with self.assertRaises(UserError) as ctx:
+                assessment.action_spm_complete()
+            self.assertIn(category.name, str(ctx.exception))
+            self.assertEqual(assessment.state, 'draft')
+
+    def test_event_override_names_a_supplier_of_the_event(self):
+        """FR-SPM-0090: a manager overrides a risk refusal of an event for one of its suppliers,
+        through the reason dialog (Form); the Override button is left to the screen review."""
+        manager = self._manager('risk_event_manager')
+        invited = self.env['res.partner'].create({'name': 'Invited', 'spm_risk_level': 'high'})
+        stranger = self.env['res.partner'].create({'name': 'Stranger', 'spm_risk_level': 'high'})
+        self.env.company.spm_risk_high_action = 'block'
+        event = self.env['procurement.sourcing.event'].create({
+            'title': 'Event', 'invited_partner_ids': [(6, 0, invited.ids)]})
+        with self.assertRaises(UserError):
+            supplier_control.check_supplier_allowed(self.env, event, invited, event.company_id, 'invite')
+        wizard_model = self.env['procurement.reason.wizard'].with_user(manager).with_context(
+            default_res_model=event._name, default_res_ids=event.ids, default_action='override')
+        form = Form(wizard_model)
+        form.override_action = 'invite'
+        form.override_partner_id = invited
+        form.reason = 'Needed'
+        form.save().action_confirm()
+        supplier_control.check_supplier_allowed(self.env, event, invited, event.company_id, 'invite')
+        with self.assertRaises(UserError):  # the override covers its step only
+            supplier_control.check_supplier_allowed(self.env, event, invited, event.company_id, 'award')
+        with self.assertRaises(UserError):
+            self.env['procurement.override'].with_user(manager).create({
+                'res_model': event._name, 'res_id': event.id, 'partner_id': stranger.id,
+                'action': 'invite', 'kind': 'risk', 'reason': 'x'})
+
+    def test_override_dialog_refuses_when_nothing_is_refused(self):
+        """FR-SPM-0090: the dialog records nothing for a supplier that needs no override."""
+        manager = self._manager('risk_none_manager')
+        partner = self.env['res.partner'].create({'name': 'Kappa', 'spm_risk_level': 'low'})
+        order = self.env['purchase.order'].create({'partner_id': partner.id})
+        wizard = self.env['procurement.reason.wizard'].with_user(manager).create({
+            'res_model': order._name, 'res_ids': order.ids, 'action': 'override', 'reason': 'Why'})
+        with self.assertRaises(UserError):
+            wizard.action_confirm()
+        self.assertFalse(self.env['procurement.override'].search([('res_id', '=', order.id)]))
+
+    def test_confirmation_notes_the_warning_once(self):
+        """FR-SPM-0090: the native confirm path (confirm, then approve) posts one warning."""
+        partner = self.env['res.partner'].create({'name': 'Nu', 'spm_risk_level': 'medium'})
+        self.env.company.spm_risk_medium_action = 'warn'
+        product = self.env['product.product'].create({'name': 'Nu part', 'type': 'consu'})
+        order = self.env['purchase.order'].create({
+            'partner_id': partner.id,
+            'order_line': [(0, 0, {'product_id': product.id, 'product_qty': 1, 'price_unit': 1})]})
+        order.button_confirm()
+        notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
+        self.assertEqual(len(notes), 1)
