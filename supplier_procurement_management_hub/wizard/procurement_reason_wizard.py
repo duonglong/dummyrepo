@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.exceptions import UserError
 
+from ..services import supplier_control
+
 
 class ProcurementReasonWizard(models.TransientModel):
     """The mandatory reason dialog of a reasoned action.
@@ -94,16 +96,22 @@ class ProcurementReasonWizard(models.TransientModel):
         getattr(records, method)(self.reason)
 
     def _spm_record_overrides(self):
-        """Record a status override for each record, to confirm it with its supplier.
+        """Record the overrides each record needs (status, risk) to be confirmed with its supplier.
 
-        Requirements: FR-SPM-0013
-        Rights, scope and audit are those of the override's create.
+        Requirements: FR-SPM-0013, FR-SPM-0090
+        Rights, scope and audit are those of the override's create; a record
+        that is refused for neither reason gets a status override as before.
         """
         records = self.env[self.res_model].browse(self.res_ids)
-        self.env['procurement.override'].create([{
-            'res_model': self.res_model, 'res_id': record.id, 'action': 'confirm',
-            'kind': 'status', 'reason': self.reason,
-        } for record in records])
+        values = []
+        for record in records:
+            kinds = self.res_model in supplier_control.CONTROLLED_MODELS and supplier_control.refusal_kinds(
+                self.env, record, record.partner_id, record.company_id, 'confirm') or ['status']
+            values += [{
+                'res_model': self.res_model, 'res_id': record.id, 'action': 'confirm',
+                'kind': kind, 'reason': self.reason,
+            } for kind in kinds]
+        self.env['procurement.override'].create(values)
 
     def _spm_review_applications(self):
         """Forward the reason to the review action of the applications.

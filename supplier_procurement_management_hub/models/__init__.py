@@ -61,3 +61,6 @@ from . import procurement_approval_request
 from . import procurement_approval_step
 from . import procurement_approval_decision
 from . import procurement_approval_delegation
+from . import procurement_risk_category
+from . import procurement_risk_assessment
+from . import procurement_screening

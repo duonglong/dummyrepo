@@ -66,3 +66,4 @@ from . import test_reports_access_acceptance
 from . import test_dashboard_acceptance
 from . import test_scorecard_template_acceptance
 from . import test_scorecard_metrics_acceptance
+from . import test_risk
