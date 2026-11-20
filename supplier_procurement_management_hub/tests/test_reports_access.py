@@ -2,6 +2,10 @@
 
 Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104, FR-SPM-0105
 """
+import io
+import json
+
+import openpyxl
 from freezegun import freeze_time
 
 from odoo import fields
@@ -12,6 +16,20 @@ from .comparison_common import SpmComparisonCase
 from .delivery_common import SpmDeliveryCase
 
 CRITERIA = [('Price', 'price', 'lower', 100.0)]
+EXPORT_PASSWORD = 'spm-export-pass'
+
+
+def export_group_rows(case, user, model, columns, groupby, domain):
+    """The group header rows (first cell ends with the record count) of a grouped XLSX export, as ``user``."""
+    user.sudo().password = EXPORT_PASSWORD
+    case.authenticate(user.login, EXPORT_PASSWORD)
+    data = {'model': model, 'fields': [{'name': name, 'label': name} for name in columns],
+            'ids': False, 'domain': domain, 'groupby': groupby, 'import_compat': False, 'context': {}}
+    response = case.url_open('/web/export/xlsx', data={'data': json.dumps(data), 'csrf_token': case.csrf_token()})
+    case.assertEqual(response.status_code, 200)
+    sheet = openpyxl.load_workbook(io.BytesIO(response.content)).active
+    return [row for row in sheet.iter_rows(min_row=2, values_only=True)
+            if isinstance(row[0], str) and row[0].rstrip().endswith(')')]
 
 
 @tagged('post_install', '-at_install')
@@ -76,6 +94,54 @@ class TestSavingsBaseline(SpmComparisonCase):
         self.env.flush_all()
         event = self._awarded_event(baseline_kind='last_price')
         self.assertAlmostEqual(event.sudo().baseline_amount, 100.0, places=2)
+
+    def test_fr_0103_savings_are_totalled_inside_one_baseline_kind_only(self):
+        """FR-SPM-0103: no read path adds the savings of two baseline kinds into one figure."""
+        self._awarded_event()
+        self._awarded_event(baseline_kind='budget', budget_amount=900.0)
+        self.env.flush_all()
+        report = self.env['procurement.report.sourcing'].with_user(self.manager)
+        measure = ['savings_amount:sum']
+        domain = [('baseline_kind', '!=', False)]
+        self.assertEqual(report._read_group(domain, [], measure), [(None,)])
+        self.assertEqual(
+            [row[1] for row in report._read_group(domain, ['awarded_partner_id'], measure)], [None])
+        by_kind = dict(report._read_group(domain, ['baseline_kind'], measure))
+        self.assertAlmostEqual(by_kind['first_average'], 46.0, places=2)
+        self.assertAlmostEqual(by_kind['budget'], 186.0, places=2)
+        sets = report._read_grouping_sets(domain, [[], ['baseline_kind']], measure)
+        self.assertEqual(sets[0], [(None,)])
+        self.assertAlmostEqual(dict(sets[1])['budget'], 186.0, places=2)
+        pinned = report._read_group([('baseline_kind', '=', 'budget')], [], measure)
+        self.assertAlmostEqual(pinned[0][0], 186.0, places=2)
+
+    def test_fr_0103_the_multi_currency_total_of_savings_is_blanked_too(self):
+        """FR-SPM-0103: the sum_currency aggregate the list, pivot and graph show beside the sum is guarded alike."""
+        self._awarded_event()
+        self._awarded_event(baseline_kind='budget', budget_amount=900.0)
+        self.env.flush_all()
+        report = self.env['procurement.report.sourcing'].with_user(self.manager)
+        measure = ['savings_amount:sum', 'savings_amount:sum_currency', 'baseline_amount:sum_currency']
+        domain = [('baseline_kind', '!=', False)]
+        self.assertEqual(report._read_group(domain, [], measure), [(None, None, None)])
+        sets = report._read_grouping_sets(domain, [[], ['baseline_kind']], measure)
+        self.assertEqual(sets[0], [(None, None, None)])
+        self.assertTrue(all(row[1] is not None for row in sets[1]))
+
+    def test_fr_0104_a_grouped_export_holds_the_group_totals_of_the_screen(self):
+        """FR-SPM-0103, FR-SPM-0104: grouped by supplier the savings cell is empty; by baseline kind it is per kind."""
+        self._awarded_event()
+        self._awarded_event(baseline_kind='budget', budget_amount=900.0)
+        self.env.flush_all()
+        domain = [('baseline_kind', '!=', False)]
+        by_supplier = export_group_rows(
+            self, self.manager, 'procurement.report.sourcing',
+            ['awarded_partner_id', 'savings_amount'], ['awarded_partner_id'], domain)
+        self.assertEqual([row[1] for row in by_supplier], [None] * len(by_supplier))
+        by_kind = export_group_rows(
+            self, self.manager, 'procurement.report.sourcing',
+            ['baseline_kind', 'savings_amount'], ['baseline_kind'], domain)
+        self.assertEqual(sorted(round(row[1], 2) for row in by_kind), [46.0, 186.0])
 
     def test_fr_0103_a_printout_of_the_savings_names_the_baseline_kind_of_each_total(self):
         """FR-SPM-0103, FR-SPM-0104: with no grouping the printed savings are split by baseline kind."""
@@ -276,6 +342,19 @@ class TestDeliveryReport(SpmDeliveryCase):
             [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)], [], ['exception_rate:sum'])
         self.assertAlmostEqual(rate, 50.0, places=2)
 
+    def test_fr_0104_a_grouped_export_divides_the_sums_of_a_rate(self):
+        """FR-SPM-0102, FR-SPM-0104: one of two due lines on time exports 50 on its group row, not 100."""
+        punctual = self._dorder(planned='2026-10-10 08:00:00', qty=100.0)
+        late = self._dorder(planned='2026-10-10 08:00:00', qty=100.0)
+        self._receive(punctual, 100.0, '2026-10-10 09:00:00')
+        self._receive(late, 100.0, '2026-10-20 09:00:00')
+        rows = export_group_rows(
+            self, self.manager, 'procurement.report.delivery', ['partner_id', 'on_time_rate', 'line_count'],
+            ['partner_id'], [('order_id', 'in', (punctual | late).ids)])
+        self.assertEqual(len(rows), 1)
+        self.assertAlmostEqual(rows[0][1], 50.0, places=2)
+        self.assertEqual(rows[0][2], '2')
+
     def test_fr_0102_a_commitment_not_yet_due_is_no_matched_line(self):
         """FR-SPM-0102: a commitment due in thirty days counts neither as a delivery line nor as a matched line."""
         later = fields.Date.add(fields.Date.today(), days=30)
@@ -298,6 +377,26 @@ class TestDeliveryReport(SpmDeliveryCase):
             [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)],
             ['kind'], ['exception_rate:sum', 'line_count:sum'])
         self.assertEqual([(rate, lines) for _kind, rate, lines in rows], [(None, 2)])
+
+    def test_fr_0102_a_rate_grouped_by_kind_is_empty_with_a_discrepancy_and_on_the_pivot_path(self):
+        """FR-SPM-0102: with one discrepancy in the data, the list path and the pivot path leave the kind rate empty."""
+        first = self._dorder(supplier=self.beta, planned='2026-10-10 08:00:00')
+        second = self._dorder(supplier=self.beta, planned='2026-10-11 08:00:00')
+        self._receive(first, 100.0, '2026-10-10 09:00:00')
+        self._receive(second, 100.0, '2026-10-11 09:00:00')
+        reason = self.env['procurement.discrepancy.reason'].search([('kind', '=', 'late')], limit=1)
+        self.env['procurement.delivery.discrepancy'].with_user(self.buyer).create({
+            'commitment_id': self._commitment(first).id, 'reason_id': reason.id, 'action': 'Chase',
+            'responsible_id': self.manager.id, 'deadline': '2026-12-20'})
+        self.env.flush_all()
+        report = self.env['procurement.report.exception'].with_user(self.manager)
+        domain = [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)]
+        aggregates = ['exception_rate:sum', 'exception_count:sum', 'line_count:sum']
+        listed = report._read_group(domain, ['kind'], aggregates)
+        self.assertEqual([row[1:] for row in listed], [(None, 1, 2)])
+        paths = report._read_grouping_sets(domain, [['kind'], []], aggregates)
+        self.assertEqual([row[1:] for row in paths[0]], [(None, 1, 2)])
+        self.assertAlmostEqual(paths[1][0][0], 50.0, places=2)
 
     def test_fr_0102_a_missing_rate_prints_as_a_dash(self):
         """FR-SPM-0102: the printout shows a dash for a rate with no denominator, never 0.00."""

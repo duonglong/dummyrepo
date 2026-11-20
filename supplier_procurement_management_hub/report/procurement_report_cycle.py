@@ -11,9 +11,14 @@ class ProcurementReportSourcing(models.Model):
     Requirements: FR-SPM-0101, FR-SPM-0103
     """
     _name = 'procurement.report.sourcing'
+    _inherit = ['procurement.report.guard']
     _description = 'Sourcing Cycle Report'
     _auto = False
     _order = 'date_sent desc, id desc'
+    _spm_guarded_aggregates = {
+        name: lambda grouped, pinned: 'baseline_kind' in grouped | pinned
+        for name in ('baseline_amount', 'awarded_amount', 'savings_amount')
+    }
 
     event_id = fields.Many2one('procurement.sourcing.event', readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
