@@ -99,18 +99,23 @@ class ProcurementReasonWizard(models.TransientModel):
         """Record the overrides each record needs (status, risk) to be confirmed with its supplier.
 
         Requirements: FR-SPM-0013, FR-SPM-0090
-        Rights, scope and audit are those of the override's create; a record
-        that is refused for neither reason gets a status override as before.
+        Rights, scope and audit are those of the override's create; nothing is
+        recorded, and the manager told, when no record is refused.
         """
         records = self.env[self.res_model].browse(self.res_ids)
         values = []
         for record in records:
-            kinds = self.res_model in supplier_control.CONTROLLED_MODELS and supplier_control.refusal_kinds(
-                self.env, record, record.partner_id, record.company_id, 'confirm') or ['status']
+            if self.res_model in supplier_control.CONTROLLED_MODELS:
+                kinds = supplier_control.refusal_kinds(
+                    self.env, record, record.partner_id, record.company_id, 'confirm')
+            else:
+                kinds = ['status']
             values += [{
                 'res_model': self.res_model, 'res_id': record.id, 'action': 'confirm',
                 'kind': kind, 'reason': self.reason,
             } for kind in kinds]
+        if not values:
+            raise UserError(self.env._("Nothing is refused for this supplier: no override is needed."))
         self.env['procurement.override'].create(values)
 
     def _spm_review_applications(self):

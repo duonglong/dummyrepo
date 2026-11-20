@@ -46,7 +46,10 @@ class ProcurementScreening(models.Model):
         """
         results = dict(self._fields['result']._description_selection(self.env))
         for screening in self:
-            outcome = (screening.note or '').strip() or results.get(screening.result, '')
+            outcome = results.get(screening.result, '')
+            note = (screening.note or '').strip()
+            if note:
+                outcome = f"{outcome} ({note})"
             if screening.origin == 'integration':
                 screening.display_name = self.env._(
                     "%(list)s: %(outcome)s, received from the configured integration on %(date)s",

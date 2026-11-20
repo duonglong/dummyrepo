@@ -56,12 +56,14 @@
                                 <form>
                                     <group>
                                         <field name="category_id"/>
+                                        <field name="category_questionnaire_id" invisible="1"/>
                                         <field name="weight"/>
                                         <field name="score"/>
                                     </group>
                                     <field name="answer_ids">
                                         <list editable="bottom">
-                                            <field name="question_id"/>
+                                            <field name="question_id"
+                                                   domain="[('questionnaire_id', '=', parent.category_questionnaire_id)]"/>
                                             <field name="option_id" domain="[('question_id', '=', question_id)]"/>
                                             <field name="points"/>
                                         </list>

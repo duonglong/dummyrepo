@@ -8,6 +8,7 @@ import pytz
 
 from odoo import fields
 from odoo.exceptions import UserError
+from odoo.tools import html2plaintext
 
 # Worst first: the supplier shows the worst state among its required documents.
 COMPLIANCE_ORDER = ('expired_or_missing', 'rejected', 'to_verify', 'expiring', 'valid')
@@ -127,6 +128,21 @@ def controlled_record(env, res_model, res_id):
     return record
 
 
+def _status_control(company):
+    """Return True when the company controls the supplier status (BR-SPM-0006)."""
+    return company.sudo().spm_supplier_control  # elevated: company setting read
+
+
+def _already_noted(record, message):
+    """Return True when the record's chatter already holds this note.
+
+    Elevated rights (read of the record's messages): the acting user may not read
+    the chatter; only the text of the notes is compared.
+    """
+    return any(html2plaintext(note.body or '').strip() == message
+               for note in record.sudo().message_ids)  # elevated: chatter read
+
+
 def _status_refusal(env, record, partner, action):
     """Return the refusal message of a supplier status that is not allowed, or False.
 
@@ -180,12 +196,10 @@ def check(env, partners, action, company, record):
     """Return the risk findings (refusals and warnings) of the suppliers for this action.
 
     Requirements: FR-SPM-0090
-    Empty when the company has no supplier control; a refusal covered by a risk
-    override of this record is left out.
+    The company's per-level risk settings decide, whether or not it controls supplier
+    status; a refusal covered by a risk override of this record is left out.
     """
     findings = []
-    if not company.sudo().spm_supplier_control:  # elevated: company setting read
-        return findings
     for partner in partners.commercial_partner_id:
         finding = _risk_finding(env, partner, company)
         if finding and finding.blocking and has_override(env, record, partner, action, 'risk'):
@@ -199,11 +213,10 @@ def refusal_kinds(env, record, partner, company, action):
     """Return the override kinds ('status', 'risk') that this record still needs to go on.
 
     Requirements: FR-SPM-0013, FR-SPM-0090
+    The status counts only in a company with supplier control; the risk level always.
     """
-    if not company.sudo().spm_supplier_control:  # elevated: company setting read
-        return []
     partner = partner.commercial_partner_id
-    kinds = ['status'] if _status_refusal(env, record, partner, action) else []
+    kinds = ['status'] if _status_control(company) and _status_refusal(env, record, partner, action) else []
     if any(finding.blocking for finding in check(env, partner, action, company, record)):
         kinds.append('risk')
     return kinds
@@ -213,20 +226,18 @@ def check_supplier_allowed(env, record, partner, company, action):
     """Refuse a controlled flow with a supplier whose status or risk level is not allowed.
 
     Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0090
-    Does nothing when the company has no supplier control. A status other than
-    Approved or Conditional and a risk level configured as blocking are refused
-    unless an override of that kind exists for this record; a level configured
-    as warning is noted on the record and goes on. The messages name the
-    supplier and its status or risk level.
+    A status other than Approved or Conditional (only in a company with supplier
+    control) and a risk level configured as blocking are refused unless an override
+    of that kind exists for this record; a level configured as warning is noted
+    once on the record and goes on. The messages name the supplier and its status
+    or risk level.
     """
-    if not company.sudo().spm_supplier_control:  # elevated: company setting read
-        return
     partner = partner.commercial_partner_id
-    refusal = _status_refusal(env, record, partner, action)
+    refusal = _status_control(company) and _status_refusal(env, record, partner, action)
     if refusal:
         raise UserError(refusal)
     for finding in check(env, partner, action, company, record):
         if finding.blocking:
             raise UserError(finding.message)
-        if hasattr(record, 'message_post'):
+        if hasattr(record, 'message_post') and not _already_noted(record, finding.message):
             record.message_post(body=finding.message, subtype_xmlid='mail.mt_note')

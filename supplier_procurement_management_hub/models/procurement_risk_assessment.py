@@ -1,12 +1,27 @@
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..services import audit, risk
+from ..services import audit, risk, supplier_control
 
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 # Fields that only the Complete action writes.
 RESULT_FIELDS = ('state', 'score', 'level', 'is_current')
 SCORE_RESULT_FIELDS = ('weight', 'score', 'document_ids', 'evidence')
+
+
+def _is_real_change(records, name, value):
+    """Return True when ``value`` for the result field ``name`` differs from what the records hold.
+
+    A new record holds the empty value of the field (the draft state for ``state``). A
+    form sends every field it shows, so a value equal to the current one is no change.
+    """
+    field = records._fields[name]
+    if field.type in ('one2many', 'many2many'):
+        current = set(records.mapped(name).ids)
+        return any(not (command[0] == Command.CLEAR or (
+            command[0] == Command.SET and set(command[2]) == current)) for command in value or [])
+    held = {record[name] for record in records} if records else {'draft' if name == 'state' else False}
+    return any((held_value or False) != (value or False) for held_value in held)
 
 
 class ProcurementRiskAssessment(models.Model):
@@ -24,19 +39,24 @@ class ProcurementRiskAssessment(models.Model):
     assessed_by_id = fields.Many2one(
         'res.users', string="Assessed by", default=lambda self: self.env.user, ondelete='restrict')
     state = fields.Selection([('draft', 'Draft'), ('done', 'Done')],
-                             required=True, default='draft', copy=False, index=True)
+                             required=True, default='draft', copy=False, index=True, readonly=True)
     category_score_ids = fields.One2many(
         'procurement.risk.category.score', 'assessment_id', string="Category scores", copy=True)
     screening_ids = fields.One2many('procurement.screening', 'assessment_id', string="Screenings")
-    score = fields.Float(copy=False, help="Weighted average of the category scores, 0 (no risk) to 100.")
-    level = fields.Selection([('low', 'Low'), ('medium', 'Medium'), ('high', 'High')], copy=False)
-    is_current = fields.Boolean(string="Current", copy=False, index=True)
+    score = fields.Float(copy=False, readonly=True,
+                         help="Weighted average of the category scores, 0 (no risk) to 100.")
+    level = fields.Selection([('low', 'Low'), ('medium', 'Medium'), ('high', 'High')], copy=False, readonly=True)
+    is_current = fields.Boolean(string="Current", copy=False, index=True, readonly=True)
 
     # --- write guards ---------------------------------------------------
 
     def _spm_refuse_result_values(self, vals):
-        """Refuse the result fields in the values of a user: the Complete action writes them."""
-        if not self.env.su and any(name in vals for name in RESULT_FIELDS):
+        """Refuse a change of the result fields by a user: the Complete action writes them.
+
+        Values that equal what the record holds are no change: the form sends them all.
+        """
+        if not self.env.su and any(
+                name in vals and _is_real_change(self, name, vals[name]) for name in RESULT_FIELDS):
             raise AccessError(self.env._("The result of a risk assessment is set by completing it."))
 
     @api.model_create_multi
@@ -81,6 +101,12 @@ class ProcurementRiskAssessment(models.Model):
                 raise UserError(self.env._("Only a draft risk assessment can be completed."))
             if not assessment.category_score_ids:
                 raise UserError(self.env._("Add at least one risk category before completing."))
+            missing = [f"{line.category_id.name}: {question.name}"
+                       for line in assessment.category_score_ids if line.category_id.questionnaire_id
+                       for question in risk.missing_questions(line.category_id.questionnaire_id, line.answer_ids)]
+            if missing:
+                raise UserError(self.env._(
+                    "The assessment cannot be completed. Unanswered: %s.", "; ".join(missing)))
             scores = [(line._spm_compute_score(), line.category_id.weight)
                       for line in assessment.category_score_ids]
             if not sum(weight for _score, weight in scores):
@@ -111,13 +137,14 @@ class ProcurementRiskCategoryScore(models.Model):
         'procurement.risk.assessment', string="Assessment", required=True, ondelete='cascade', index=True)
     category_id = fields.Many2one(
         'procurement.risk.category', string="Category", required=True, ondelete='restrict')
-    weight = fields.Float(copy=False)
-    score = fields.Float(copy=False)
+    category_questionnaire_id = fields.Many2one(related='category_id.questionnaire_id')
+    weight = fields.Float(copy=False, readonly=True)
+    score = fields.Float(copy=False, readonly=True)
     answer_ids = fields.One2many('procurement.risk.answer', 'score_id', string="Answers", copy=True)
     document_ids = fields.Many2many(
         'procurement.supplier.document', 'spm_risk_score_document_rel', 'score_id', 'document_id',
-        string="Documents", copy=False)
-    evidence = fields.Text(copy=False)
+        string="Documents", copy=False, readonly=True)
+    evidence = fields.Text(copy=False, readonly=True)
 
     def _spm_check_draft(self, assessments):
         """Refuse a change of the scores of an assessment that is no longer a draft."""
@@ -125,8 +152,9 @@ class ProcurementRiskCategoryScore(models.Model):
             raise AccessError(self.env._("The scores of a completed risk assessment cannot be changed."))
 
     def _spm_refuse_result_values(self, vals):
-        """Refuse the result fields in the values of a user: the Complete action writes them."""
-        if not self.env.su and any(name in vals for name in SCORE_RESULT_FIELDS):
+        """Refuse a change of the result fields by a user: the Complete action writes them."""
+        if not self.env.su and any(
+                name in vals and _is_real_change(self, name, vals[name]) for name in SCORE_RESULT_FIELDS):
             raise AccessError(self.env._("The score of a category is set by completing the assessment."))
 
     @api.model_create_multi
@@ -170,9 +198,10 @@ class ProcurementRiskCategoryScore(models.Model):
         if category.uses_documents:
             score, documents = risk.documents_score(self.env, partner)
             parts.append(score)
-            labels = dict(documents._fields['validity_state']._description_selection(self.env))
-            lines += [f"{document.document_type_id.name}: {labels[document.validity_state]}"
-                      for document in documents]
+            labels = dict(documents._fields['validity_state']._description_selection(self.env),
+                          missing=self.env._("Missing"))
+            lines += [f"{document_type.name}: {labels[state]}"
+                      for document_type, state in supplier_control.compliance_rows(self.env, partner)]
         score = sum(parts) / len(parts) if parts else 0.0
         # Elevated: the result fields are written by the Complete action only (write guard).
         self.sudo().write({'weight': category.weight, 'score': score, 'document_ids': [(6, 0, documents.ids)],
@@ -196,6 +225,9 @@ class ProcurementRiskAnswer(models.Model):
     option_id = fields.Many2one(
         'procurement.questionnaire.option', string="Answer", ondelete='restrict')
     points = fields.Float(related='option_id.points', store=True)
+
+    _question_once = models.Constraint(
+        'UNIQUE(score_id, question_id)', 'A question can be answered once per category.')
 
     @api.constrains('score_id', 'question_id', 'option_id')
     def _check_answer_belongs(self):

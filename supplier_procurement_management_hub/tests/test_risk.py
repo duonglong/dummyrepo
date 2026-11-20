@@ -3,7 +3,10 @@
 Requirements: BR-SPM-0017, BR-SPM-0020, FR-SPM-0088, FR-SPM-0089, FR-SPM-0090
 """
 from odoo.exceptions import AccessError, UserError
+from odoo.tests import Form
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
+from psycopg2 import IntegrityError
 
 from ..services import risk, supplier_control
 
@@ -58,9 +61,118 @@ class TestRisk(TransactionCase):
         with self.assertRaises(UserError):
             screening.unlink()
 
-    def test_no_control_no_risk_finding(self):
-        """FR-SPM-0090: a company without supplier control restricts nothing."""
+    def _manager(self, login):
+        return self.env['res.users'].create({
+            'name': login, 'login': login, 'email': f'{login}@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_manager').id])]})
+
+    def _questionnaire(self, required_questions=2):
+        return self.env['procurement.questionnaire'].create({
+            'name': 'Risk Q', 'purpose': 'risk',
+            'question_ids': [(0, 0, {
+                'name': f'Question {index}', 'kind': 'choice', 'required': True,
+                'option_ids': [(0, 0, {'name': 'Yes', 'points': 10}), (0, 0, {'name': 'No', 'points': 0})],
+            }) for index in range(required_questions)]})
+
+    def test_risk_applies_without_the_status_control_switch(self):
+        """FR-SPM-0090: a company's per-level risk settings restrict even with the status control off."""
         partner = self.env['res.partner'].create({'name': 'Eps'})
         partner.spm_risk_level = 'high'
-        self.env.company.spm_supplier_control = False
+        self.env.company.write({'spm_supplier_control': False, 'spm_risk_high_action': 'block'})
+        findings = supplier_control.check(self.env, partner, 'confirm', self.env.company, partner)
+        self.assertTrue(findings and findings[0].blocking)
+        with self.assertRaises(UserError):
+            supplier_control.check_supplier_allowed(self.env, partner, partner, self.env.company, 'confirm')
+        self.env.company.spm_risk_high_action = 'none'
         self.assertEqual(supplier_control.check(self.env, partner, 'confirm', self.env.company, partner), [])
+
+    def test_assessment_is_created_from_the_screen(self):
+        """FR-SPM-0088: a manager creates an assessment and a category line with the form, which
+        sends every field. Form sets fields and saves; no button is pressed here."""
+        manager = self._manager('risk_form_manager')
+        partner = self.env['res.partner'].create({'name': 'Zeta'})
+        category = self.env['procurement.risk.category'].create({'name': 'Fin', 'weight': 1})
+        form = Form(self.env['procurement.risk.assessment'].with_user(manager))
+        form.partner_id = partner
+        with form.category_score_ids.new() as line:
+            line.category_id = category
+        assessment = form.save()
+        self.assertEqual(assessment.state, 'draft')
+        self.assertEqual(len(assessment.category_score_ids), 1)
+
+    def test_result_change_is_refused_after_creation(self):
+        """FR-SPM-0088: a user cannot move the state, level or a category score by a write."""
+        manager = self._manager('risk_write_manager')
+        partner = self.env['res.partner'].create({'name': 'Eta'})
+        category = self.env['procurement.risk.category'].create({'name': 'Fin', 'weight': 1})
+        assessment = self.env['procurement.risk.assessment'].with_user(manager).create({
+            'partner_id': partner.id, 'category_score_ids': [(0, 0, {'category_id': category.id})]})
+        with self.assertRaises(AccessError):
+            assessment.write({'state': 'done'})
+        with self.assertRaises(AccessError):
+            assessment.category_score_ids.write({'score': 5.0})
+        assessment.write({'state': 'draft'})  # a value the record already holds is no change
+
+    def test_complete_refuses_unanswered_required_questions(self):
+        """FR-SPM-0088, BR-SPM-0017: an unanswered required question is not no risk."""
+        manager = self._manager('risk_missing_manager')
+        partner = self.env['res.partner'].create({'name': 'Theta'})
+        questionnaire = self._questionnaire()
+        category = self.env['procurement.risk.category'].create({
+            'name': 'Fin', 'weight': 1, 'questionnaire_id': questionnaire.id})
+        first = questionnaire.question_ids[0]
+        assessment = self.env['procurement.risk.assessment'].with_user(manager).create({
+            'partner_id': partner.id, 'category_score_ids': [(0, 0, {
+                'category_id': category.id,
+                'answer_ids': [(0, 0, {'question_id': first.id, 'option_id': first.option_ids[0].id})]})]})
+        with self.assertRaises(UserError) as ctx:
+            assessment.action_spm_complete()
+        self.assertIn('Question 1', str(ctx.exception))
+        self.assertNotIn('Question 0', str(ctx.exception))
+        self.assertEqual(assessment.state, 'draft')
+
+    def test_one_answer_per_question(self):
+        """FR-SPM-0088: a question is answered once in a category."""
+        partner = self.env['res.partner'].create({'name': 'Iota'})
+        questionnaire = self._questionnaire(1)
+        category = self.env['procurement.risk.category'].create({
+            'name': 'Fin', 'weight': 1, 'questionnaire_id': questionnaire.id})
+        question = questionnaire.question_ids
+        assessment = self.env['procurement.risk.assessment'].create({
+            'partner_id': partner.id, 'category_score_ids': [(0, 0, {'category_id': category.id})]})
+        answer = {'question_id': question.id, 'option_id': question.option_ids[0].id}
+        assessment.category_score_ids.write({'answer_ids': [(0, 0, answer)]})
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'), self.env.cr.savepoint():
+            assessment.category_score_ids.write({'answer_ids': [(0, 0, answer)]})
+
+    def test_missing_document_is_listed_in_the_evidence(self):
+        """FR-SPM-0088: a required document that is missing shows as Missing in the evidence."""
+        document_type = self.env['procurement.document.type'].create({'name': 'Insurance cert'})
+        supplier_type = self.env['procurement.supplier.type'].create({
+            'name': 'Risky', 'required_document_type_ids': [(6, 0, document_type.ids)]})
+        partner = self.env['res.partner'].create({'name': 'Kappa', 'spm_supplier_type_id': supplier_type.id})
+        category = self.env['procurement.risk.category'].create({
+            'name': 'Compliance', 'weight': 1, 'uses_documents': True})
+        assessment = self.env['procurement.risk.assessment'].create({
+            'partner_id': partner.id, 'category_score_ids': [(0, 0, {'category_id': category.id})]})
+        assessment.action_spm_complete()
+        self.assertEqual(assessment.score, 100.0)
+        self.assertIn('Insurance cert: Missing', assessment.category_score_ids.evidence)
+
+    def test_screening_label_shows_the_result_before_the_note(self):
+        """BR-SPM-0020: a note never replaces the recorded result in the label."""
+        partner = self.env['res.partner'].create({'name': 'Lambda'})
+        screening = self.env['procurement.screening'].create({
+            'partner_id': partner.id, 'source': 'EU list', 'result': 'match',
+            'note': 'cleared by phone'})
+        self.assertIn('EU list: Match (cleared by phone), manually recorded by', screening.display_name)
+
+    def test_warning_is_noted_once(self):
+        """FR-SPM-0090: confirming then approving one order posts the risk warning once."""
+        partner = self.env['res.partner'].create({'name': 'Mu', 'spm_risk_level': 'medium'})
+        self.env.company.spm_risk_medium_action = 'warn'
+        order = self.env['purchase.order'].create({'partner_id': partner.id})
+        for _ in range(2):
+            supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+        notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
+        self.assertEqual(len(notes), 1)

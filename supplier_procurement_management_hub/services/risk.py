@@ -41,6 +41,16 @@ def answers_score(questionnaire, answers):
     return min(points / maximum * 100, 100.0) if maximum else 0.0
 
 
+def missing_questions(questionnaire, answers):
+    """Return the required choice questions of the questionnaire that no answer chooses an option for.
+
+    Requirements: BR-SPM-0017, FR-SPM-0088
+    """
+    answered = answers.filtered('option_id').question_id
+    return questionnaire.question_ids.filtered(
+        lambda question: question.kind == 'choice' and question.required and question not in answered)
+
+
 def documents_score(env, partner):
     """Return ``(score, documents)`` of the supplier's required documents.
 
