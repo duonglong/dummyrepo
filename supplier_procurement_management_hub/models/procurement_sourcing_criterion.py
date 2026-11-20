@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..services import sourcing
+
 
 class ProcurementSourcingCriterion(models.Model):
     """A weighted criterion on a sourcing template or on one event.
@@ -32,3 +34,13 @@ class ProcurementSourcingCriterion(models.Model):
         for criterion in self:
             if bool(criterion.template_id) == bool(criterion.event_id):
                 raise ValidationError(self.env._("A criterion belongs to a template or to an event, not both."))
+
+    def write(self, vals):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not changed by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().write(vals)
+
+    def unlink(self):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not deleted by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().unlink()

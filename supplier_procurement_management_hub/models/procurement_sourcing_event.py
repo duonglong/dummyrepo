@@ -78,7 +78,8 @@ class ProcurementSourcingEvent(models.Model):
     award_rationale = fields.Text(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
     awarded_date = fields.Datetime(readonly=True, copy=False)
     purchase_order_ids = fields.One2many(
-        'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False)
+        'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,
+        groups='purchase.group_purchase_user')
 
     @api.depends('company_id')
     def _compute_currency_id(self):
@@ -184,6 +185,14 @@ class ProcurementSourcingEvent(models.Model):
                 sourcing.notify_suppliers(
                     self.env, event, sourcing.DEADLINE_TEMPLATE, event.response_ids.partner_id)
         return result
+
+    def unlink(self):
+        """An awarded event is the evidence of the award and is never deleted.
+
+        Requirements: FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self)
+        return super().unlink()
 
     def action_spm_send(self):
         """Send the event: one response per invited supplier, the invitation e-mail, then Open.

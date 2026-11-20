@@ -77,7 +77,23 @@ class ProcurementSourcingResponse(models.Model):
         """
         if not self.env.su and any(field in vals for field in WORKFLOW_FIELDS):
             raise AccessError(self.env._("The versions of a response change with its submissions only."))
+        self._check_event_not_awarded()
         return super().write(vals)
+
+    def unlink(self):
+        """A response of an awarded event is evidence of the award and is never deleted.
+
+        Requirements: FR-SPM-0041
+        """
+        self._check_event_not_awarded()
+        return super().unlink()
+
+    def _check_event_not_awarded(self):
+        """Refuse a change by a user to a response of an awarded event; the services run with elevated rights.
+
+        Requirements: FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self.event_id)
 
     def spm_submit_version(self, lines, attachment_ids=None, **terms):
         """The supplier's portal user submits a new version of the quotation of its own response.

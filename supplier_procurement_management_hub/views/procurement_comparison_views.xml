@@ -28,8 +28,10 @@
                             <field name="raw_display" readonly="True"/>
                             <field name="normalized_value" column_invisible="not parent.is_normalized" readonly="True"/>
                             <field name="score" readonly="True"/>
-                            <field name="manual_score" readonly="row_kind != 'criterion'"/>
-                            <field name="manual_comment" readonly="row_kind != 'criterion'"/>
+                            <field name="criterion_kind" column_invisible="True"/>
+                            <field name="event_state" column_invisible="True"/>
+                            <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                            <field name="manual_comment" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
                             <field name="is_best" readonly="True"/>
                             <field name="missing" readonly="True"/>
                         </list>

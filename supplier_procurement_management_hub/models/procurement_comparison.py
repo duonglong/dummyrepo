@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..services import sourcing
+
 
 class ProcurementComparison(models.Model):
     """The stored comparison of the current quotations of one sourcing event.
@@ -20,3 +22,13 @@ class ProcurementComparison(models.Model):
     company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
 
     _event_unique = models.Constraint('UNIQUE(event_id)', 'An event has one comparison.')
+
+    def write(self, vals):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not changed by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().write(vals)
+
+    def unlink(self):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not deleted by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().unlink()

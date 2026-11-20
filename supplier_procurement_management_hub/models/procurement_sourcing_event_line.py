@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..services import sourcing
+
 
 class ProcurementSourcingEventLine(models.Model):
     """A product, quantity and unit a sourcing event asks for.
@@ -50,3 +52,13 @@ class ProcurementSourcingEventLine(models.Model):
         for line in self:
             if any(rl.request_id.company_id != line.event_id.company_id for rl in line.request_line_ids):
                 raise ValidationError(_("The request lines must belong to the company of the event."))
+
+    def write(self, vals):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not changed by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().write(vals)
+
+    def unlink(self):
+        """Requirements: FR-SPM-0041: the evidence of an awarded event is not deleted by a user."""
+        sourcing.check_event_not_awarded(self.env, self.event_id)
+        return super().unlink()

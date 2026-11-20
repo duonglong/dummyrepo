@@ -11,7 +11,7 @@ from datetime import timedelta
 from odoo import fields
 from odoo.exceptions import UserError
 
-from . import onboarding, supplier_control
+from . import audit, onboarding, supplier_control
 
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_invitation'
 DEADLINE_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_deadline'
@@ -41,8 +41,13 @@ def merge_request_lines(requests):
 def check_invitable(env, event):
     """Refuse to send an event without a supplier, or with a supplier the control refuses.
 
-    Requirements: FR-SPM-0032, FR-SPM-0013
+    Requirements: FR-SPM-0032, FR-SPM-0013, FR-SPM-0040
+    Every line needs a product, so that its award can always become a purchase order line.
     """
+    without_product = event.line_ids.filtered(lambda line: not line.product_id)
+    if without_product:
+        raise UserError(env._(
+            "Choose a product for every line before sending: %s.", ', '.join(without_product.mapped('name'))))
     if not event.invited_partner_ids:
         raise UserError(env._(
             "At least one supplier must be invited before sending: add suppliers in the Invited suppliers field."))
@@ -478,6 +483,18 @@ SCORE_MAX = 100.0
 DRAFT_ORDER_STATES = ('draft', 'sent')
 
 
+def check_event_not_awarded(env, events):
+    """Refuse a change or a deletion by a user of the evidence of an awarded event.
+
+    Requirements: FR-SPM-0039, FR-SPM-0041
+    The services of this module write with elevated rights and are not stopped.
+    """
+    if not env.su and any(event.state == 'awarded' for event in events):
+        raise UserError(env._(
+            "The event is awarded: its lines, criteria, comparison and responses are the evidence "
+            "of the award and cannot be changed or deleted."))
+
+
 def _lock_event(event):
     """Take the row lock of the event and reload it, so two awards or generations at once queue up."""
     env = event.env
@@ -511,10 +528,11 @@ def _criterion_scores(event, criterion, cells):
 
     Requirements: BR-SPM-0008
     A price criterion is scored on normalized values only; without normalization it is left out.
-    A manual criterion scores what the buyer gave, and nothing (flagged) when nothing was given.
+    A manual criterion is scored with the 0-100 score the buyer gave, as it is: ``higher`` is None
+    for it, and a cell with neither a score nor a comment is flagged missing.
     """
     if criterion.kind == 'manual':
-        return {cell: (cell.manual_score if cell.manual_score else None) for cell in cells}, True
+        return {cell: cell.manual_score or 0.0 for cell in cells}, None
     money = criterion.kind in ('price', 'total_cost')
     if money and not event.is_normalized:
         return None, False
@@ -546,10 +564,13 @@ def evaluate(event):
         values, higher = _criterion_scores(event, criterion, row)
         if values is None:
             continue
-        scores = _score_row(values, higher)
+        manual = higher is None
+        scores = values if manual else _score_row(values, higher)
         weight_sum += criterion.weight
         for cell, score in scores.items():
-            cell.write({'score': score, 'missing': cell.missing or values[cell] is None})
+            unscored = not (cell.manual_score or (cell.manual_comment or '').strip()) if manual \
+                else values[cell] is None
+            cell.write({'score': score, 'missing': cell.missing or unscored})
             totals[cell.response_id] += criterion.weight * score
     result = {response: totals[response] / weight_sum if weight_sum else 0.0 for response in responses}
     ordered = sorted(result.values(), reverse=True)
@@ -611,6 +632,8 @@ def award(event, choices, rationale):
     if event.state != 'open':
         raise UserError(env._("Only an open event can be awarded."))
     _check_choices(env, event, choices)
+    for response in env['procurement.sourcing.response'].union(*choices.values()):
+        supplier_control.check_supplier_allowed(env, event, response.partner_id, event.company_id, 'award')
     evaluate(event)
     offers = env['procurement.sourcing.response.line']
     for line, response in choices.items():
@@ -631,7 +654,12 @@ def award(event, choices, rationale):
     event.sudo().write({
         'state': 'awarded', 'award_rationale': rationale, 'awarded_date': fields.Datetime.now()})
     if event.inform_unsuccessful:
-        _tell_unsuccessful(env, event, (event.response_ids - winners).partner_id)
+        _tell_unsuccessful(env, event, (event.response_ids - winners).filtered('current_version_id').partner_id)
+    audit.log(
+        env, 'award', event, {'state': 'open'},
+        {'state': 'awarded', 'winners': winners.partner_id.mapped('name'),
+         'lines': {line.name: response.partner_id.name for line, response in choices.items()}},
+        rationale)
     return True
 
 
@@ -665,11 +693,12 @@ def _sync_order(env, event, response, offers):
     orders = env['purchase.order'].search([
         ('spm_sourcing_event_id', '=', event.id), ('partner_id', '=', response.partner_id.id),
         ('state', '!=', 'cancel')])
-    if orders and not orders.filtered(lambda order: order.state in DRAFT_ORDER_STATES):
+    drafts = orders.filtered(lambda order: order.state in DRAFT_ORDER_STATES)
+    if orders and not drafts:
         return orders[0], False
     version = response.current_version_id
     values = _order_values(event, response, version, event.request_ids.ids)
-    order = orders[:1]
+    order = drafts[:1]
     if order:
         order.write(values)
         order.order_line.filtered(

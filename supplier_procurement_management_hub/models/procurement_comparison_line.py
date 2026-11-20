@@ -1,6 +1,9 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..services import sourcing
+from ..services.sourcing import SCORE_MAX
+
 
 class ProcurementComparisonLine(models.Model):
     """One cell of a comparison: a line, a criterion or the total of one response.
@@ -31,6 +34,8 @@ class ProcurementComparisonLine(models.Model):
     is_best = fields.Boolean(string="Best")
     missing = fields.Boolean()
     manual_score = fields.Float()
+    criterion_kind = fields.Selection(related='criterion_id.kind')
+    event_state = fields.Selection(related='comparison_id.event_id.state')
     manual_comment = fields.Text()
 
     @api.constrains('manual_score', 'manual_comment')
@@ -43,11 +48,30 @@ class ProcurementComparisonLine(models.Model):
             if cell.manual_score and not (cell.manual_comment or '').strip():
                 raise ValidationError(self.env._("A manual score needs a comment."))
 
-    def write(self, vals):
-        """Manual scores are given while the event is open; once awarded they are evidence.
+    @api.constrains('manual_score')
+    def _check_manual_score_range(self):
+        """A manual score is a criterion score, from 0 to 100.
 
-        Requirements: FR-SPM-0038
+        Requirements: BR-SPM-0008
         """
+        for cell in self:
+            if not 0.0 <= cell.manual_score <= SCORE_MAX:
+                raise ValidationError(self.env._("A manual score is between 0 and 100."))
+
+    def unlink(self):
+        """The cells of an awarded event are evidence and are never deleted.
+
+        Requirements: FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self.comparison_id.event_id)
+        return super().unlink()
+
+    def write(self, vals):
+        """Manual scores are given while the event is open; once awarded the cells are evidence.
+
+        Requirements: FR-SPM-0038, FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self.comparison_id.event_id)
         if not self.env.su and ('manual_score' in vals or 'manual_comment' in vals) and any(
                 cell.comparison_id.event_id.state != 'open' for cell in self):
             raise UserError(self.env._("Manual scores can only be given while the event is open."))
