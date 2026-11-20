@@ -6,6 +6,8 @@ from datetime import date, datetime
 
 from freezegun import freeze_time
 
+from odoo.exceptions import ValidationError
+
 from odoo.addons.supplier_procurement_management_hub.services import performance
 
 from .comparison_common import SpmComparisonCase
@@ -150,3 +152,10 @@ class TestScorecardMetrics(SpmScorecardCase, SpmComparisonCase):
         self.assertEqual(performance.period_bounds('month', day), (date(2026, 11, 1), date(2026, 11, 30)))
         self.assertEqual(performance.period_bounds('quarter', day), (date(2026, 10, 1), date(2026, 12, 31)))
         self.assertEqual(performance.period_bounds('year', day), (date(2026, 1, 1), date(2026, 12, 31)))
+
+    def test_moving_the_only_weighted_row_away_leaves_no_template_at_zero(self):
+        """FR-SPM-0082: moving the weighted row to another template checks the template it leaves."""
+        first = self._template([('on_time', 50.0)])
+        second = self._template([('quality', 10.0)])
+        with self.assertRaises(ValidationError):
+            first.metric_ids.write({'template_id': second.id})

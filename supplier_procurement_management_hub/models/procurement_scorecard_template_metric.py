@@ -45,9 +45,10 @@ class ProcurementScorecardTemplateMetric(models.Model):
 
         Requirements: FR-SPM-0082
         """
+        previous = self.template_id if 'template_id' in vals else self.env['procurement.scorecard.template']
         result = super().write(vals)
         if not self.env.context.get('spm_weights_deferred') and {'weight', 'template_id'} & set(vals):
-            self.template_id._check_weight_total()
+            (self.template_id | previous)._check_weight_total()
         return result
 
     def unlink(self):

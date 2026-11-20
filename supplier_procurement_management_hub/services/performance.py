@@ -107,7 +107,7 @@ def fulfillment(env, partner, company, start, end):
     return _result(env, 'fulfillment', received, due, lines, env._("No quantity was due in the period."))
 
 
-def _rejected_discrepancies(env, partner, company, start, end):
+def _discrepancies_of_period(env, partner, company, start, end):
     begin, finish = _window(start, end)
     return env['procurement.delivery.discrepancy'].search([
         ('partner_id', '=', partner.id), ('company_id', '=', company.id),
@@ -123,7 +123,7 @@ def quality(env, partner, company, start, end):
     received = sum(_in_line_unit(move, move.purchase_line_id) for move in receipts)
     returned = sum(move.uom_id._compute_quantity(move.quantity, move.origin_returned_move_id.uom_id)
                    for move in returns if move.origin_returned_move_id)
-    rejected = sum(_rejected_discrepancies(env, partner, company, start, end).filtered(
+    rejected = sum(_discrepancies_of_period(env, partner, company, start, end).filtered(
         lambda d: d.kind in REJECTING_REASONS).mapped('quantity'))
     good = max(received - returned - rejected, 0.0)
     return _result(env, 'quality', good, received, receipts, env._("Nothing was received in the period."))
@@ -136,7 +136,7 @@ def complaints(env, partner, company, start, end):
     The count is the value; the score falls from 100 by the share of receipt lines with a complaint.
     """
     receipts, _returns = _receipt_moves(env, partner, company, start, end)
-    found = _rejected_discrepancies(env, partner, company, start, end)
+    found = _discrepancies_of_period(env, partner, company, start, end)
     count = float(len(found))
     score = max(SCORE_MAX * (1 - count / len(receipts)), 0.0) if receipts else 0.0
     return _result(env, 'complaints', count, float(len(receipts)), found,
