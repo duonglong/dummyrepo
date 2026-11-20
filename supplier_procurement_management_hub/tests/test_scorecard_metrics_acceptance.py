@@ -97,3 +97,31 @@ class TestScorecardMetricsAcceptance(SpmScorecardCase, SpmComparisonCase):
         metric = self._metric(self._scorecards(template), 'price_competitiveness')
         self.assertTrue(metric.has_data)
         self.assertAlmostEqual(metric.value, 90.0, places=1)
+
+    def test_sc_0082_1_the_score_is_the_weighted_average_of_the_metrics(self):
+        """SC-SPM-0082-1 (BR-SPM-0013): weights 40, 30 and 30, quarterly, good from 85; on-time
+        80, fulfillment 95 and quality 98 give a score of 89.9 shown as good (the scenario's
+        90.9 is not the weighted average; the answer is 89.9)."""
+        template = self._template(
+            [('on_time', 40.0), ('fulfillment', 30.0), ('quality', 30.0)], period='quarter')
+        order = self.env['purchase.order'].create({
+            'partner_id': self.acme.id, 'user_id': self.buyer.id,
+            'order_line': [(0, 0, {
+                'product_id': self.chair.id, 'name': 'Chair', 'product_qty': 200.0,
+                'price_unit': 10.0, 'tax_ids': [(6, 0, [])], 'date_planned': planned,
+            }) for planned in ['2026-10-12 12:00:00'] * 4 + ['2026-10-02 12:00:00']],
+        })
+        order.button_confirm()
+        if order.state != 'purchase':
+            order.button_approve(force=True)
+        picking = self._receive(order, 190.0, '2026-10-10 10:00:00', backorder=True)
+        with freeze_time('2026-10-11 10:00:00'):
+            self._return(picking, 3.8)
+        self._run_job('2026-10-31 23:00:00')
+        card = self._scorecards(template)
+        self.assertEqual(len(card), 1)
+        self.assertAlmostEqual(self._metric(card, 'on_time').value, 80.0, places=1)
+        self.assertAlmostEqual(self._metric(card, 'fulfillment').value, 95.0, places=1)
+        self.assertAlmostEqual(self._metric(card, 'quality').value, 98.0, places=1)
+        self.assertAlmostEqual(card.score, 89.9, places=1)
+        self.assertEqual(card.range, 'good')
