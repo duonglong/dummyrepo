@@ -57,6 +57,7 @@
         'views/procurement_report_views.xml',
         'views/procurement_scorecard_template_views.xml',
         'views/procurement_supplier_scorecard_views.xml',
+        'views/procurement_supplier_review_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

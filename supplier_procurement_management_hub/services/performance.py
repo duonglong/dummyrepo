@@ -118,6 +118,7 @@ def quality(env, partner, company, start, end):
     """Received quantity minus returned and rejected quantity, divided by the received quantity.
 
     Requirements: FR-SPM-0080
+    The rejected quantity is the one of the delivery discrepancies and of the incidents and complaints recorded.
     """
     receipts, returns = _receipt_moves(env, partner, company, start, end)
     received = sum(_in_line_unit(move, move.purchase_line_id) for move in receipts)
@@ -125,6 +126,10 @@ def quality(env, partner, company, start, end):
                    for move in returns if move.origin_returned_move_id)
     rejected = sum(_discrepancies_of_period(env, partner, company, start, end).filtered(
         lambda d: d.kind in REJECTING_REASONS).mapped('quantity'))
+    begin, finish = _window(start, end)
+    rejected += sum(env['procurement.supplier.review'].search([
+        ('partner_id', '=', partner.id), ('company_id', '=', company.id), ('kind', 'in', ('incident', 'complaint')),
+        ('state', '!=', 'cancelled'), ('date', '>=', begin.date()), ('date', '<', finish.date())]).mapped('rejected_qty'))
     good = max(received - returned - rejected, 0.0)
     return _result(env, 'quality', good, received, receipts, env._("Nothing was received in the period."))
 
@@ -308,3 +313,26 @@ def snapshot_values(template, partner, day):
         'score': result['score'] or 0.0, 'range': result['range'],
         'missing_metrics': "\n".join(missing), 'metric_ids': metrics,
     }
+
+
+def threshold_breaches(card):
+    """Return the sentences naming what is below the review threshold of the scorecard's template.
+
+    Requirements: FR-SPM-0087
+    The overall score is checked when it has a range (some metric had data); a metric when it has data.
+    A threshold of 0 means none; a value equal to the threshold is not below it.
+    """
+    env, template = card.env, card.template_id
+    breaches = []
+    if template.review_threshold and card.range and float_compare(
+            card.score, template.review_threshold, precision_rounding=0.001) < 0:
+        breaches.append(env._("Overall score %(score).1f is below %(threshold).1f.",
+                              score=card.score, threshold=template.review_threshold))
+    labels = dict(env['procurement.scorecard.template.metric']._fields['metric']._description_selection(env))
+    limits = {row.metric: row.review_threshold for row in template.metric_ids}
+    for row in card.metric_ids:
+        limit = limits.get(row.metric)
+        if limit and row.has_data and float_compare(row.score, limit, precision_rounding=0.001) < 0:
+            breaches.append(env._("%(metric)s %(score).1f is below %(threshold).1f.",
+                                  metric=labels.get(row.metric, row.metric), score=row.score, threshold=limit))
+    return breaches

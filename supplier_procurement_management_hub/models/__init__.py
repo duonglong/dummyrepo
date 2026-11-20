@@ -65,3 +65,8 @@ from . import procurement_scorecard_template_metric
 from . import procurement_scorecard_template
 from . import procurement_supplier_scorecard
 from . import procurement_supplier_metric
+from . import procurement_evaluation_criterion
+from . import procurement_supplier_evaluation
+from . import procurement_supplier_evaluation_rating
+from . import procurement_supplier_review
+from . import procurement_corrective_action
