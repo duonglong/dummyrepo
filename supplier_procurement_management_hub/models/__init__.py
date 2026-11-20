@@ -70,3 +70,6 @@ from . import procurement_supplier_evaluation
 from . import procurement_supplier_evaluation_rating
 from . import procurement_supplier_review
 from . import procurement_corrective_action
+from . import procurement_risk_category
+from . import procurement_risk_assessment
+from . import procurement_screening

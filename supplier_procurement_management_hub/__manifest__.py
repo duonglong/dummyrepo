@@ -54,6 +54,7 @@
         'views/portal_order_templates.xml',
         'views/purchase_order_approval_views.xml',
         'views/procurement_approval_inbox_views.xml',
+        'views/procurement_risk_views.xml',
         'views/procurement_report_views.xml',
         'views/procurement_scorecard_template_views.xml',
         'views/procurement_supplier_scorecard_views.xml',

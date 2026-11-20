@@ -83,24 +83,32 @@ def compliance_state(rows):
 # Status kinds a supplier may have to take part in a controlled flow (BR-SPM-0006).
 CONTROL_ALLOWED_KINDS = ('approved', 'conditional')
 # Models whose records a controlled flow acts on (an override can name only these).
-CONTROLLED_MODELS = ('purchase.order',)
+CONTROLLED_MODELS = ('purchase.order', 'procurement.sourcing.event')
 # The override event of each override kind in the audit trail.
 OVERRIDE_AUDIT_EVENTS = {'status': 'status_override', 'risk': 'risk_override'}
+
+
+def has_override(env, record, partner, action, kind):
+    """Return True when a manager recorded an override of this kind for this one record.
+
+    Requirements: FR-SPM-0013, FR-SPM-0090
+    Elevated rights (read of ``procurement.override``): the buyer who acts has no
+    access to the overrides; the search is limited to the one record, supplier,
+    action and kind.
+    """
+    return bool(env['procurement.override'].sudo().search_count([
+        ('res_model', '=', record._name), ('res_id', '=', record.id),
+        ('company_id', '=', record.company_id.id),
+        ('partner_id', '=', partner.id), ('action', '=', action),
+        ('kind', '=', kind)], limit=1))
 
 
 def has_status_override(env, record, partner, action):
     """Return True when a manager recorded a status override for this one record.
 
     Requirements: FR-SPM-0013
-    Elevated rights (read of ``procurement.override``): the buyer who acts has no
-    access to the overrides; the search is limited to the one record, supplier
-    and action.
     """
-    return bool(env['procurement.override'].sudo().search_count([
-        ('res_model', '=', record._name), ('res_id', '=', record.id),
-        ('company_id', '=', record.company_id.id),
-        ('partner_id', '=', partner.id), ('action', '=', action),
-        ('kind', '=', 'status')], limit=1))
+    return has_override(env, record, partner, action, 'status')
 
 
 def controlled_record(env, res_model, res_id):
@@ -119,23 +127,123 @@ def controlled_record(env, res_model, res_id):
     return record
 
 
-def check_supplier_allowed(env, record, partner, company, action):
-    """Refuse a controlled flow with a supplier whose status is not allowed.
+def override_partner(env, record, partner_id):
+    """Return the supplier an override of this record covers.
+
+    Requirements: FR-SPM-0013, FR-SPM-0090, BR-SPM-0001
+    An order has one supplier. A sourcing event has several: the client names the
+    supplier, which must be invited to the event or have answered it.
+    """
+    if 'partner_id' in record._fields:
+        return record.partner_id.commercial_partner_id
+    partner = env['res.partner'].browse(partner_id).exists()
+    suppliers = (record.invited_partner_ids | record.response_ids.partner_id).commercial_partner_id
+    if not partner or partner.commercial_partner_id not in suppliers:
+        raise UserError(env._("The supplier of the override must be invited to this event or have answered it."))
+    return partner.commercial_partner_id
+
+
+def _status_control(company):
+    """Return True when the company controls the supplier status (BR-SPM-0006)."""
+    return company.sudo().spm_supplier_control  # elevated: company setting read
+
+
+def _status_refusal(env, record, partner, action):
+    """Return the refusal message of a supplier status that is not allowed, or False.
 
     Requirements: BR-SPM-0006, FR-SPM-0013
-    Does nothing when the company has no supplier control, when the status kind
-    is Approved or Conditional, or when an override exists for this record. The
-    message names the supplier and its status.
     """
-    if not company.sudo().spm_supplier_control:
-        return
-    partner = partner.commercial_partner_id
-    if partner.spm_status_kind in CONTROL_ALLOWED_KINDS:
-        return
-    if has_status_override(env, record, partner, action):
-        return
+    if partner.spm_status_kind in CONTROL_ALLOWED_KINDS or has_status_override(env, record, partner, action):
+        return False
     status = partner.spm_status_id.display_name or env._("no status")
-    raise UserError(env._(
+    return env._(
         "Supplier %(supplier)s cannot be used here: its status is %(status)s. "
         "A Procurement manager can record an override with a reason.",
-        supplier=partner.display_name, status=status))
+        supplier=partner.display_name, status=status)
+
+
+class RiskFinding:
+    """A risk level that restricts a controlled flow: a refusal or a warning.
+
+    Requirements: FR-SPM-0090
+    """
+
+    def __init__(self, blocking, message):
+        self.blocking = blocking
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
+def _risk_finding(env, partner, company):
+    """Return the finding of the supplier's risk level in this company, or None.
+
+    Requirements: FR-SPM-0090
+    Elevated rights (read of the restricted risk level): a buyer who acts cannot
+    read the field; only the level and the company's configured reaction are read.
+    """
+    level = partner.sudo().spm_risk_level  # elevated: restricted field, only the level is read
+    action = level and company.sudo()['spm_risk_%s_action' % level]  # elevated: company setting read
+    if action not in ('warn', 'block'):
+        return None
+    label = dict(partner._fields['spm_risk_level']._description_selection(env))[level]
+    if action == 'warn':
+        return RiskFinding(False, env._(
+            "Supplier %(supplier)s has a %(level)s risk level.", supplier=partner.display_name, level=label))
+    return RiskFinding(True, env._(
+        "Supplier %(supplier)s cannot be used here: its risk level is %(level)s. "
+        "A Procurement manager can record an override with a reason.",
+        supplier=partner.display_name, level=label))
+
+
+def check(env, partners, action, company, record):
+    """Return the risk findings (refusals and warnings) of the suppliers for this action.
+
+    Requirements: FR-SPM-0090
+    The company's per-level risk settings decide, whether or not it controls supplier
+    status; a refusal covered by a risk override of this record is left out.
+    """
+    findings = []
+    for partner in partners.commercial_partner_id:
+        finding = _risk_finding(env, partner, company)
+        if finding and finding.blocking and has_override(env, record, partner, action, 'risk'):
+            continue
+        if finding:
+            findings.append(finding)
+    return findings
+
+
+def refusal_kinds(env, record, partner, company, action):
+    """Return the override kinds ('status', 'risk') that this record still needs to go on.
+
+    Requirements: FR-SPM-0013, FR-SPM-0090
+    The status counts only in a company with supplier control; the risk level always.
+    """
+    partner = partner.commercial_partner_id
+    kinds = ['status'] if _status_control(company) and _status_refusal(env, record, partner, action) else []
+    if any(finding.blocking for finding in check(env, partner, action, company, record)):
+        kinds.append('risk')
+    return kinds
+
+
+def check_supplier_allowed(env, record, partner, company, action, warn=True):
+    """Refuse a controlled flow with a supplier whose status or risk level is not allowed.
+
+    Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0090
+    A status other than Approved or Conditional (only in a company with supplier
+    control) and a risk level configured as blocking are refused unless an override
+    of that kind exists for this record; a level configured as warning is noted
+    on the record (unless ``warn`` is False: the caller already noted it in this
+    call) and goes on. The messages name the supplier and its status
+    or risk level.
+    """
+    partner = partner.commercial_partner_id
+    refusal = _status_control(company) and _status_refusal(env, record, partner, action)
+    if refusal:
+        raise UserError(refusal)
+    for finding in check(env, partner, action, company, record):
+        if finding.blocking:
+            raise UserError(finding.message)
+        if warn and hasattr(record, 'message_post'):
+            record.message_post(body=finding.message, subtype_xmlid='mail.mt_note')

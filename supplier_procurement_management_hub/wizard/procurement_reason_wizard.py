@@ -1,5 +1,7 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
+
+from ..services import supplier_control
 
 
 class ProcurementReasonWizard(models.TransientModel):
@@ -22,6 +24,29 @@ class ProcurementReasonWizard(models.TransientModel):
     status_id = fields.Many2one('procurement.supplier.status', string="New status")
     status_kind = fields.Selection(related='status_id.kind')
     reason = fields.Text()
+    override_action = fields.Selection(
+        [('invite', 'Invite'), ('award', 'Award')], string="Override for",
+        help="The step of the sourcing event the override lets this supplier go through.")
+    override_partner_id = fields.Many2one(
+        'res.partner', string="Supplier", help="The supplier of the event the override covers.")
+    override_partner_ids = fields.Many2many(
+        'res.partner', compute='_compute_override_partner_ids',
+        help="The suppliers invited to the event or having answered it.")
+
+    @api.depends('res_model', 'res_ids')
+    def _compute_override_partner_ids(self):
+        """List the suppliers an override of a sourcing event may name.
+
+        Requirements: FR-SPM-0090
+        """
+        for wizard in self:
+            event = wizard.env['procurement.sourcing.event']
+            if wizard.res_model == event._name and wizard.res_ids:
+                event = event.browse(wizard.res_ids[:1])
+                wizard.override_partner_ids = (
+                    event.invited_partner_ids | event.response_ids.partner_id).commercial_partner_id
+            else:
+                wizard.override_partner_ids = False
 
     def action_confirm(self):
         """Run the reasoned action on the records and close the dialog.
@@ -94,16 +119,33 @@ class ProcurementReasonWizard(models.TransientModel):
         getattr(records, method)(self.reason)
 
     def _spm_record_overrides(self):
-        """Record a status override for each record, to confirm it with its supplier.
+        """Record the overrides each record needs (status, risk) to be confirmed with its supplier.
 
-        Requirements: FR-SPM-0013
-        Rights, scope and audit are those of the override's create.
+        Requirements: FR-SPM-0013, FR-SPM-0090
+        Rights, scope and audit are those of the override's create; nothing is
+        recorded, and the manager told, when no record is refused.
         """
         records = self.env[self.res_model].browse(self.res_ids)
-        self.env['procurement.override'].create([{
-            'res_model': self.res_model, 'res_id': record.id, 'action': 'confirm',
-            'kind': 'status', 'reason': self.reason,
-        } for record in records])
+        is_event = self.res_model == 'procurement.sourcing.event'
+        if is_event and not (self.override_action and self.override_partner_id):
+            raise UserError(self.env._("Choose the step and the supplier the override is for."))
+        action = self.override_action if is_event else 'confirm'
+        values = []
+        for record in records:
+            if self.res_model in supplier_control.CONTROLLED_MODELS:
+                partner = (supplier_control.override_partner(self.env, record, self.override_partner_id.id)
+                           if is_event else record.partner_id)
+                kinds = supplier_control.refusal_kinds(
+                    self.env, record, partner, record.company_id, action)
+            else:
+                kinds = ['status']
+            values += [{
+                'res_model': self.res_model, 'res_id': record.id, 'action': action,
+                'kind': kind, 'reason': self.reason, 'partner_id': self.override_partner_id.id,
+            } for kind in kinds]
+        if not values:
+            raise UserError(self.env._("Nothing is refused for this supplier: no override is needed."))
+        self.env['procurement.override'].create(values)
 
     def _spm_review_applications(self):
         """Forward the reason to the review action of the applications.
