@@ -39,11 +39,14 @@ class ProcurementPortalLog(models.Model):
 
 
 class ResUsers(models.Model):
-    """Writes the portal activity entry of a supplier user's login.
+    """Writes the portal activity entry of a supplier user's login; holds the delegations the user gave.
 
-    Requirements: FR-SPM-0027
+    Requirements: FR-SPM-0027, FR-SPM-0050
+    The delegations are read by the access rule that lets a delegate see the steps of the delegator.
     """
     _inherit = 'res.users'
+
+    spm_delegation_ids = fields.One2many('procurement.approval.delegation', 'delegator_id', string="Approval delegations")
 
     @api.model
     def _update_last_login(self):

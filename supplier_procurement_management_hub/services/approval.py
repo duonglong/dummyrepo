@@ -1,8 +1,11 @@
 """Evaluation of the approval policies of a purchase order.
 
 Requirements: BR-SPM-0009, FR-SPM-0043, FR-SPM-0044, FR-SPM-0045, FR-SPM-0046,
-BR-SPM-0010, FR-SPM-0047, FR-SPM-0048, FR-SPM-0049, FR-SPM-0052, FR-SPM-0053
+BR-SPM-0010, FR-SPM-0047, FR-SPM-0048, FR-SPM-0049, FR-SPM-0052, FR-SPM-0053, FR-SPM-0050,
+FR-SPM-0051, FR-SPM-0054, BR-SPM-0019
 """
+from datetime import timedelta
+
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
@@ -429,3 +432,105 @@ def reapprove(order):
         order=order.display_name, revision=order.spm_revision,
         outcome=order.env._("needs a new approval") if new else order.env._("needs no approval")))
     return new
+
+
+# Delegation, escalation and inbox (FR-SPM-0050, FR-SPM-0051, FR-SPM-0054) ----------
+
+def active_delegators(env, user):
+    """Return the users who delegated their approvals to ``user`` today (company time zone of the session).
+
+    Requirements: FR-SPM-0050
+    The first and the last day of a delegation count.
+    """
+    today = fields.Date.context_today(env['procurement.approval.delegation'])
+    # sudo: the delegations of the delegate are read to check the entitlement; the caller shows none of them
+    return env['procurement.approval.delegation'].sudo().search([
+        ('delegate_id', '=', user.id), ('date_from', '<=', today), ('date_to', '>=', today),
+    ]).delegator_id
+
+
+def acting_for(step, user):
+    """Return the approver of the step ``user`` decides as: himself, else a delegator; none when not entitled.
+
+    Requirements: FR-SPM-0050
+    A user who is an approver and also a delegate of another approver of an "all" step decides for
+    the first of them who has not decided yet.
+    """
+    approvers = step.sudo().approver_ids  # sudo: read to check the entitlement, not shown
+    candidates = (user | active_delegators(step.env, user)) & approvers
+    undecided = candidates - _decided_approvers(step.sudo())
+    return (undecided or candidates)[:1]
+
+
+def _escalation_hours(step):
+    """Return the delay in hours after which the open step is escalated (the policy's, else the field default)."""
+    policy = step.policy_id
+    if policy:
+        return policy.escalation_hours
+    return step.env['procurement.approval.policy'].default_get(['escalation_hours'])['escalation_hours']
+
+
+def overdue_steps(env):
+    """Return the open, not yet escalated steps of pending requests whose escalation delay has passed.
+
+    Requirements: FR-SPM-0051, BR-SPM-0019
+    """
+    now = fields.Datetime.now()
+    steps = env['procurement.approval.step'].search([
+        ('state', '=', 'open'), ('escalated', '=', False), ('request_id.state', '=', 'pending'),
+        ('opened_date', '!=', False)], order='opened_date, id')
+    return steps.filtered(lambda s: s.opened_date + timedelta(hours=_escalation_hours(s)) <= now)
+
+
+def escalation_users(step):
+    """Return who is told of an overdue step: the policy's escalation user, else the approvers' managers."""
+    if step.policy_id.escalation_user_id:
+        return step.policy_id.escalation_user_id
+    employees = step.env['hr.employee'].search([
+        ('user_id', 'in', step.approver_ids.ids), ('company_id', 'in', (False, step.company_id.id))])
+    return employees.parent_id.user_id
+
+
+def escalate(step):
+    """Escalate one overdue step once: an activity for the escalation user, a note to the approvers, the mark.
+
+    Requirements: FR-SPM-0051, BR-SPM-0019
+    The step keeps its approvers: escalation does not move the decision. Returns the notes sent.
+    """
+    step.lock_for_update()
+    step.invalidate_recordset(['escalated', 'state'])
+    if step.escalated or step.state != 'open':
+        return 0
+    order = step.request_id.order_id
+    step.write({'escalated': True, 'escalated_date': fields.Datetime.now()})
+    for user in escalation_users(step):
+        order.activity_schedule(
+            'mail.mail_activity_data_todo', user_id=user.id,
+            summary=order.env._("Overdue approval: %(order)s", order=order.display_name),
+            note=order.env._("The step %(step)s waits for %(approvers)s.",
+                             step=step.name, approvers=", ".join(step.approver_ids.mapped('name'))))
+    _notify(order, step.approver_ids.partner_id, order.env._(
+        "Your approval of %(order)s is overdue (step %(step)s).", order=order.display_name, step=step.name))
+    return 1
+
+
+def inbox(env):
+    """Return the open steps the session user can decide, oldest first, as dicts.
+
+    Requirements: FR-SPM-0054
+    Keys: step_id, order_id, on_behalf_of_id (the delegator's id or False). Steps of the user's
+    companies and of pending requests only; a step he already decided leaves the list.
+    """
+    user = env.user
+    steps = env['procurement.approval.step'].search([
+        ('state', '=', 'open'), ('request_id.state', '=', 'pending'),
+        ('approver_ids', 'in', (user | active_delegators(env, user)).ids)], order='opened_date, id')
+    rows = []
+    for step in steps:
+        acting = acting_for(step, user)
+        if acting and acting not in _decided_approvers(step.sudo()):
+            rows.append({
+                'step_id': step.id, 'order_id': step.request_id.order_id.id,
+                'on_behalf_of_id': acting.id if acting != user else False,
+            })
+    return rows

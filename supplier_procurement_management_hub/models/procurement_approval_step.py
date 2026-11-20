@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 from ..services import approval
 
@@ -6,7 +6,7 @@ from ..services import approval
 class ProcurementApprovalStep(models.Model):
     """A step of an approval request: its resolved approvers, state and decisions.
 
-    Requirements: FR-SPM-0047, FR-SPM-0049
+    Requirements: FR-SPM-0047, FR-SPM-0049, FR-SPM-0051, FR-SPM-0054
     """
     _name = 'procurement.approval.step'
     _description = 'Approval Step'
@@ -25,17 +25,61 @@ class ProcurementApprovalStep(models.Model):
         ('cancelled', 'Cancelled'),
     ], required=True, default='waiting', index=True, readonly=True)
     opened_date = fields.Datetime(readonly=True)
+    escalated = fields.Boolean(readonly=True, copy=False)
+    escalated_date = fields.Datetime(readonly=True, copy=False)
     decision_ids = fields.One2many('procurement.approval.decision', 'step_id', string="Decisions", readonly=True)
     company_id = fields.Many2one(related='request_id.company_id', store=True, index=True)
+    # the inbox columns: what the approver needs to decide without opening the order
+    order_id = fields.Many2one(related='request_id.order_id', string="Order")
+    partner_id = fields.Many2one(related='request_id.snapshot_partner_id', string="Vendor")
+    currency_id = fields.Many2one(related='request_id.snapshot_currency_id')
+    amount = fields.Monetary(related='request_id.snapshot_amount', currency_field='currency_id')
+    cumulated_amount = fields.Monetary(related='request_id.cumulated_amount', currency_field='currency_id')
+    requester_id = fields.Many2one('res.users', string="Requester", compute='_compute_inbox_columns')
+    waiting_hours = fields.Float(string="Waiting", compute='_compute_inbox_columns')
+    on_behalf_of_id = fields.Many2one('res.users', string="On behalf of", compute='_compute_inbox_columns')
+
+    @api.depends('opened_date', 'state')
+    @api.depends_context('uid')
+    def _compute_inbox_columns(self):
+        """Requirements: FR-SPM-0054 (the waiting time, the requester and the delegator the session user stands for)."""
+        now = fields.Datetime.now()
+        for step in self:
+            step.requester_id = approval.order_requester(step.request_id.order_id.sudo())  # sudo: the requester is shown, not changed
+            step.waiting_hours = (now - step.opened_date).total_seconds() / 3600 if step.opened_date else 0.0
+            acting = approval.acting_for(step, step.env.user)
+            step.on_behalf_of_id = acting if acting != step.env.user else False
 
     def _spm_acting_for(self, user):
-        """Return the approver of this step the user decides as (the user himself), none when not entitled.
+        """Return the approver of this step the user decides as (himself, else a delegator), none when not entitled.
 
-        Requirements: FR-SPM-0049
-        Extended by the delegation to answer the delegator of a delegate.
+        Requirements: FR-SPM-0049, FR-SPM-0050
         """
         self.ensure_one()
-        return user if user in self.sudo().approver_ids else self.env['res.users']  # sudo: the approvers of a step are read to check the entitlement, not shown
+        return approval.acting_for(self, user)
+
+    @api.model
+    def spm_inbox(self):
+        """Return the open steps the session user can decide, oldest first.
+
+        Requirements: FR-SPM-0054
+        Each row holds step_id, order_id and on_behalf_of_id (False for his own steps).
+        """
+        return approval.inbox(self.env)
+
+    @api.model
+    def action_spm_open_inbox(self):
+        """Open the approval inbox: the steps of ``spm_inbox`` in their order, oldest first.
+
+        Requirements: FR-SPM-0054
+        """
+        ids = [row['step_id'] for row in self.spm_inbox()]
+        return {
+            'type': 'ir.actions.act_window', 'name': self.env._("Approval inbox"),
+            'res_model': self._name, 'view_mode': 'list', 'domain': [('id', 'in', ids)],
+            'views': [(self.env.ref('supplier_procurement_management_hub.procurement_approval_step_inbox_list').id, 'list')],
+            'context': {'create': False},
+        }
 
     def action_spm_approve(self, comment=None):
         """Approve the step as the session user, with an optional comment.
