@@ -29,6 +29,7 @@ class ProcurementApprovalRequest(models.Model):
     snapshot_amount = fields.Monetary(currency_field='snapshot_currency_id', readonly=True)
     snapshot_currency_id = fields.Many2one('res.currency', ondelete='restrict', readonly=True)
     snapshot_partner_id = fields.Many2one('res.partner', string="Vendor", ondelete='restrict', readonly=True)
+    snapshot_payment_term_id = fields.Many2one('account.payment.term', ondelete='restrict', readonly=True)
     snapshot_lines = fields.Json(readonly=True)
     company_currency_id = fields.Many2one(related='company_id.currency_id')
     cumulated_amount = fields.Monetary(currency_field='company_currency_id', readonly=True)

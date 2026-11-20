@@ -55,6 +55,21 @@ class ProcurementApprovalStep(models.Model):
         approval.decide(self, 'rejected', reason)
         return True
 
+    def action_spm_open_approve_wizard(self):
+        """Open the dialog taking the optional comment of an approval.
+
+        Requirements: FR-SPM-0049
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Approve"),
+            'res_model': 'procurement.approval.approve.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_step_id': self.id},
+        }
+
     def action_spm_open_reject_wizard(self):
         """Open the dialog asking the reason of a rejection.
 
@@ -89,4 +104,25 @@ class ProcurementApprovalRejectWizard(models.TransientModel):
         """
         self.ensure_one()
         self.step_id.action_spm_reject(self.reason)
+        return {'type': 'ir.actions.act_window_close'}
+
+
+class ProcurementApprovalApproveWizard(models.TransientModel):
+    """The comment dialog of an approval.
+
+    Requirements: FR-SPM-0049
+    """
+    _name = 'procurement.approval.approve.wizard'
+    _description = 'Approval Comment Dialog'
+
+    step_id = fields.Many2one('procurement.approval.step', required=True, ondelete='cascade')
+    comment = fields.Text()
+
+    def action_confirm(self):
+        """Approve the step with the comment; the checks are those of the step's action.
+
+        Requirements: FR-SPM-0049
+        """
+        self.ensure_one()
+        self.step_id.action_spm_approve(self.comment)
         return {'type': 'ir.actions.act_window_close'}

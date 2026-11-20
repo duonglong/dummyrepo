@@ -65,7 +65,8 @@ class PurchaseOrder(models.Model):
         Requirements: FR-SPM-0055, FR-SPM-0024, FR-SPM-0048, BR-SPM-0010, FR-SPM-0052
         A write of the confirmed state is refused for a controlled order that is not approved for its
         revision; a material change of the vendor, currency or terms of an order to approve or approved
-        starts its approval again, once for the whole save together with its line changes.
+        starts its approval again, once for the whole save together with its line changes: the order is compared
+        with the snapshot of its newest request after the save.
         """
         if not self.env.su and ACK_FIELDS & set(vals):
             raise AccessError(self.env._("Only the supplier acknowledges an order."))
@@ -74,17 +75,9 @@ class PurchaseOrder(models.Model):
         if vals.get('state') == 'purchase':
             approval.check_confirmable(self.filtered(lambda order: order.state != 'purchase'))
         watched = self.filtered(approval.is_watched)
-        if not watched:
-            result = super().write(vals)
-        else:
-            before = {order.id: (order.spm_revision, approval.header_key(order)) for order in watched}
-            changed = set()
-            result = super(PurchaseOrder, self.with_context(spm_material_orders=changed)).write(vals)
-            changed |= {order.id for order in watched
-                        if order.spm_revision == before[order.id][0]
-                        and approval.header_key(order) != before[order.id][1]}
-            approval.review_changes(watched.filtered(
-                lambda order: order.spm_revision == before[order.id][0]), changed)
+        # the lines of a watched order are not reviewed one by one: the whole order is, once, after the save
+        result = super(PurchaseOrder, self.with_context(spm_review_after_save=True) if watched else self).write(vals)
+        approval.review_changes(watched)
         if vals.get('state') == 'purchase':
             self._spm_ensure_commitments()
         return result

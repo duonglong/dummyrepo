@@ -13,6 +13,9 @@ from . import audit
 
 # States of the orders that count as bought or pending in a cumulative period.
 COUNTED_STATES = ('purchase', 'to approve')
+# Orders still in draft or sent count too once the hub holds them for approval or has approved them.
+COUNTED_DRAFT_STATES = ('draft', 'sent')
+COUNTED_APPROVAL_STATES = ('pending', 'approved')
 
 
 def _period_bounds(period, day):
@@ -45,10 +48,42 @@ def _cumulated_amount(order, period):
     # of this vendor and company, which the domain below fixes.
     others = order.sudo().search([
         ('id', '!=', order.id), ('company_id', '=', order.company_id.id),
-        ('partner_id', '=', order.partner_id.id), ('state', 'in', COUNTED_STATES),
+        ('partner_id', '=', order.partner_id.id),
+        '|', ('state', 'in', COUNTED_STATES),
+        '&', ('state', 'in', COUNTED_DRAFT_STATES), ('spm_approval_state', 'in', COUNTED_APPROVAL_STATES),
         ('date_order', '>=', fields.Datetime.to_datetime(start)),
         ('date_order', '<', fields.Datetime.to_datetime(end + relativedelta(days=1)))])
     return _company_amount(order) + sum(_company_amount(other) for other in others)
+
+
+def _linked_requests(order):
+    # sudo: the requester and department of the purchase requests an order was made from are read to
+    # evaluate the policies; the buyer may not read every request, nothing of them is shown or written
+    return order.sudo().spm_request_ids
+
+
+def order_requester(order):
+    """Return the user the policies treat as the requester of the order.
+
+    Requirements: FR-SPM-0043, FR-SPM-0044, FR-SPM-0047
+    The requester set on the order, else the single requester of its purchase requests, else the
+    buyer (also when the requests come from several requesters).
+    """
+    if order.spm_requester_id:
+        return order.spm_requester_id
+    requesters = _linked_requests(order).requester_id
+    return requesters if len(requesters) == 1 else order.user_id
+
+
+def requester_department(order):
+    """Return the department of the order's requester: that of its single request, else of the employee.
+
+    Requirements: FR-SPM-0043, FR-SPM-0047
+    """
+    requests = _linked_requests(order)
+    if not order.spm_requester_id and len(requests.requester_id) == 1 and len(requests.department_id) == 1:
+        return requests.department_id
+    return requester_employee(order).department_id
 
 
 def requester_employee(order):
@@ -56,7 +91,7 @@ def requester_employee(order):
 
     Requirements: FR-SPM-0043, FR-SPM-0044
     """
-    requester = order.spm_requester_id or order.user_id
+    requester = order_requester(order)
     if not requester:
         return order.env['hr.employee']
     return order.env['hr.employee'].search([
@@ -78,7 +113,7 @@ def _matches_conditions(order, policy, amount):
         if not lines.product_id.categ_id & categories:
             return False
     if policy.department_ids:
-        if not requester_employee(order).department_id & policy.department_ids:
+        if not requester_department(order) & policy.department_ids:
             return False
     if policy.analytic_account_ids:
         used = {int(key) for line in lines for key in (line.analytic_distribution or {})
@@ -223,7 +258,8 @@ def _start(order, revision):
         'order_id': order.id, 'revision': revision, 'policy_ids': [(6, 0, result['policies'].ids)],
         'submitted_by_id': env.user.id, 'submitted_date': now,
         'snapshot_amount': order.amount_total, 'snapshot_currency_id': order.currency_id.id,
-        'snapshot_partner_id': order.partner_id.id, 'snapshot_lines': _snapshot_lines(order),
+        'snapshot_partner_id': order.partner_id.id,
+        'snapshot_payment_term_id': order.payment_term_id.id, 'snapshot_lines': _snapshot_lines(order),
         'cumulated_amount': result['cumulated_amount'],
         'step_ids': [(0, 0, {
             'policy_id': step['policy_id'], 'sequence': step['sequence'], 'name': step['name'],
@@ -335,9 +371,16 @@ def is_watched(order):
     return order.state in WATCHED_ORDER_STATES and order.spm_approval_state in WATCHED_APPROVAL_STATES
 
 
-def header_key(order):
-    """Return the vendor, currency and payment terms an approval applies to."""
-    return (order.partner_id.id, order.currency_id.id, order.payment_term_id.id)
+def _lines_key(lines):
+    """Return {line id: (product, analytic distribution)} of the goods lines an approval applies to."""
+    return {line['id']: (line['product_id'], line['analytic_distribution'] or {}) for line in lines}
+
+
+def _differs_from_request(order, request):
+    """Return whether the vendor, currency, payment terms or the lines of the order differ from the request's."""
+    header = (order.partner_id, order.currency_id, order.payment_term_id)
+    approved = (request.snapshot_partner_id, request.snapshot_currency_id, request.snapshot_payment_term_id)
+    return header != approved or _lines_key(_snapshot_lines(order)) != _lines_key(request.snapshot_lines or [])
 
 
 def _total_beyond_tolerance(order):
@@ -354,15 +397,17 @@ def _total_beyond_tolerance(order):
     return company.currency_id.compare_amounts(increase, tolerance) > 0
 
 
-def review_changes(orders, structural_ids=()):
-    """Cancel and re-evaluate the approval of every watched order whose change is material.
+def review_changes(orders):
+    """Cancel and re-evaluate the approval of every watched order that no longer matches its request.
 
     Requirements: BR-SPM-0010, FR-SPM-0052
-    ``structural_ids`` are the orders whose vendor, currency, terms, line products, analytic
-    distribution or lines changed; the others are compared by their total only.
+    The order is compared with the snapshot of its newest request (vendor, currency, payment terms,
+    line products, analytic distributions, added and removed lines) and its total with the
+    policy's tolerance, so no state is kept between the writes of a transaction.
     """
     for order in orders.filtered(is_watched):
-        if order.id in structural_ids or _total_beyond_tolerance(order):
+        request = latest_request(order)
+        if request and (_differs_from_request(order, request) or _total_beyond_tolerance(order)):
             reapprove(order)
 
 

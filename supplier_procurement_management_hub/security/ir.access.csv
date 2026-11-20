@@ -315,4 +315,5 @@ access_spm_approval_decision_auditor,Approval decision auditor,procurement.appro
 access_spm_approval_decision_admin,Approval decision admin,procurement.approval.decision,group_spm_admin,r,
 access_spm_approval_decision_approver,Approval decision approver,procurement.approval.decision,base.group_user,r,"['|', ('approver_id', '=', user.id), ('step_id.approver_ids', 'in', [user.id])]"
 spm_approval_decision_comp_rule,procurement.approval.decision: allowed companies,procurement.approval.decision,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_approve_wizard_user,Approval comment dialog user,procurement.approval.approve.wizard,base.group_user,cru,
 access_spm_approval_reject_wizard_user,Approval rejection dialog user,procurement.approval.reject.wizard,base.group_user,cru,
