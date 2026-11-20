@@ -5,6 +5,8 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 
 # The days after its date during which the author may still change an evaluation.
 EDIT_WINDOW_DAYS = 7
+# The only fields a user may write once the evaluation exists; the others are fixed by the platform.
+EDITABLE_FIELDS = frozenset({'partner_id', 'date', 'comment', 'rating_ids'})
 
 
 class ProcurementSupplierEvaluation(models.Model):
@@ -66,7 +68,8 @@ class ProcurementSupplierEvaluation(models.Model):
     def create(self, vals_list):
         """Requirements: FR-SPM-0085"""
         today = fields.Date.context_today(self)
-        evaluations = super().create([dict(vals, recorded_on=today) for vals in vals_list])
+        evaluations = super().create([
+            dict({k: v for k, v in vals.items() if k != 'editable_until'}, recorded_on=today) for vals in vals_list])
         if not self.env.su and any(author != self.env.user for author in evaluations.author_id):
             raise AccessError(self.env._("An evaluation is recorded under your own name."))
         return evaluations
@@ -76,9 +79,10 @@ class ProcurementSupplierEvaluation(models.Model):
 
         The author and the recording day are fixed once the evaluation exists.
         """
-        if not self.env.su and ('recorded_on' in vals or any(
-                'author_id' in vals and evaluation.author_id.id != vals['author_id'] for evaluation in self)):
-            raise UserError(self.env._("The author and the recording day of an evaluation cannot be changed."))
+        if not self.env.su and set(vals) - EDITABLE_FIELDS:
+            raise UserError(self.env._(
+                "Only the supplier, date, comment and ratings of an evaluation can be changed; "
+                "its author and recording day are fixed."))
         self._spm_check_editable()
         return super().write(vals)
 

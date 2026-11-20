@@ -51,7 +51,7 @@ class ProcurementSupplierReview(models.Model):
             if review.rejected_qty and not review.date:
                 raise ValidationError(self.env._(
                     "Enter the date of the %s: its rejected quantity counts in the quality score of that period.",
-                    review.kind))
+                    dict(self._fields['kind'].selection)[review.kind]))
 
     def _spm_move_state(self, allowed, target):
         """Move the reviews to ``target`` when they are in one of the ``allowed`` states."""
@@ -61,6 +61,8 @@ class ProcurementSupplierReview(models.Model):
                 ", ".join(dict(self._fields['state'].selection)[state] for state in allowed),
                 dict(self._fields['state'].selection)[target]))
         self.write({'state': target})
+        if target != 'planned':
+            self.activity_feedback(['mail.mail_activity_data_todo'])
         return True
 
     def action_plan(self):

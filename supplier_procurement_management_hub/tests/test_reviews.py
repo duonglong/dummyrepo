@@ -106,6 +106,14 @@ class TestReviews(SpmScorecardCase):
             with self.assertRaises(UserError):
                 evaluation.with_user(self.buyer).write({'recorded_on': '2026-11-18'})
 
+    def test_fr_0085_a_computed_window_field_cannot_be_written(self):
+        """FR-SPM-0085: editable_until is computed and stored; the author cannot push it out by write."""
+        evaluation = self._evaluation()
+        with freeze_time('2026-11-18 09:00:00'):
+            with self.assertRaises(UserError):
+                evaluation.with_user(self.buyer).write({'editable_until': '2030-01-01'})
+            evaluation.with_user(self.buyer).write({'comment': 'still fine'})
+
     def test_fr_0085_a_back_dated_evaluation_with_ratings_is_recorded(self):
         """FR-SPM-0085: an evaluation about an older day is accepted; its window counts from today."""
         criterion = self.env['procurement.evaluation.criterion'].create({'name': 'Old M6'})
@@ -167,6 +175,18 @@ class TestReviews(SpmScorecardCase):
             Review.create(dict(values, rejected_qty=-3.0))
         with self.assertRaises(ValidationError):
             Review.create(dict(values, rejected_qty=2.0, date=False))
+
+    def test_fr_0086_closing_a_review_closes_its_todo_and_names_the_kind(self):
+        """FR-SPM-0086: a held review has no open to-do; the missing-date message names the kind label."""
+        review = self.env['procurement.supplier.review'].with_user(self.manager).create({
+            'partner_id': self.acme.id, 'company_id': self.company.id, 'date': '2026-11-20'})
+        review.activity_schedule('mail.mail_activity_data_todo', user_id=self.manager.id, summary='Plan')
+        review.action_done()
+        self.assertFalse(review.activity_ids)
+        with self.assertRaises(ValidationError) as caught:
+            self.env['procurement.supplier.review'].create({
+                'partner_id': self.acme.id, 'company_id': self.company.id, 'kind': 'incident', 'rejected_qty': 1})
+        self.assertIn('Incident', str(caught.exception))
 
     def test_fr_0086_closing_an_action_marks_its_activity_done(self):
         """FR-SPM-0086: the done to-do is kept as a message in the chatter, not deleted without trace."""
