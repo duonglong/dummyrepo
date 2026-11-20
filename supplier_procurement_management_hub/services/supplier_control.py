@@ -148,20 +148,6 @@ def _status_control(company):
     return company.sudo().spm_supplier_control  # elevated: company setting read
 
 
-def _already_noted(record, message):
-    """Return True when this note was already posted on the record in this transaction.
-
-    The mark lives in the transaction's cache: one confirmation passes the check twice
-    (confirm, then approve) and notes once; a later confirmation notes again.
-    """
-    noted = record.env.cr.cache.setdefault('spm_risk_noted', set())
-    key = (record._name, record.id, message)
-    if key in noted:
-        return True
-    noted.add(key)
-    return False
-
-
 def _status_refusal(env, record, partner, action):
     """Return the refusal message of a supplier status that is not allowed, or False.
 
@@ -241,14 +227,15 @@ def refusal_kinds(env, record, partner, company, action):
     return kinds
 
 
-def check_supplier_allowed(env, record, partner, company, action):
+def check_supplier_allowed(env, record, partner, company, action, warn=True):
     """Refuse a controlled flow with a supplier whose status or risk level is not allowed.
 
     Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0090
     A status other than Approved or Conditional (only in a company with supplier
     control) and a risk level configured as blocking are refused unless an override
     of that kind exists for this record; a level configured as warning is noted
-    once on the record and goes on. The messages name the supplier and its status
+    on the record (unless ``warn`` is False: the caller already noted it in this
+    call) and goes on. The messages name the supplier and its status
     or risk level.
     """
     partner = partner.commercial_partner_id
@@ -258,5 +245,5 @@ def check_supplier_allowed(env, record, partner, company, action):
     for finding in check(env, partner, action, company, record):
         if finding.blocking:
             raise UserError(finding.message)
-        if hasattr(record, 'message_post') and not _already_noted(record, finding.message):
+        if warn and hasattr(record, 'message_post'):
             record.message_post(body=finding.message, subtype_xmlid='mail.mt_note')

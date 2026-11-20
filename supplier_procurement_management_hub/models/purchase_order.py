@@ -137,14 +137,14 @@ class PurchaseOrder(models.Model):
                            subtype_xmlid='mail.mt_note')
         return True
 
-    def _spm_check_supplier(self):
+    def _spm_check_supplier(self, warn=True):
         """Refuse when the supplier of an order is not allowed to be confirmed with.
 
         Requirements: BR-SPM-0006, FR-SPM-0013
         """
         for order in self:
             supplier_control.check_supplier_allowed(
-                self.env, order, order.partner_id, order.company_id, 'confirm')
+                self.env, order, order.partner_id, order.company_id, 'confirm', warn=warn)
 
     def button_confirm(self):
         """Refuse the confirmation when the supplier is not allowed or the approval is missing.
@@ -153,7 +153,8 @@ class PurchaseOrder(models.Model):
         """
         self._spm_check_supplier()
         approval.check_confirmable(self)
-        return super().button_confirm()
+        # the approval step reached from this call checks again but does not repeat the warning
+        return super(PurchaseOrder, self.with_context(spm_risk_warned=True)).button_confirm()
 
     def button_approve(self, force=False):
         """Refuse the approval when the supplier is not allowed (the order may wait since its confirmation)
@@ -161,7 +162,7 @@ class PurchaseOrder(models.Model):
 
         Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0048
         """
-        self._spm_check_supplier()
+        self._spm_check_supplier(warn=not self.env.context.get('spm_risk_warned'))
         approval.check_confirmable(self)
         return super().button_approve(force=force)
 

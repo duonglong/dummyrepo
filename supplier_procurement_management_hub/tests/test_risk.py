@@ -172,8 +172,9 @@ class TestRisk(TransactionCase):
         partner = self.env['res.partner'].create({'name': 'Mu', 'spm_risk_level': 'medium'})
         self.env.company.spm_risk_medium_action = 'warn'
         order = self.env['purchase.order'].create({'partner_id': partner.id})
-        for _ in range(2):
-            supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+        supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+        supplier_control.check_supplier_allowed(
+            self.env, order, partner, self.env.company, 'confirm', warn=False)
         notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
         self.assertEqual(len(notes), 1)
 
@@ -244,3 +245,16 @@ class TestRisk(TransactionCase):
         order.button_confirm()
         notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
         self.assertEqual(len(notes), 1)
+
+    def test_warning_repeats_after_a_rolled_back_attempt(self):
+        """FR-SPM-0090: a rolled back confirmation leaves no mark; the next one warns again."""
+        partner = self.env['res.partner'].create({'name': 'Xi', 'spm_risk_level': 'medium'})
+        self.env.company.spm_risk_medium_action = 'warn'
+        order = self.env['purchase.order'].create({'partner_id': partner.id})
+        with self.assertRaises(UserError), self.cr.savepoint():
+            supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+            raise UserError('retry')
+        supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+        supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
+        notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
+        self.assertEqual(len(notes), 2)
