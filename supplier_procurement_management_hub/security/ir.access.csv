@@ -371,3 +371,32 @@ access_spm_supplier_metric_finance,Supplier Metric finance,procurement.supplier.
 access_spm_supplier_metric_auditor,Supplier Metric auditor,procurement.supplier.metric,group_spm_auditor,r,
 access_spm_supplier_metric_admin,Supplier Metric admin,procurement.supplier.metric,group_spm_admin,r,
 spm_supplier_metric_comp_rule,procurement.supplier.metric: allowed companies,procurement.supplier.metric,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_supplier_evaluation_buyer_own,procurement.supplier.evaluation buyer_own,procurement.supplier.evaluation,group_spm_buyer,cru,"[('author_id', '=', user.id)]"
+access_spm_supplier_evaluation_manager,procurement.supplier.evaluation manager,procurement.supplier.evaluation,group_spm_manager,crud,
+access_spm_supplier_evaluation_finance,procurement.supplier.evaluation finance,procurement.supplier.evaluation,group_spm_finance,r,
+access_spm_supplier_evaluation_auditor,procurement.supplier.evaluation auditor,procurement.supplier.evaluation,group_spm_auditor,r,
+access_spm_supplier_evaluation_admin,procurement.supplier.evaluation admin,procurement.supplier.evaluation,group_spm_admin,crud,
+spm_supplier_evaluation_comp_rule,procurement.supplier.evaluation: allowed companies,procurement.supplier.evaluation,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_supplier_evaluation_rating_buyer_own,procurement.supplier.evaluation.rating buyer_own,procurement.supplier.evaluation.rating,group_spm_buyer,cru,"[('evaluation_id.author_id', '=', user.id)]"
+access_spm_supplier_evaluation_rating_manager,procurement.supplier.evaluation.rating manager,procurement.supplier.evaluation.rating,group_spm_manager,crud,
+access_spm_supplier_evaluation_rating_finance,procurement.supplier.evaluation.rating finance,procurement.supplier.evaluation.rating,group_spm_finance,r,
+access_spm_supplier_evaluation_rating_auditor,procurement.supplier.evaluation.rating auditor,procurement.supplier.evaluation.rating,group_spm_auditor,r,
+access_spm_supplier_evaluation_rating_admin,procurement.supplier.evaluation.rating admin,procurement.supplier.evaluation.rating,group_spm_admin,crud,
+spm_supplier_evaluation_rating_comp_rule,procurement.supplier.evaluation.rating: allowed companies,procurement.supplier.evaluation.rating,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_supplier_review_buyer,procurement.supplier.review buyer,procurement.supplier.review,group_spm_buyer,cru,
+access_spm_supplier_review_manager,procurement.supplier.review manager,procurement.supplier.review,group_spm_manager,crud,
+access_spm_supplier_review_finance,procurement.supplier.review finance,procurement.supplier.review,group_spm_finance,r,
+access_spm_supplier_review_auditor,procurement.supplier.review auditor,procurement.supplier.review,group_spm_auditor,r,
+access_spm_supplier_review_admin,procurement.supplier.review admin,procurement.supplier.review,group_spm_admin,crud,
+spm_supplier_review_comp_rule,procurement.supplier.review: allowed companies,procurement.supplier.review,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_corrective_action_buyer,procurement.corrective.action buyer,procurement.corrective.action,group_spm_buyer,cru,
+access_spm_corrective_action_manager,procurement.corrective.action manager,procurement.corrective.action,group_spm_manager,crud,
+access_spm_corrective_action_finance,procurement.corrective.action finance,procurement.corrective.action,group_spm_finance,r,
+access_spm_corrective_action_auditor,procurement.corrective.action auditor,procurement.corrective.action,group_spm_auditor,r,
+access_spm_corrective_action_admin,procurement.corrective.action admin,procurement.corrective.action,group_spm_admin,crud,
+spm_corrective_action_comp_rule,procurement.corrective.action: allowed companies,procurement.corrective.action,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_evaluation_criterion_buyer,Evaluation Criterion buyer,procurement.evaluation.criterion,group_spm_buyer,r,
+access_spm_evaluation_criterion_manager,Evaluation Criterion manager,procurement.evaluation.criterion,group_spm_manager,crud,
+access_spm_evaluation_criterion_finance,Evaluation Criterion finance,procurement.evaluation.criterion,group_spm_finance,r,
+access_spm_evaluation_criterion_auditor,Evaluation Criterion auditor,procurement.evaluation.criterion,group_spm_auditor,r,
+access_spm_evaluation_criterion_admin,Evaluation Criterion admin,procurement.evaluation.criterion,group_spm_admin,crud,

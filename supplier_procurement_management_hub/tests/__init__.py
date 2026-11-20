@@ -61,6 +61,7 @@ from . import test_approval_delegation
 from . import test_scorecard_snapshot_acceptance
 from . import test_scorecard_snapshot
 from . import test_reviews_acceptance
+from . import test_reviews
 from . import test_risk_acceptance
 from . import test_reports_spend_acceptance
 from . import test_reports_spend
