@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..services import approval
+
 
 class ProcurementApprovalPolicyStep(models.Model):
     """A step of a policy: who approves and whether every approver or any one must.
@@ -61,9 +63,7 @@ class ProcurementApprovalPolicyStep(models.Model):
 
     def _spm_resolve_manager(self, order):
         """Walk the employee hierarchy up from the requester, up to the step's levels."""
-        requester = order.spm_requester_id or order.user_id
-        employee = self.env['hr.employee'].search([
-            ('user_id', '=', requester.id), ('company_id', '=', order.company_id.id)], limit=1)
+        employee = approval.requester_employee(order)
         managers = self.env['res.users']
         seen = employee
         for _level in range(self.manager_levels):

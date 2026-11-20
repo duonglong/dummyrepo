@@ -58,3 +58,22 @@ class TestApprovalPolicy(SpmApprovalCase):
         self.assertFalse(order.copy().spm_requester_id)
         by_system = self.env['purchase.order'].with_user(SUPERUSER_ID).create({'partner_id': self.acme.id})
         self.assertFalse(by_system.spm_requester_id)
+
+    def test_category_condition_includes_subcategories(self):
+        """FR-SPM-0043: an 'IT' policy matches an order of a product in 'IT / Laptops'."""
+        child = self.env['product.category'].create({'name': 'Laptops M3', 'parent_id': self.it_category.id})
+        product = self.env['product.product'].create({'name': 'Sub laptop', 'type': 'consu', 'categ_id': child.id})
+        policy = self._policy('IT', steps=[self._step('B', 10, users=self.bob)],
+                              product_category_ids=self.it_category)
+        self.assertIn(policy, approval.evaluate(self.env, self._order(product=product))['policies'])
+        self.assertNotIn(policy, approval.evaluate(self.env, self._order())['policies'])
+
+    def test_an_order_without_requester_or_buyer_matches_no_employee(self):
+        """FR-SPM-0044: no user on the order means no employee, not every employee without a user."""
+        self.env['hr.employee'].create({'name': 'No user'})
+        order = self._order()
+        order.user_id = False
+        self.assertFalse(approval.requester_employee(order))
+        step = self.env['procurement.approval.policy.step'].new({
+            'name': 'M', 'approver_type': 'manager', 'manager_levels': 1})
+        self.assertFalse(step._spm_resolve_manager(order))

@@ -47,6 +47,18 @@ def _cumulated_amount(order, period):
     return _company_amount(order) + sum(_company_amount(other) for other in others)
 
 
+def requester_employee(order):
+    """Return the employee of the order's requester (the buyer without one), none when there is no user.
+
+    Requirements: FR-SPM-0043, FR-SPM-0044
+    """
+    requester = order.spm_requester_id or order.user_id
+    if not requester:
+        return order.env['hr.employee']
+    return order.env['hr.employee'].search([
+        ('user_id', '=', requester.id), ('company_id', '=', order.company_id.id)], limit=1)
+
+
 def _matches_conditions(order, policy, amount):
     """Return whether every condition set on the policy holds for the order."""
     lines = order.order_line.filtered(lambda line: not line.display_type)
@@ -56,13 +68,13 @@ def _matches_conditions(order, policy, amount):
         return False
     if policy.product_ids and not lines.product_id & policy.product_ids:
         return False
-    if policy.product_category_ids and not lines.product_id.categ_id & policy.product_category_ids:
-        return False
+    if policy.product_category_ids:
+        # a category condition includes its subcategories (answer to FR-SPM-0043)
+        categories = order.env['product.category'].search([('id', 'child_of', policy.product_category_ids.ids)])
+        if not lines.product_id.categ_id & categories:
+            return False
     if policy.department_ids:
-        requester = order.spm_requester_id or order.user_id
-        departments = order.env['hr.employee'].search([
-            ('user_id', '=', requester.id), ('company_id', '=', order.company_id.id)]).department_id
-        if not departments & policy.department_ids:
+        if not requester_employee(order).department_id & policy.department_ids:
             return False
     if policy.analytic_account_ids:
         used = {int(key) for line in lines for key in (line.analytic_distribution or {})
