@@ -11,10 +11,15 @@ ACK_FIELDS = {'spm_acknowledged_date', 'spm_acknowledged_user_id'}
 class PurchaseOrder(models.Model):
     """Purchase order guarded by supplier control.
 
-    Requirements: BR-SPM-0006, FR-SPM-0013
+    Requirements: BR-SPM-0006, FR-SPM-0013, FR-SPM-0044
+    Built spm_requester_id for T-018 (the requester of the approval policies).
     """
     _inherit = 'purchase.order'
 
+    spm_requester_id = fields.Many2one(
+        'res.users', string="Requester", copy=False,
+        help="The person the approval policies take the department and the managers from. "
+             "Empty: the buyer of the order.")
     spm_delivery_event_ids = fields.One2many('procurement.delivery.event', 'order_id', string="Delivery history")
     spm_commitment_ids = fields.One2many('procurement.delivery.commitment', 'order_id', string="Delivery commitments")
     spm_acknowledged_date = fields.Datetime(string="Acknowledged on", copy=False, readonly=True)
@@ -25,8 +30,10 @@ class PurchaseOrder(models.Model):
     def create(self, vals_list):
         """Give the goods lines of an order created already confirmed their delivery commitment.
 
-        Requirements: FR-SPM-0055, FR-SPM-0024
+        The requester is never filled here: only the purchase-request flow sets it, else the buyer is used.
         An acknowledgement is recorded only by the supplier's action, never set on a new order.
+
+        Requirements: FR-SPM-0055, FR-SPM-0024
         """
         if not self.env.su and any(ACK_FIELDS & set(vals) for vals in vals_list):
             raise AccessError(self.env._("Only the supplier acknowledges an order."))

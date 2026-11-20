@@ -230,6 +230,20 @@ access_spm_event_finance,Delivery event finance,procurement.delivery.event,group
 access_spm_event_auditor,Delivery event auditor,procurement.delivery.event,group_spm_auditor,r,
 access_spm_event_admin,Delivery event admin,procurement.delivery.event,group_spm_admin,crud,
 spm_event_comp_rule,procurement.delivery.event: allowed companies,procurement.delivery.event,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_policy_department_manager,Approval policy department_manager,procurement.approval.policy,group_spm_department_manager,r,
+access_spm_approval_policy_buyer,Approval policy buyer,procurement.approval.policy,group_spm_buyer,r,
+access_spm_approval_policy_manager,Approval policy manager,procurement.approval.policy,group_spm_manager,crud,
+access_spm_approval_policy_finance,Approval policy finance,procurement.approval.policy,group_spm_finance,r,
+access_spm_approval_policy_auditor,Approval policy auditor,procurement.approval.policy,group_spm_auditor,r,
+access_spm_approval_policy_admin,Approval policy admin,procurement.approval.policy,group_spm_admin,crud,
+spm_approval_policy_comp_rule,procurement.approval.policy: allowed companies,procurement.approval.policy,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_policy_step_department_manager,Approval policy step department_manager,procurement.approval.policy.step,group_spm_department_manager,r,
+access_spm_approval_policy_step_buyer,Approval policy step buyer,procurement.approval.policy.step,group_spm_buyer,r,
+access_spm_approval_policy_step_manager,Approval policy step manager,procurement.approval.policy.step,group_spm_manager,crud,
+access_spm_approval_policy_step_finance,Approval policy step finance,procurement.approval.policy.step,group_spm_finance,r,
+access_spm_approval_policy_step_auditor,Approval policy step auditor,procurement.approval.policy.step,group_spm_auditor,r,
+access_spm_approval_policy_step_admin,Approval policy step admin,procurement.approval.policy.step,group_spm_admin,crud,
+spm_approval_policy_step_comp_rule,procurement.approval.policy.step: allowed companies,procurement.approval.policy.step,,crud,"[('company_id', 'in', company_ids)]"
 access_spm_proposal_buyer,Delivery proposal buyer,procurement.delivery.proposal,group_spm_buyer,ru,
 access_spm_proposal_manager,Delivery proposal manager,procurement.delivery.proposal,group_spm_manager,ru,
 access_spm_proposal_finance,Delivery proposal finance,procurement.delivery.proposal,group_spm_finance,r,

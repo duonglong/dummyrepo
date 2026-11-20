@@ -51,4 +51,6 @@ from . import test_award_acceptance
 from . import test_approval_policy_acceptance
 from . import test_approval_flow_acceptance
 from . import test_approval_delegation_acceptance
+from . import test_approval_policy
 from . import test_merge_delivery_epic
+from . import test_merge_approval_epic

@@ -47,6 +47,7 @@
         'views/procurement_comparison_views.xml',
         'views/procurement_contract_views.xml',
         'views/procurement_contract_use_views.xml',
+        'views/procurement_approval_policy_views.xml',
         'views/portal_order_templates.xml',
     ],
     'license': 'LGPL-3',

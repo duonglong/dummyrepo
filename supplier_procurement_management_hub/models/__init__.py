@@ -55,3 +55,5 @@ from . import procurement_sourcing_response_version
 from . import ir_attachment
 from . import purchase_order_line
 from . import product_supplierinfo
+from . import procurement_approval_policy_step
+from . import procurement_approval_policy
