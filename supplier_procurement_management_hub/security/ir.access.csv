@@ -294,3 +294,26 @@ access_spm_award_wizard_admin,Award dialog admin,procurement.award.wizard,group_
 access_spm_award_wizard_line_buyer,Award dialog line buyer,procurement.award.wizard.line,group_spm_buyer,crud,
 access_spm_award_wizard_line_manager,Award dialog line manager,procurement.award.wizard.line,group_spm_manager,crud,
 access_spm_award_wizard_line_admin,Award dialog line admin,procurement.award.wizard.line,group_spm_admin,crud,
+access_spm_approval_request_buyer,Approval request buyer,procurement.approval.request,group_spm_buyer,r,
+access_spm_approval_request_manager,Approval request manager,procurement.approval.request,group_spm_manager,r,
+access_spm_approval_request_finance,Approval request finance,procurement.approval.request,group_spm_finance,r,
+access_spm_approval_request_auditor,Approval request auditor,procurement.approval.request,group_spm_auditor,r,
+access_spm_approval_request_admin,Approval request admin,procurement.approval.request,group_spm_admin,r,
+access_spm_approval_request_approver,Approval request approver,procurement.approval.request,base.group_user,r,"[('step_ids.approver_ids', 'in', [user.id])]"
+spm_approval_request_comp_rule,procurement.approval.request: allowed companies,procurement.approval.request,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_step_buyer,Approval step buyer,procurement.approval.step,group_spm_buyer,r,
+access_spm_approval_step_manager,Approval step manager,procurement.approval.step,group_spm_manager,r,
+access_spm_approval_step_finance,Approval step finance,procurement.approval.step,group_spm_finance,r,
+access_spm_approval_step_auditor,Approval step auditor,procurement.approval.step,group_spm_auditor,r,
+access_spm_approval_step_admin,Approval step admin,procurement.approval.step,group_spm_admin,r,
+access_spm_approval_step_approver,Approval step approver,procurement.approval.step,base.group_user,r,"[('approver_ids', 'in', [user.id])]"
+spm_approval_step_comp_rule,procurement.approval.step: allowed companies,procurement.approval.step,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_decision_buyer,Approval decision buyer,procurement.approval.decision,group_spm_buyer,r,
+access_spm_approval_decision_manager,Approval decision manager,procurement.approval.decision,group_spm_manager,r,
+access_spm_approval_decision_finance,Approval decision finance,procurement.approval.decision,group_spm_finance,r,
+access_spm_approval_decision_auditor,Approval decision auditor,procurement.approval.decision,group_spm_auditor,r,
+access_spm_approval_decision_admin,Approval decision admin,procurement.approval.decision,group_spm_admin,r,
+access_spm_approval_decision_approver,Approval decision approver,procurement.approval.decision,base.group_user,r,"['|', ('approver_id', '=', user.id), ('step_id.approver_ids', 'in', [user.id])]"
+spm_approval_decision_comp_rule,procurement.approval.decision: allowed companies,procurement.approval.decision,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_approval_approve_wizard_user,Approval comment dialog user,procurement.approval.approve.wizard,base.group_user,cru,
+access_spm_approval_reject_wizard_user,Approval rejection dialog user,procurement.approval.reject.wizard,base.group_user,cru,
