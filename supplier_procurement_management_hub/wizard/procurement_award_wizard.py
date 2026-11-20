@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
-from ..services import sourcing
+from ..services import report, sourcing
 
 
 class ProcurementAwardWizard(models.TransientModel):
@@ -21,6 +21,11 @@ class ProcurementAwardWizard(models.TransientModel):
         domain="[('event_id', '=', event_id), ('current_version_id', '!=', False)]")
     line_choice_ids = fields.One2many('procurement.award.wizard.line', 'wizard_id', string="Winners by line")
     rationale = fields.Text(required=True)
+    baseline_kind = fields.Selection(
+        report.BASELINE_KINDS, string="Savings baseline", required=True, default='first_average',
+        help="What the awarded total is compared with to state the savings.")
+    budget_amount = fields.Monetary(currency_field='company_currency_id')
+    company_currency_id = fields.Many2one(related='event_id.company_id.currency_id')
 
     @api.model
     def default_get(self, fields_list):
@@ -34,7 +39,7 @@ class ProcurementAwardWizard(models.TransientModel):
     def action_confirm(self):
         """Award the event with the chosen responses and the rationale, then close the dialog.
 
-        Requirements: FR-SPM-0039, FR-SPM-0041
+        Requirements: FR-SPM-0039, FR-SPM-0041, FR-SPM-0103
         """
         self.ensure_one()
         event = self.event_id
@@ -49,5 +54,5 @@ class ProcurementAwardWizard(models.TransientModel):
             choices = {
                 choice.event_line_id: choice.response_id for choice in self.line_choice_ids
                 if choice.response_id}
-        sourcing.award(event, choices, self.rationale)
+        sourcing.award(event, choices, self.rationale, self.baseline_kind, self.budget_amount)
         return {'type': 'ir.actions.act_window_close'}

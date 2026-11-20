@@ -52,6 +52,11 @@
                             <field name="cancel_reason" invisible="not cancel_reason"/>
                             <field name="award_rationale" invisible="not award_rationale"/>
                             <field name="awarded_date" invisible="not awarded_date"/>
+                            <field name="baseline_kind" invisible="state != 'awarded'"/>
+                            <field name="baseline_amount" invisible="state != 'awarded'"/>
+                            <field name="awarded_amount" invisible="state != 'awarded'"/>
+                            <field name="savings_amount" invisible="state != 'awarded'"/>
+                            <field name="company_currency_id" invisible="1"/>
                         </group>
                     </group>
                     <notebook>

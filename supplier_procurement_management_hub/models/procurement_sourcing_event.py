@@ -3,13 +3,19 @@ from datetime import timedelta
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..services import sourcing
+from ..services import report, sourcing
 from .procurement_sourcing_response import SPM_SCORE_GROUPS
 
 # Days between the creation of an event made from requests and its first deadline.
 DEFAULT_DEADLINE_DAYS = 7
 # Fields only the module's own actions write (they write with elevated rights after their checks).
-WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date', 'sent_date')
+SAVINGS_FIELDS = ('baseline_kind', 'budget_amount', 'baseline_amount', 'awarded_amount', 'savings_amount')
+WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date', 'sent_date') + SAVINGS_FIELDS
+# Roles that read prices and savings (BR-SPM-0004): never a requester, a department manager or a supplier.
+SPM_PRICE_GROUPS = (
+    'supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_manager,'
+    'supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,'
+    'supplier_procurement_management_hub.group_spm_admin')
 # Evidence of the award: the assumptions, criteria and lines no longer change once the event is awarded.
 AWARD_EVIDENCE_FIELDS = (
     'currency_id', 'rate_date', 'tax_basis', 'criterion_ids', 'line_ids', 'invited_partner_ids',
@@ -78,6 +84,19 @@ class ProcurementSourcingEvent(models.Model):
     award_rationale = fields.Text(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
     awarded_date = fields.Datetime(readonly=True, copy=False)
     sent_date = fields.Datetime(readonly=True, copy=False)  # built for T-031: the cycle report starts here
+    company_currency_id = fields.Many2one(related='company_id.currency_id', string="Company currency")
+    baseline_kind = fields.Selection(
+        report.BASELINE_KINDS, readonly=True, copy=False, groups=SPM_PRICE_GROUPS,
+        help="What the awarded total is compared with to compute the savings.")
+    budget_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+    baseline_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+    awarded_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+    savings_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS,
+        help="The baseline minus the awarded total, in the company currency.")
     purchase_order_ids = fields.One2many(
         'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,
         groups='purchase.group_purchase_user')
@@ -134,6 +153,8 @@ class ProcurementSourcingEvent(models.Model):
         for vals in vals_list:
             if not self.env.su:
                 vals.pop('cancel_reason', None)
+                for name in SAVINGS_FIELDS:
+                    vals.pop(name, None)
                 vals['state'] = 'draft'
             if vals.get('name', 'New') == 'New':
                 vals['name'] = self.env['ir.sequence'].next_by_code('procurement.sourcing.event') or 'New'

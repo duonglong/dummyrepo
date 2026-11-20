@@ -11,7 +11,7 @@ from datetime import timedelta
 from odoo import fields
 from odoo.exceptions import UserError
 
-from . import audit, onboarding, supplier_control
+from . import audit, onboarding, report, supplier_control
 
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_invitation'
 DEADLINE_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_deadline'
@@ -615,11 +615,12 @@ def _tell_unsuccessful(env, event, partners):
     notify_suppliers(env, event, AWARDED_OTHER_TEMPLATE, without_address)
 
 
-def award(event, choices, rationale):
+def award(event, choices, rationale, baseline_kind='first_average', budget_amount=0.0):
     """Award the lines of the event to the chosen responses and close the event.
 
-    Requirements: FR-SPM-0039, FR-SPM-0041
+    Requirements: FR-SPM-0039, FR-SPM-0041, FR-SPM-0103
     ``choices`` maps an event line to the response that wins it. A rationale is required. The
+    savings against the chosen baseline are stored with the award. The
     chosen offers' lines are marked awarded and the other responses not awarded; the unsuccessful
     suppliers are told when the event says so, without the winner or any price.
     """
@@ -635,6 +636,7 @@ def award(event, choices, rationale):
     for response in env['procurement.sourcing.response'].union(*choices.values()):
         supplier_control.check_supplier_allowed(env, event, response.partner_id, event.company_id, 'award')
     evaluate(event)
+    savings = report.award_savings(event, choices, baseline_kind, budget_amount)
     offers = env['procurement.sourcing.response.line']
     for line, response in choices.items():
         offers |= response.current_version_id.line_ids.filtered(lambda offer: offer.event_line_id == line)
@@ -652,7 +654,7 @@ def award(event, choices, rationale):
         response.sudo().write({'state': state})
     # sudo: the state and the award evidence are workflow fields no user writes directly
     event.sudo().write({
-        'state': 'awarded', 'award_rationale': rationale, 'awarded_date': fields.Datetime.now()})
+        'state': 'awarded', 'award_rationale': rationale, 'awarded_date': fields.Datetime.now(), **savings})
     if event.inform_unsuccessful:
         _tell_unsuccessful(env, event, (event.response_ids - winners).filtered('current_version_id').partner_id)
     audit.log(

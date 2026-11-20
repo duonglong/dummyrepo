@@ -54,6 +54,8 @@
         'views/purchase_order_approval_views.xml',
         'views/procurement_approval_inbox_views.xml',
         'views/procurement_report_views.xml',
+        'views/procurement_report_performance_views.xml',
+        'report/procurement_report_templates.xml',
         'views/procurement_scorecard_template_views.xml',
     ],
     'license': 'LGPL-3',

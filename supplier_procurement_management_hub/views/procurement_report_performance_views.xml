@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104 -->
+    <record id="procurement_report_exception_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.exception.pivot</field>
+        <field name="model">procurement.report.exception</field>
+        <field name="arch" type="xml">
+            <pivot string="Exception rates" sample="1">
+                <field name="partner_id" type="row"/>
+                <field name="stage" type="col"/>
+                <field name="line_count" type="measure"/>
+                <field name="exception_count" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_exception_list" model="ir.ui.view">
+        <field name="name">procurement.report.exception.list</field>
+        <field name="model">procurement.report.exception</field>
+        <field name="arch" type="xml">
+            <list string="Exception rates" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="stage"/>
+                <field name="partner_id"/>
+                <field name="kind"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="line_count" sum="Matched lines"/>
+                <field name="exception_count" sum="Exceptions"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_exception_search" model="ir.ui.view">
+        <field name="name">procurement.report.exception.search</field>
+        <field name="model">procurement.report.exception</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <filter name="receipt_to_bill" string="Receipt to bill" domain="[('stage', '=', 'receipt_to_bill')]"/>
+                <filter name="order_to_receipt" string="Order to receipt" domain="[('stage', '=', 'order_to_receipt')]"/>
+                <group>
+                    <filter name="group_stage" string="Stage" context="{'group_by': 'stage'}"/>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_kind" string="Kind" context="{'group_by': 'kind'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_exception_action" model="ir.actions.act_window">
+        <field name="name">Exception rates</field>
+        <field name="res_model">procurement.report.exception</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="search_view_id" ref="procurement_report_exception_search"/>
+        <field name="context">{'search_default_group_month': 1}</field>
+        <field name="help">No line has been matched yet.</field>
+    </record>
+
+    <record id="procurement_report_delivery_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.delivery.pivot</field>
+        <field name="model">procurement.report.delivery</field>
+        <field name="arch" type="xml">
+            <pivot string="Delivery performance" sample="1">
+                <field name="partner_id" type="row"/>
+                <field name="date" interval="quarter" type="col"/>
+                <field name="line_count" type="measure"/>
+                <field name="on_time_count" type="measure"/>
+                <field name="ordered_qty" type="measure"/>
+                <field name="received_qty" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_delivery_list" model="ir.ui.view">
+        <field name="name">procurement.report.delivery.list</field>
+        <field name="model">procurement.report.delivery</field>
+        <field name="arch" type="xml">
+            <list string="Delivery performance" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="order_id"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="line_count" sum="Due lines"/>
+                <field name="on_time_count" sum="On time"/>
+                <field name="ordered_qty" sum="Ordered"/>
+                <field name="received_qty" sum="Received"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_delivery_search" model="ir.ui.view">
+        <field name="name">procurement.report.delivery.search</field>
+        <field name="model">procurement.report.delivery</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <filter name="late" string="Not on time" domain="[('on_time_count', '=', 0)]"/>
+                <group>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_delivery_action" model="ir.actions.act_window">
+        <field name="name">Delivery performance</field>
+        <field name="res_model">procurement.report.delivery</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="search_view_id" ref="procurement_report_delivery_search"/>
+        <field name="help">No delivery has fallen due yet.</field>
+    </record>
+
+    <record id="procurement_contract_utilization_list" model="ir.ui.view">
+        <field name="name">procurement.contract.utilization.list</field>
+        <field name="model">procurement.contract</field>
+        <field name="arch" type="xml">
+            <list string="Contract utilization" create="0" edit="0" delete="0">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="state"/>
+                <field name="date_end"/>
+                <field name="notice_date"/>
+                <field name="days_to_notice"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="ceiling_value"/>
+                <field name="consumed_value"/>
+                <field name="used_share" widget="progressbar"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_contract_utilization_action" model="ir.actions.act_window">
+        <field name="name">Contract utilization</field>
+        <field name="res_model">procurement.contract</field>
+        <field name="view_mode">list</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('procurement_contract_utilization_list')})]"/>
+        <field name="domain">[('state', 'in', ('active', 'revision'))]</field>
+        <field name="help">No contract is in force.</field>
+    </record>
+
+    <record id="procurement_report_savings_list" model="ir.ui.view">
+        <field name="name">procurement.report.savings.list</field>
+        <field name="model">procurement.report.sourcing</field>
+        <field name="arch" type="xml">
+            <list string="Savings" create="0" edit="0" delete="0">
+                <field name="event_id"/>
+                <field name="date_awarded"/>
+                <field name="awarded_partner_id"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="baseline_kind"/>
+                <field name="baseline_amount" sum="Baseline"/>
+                <field name="awarded_amount" sum="Awarded"/>
+                <field name="savings_amount" sum="Savings"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_savings_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.savings.pivot</field>
+        <field name="model">procurement.report.sourcing</field>
+        <field name="arch" type="xml">
+            <pivot string="Savings" sample="1">
+                <field name="baseline_kind" type="row"/>
+                <field name="date_awarded" interval="quarter" type="col"/>
+                <field name="baseline_amount" type="measure"/>
+                <field name="awarded_amount" type="measure"/>
+                <field name="savings_amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_savings_action" model="ir.actions.act_window">
+        <field name="name">Savings</field>
+        <field name="res_model">procurement.report.sourcing</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('procurement_report_savings_pivot')}),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('procurement_report_savings_list')})]"/>
+        <field name="domain">[('baseline_kind', '!=', False)]</field>
+        <field name="help">No sourcing event has been awarded yet.</field>
+    </record>
+
+    <record id="procurement_report_pdf_wizard_form" model="ir.ui.view">
+        <field name="name">procurement.report.pdf.wizard.form</field>
+        <field name="model">procurement.report.pdf.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="report_model"/>
+                    <field name="domain"/>
+                    <field name="group_by"/>
+                    <field name="filter_description"/>
+                </group>
+                <footer>
+                    <button name="action_print" type="object" string="Print" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_report_pdf_wizard_action" model="ir.actions.act_window">
+        <field name="name">Print report</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_spend" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_spend"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_price" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_price"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_sourcing" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_sourcing"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_approval" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_approval"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_exception" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_exception"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_delivery" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_delivery"/>
+        <field name="binding_view_types">list</field>
+    </record>
+
+    <menuitem id="menu_spm_report_contract" name="Contract utilization" parent="menu_spm_reports" sequence="50"
+              action="procurement_contract_utilization_action"/>
+    <menuitem id="menu_spm_report_delivery" name="Delivery performance" parent="menu_spm_reports" sequence="60"
+              action="procurement_report_delivery_action"/>
+    <menuitem id="menu_spm_report_exception" name="Exception rates" parent="menu_spm_reports" sequence="70"
+              action="procurement_report_exception_action"/>
+    <menuitem id="menu_spm_report_savings" name="Savings" parent="menu_spm_reports" sequence="80"
+              action="procurement_report_savings_action"/>
+</odoo>
