@@ -57,3 +57,6 @@ from . import purchase_order_line
 from . import product_supplierinfo
 from . import procurement_approval_policy_step
 from . import procurement_approval_policy
+from . import procurement_approval_request
+from . import procurement_approval_step
+from . import procurement_approval_decision

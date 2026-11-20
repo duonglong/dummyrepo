@@ -1,12 +1,12 @@
 from odoo import api, fields, models
 
-from ..services import contract as contract_service
+from ..services import approval, contract as contract_service
 
 
 class PurchaseOrderLine(models.Model):  # sdd-allow: model-split the contract link field is built by T-021 (procurement_contract_line.py); the warning is the use task's
     """Order line with its deviation warning against the contracts.
 
-    Requirements: FR-SPM-0069
+    Requirements: FR-SPM-0069, BR-SPM-0010, FR-SPM-0052
     """
     _inherit = 'purchase.order.line'
 
@@ -18,23 +18,66 @@ class PurchaseOrderLine(models.Model):  # sdd-allow: model-split the contract li
     def create(self, vals_list):
         """Link a line added to an order already confirmed to the contract line it is bought under.
 
-        Requirements: FR-SPM-0068
+        An added line is a material change of an order to approve or approved (BR-SPM-0010).
+
+        Requirements: FR-SPM-0068, BR-SPM-0010, FR-SPM-0052
         """
         lines = super().create(vals_list)
         lines.order_id.filtered(lambda order: order.state == 'purchase')._spm_link_contract_lines()
+        self._spm_review_material(lines.filtered(lambda line: not line.display_type).order_id, structural=True)
         return lines
 
     def write(self, vals):
         """Link a line whose product changes on a confirmed order to its contract line.
 
-        Requirements: FR-SPM-0068
+        A change of product, analytic distribution or order of a line, or of the total above the
+        policy's tolerance, is a material change of an order to approve or approved.
+
+        Requirements: FR-SPM-0068, BR-SPM-0010, FR-SPM-0052
         """
         if 'product_id' in vals:
             vals = dict(vals, spm_contract_line_id=False)
+        watched = self.filtered(lambda line: not line.display_type and approval.is_watched(line.order_id))
+        before = {line.id: line._spm_material_key() for line in watched}
+        orders = self.order_id
         result = super().write(vals)
         if 'product_id' in vals:
             self.order_id.filtered(lambda order: order.state == 'purchase')._spm_link_contract_lines()
+        changed = watched.filtered(lambda line: before[line.id] != line._spm_material_key())
+        self._spm_review_material(
+            self.env['purchase.order'].browse([before[line.id][0] for line in changed]) | changed.order_id,
+            structural=True)
+        self._spm_review_material(orders, structural=False)
         return result
+
+    def _spm_material_key(self):
+        """Return what an approval applies to on a line: its order, product and analytic distribution."""
+        self.ensure_one()
+        return (self.order_id.id, self.product_id.id, self.analytic_distribution or {})
+
+    def unlink(self):
+        """A removed line is a material change of an order to approve or approved.
+
+        Requirements: BR-SPM-0010, FR-SPM-0052
+        """
+        orders = self.filtered(lambda line: not line.display_type).order_id
+        result = super().unlink()
+        self._spm_review_material(orders, structural=True)
+        return result
+
+    @api.model
+    def _spm_review_material(self, orders, structural):
+        """Cancel and re-evaluate the approval of the orders after a material line change.
+
+        Inside a save of the order itself the order is only marked; its write reviews it once.
+        """
+        orders = orders.filtered(approval.is_watched)
+        pending = self.env.context.get('spm_material_orders')
+        if pending is not None:
+            if structural:
+                pending.update(orders.ids)
+            return
+        approval.review_changes(orders, orders.ids if structural else ())
 
     @api.depends('product_id', 'product_qty', 'price_unit', 'date_planned', 'uom_id', 'order_id.partner_id',
                  'order_id.date_order', 'order_id.state', 'spm_contract_line_id')
