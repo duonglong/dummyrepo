@@ -61,3 +61,5 @@ from . import procurement_approval_request
 from . import procurement_approval_step
 from . import procurement_approval_decision
 from . import procurement_approval_delegation
+from . import procurement_scorecard_template_metric
+from . import procurement_scorecard_template

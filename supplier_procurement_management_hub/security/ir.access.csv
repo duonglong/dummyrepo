@@ -323,3 +323,15 @@ access_spm_approval_delegation_auditor,Approval delegation auditor,procurement.a
 access_spm_approval_delegation_admin,Approval delegation admin,procurement.approval.delegation,group_spm_admin,crud,
 access_spm_approval_step_delegate,Approval step delegate,procurement.approval.step,base.group_user,r,"[('approver_ids', 'any', [('spm_delegation_ids', 'any', [('delegate_id', '=', user.id)])])]"
 access_spm_approval_request_delegate,Approval request delegate,procurement.approval.request,base.group_user,r,"[('step_ids.approver_ids', 'any', [('spm_delegation_ids', 'any', [('delegate_id', '=', user.id)])])]"
+access_spm_scorecard_template_buyer,Scorecard Template buyer,procurement.scorecard.template,group_spm_buyer,r,
+access_spm_scorecard_template_manager,Scorecard Template manager,procurement.scorecard.template,group_spm_manager,crud,
+access_spm_scorecard_template_finance,Scorecard Template finance,procurement.scorecard.template,group_spm_finance,r,
+access_spm_scorecard_template_auditor,Scorecard Template auditor,procurement.scorecard.template,group_spm_auditor,r,
+access_spm_scorecard_template_admin,Scorecard Template admin,procurement.scorecard.template,group_spm_admin,crud,
+spm_scorecard_template_comp_rule,procurement.scorecard.template: allowed companies,procurement.scorecard.template,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_scorecard_template_metric_buyer,Scorecard Template Metric buyer,procurement.scorecard.template.metric,group_spm_buyer,r,
+access_spm_scorecard_template_metric_manager,Scorecard Template Metric manager,procurement.scorecard.template.metric,group_spm_manager,crud,
+access_spm_scorecard_template_metric_finance,Scorecard Template Metric finance,procurement.scorecard.template.metric,group_spm_finance,r,
+access_spm_scorecard_template_metric_auditor,Scorecard Template Metric auditor,procurement.scorecard.template.metric,group_spm_auditor,r,
+access_spm_scorecard_template_metric_admin,Scorecard Template Metric admin,procurement.scorecard.template.metric,group_spm_admin,crud,
+spm_scorecard_template_metric_comp_rule,procurement.scorecard.template.metric: allowed companies,procurement.scorecard.template.metric,,crud,"[('company_id', 'in', company_ids)]"
