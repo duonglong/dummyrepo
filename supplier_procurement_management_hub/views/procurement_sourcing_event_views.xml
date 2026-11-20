@@ -22,6 +22,8 @@
                 <header>
                     <button name="action_spm_send" type="object" string="Send" class="btn-primary"
                             invisible="state != 'draft' or not id"/>
+                    <button name="action_spm_compare" type="object" string="Compare"
+                            invisible="state == 'draft' or not id"/>
                     <button name="action_spm_open_cancel_wizard" type="object" string="Cancel"
                             invisible="state not in ('draft', 'open') or not id"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,open,awarded"/>
@@ -38,6 +40,8 @@
                         <group>
                             <field name="picking_type_id" options="{'no_create': True}"/>
                             <field name="currency_id" readonly="state != 'draft'"/>
+                            <field name="rate_date"/>
+                            <field name="tax_basis"/>
                             <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
                             <field name="cancel_reason" invisible="not cancel_reason"/>
                         </group>
@@ -50,6 +54,7 @@
                                     <field name="name"/>
                                     <field name="quantity"/>
                                     <field name="uom_id"/>
+                                    <field name="comparison_uom_id"/>
                                 </list>
                             </field>
                         </page>
@@ -71,6 +76,18 @@
                                     <field name="kind"/>
                                     <field name="direction"/>
                                     <field name="weight"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Negotiation" name="negotiation">
+                            <field name="negotiation_ids" readonly="True">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="partner_id"/>
+                                    <field name="note_to_supplier"/>
+                                    <field name="internal_note"/>
+                                    <field name="new_deadline"/>
+                                    <field name="user_id"/>
                                 </list>
                             </field>
                         </page>

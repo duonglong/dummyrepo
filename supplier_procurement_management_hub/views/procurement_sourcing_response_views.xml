@@ -9,6 +9,8 @@
                 <header>
                     <button name="action_spm_open_entry_wizard" type="object" string="Enter quotation"
                             class="btn-primary" invisible="not id"/>
+                    <button name="action_spm_open_revision_wizard" type="object" string="Request revision"
+                            invisible="not id or state == 'invited'"/>
                     <field name="state" widget="statusbar" statusbar_visible="invited,submitted"/>
                 </header>
                 <sheet>

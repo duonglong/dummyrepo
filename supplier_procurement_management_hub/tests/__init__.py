@@ -40,12 +40,17 @@ from . import test_delivery_proposal_acceptance
 from . import test_portal_profile
 from . import test_contract
 from . import test_merge_sourcing_contract
+from . import test_portal_messages
 from . import test_quotation_versions
 from . import test_contract_use
 from . import test_delivery_commitment
+from . import test_delivery_proposal
 from . import test_comparison_acceptance
+from . import test_comparison
 from . import test_award_acceptance
 from . import test_approval_policy_acceptance
 from . import test_approval_flow_acceptance
 from . import test_approval_delegation_acceptance
 from . import test_approval_policy
+from . import test_merge_delivery_epic
+from . import test_merge_approval_epic

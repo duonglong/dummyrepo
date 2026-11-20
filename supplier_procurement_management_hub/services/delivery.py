@@ -43,3 +43,12 @@ def schedules_match(total, ordered, rounding):
     Requirements: FR-SPM-0056
     """
     return float_is_zero(total - ordered, precision_rounding=rounding)
+
+
+def split_lines(first_date, second_date, ordered_qty, second_qty):
+    """Return the two lines of a split proposal: the rest of the ordered quantity first, then the second part.
+
+    Requirements: FR-SPM-0025
+    """
+    return [{'date': first_date, 'quantity': ordered_qty - second_qty},
+            {'date': second_date, 'quantity': second_qty}]

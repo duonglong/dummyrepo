@@ -1,7 +1,7 @@
 """Sourcing rules: merging requests into event lines, inviting suppliers, notifying them.
 
 Requirements: FR-SPM-0020, FR-SPM-0021, FR-SPM-0022, FR-SPM-0031, FR-SPM-0032, FR-SPM-0033,
-FR-SPM-0034, FR-SPM-0042
+FR-SPM-0034, FR-SPM-0035, FR-SPM-0036, FR-SPM-0037, FR-SPM-0042, BR-SPM-0007
 Plain functions on an environment, called by the models (and later by the portal).
 """
 import math
@@ -14,6 +14,7 @@ from . import onboarding, supplier_control
 INVITATION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_invitation'
 DEADLINE_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_deadline'
 CANCEL_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_cancelled'
+REVISION_TEMPLATE = 'supplier_procurement_management_hub.mail_template_sourcing_revision'
 
 
 def merge_request_lines(requests):
@@ -231,3 +232,239 @@ def add_version(response, lines, attachment_ids, terms, by_buyer):
     # sudo: the state and the current version are workflow fields no user writes directly
     response.sudo().write({'state': 'submitted', 'current_version_id': version.id})
     return version
+
+
+def request_revision(response, note_to_supplier, new_deadline, internal_note=None):
+    """Reopen one supplier's response until a new deadline, keep the note and tell the supplier.
+
+    Requirements: FR-SPM-0036
+    The Buyer needs the right to change the response; the event must be open and the new
+    deadline later than now and than the event's own deadline (the later one counts).
+    """
+    env = response.env
+    response.check_access('write')
+    note = (note_to_supplier or '').strip()
+    if not note:
+        raise UserError(env._("A note to the supplier is required to request a revised quotation."))
+    new_deadline = fields.Datetime.to_datetime(new_deadline)
+    event = response.event_id
+    if event.state != 'open':
+        raise UserError(env._("The sourcing event %s is not open for quotations.", event.name))
+    if not new_deadline or new_deadline <= max(fields.Datetime.now(), event.deadline):
+        raise UserError(env._("The new deadline must be later than now and than the deadline of the event."))
+    # sudo: a buyer only reads the history; the row is written here after the checks above
+    negotiation = env['procurement.sourcing.negotiation'].sudo().create({
+        'event_id': event.id, 'response_id': response.id, 'note_to_supplier': note,
+        'internal_note': (internal_note or '').strip() or False,
+        'new_deadline': new_deadline, 'user_id': env.user.id})
+    # sudo: the state is a workflow field no user writes directly; the checks are above
+    response.sudo().write({'state': 'reopened', 'reopened_deadline': new_deadline})
+    notify_suppliers(env, negotiation, REVISION_TEMPLATE, response.partner_id)
+    return negotiation
+
+
+def _unit_price(rline):
+    """The price of one unit of an offered line after its discount."""
+    return rline.price_unit * (1 - rline.discount / 100.0)
+
+
+def _normalized_amount(event, rline, amount, version, rate, uom_to=None, basis=None):
+    """An amount of the offered line in the event's currency, on its tax basis and unit.
+
+    Requirements: FR-SPM-0037, BR-SPM-0007
+    ``uom_to`` converts a price per offered unit to a price per comparison unit; ``rate`` is the
+    conversion rate of the version's currency at the event's rate date, looked up once per response.
+    """
+    if uom_to and rline.uom_id:
+        amount = rline.uom_id._compute_price(amount, uom_to)
+    taxes = rline.tax_ids.compute_all(amount, currency=version.currency_id, quantity=1.0)
+    included = (basis or event.tax_basis) == 'included'
+    return taxes['total_included' if included else 'total_excluded'] * rate
+
+
+def comparison_assumptions(env, event):
+    """The text naming how the values of a comparison were made comparable.
+
+    Requirements: FR-SPM-0037, BR-SPM-0007
+    """
+    if not event.is_normalized:
+        return env._(
+            "Values are not normalized: the event does not state its comparison currency, rate "
+            "date, tax basis and the comparison unit of every line, so raw values are shown "
+            "and price is left out of the weighted score.")
+    basis = env._("with tax") if event.tax_basis == 'included' else env._("without tax")
+    units = ', '.join(f"{line.name}: {line.comparison_uom_id.name}" for line in event.line_ids)
+    return env._(
+        "Normalized in %(currency)s at the rate of %(date)s, prices %(basis)s. Comparison units: %(units)s.",
+        currency=event.currency_id.name, date=fields.Date.to_string(event.rate_date),
+        basis=basis, units=units)
+
+
+def _criterion_value(criterion, version, total, lines):
+    """The raw value of a criterion for one quotation version."""
+    if criterion.kind == 'price':
+        return total
+    if criterion.kind == 'total_cost':
+        return version.amount_total
+    if criterion.kind == 'lead_time':
+        return max((line.lead_time_days for line in lines), default=0)
+    if criterion.kind == 'terms':
+        return version.payment_days
+    return 0.0
+
+
+# Rows built from the quotation terms whatever the criteria: key -> 'higher' is better (None: no best).
+TERM_ROWS = {
+    'total_cost': False, 'lead_time': False, 'payment_terms': None, 'warranty': True, 'validity': True}
+# Rows that add up or take the maximum over the lines: an offer that left a line out never wins them.
+AGGREGATE_KINDS = ('price', 'total_cost', 'lead_time')
+
+
+def _term_cell(version, key, total_cost, normalized_cost, incomplete):
+    """The cell of one fixed term row of a response (total cost, lead time, terms, warranty, validity)."""
+    currency = version.currency_id
+    cell = {'row_kind': 'term', 'term_key': key, 'raw_display': '', 'rankable': True}
+    if key == 'total_cost':
+        cell.update(raw_value=total_cost, currency=currency.id, normalized_value=normalized_cost or 0.0,
+                    has_normalized=normalized_cost is not None,
+                    raw_display=f"{total_cost:.{currency.decimal_places}f} {currency.name}")
+    elif key == 'lead_time':
+        days = max((line.lead_time_days for line in version.line_ids), default=0)
+        cell.update(raw_value=days, raw_display=f"{days}")
+    elif key == 'payment_terms':
+        cell.update(raw_value=version.payment_days,
+                    raw_display=version.payment_term_id.name or f"{version.payment_days}")
+    elif key == 'warranty':
+        cell.update(raw_value=version.warranty_months, raw_display=f"{version.warranty_months}",
+                    rankable=bool(version.warranty_months))
+    else:
+        cell.update(raw_value=version.validity_date.toordinal() if version.validity_date else 0,
+                    raw_display=fields.Date.to_string(version.validity_date) if version.validity_date else '',
+                    rankable=bool(version.validity_date))
+    cell['missing'] = incomplete and key in AGGREGATE_KINDS
+    return cell
+
+
+def _cells_of_response(env, event, response, normalized):
+    """The cells of one response: its lines, its total, its term rows and its criteria.
+
+    Requirements: FR-SPM-0035, FR-SPM-0037
+    Cells that aggregate over the lines of an offer that left a line out carry ``missing``.
+    """
+    version = response.current_version_id
+    quoted = {line.event_line_id: line for line in version.line_ids}
+    incomplete = len(quoted) < len(event.line_ids)
+    currency = version.currency_id
+    rate = currency._get_conversion_rate(
+        currency, event.currency_id, event.company_id, event.rate_date) if normalized else 1.0
+    cells = []
+    total = total_normalized = cost_normalized = 0.0
+    for event_line in event.line_ids:
+        rline = quoted.get(event_line)
+        base = {'row_kind': 'line', 'event_line_id': event_line.id, 'response_id': response.id}
+        if not rline:
+            cells.append(dict(base, missing=True))
+            continue
+        price = _unit_price(rline)
+        cells.append(dict(
+            base, raw_value=price, currency=currency.id, uom=rline.uom_id.id,
+            raw_display=f"{price:.{currency.decimal_places}f} {currency.name} / "
+                        f"{rline.uom_id.name or event_line.uom_id.name}",
+            has_normalized=normalized,
+            normalized_value=_normalized_amount(
+                event, rline, price, version, rate, event_line.comparison_uom_id) if normalized else 0.0))
+        total += rline.price_subtotal
+        if normalized:
+            total_normalized += _normalized_amount(event, rline, rline.price_subtotal, version, rate)
+            cost_normalized += _normalized_amount(
+                event, rline, rline.price_subtotal, version, rate, basis='included')
+    cells.append({
+        'row_kind': 'total', 'response_id': response.id, 'raw_value': total, 'currency': currency.id,
+        'missing': incomplete, 'has_normalized': normalized, 'normalized_value': total_normalized,
+        'raw_display': f"{total:.{currency.decimal_places}f} {currency.name}"})
+    for key in TERM_ROWS:
+        cells.append(dict(
+            _term_cell(version, key, version.amount_total, cost_normalized if normalized else None, incomplete),
+            response_id=response.id))
+    for criterion in event.criterion_ids:
+        value = _criterion_value(criterion, version, total, version.line_ids)
+        money = criterion.kind in ('price', 'total_cost')
+        normalized_value = {'price': total_normalized, 'total_cost': cost_normalized}.get(criterion.kind, 0.0)
+        cells.append({
+            'row_kind': 'criterion', 'criterion_id': criterion.id, 'response_id': response.id,
+            'raw_value': value, 'raw_display': f"{value:.{currency.decimal_places}f}" if money else f"{value:g}",
+            'currency': currency.id if money else False,
+            'has_normalized': normalized and money,
+            'normalized_value': normalized_value if normalized else 0.0,
+            'missing': incomplete and criterion.kind in AGGREGATE_KINDS})
+    return cells
+
+
+def _mark_best(event, cells):
+    """Mark the best cell of each row: the lowest price, total and lead time, or the row's direction.
+
+    Requirements: FR-SPM-0035
+    A row is ranked on normalized values only when every cell of it holds one; cells of an offer
+    that left a line out never win, and raw money in several currencies is not ranked.
+    """
+    criteria = {criterion.id: criterion for criterion in event.criterion_ids}
+    rows = {}
+    for cell in cells:
+        if cell.get('missing') or not cell.get('rankable', True) or cell['row_kind'] == 'criterion' and (
+                criteria[cell['criterion_id']].kind == 'manual'):
+            continue
+        key = (cell['row_kind'], cell.get('event_line_id'), cell.get('criterion_id'), cell.get('term_key'))
+        rows.setdefault(key, []).append(cell)
+    for (kind, _line, criterion_id, term_key), row in rows.items():
+        if kind == 'term':
+            higher = TERM_ROWS[term_key]
+            if higher is None:
+                continue
+        else:
+            higher = kind == 'criterion' and criteria[criterion_id].direction == 'higher'
+        money = bool(row[0].get('currency'))
+        use_normalized = money and all(cell.get('has_normalized') for cell in row)
+        if money and not use_normalized and len({cell['currency'] for cell in row}) > 1:
+            continue
+        values = [cell['normalized_value'] if use_normalized else cell['raw_value'] for cell in row]
+        best = max(values) if higher else min(values)
+        for cell, value in zip(row, values):
+            cell['is_best'] = value == best
+
+
+def compare(event):
+    """Rebuild the stored comparison of the current quotations of the event and return it.
+
+    Requirements: FR-SPM-0035, FR-SPM-0037, BR-SPM-0007
+    One cell per line, criterion and total of every response that has a current version,
+    read and written with the user's own rights. Manual scores and comments are kept.
+    """
+    env = event.env
+    event.check_access('read')
+    normalized = event.is_normalized
+    responses = event.response_ids.filtered('current_version_id')
+    cells = []
+    for response in responses:
+        cells.extend(_cells_of_response(env, event, response, normalized))
+    _mark_best(event, cells)
+    comparison = env['procurement.comparison'].search([('event_id', '=', event.id)])
+    kept = {(cell.criterion_id.id, cell.response_id.id): (cell.manual_score, cell.manual_comment)
+            for cell in comparison.line_ids if cell.row_kind == 'criterion'
+            and (cell.manual_score or cell.manual_comment)}
+    values = {
+        'assumptions': comparison_assumptions(env, event), 'is_normalized': normalized,
+        'computed_at': fields.Datetime.now(), 'line_ids': [(5, 0, 0)]}
+    if comparison:
+        comparison.write(values)
+    else:
+        comparison = env['procurement.comparison'].create(dict(values, event_id=event.id))
+    rows = []
+    for cell in cells:
+        for internal in ('currency', 'uom', 'has_normalized', 'rankable'):
+            cell.pop(internal, None)
+        manual = kept.get((cell.get('criterion_id'), cell['response_id']))
+        if manual:
+            cell['manual_score'], cell['manual_comment'] = manual
+        rows.append(dict(cell, comparison_id=comparison.id))
+    env['procurement.comparison.line'].create(rows)
+    return comparison
