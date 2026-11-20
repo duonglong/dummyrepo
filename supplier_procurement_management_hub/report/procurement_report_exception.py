@@ -16,9 +16,14 @@ class ProcurementReportException(models.Model):
     both sum exactly under any grouping; the kind is known on exception rows only.
     """
     _name = 'procurement.report.exception'
+    _inherit = ['procurement.report.guard']
     _description = 'Exception Rate Report'
     _auto = False
     _order = 'date desc, id desc'
+    _spm_guarded_aggregates = {
+        # the kind is known on exception rows only, so only a grouping without it has a denominator
+        'exception_rate:sum': {'grouped_by_needed': lambda grouped, pinned: 'kind' not in grouped | pinned},
+    }
 
     date = fields.Date(readonly=True)
     company_id = fields.Many2one('res.company', readonly=True)
@@ -77,23 +82,6 @@ class ProcurementReportException(models.Model):
             return SQL(
                 "100.0 * SUM(%s) / NULLIF(SUM(%s), 0)", table['exception_count'], table['line_count'])
         return super()._read_group_select(table, aggregate_spec)
-
-    @api.model
-    def _read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None):
-        """Leave the rate empty when the grouping splits the exceptions from their matched lines.
-
-        Requirements: FR-SPM-0102
-        The kind is known on exception rows only, so a group by kind has no matched lines to divide
-        by: its rate is None (never 0) and the counts stay exact.
-        """
-        rate_spec = 'exception_rate:sum'
-        by_kind = any(spec.split(':')[0] == 'kind' for spec in groupby)
-        if not by_kind or rate_spec not in aggregates:
-            return super()._read_group(domain, groupby, aggregates, having, offset, limit, order)
-        replaced = ['exception_count:sum' if spec == rate_spec else spec for spec in aggregates]
-        rows = super()._read_group(domain, groupby, replaced, having, offset, limit, order)
-        rate_at = len(groupby) + list(aggregates).index(rate_spec)
-        return [tuple(None if at == rate_at else value for at, value in enumerate(row)) for row in rows]
 
     @api.model
     def spm_exception_rate(self, date_from, date_to, stage='receipt_to_bill'):

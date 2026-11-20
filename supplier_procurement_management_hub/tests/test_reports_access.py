@@ -77,6 +77,26 @@ class TestSavingsBaseline(SpmComparisonCase):
         event = self._awarded_event(baseline_kind='last_price')
         self.assertAlmostEqual(event.sudo().baseline_amount, 100.0, places=2)
 
+    def test_fr_0103_savings_are_totalled_inside_one_baseline_kind_only(self):
+        """FR-SPM-0103: no read path adds the savings of two baseline kinds into one figure."""
+        self._awarded_event()
+        self._awarded_event(baseline_kind='budget', budget_amount=900.0)
+        self.env.flush_all()
+        report = self.env['procurement.report.sourcing'].with_user(self.manager)
+        measure = ['savings_amount:sum']
+        domain = [('baseline_kind', '!=', False)]
+        self.assertEqual(report._read_group(domain, [], measure), [(None,)])
+        self.assertEqual(
+            [row[1] for row in report._read_group(domain, ['awarded_partner_id'], measure)], [None])
+        by_kind = dict(report._read_group(domain, ['baseline_kind'], measure))
+        self.assertAlmostEqual(by_kind['first_average'], 46.0, places=2)
+        self.assertAlmostEqual(by_kind['budget'], 186.0, places=2)
+        sets = report._read_grouping_sets(domain, [[], ['baseline_kind']], measure)
+        self.assertEqual(sets[0], [(None,)])
+        self.assertAlmostEqual(dict(sets[1])['budget'], 186.0, places=2)
+        pinned = report._read_group([('baseline_kind', '=', 'budget')], [], measure)
+        self.assertAlmostEqual(pinned[0][0], 186.0, places=2)
+
     def test_fr_0103_a_printout_of_the_savings_names_the_baseline_kind_of_each_total(self):
         """FR-SPM-0103, FR-SPM-0104: with no grouping the printed savings are split by baseline kind."""
         self._awarded_event()
@@ -298,6 +318,26 @@ class TestDeliveryReport(SpmDeliveryCase):
             [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)],
             ['kind'], ['exception_rate:sum', 'line_count:sum'])
         self.assertEqual([(rate, lines) for _kind, rate, lines in rows], [(None, 2)])
+
+    def test_fr_0102_a_rate_grouped_by_kind_is_empty_with_a_discrepancy_and_on_the_pivot_path(self):
+        """FR-SPM-0102: with one discrepancy in the data, the list path and the pivot path leave the kind rate empty."""
+        first = self._dorder(supplier=self.beta, planned='2026-10-10 08:00:00')
+        second = self._dorder(supplier=self.beta, planned='2026-10-11 08:00:00')
+        self._receive(first, 100.0, '2026-10-10 09:00:00')
+        self._receive(second, 100.0, '2026-10-11 09:00:00')
+        reason = self.env['procurement.discrepancy.reason'].search([('kind', '=', 'late')], limit=1)
+        self.env['procurement.delivery.discrepancy'].with_user(self.buyer).create({
+            'commitment_id': self._commitment(first).id, 'reason_id': reason.id, 'action': 'Chase',
+            'responsible_id': self.manager.id, 'deadline': '2026-12-20'})
+        self.env.flush_all()
+        report = self.env['procurement.report.exception'].with_user(self.manager)
+        domain = [('stage', '=', 'order_to_receipt'), ('partner_id', '=', self.beta.id)]
+        aggregates = ['exception_rate:sum', 'exception_count:sum', 'line_count:sum']
+        listed = report._read_group(domain, ['kind'], aggregates)
+        self.assertEqual([row[1:] for row in listed], [(None, 1, 2)])
+        paths = report._read_grouping_sets(domain, [['kind'], []], aggregates)
+        self.assertEqual([row[1:] for row in paths[0]], [(None, 1, 2)])
+        self.assertAlmostEqual(paths[1][0][0], 50.0, places=2)
 
     def test_fr_0102_a_missing_rate_prints_as_a_dash(self):
         """FR-SPM-0102: the printout shows a dash for a rate with no denominator, never 0.00."""
