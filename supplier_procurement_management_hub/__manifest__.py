@@ -53,6 +53,7 @@
         'views/portal_order_templates.xml',
         'views/purchase_order_approval_views.xml',
         'views/procurement_approval_inbox_views.xml',
+        'views/procurement_report_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,
