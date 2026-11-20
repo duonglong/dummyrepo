@@ -77,3 +77,13 @@ class TestApprovalPolicy(SpmApprovalCase):
         step = self.env['procurement.approval.policy.step'].new({
             'name': 'M', 'approver_type': 'manager', 'manager_levels': 1})
         self.assertFalse(step._spm_resolve_manager(order))
+
+    def test_buyer_fallback_when_another_person_creates_the_order(self):
+        """FR-SPM-0044: the buyer named on the order, not its creator, is the requester."""
+        ann, bob, _carla = self._employees()
+        order = self.env['purchase.order'].with_user(self.buyer).create({
+            'partner_id': self.acme.id, 'user_id': self.ann.id})
+        self.assertEqual(approval.requester_employee(order), ann)
+        step = self.env['procurement.approval.policy.step'].new({
+            'name': 'M', 'approver_type': 'manager', 'manager_levels': 1})
+        self.assertEqual(step._spm_resolve_manager(order), self.bob)
