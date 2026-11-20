@@ -335,3 +335,27 @@ access_spm_scorecard_template_metric_finance,Scorecard Template Metric finance,p
 access_spm_scorecard_template_metric_auditor,Scorecard Template Metric auditor,procurement.scorecard.template.metric,group_spm_auditor,r,
 access_spm_scorecard_template_metric_admin,Scorecard Template Metric admin,procurement.scorecard.template.metric,group_spm_admin,crud,
 spm_scorecard_template_metric_comp_rule,procurement.scorecard.template.metric: allowed companies,procurement.scorecard.template.metric,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_report_spend_buyer,Spend report buyer,procurement.report.spend,group_spm_buyer,r,
+access_spm_report_spend_manager,Spend report manager,procurement.report.spend,group_spm_manager,r,
+access_spm_report_spend_finance,Spend report finance,procurement.report.spend,group_spm_finance,r,
+access_spm_report_spend_auditor,Spend report auditor,procurement.report.spend,group_spm_auditor,r,
+access_spm_report_spend_admin,Spend report admin,procurement.report.spend,group_spm_admin,r,
+spm_report_spend_comp_rule,procurement.report.spend: allowed companies,procurement.report.spend,,r,"[('company_id', 'in', company_ids)]"
+access_spm_report_price_buyer,Price report buyer,procurement.report.price,group_spm_buyer,r,
+access_spm_report_price_manager,Price report manager,procurement.report.price,group_spm_manager,r,
+access_spm_report_price_finance,Price report finance,procurement.report.price,group_spm_finance,r,
+access_spm_report_price_auditor,Price report auditor,procurement.report.price,group_spm_auditor,r,
+access_spm_report_price_admin,Price report admin,procurement.report.price,group_spm_admin,r,
+spm_report_price_comp_rule,procurement.report.price: allowed companies,procurement.report.price,,r,"[('company_id', 'in', company_ids)]"
+access_spm_report_sourcing_buyer,Sourcing cycle report buyer,procurement.report.sourcing,group_spm_buyer,r,
+access_spm_report_sourcing_manager,Sourcing cycle report manager,procurement.report.sourcing,group_spm_manager,r,
+access_spm_report_sourcing_finance,Sourcing cycle report finance,procurement.report.sourcing,group_spm_finance,r,
+access_spm_report_sourcing_auditor,Sourcing cycle report auditor,procurement.report.sourcing,group_spm_auditor,r,
+access_spm_report_sourcing_admin,Sourcing cycle report admin,procurement.report.sourcing,group_spm_admin,r,
+spm_report_sourcing_comp_rule,procurement.report.sourcing: allowed companies,procurement.report.sourcing,,r,"[('company_id', 'in', company_ids)]"
+access_spm_report_approval_buyer,Approval cycle report buyer,procurement.report.approval,group_spm_buyer,r,
+access_spm_report_approval_manager,Approval cycle report manager,procurement.report.approval,group_spm_manager,r,
+access_spm_report_approval_finance,Approval cycle report finance,procurement.report.approval,group_spm_finance,r,
+access_spm_report_approval_auditor,Approval cycle report auditor,procurement.report.approval,group_spm_auditor,r,
+access_spm_report_approval_admin,Approval cycle report admin,procurement.report.approval,group_spm_admin,r,
+spm_report_approval_comp_rule,procurement.report.approval: allowed companies,procurement.report.approval,,r,"[('company_id', 'in', company_ids)]"

@@ -9,7 +9,7 @@ from .procurement_sourcing_response import SPM_SCORE_GROUPS
 # Days between the creation of an event made from requests and its first deadline.
 DEFAULT_DEADLINE_DAYS = 7
 # Fields only the module's own actions write (they write with elevated rights after their checks).
-WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date')
+WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date', 'sent_date')
 # Evidence of the award: the assumptions, criteria and lines no longer change once the event is awarded.
 AWARD_EVIDENCE_FIELDS = (
     'currency_id', 'rate_date', 'tax_basis', 'criterion_ids', 'line_ids', 'invited_partner_ids',
@@ -77,6 +77,7 @@ class ProcurementSourcingEvent(models.Model):
     cancel_reason = fields.Text(readonly=True, copy=False)
     award_rationale = fields.Text(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
     awarded_date = fields.Datetime(readonly=True, copy=False)
+    sent_date = fields.Datetime(readonly=True, copy=False)  # built for T-031: the cycle report starts here
     purchase_order_ids = fields.One2many(
         'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,
         groups='purchase.group_purchase_user')
@@ -214,7 +215,7 @@ class ProcurementSourcingEvent(models.Model):
             self.env['procurement.sourcing.response'].create([
                 {'event_id': event.id, 'partner_id': partner.id} for partner in suppliers])
             # sudo: the state is a workflow field no user writes directly; the checks are above
-            event.sudo().write({'state': 'open'})
+            event.sudo().write({'state': 'open', 'sent_date': fields.Datetime.now()})
             sourcing.notify_suppliers(self.env, event, sourcing.INVITATION_TEMPLATE, suppliers)
         return True
 
