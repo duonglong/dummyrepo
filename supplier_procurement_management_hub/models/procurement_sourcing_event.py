@@ -89,13 +89,13 @@ class ProcurementSourcingEvent(models.Model):
         report.BASELINE_KINDS, readonly=True, copy=False, groups=SPM_PRICE_GROUPS,
         help="What the awarded total is compared with to compute the savings.")
     budget_amount = fields.Monetary(
-        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
     baseline_amount = fields.Monetary(
-        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
     awarded_amount = fields.Monetary(
-        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS)
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
     savings_amount = fields.Monetary(
-        currency_field='company_currency_id', readonly=True, copy=False, groups=SPM_PRICE_GROUPS,
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS,
         help="The baseline minus the awarded total, in the company currency.")
     purchase_order_ids = fields.One2many(
         'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,

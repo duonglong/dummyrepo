@@ -417,3 +417,9 @@ class TestSavingsScreen(SpmComparisonCase):
         self.assertIn('group_baseline', action.context)
         arch = self.env.ref('supplier_procurement_management_hub.procurement_report_savings_list').arch
         self.assertNotIn('sum=', arch)
+
+    def test_fr_0103_event_amounts_have_no_sum_across_baseline_kinds(self):
+        """FR-SPM-0103: R5-S1 the event amounts never add up across baseline kinds (grouped lists, pivots, exports)."""
+        fields_ = self.env['procurement.sourcing.event']._fields
+        for name in ('budget_amount', 'baseline_amount', 'awarded_amount', 'savings_amount'):
+            self.assertFalse(fields_[name].aggregator, name)
