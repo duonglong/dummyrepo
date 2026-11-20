@@ -16,7 +16,7 @@ class ProcurementReportSourcing(models.Model):
     _auto = False
     _order = 'date_sent desc, id desc'
     _spm_guarded_aggregates = {
-        f'{name}:sum': {'grouped_by_needed': lambda grouped, pinned: 'baseline_kind' in grouped | pinned}
+        name: lambda grouped, pinned: 'baseline_kind' in grouped | pinned
         for name in ('baseline_amount', 'awarded_amount', 'savings_amount')
     }
 

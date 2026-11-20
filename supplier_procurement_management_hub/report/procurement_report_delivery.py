@@ -12,6 +12,7 @@ class ProcurementReportDelivery(models.Model):
     ordered quantity, so both stay exact under any grouping.
     """
     _name = 'procurement.report.delivery'
+    _inherit = ['procurement.report.guard']
     _description = 'Delivery Performance Report'
     _auto = False
     _order = 'date desc, id desc'

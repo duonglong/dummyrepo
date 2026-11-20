@@ -22,7 +22,7 @@ class ProcurementReportException(models.Model):
     _order = 'date desc, id desc'
     _spm_guarded_aggregates = {
         # the kind is known on exception rows only, so only a grouping without it has a denominator
-        'exception_rate:sum': {'grouped_by_needed': lambda grouped, pinned: 'kind' not in grouped | pinned},
+        'exception_rate': lambda grouped, pinned: 'kind' not in grouped | pinned,
     }
 
     date = fields.Date(readonly=True)

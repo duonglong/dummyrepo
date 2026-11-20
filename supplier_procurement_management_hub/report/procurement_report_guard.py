@@ -7,10 +7,12 @@ class ProcurementReportGuard(models.AbstractModel):
     """Leave an aggregate empty when the grouping would total figures that must not be added up.
 
     Requirements: FR-SPM-0102, FR-SPM-0103
-    A report model lists, in ``_spm_guarded_aggregates``, the aggregates that only mean something
-    inside one value of a field (a savings total inside one baseline kind, a rate inside one
-    stage). Both read paths of the ORM, the list/graph one and the pivot one, blank them when the
-    grouping or the domain does not pin that field.
+    A report model lists, in ``_spm_guarded_aggregates``, the fields whose aggregates only mean
+    something under some groupings (a savings total inside one baseline kind, a rate where its
+    denominator exists), each with a predicate ``(grouped, pinned) -> bool`` that says whether the
+    grouping can answer. Every aggregate of such a field (``sum`` and the ``sum_currency`` the
+    client asks for beside it) is blanked on both read paths of the ORM, the list/graph one and
+    the pivot one, when the predicate says no.
     """
     _name = 'procurement.report.guard'
     _description = 'Report Aggregate Guard'
@@ -24,8 +26,8 @@ class ProcurementReportGuard(models.AbstractModel):
         pinned = self._spm_pinned_fields(domain)
         blanked = []
         for at, spec in enumerate(aggregates):
-            rule = self._spm_guarded_aggregates.get(spec)
-            if rule and not rule['grouped_by_needed'](grouped, pinned):
+            can_answer = self._spm_guarded_aggregates.get(spec.split(':')[0])
+            if can_answer and not can_answer(grouped, pinned):
                 blanked.append(at)
         return blanked
 
