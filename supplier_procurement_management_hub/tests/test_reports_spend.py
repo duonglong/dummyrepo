@@ -63,3 +63,50 @@ class TestReportsSpend(SpmComparisonCase):
         self.assertEqual(len(rows), 2)
         self.assertTrue(all(row.waiting_hours > 0 for row in rows))
         self.assertFalse(any(rows.mapped('cycle_hours')))
+
+    def test_fr_0100_price_row_is_per_supplier_and_quarter_with_true_variance(self):
+        """FR-SPM-0100: two lines of one supplier give one weighted row and the true variance (-0.95)."""
+        from freezegun import freeze_time
+        for supplier, price, qty, when in (
+                (self.acme, 20.0, 1.0, '2026-08-12 10:00:00'), (self.acme, 10.0, 99.0, '2026-08-13 10:00:00'),
+                (self.beta, 12.0, 100.0, '2026-08-14 10:00:00')):
+            with freeze_time(when):
+                order = self.env['purchase.order'].create({
+                    'partner_id': supplier.id, 'user_id': self.buyer.id, 'date_order': when,
+                    'order_line': [(0, 0, {
+                        'product_id': self.desk.id, 'name': 'Line', 'product_qty': qty,
+                        'price_unit': price, 'tax_ids': [(6, 0, [])]})]})
+                order.button_confirm()
+                if order.state != 'purchase':
+                    order.button_approve(force=True)
+        self.env.flush_all()
+        rows = self.env['procurement.report.price'].with_user(self.manager).search([('product_id', '=', self.desk.id)])
+        self.assertEqual(len(rows), 2)
+        acme = rows.filtered(lambda row: row.partner_id == self.acme)
+        self.assertAlmostEqual(acme.price_unit, 10.1, places=2)
+        self.assertAlmostEqual(acme.price_variance, -0.95, places=2)
+
+    def test_fr_0101_approver_who_approved_does_not_wait(self):
+        """FR-SPM-0101: in a step that needs every approver, the one who approved has no waiting age."""
+        policy = self.env['procurement.approval.policy'].create({
+            'name': 'All policy T31', 'sequence': 1, 'company_id': self.company.id,
+            'step_ids': [(0, 0, {
+                'name': 'Step', 'sequence': 1, 'approver_type': 'users', 'mode': 'all',
+                'user_ids': [(6, 0, (self.manager | self.buyer).ids)]})]})
+        self.assertTrue(policy)
+        order = self.env['purchase.order'].with_user(self.buyer).create({
+            'partner_id': self.acme.id, 'user_id': self.buyer.id,
+            'order_line': [(0, 0, {
+                'product_id': self.chair.id, 'name': 'Line', 'product_qty': 1.0,
+                'price_unit': 100.0, 'tax_ids': [(6, 0, [])]})]})
+        from freezegun import freeze_time
+        with freeze_time('2026-11-17 09:00:00'):
+            order.with_user(self.buyer).action_spm_submit_approval()
+        step = self.env['procurement.approval.step'].search([('request_id.order_id', '=', order.id)])
+        from ..services import approval
+        approval.decide(step.with_user(self.manager), 'approved', '')
+        self.env.flush_all()
+        rows = self.env['procurement.report.approval'].with_user(self.manager).search([('step_id', '=', step.id)])
+        self.assertEqual(rows.filtered(lambda row: row.state == 'open').approver_id, self.buyer)
+        self.assertFalse(rows.filtered(lambda row: row.approver_id == self.manager).waiting_hours)
+        self.assertTrue(rows.filtered(lambda row: row.approver_id == self.buyer).waiting_hours > 0)

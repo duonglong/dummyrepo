@@ -76,7 +76,7 @@
             <pivot string="Prices" sample="1">
                 <field name="partner_id" type="row"/>
                 <field name="date" interval="quarter" type="col"/>
-                <field name="amount" type="measure"/>
+                <field name="price_unit" type="measure"/>
                 <field name="quantity" type="measure"/>
                 <field name="price_variance" type="measure"/>
             </pivot>
@@ -103,6 +103,7 @@
                 <field name="currency_id" column_invisible="1"/>
                 <field name="price_unit"/>
                 <field name="price_variance"/>
+                <field name="amount"/>
                 <field name="quantity"/>
             </list>
         </field>
@@ -162,7 +163,7 @@
                 <field name="date_awarded"/>
                 <field name="invited_count" sum="Invited"/>
                 <field name="responded_count" sum="Answered"/>
-                <field name="cycle_days" avg="Average"/>
+                <field name="cycle_days"/>
                 <field name="awarded_partner_id"/>
             </list>
         </field>
@@ -195,8 +196,8 @@
                 <field name="approver_id"/>
                 <field name="submitted_date"/>
                 <field name="decided_date"/>
-                <field name="cycle_hours" widget="float_time" avg="Average"/>
-                <field name="waiting_hours" widget="float_time" avg="Average"/>
+                <field name="cycle_hours" widget="float_time"/>
+                <field name="waiting_hours" widget="float_time"/>
                 <field name="state"/>
             </list>
         </field>

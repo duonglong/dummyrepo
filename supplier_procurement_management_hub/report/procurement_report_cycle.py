@@ -85,7 +85,7 @@ class ProcurementReportApproval(models.Model):
         help="Submission to final decision of a decided request; counted once per request.")
     waiting_hours = fields.Float(
         string="Waiting hours", aggregator='avg', readonly=True,
-        help="Time an open step has waited since it opened.")
+        help="Time an open step has waited since it opened, for an approver who has not approved yet.")
     state = fields.Selection([
         ('waiting', 'Waiting'), ('open', 'Open'), ('approved', 'Approved'), ('rejected', 'Rejected'),
         ('cancelled', 'Cancelled')], readonly=True)
@@ -108,9 +108,16 @@ class ProcurementReportApproval(models.Model):
                         THEN EXTRACT(EPOCH FROM request.decided_date - request.submitted_date) / 3600.0
                    END AS cycle_hours,
                    CASE WHEN step.state = 'open' AND step.opened_date IS NOT NULL
+                         AND NOT EXISTS (SELECT 1 FROM procurement_approval_decision decided
+                                          WHERE decided.step_id = step.id AND decided.decision = 'approved'
+                                            AND COALESCE(decided.on_behalf_of_id, decided.approver_id) = rel.user_id)
                         THEN EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'UTC' - step.opened_date) / 3600.0
                    END AS waiting_hours,
-                   step.state AS state
+                   CASE WHEN step.state = 'open' AND EXISTS (
+                            SELECT 1 FROM procurement_approval_decision decided
+                             WHERE decided.step_id = step.id AND decided.decision = 'approved'
+                               AND COALESCE(decided.on_behalf_of_id, decided.approver_id) = rel.user_id)
+                        THEN 'approved' ELSE step.state END AS state
               FROM procurement_approval_step step
               JOIN procurement_approval_request request ON request.id = step.request_id
               JOIN procurement_approval_step_user_rel rel ON rel.step_id = step.id)""")
