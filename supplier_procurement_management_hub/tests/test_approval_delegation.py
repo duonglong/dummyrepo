@@ -36,6 +36,14 @@ class TestApprovalDelegation(SpmApprovalCase):
                 'delegator_id': self.bob.id, 'delegate_id': self.eve.id,
                 'date_from': '2026-12-20', 'date_to': '2026-12-21'})
 
+    def test_a_delegation_cannot_be_re_pointed_to_another_delegator(self):
+        """FR-SPM-0050: an employee cannot take over the approvals of another approver by editing."""
+        delegation = self._delegate(self.eve, self.bob, '2026-12-20', '2027-01-03')
+        with self.assertRaises(AccessError):
+            delegation.with_user(self.eve).write({'delegator_id': self.bob.id, 'delegate_id': self.eve.id})
+        self.assertEqual(delegation.delegator_id, self.eve)
+        delegation.with_user(self.eve).write({'delegator_id': self.eve.id, 'note': 'same'})
+
     def test_the_delegate_cannot_change_the_delegation(self):
         """FR-SPM-0050: only the delegator changes or removes his delegation."""
         delegation = self._delegate(self.bob, self.eve, '2026-12-20', '2027-01-03')

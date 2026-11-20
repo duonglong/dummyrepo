@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 from ..services import approval
 
@@ -25,6 +25,18 @@ class ProcurementApprovalDelegation(models.Model):
     active = fields.Boolean(default=True)
 
     _spm_audited_fields = ('delegator_id', 'delegate_id', 'date_from', 'date_to', 'active')
+
+    def write(self, vals):
+        """Refuse to re-point a delegation to another delegator; only a hub admin does.
+
+        Requirements: FR-SPM-0050, BR-SPM-0018
+        The access rule is checked before the write only, so the delegator is fixed at creation.
+        """
+        if 'delegator_id' in vals and not self.env.su \
+                and not self.env.user.has_group('supplier_procurement_management_hub.group_spm_admin'):
+            if any(delegation.delegator_id.id != vals['delegator_id'] for delegation in self):
+                raise AccessError(self.env._("The delegator of a delegation cannot be changed."))
+        return super().write(vals)
 
     @api.constrains('delegator_id', 'delegate_id')
     def _check_not_oneself(self):

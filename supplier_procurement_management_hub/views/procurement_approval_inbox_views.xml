@@ -49,7 +49,7 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="delegator_id" options="{'no_create': True}"/>
+                            <field name="delegator_id" options="{'no_create': True}" readonly="id"/>
                             <field name="delegate_id" options="{'no_create': True}"/>
                         </group>
                         <group>
