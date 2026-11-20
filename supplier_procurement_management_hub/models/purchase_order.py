@@ -16,6 +16,12 @@ class PurchaseOrder(models.Model):
     """
     _inherit = 'purchase.order'
 
+    spm_sourcing_event_id = fields.Many2one(
+        'procurement.sourcing.event', string="Sourcing event", copy=False, ondelete='set null',
+        index='btree_not_null', check_company=True)
+    spm_request_ids = fields.Many2many(
+        'procurement.request', 'procurement_purchase_order_request_rel', 'order_id', 'request_id',
+        string="Purchase requests", copy=False, check_company=True)
     spm_requester_id = fields.Many2one(
         'res.users', string="Requester", copy=False,
         help="The person the approval policies take the department and the managers from. "

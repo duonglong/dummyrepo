@@ -4,11 +4,16 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from ..services import sourcing
+from .procurement_sourcing_response import SPM_SCORE_GROUPS
 
 # Days between the creation of an event made from requests and its first deadline.
 DEFAULT_DEADLINE_DAYS = 7
 # Fields only the module's own actions write (they write with elevated rights after their checks).
-WORKFLOW_FIELDS = ('state', 'cancel_reason')
+WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date')
+# Evidence of the award: the assumptions, criteria and lines no longer change once the event is awarded.
+AWARD_EVIDENCE_FIELDS = (
+    'currency_id', 'rate_date', 'tax_basis', 'criterion_ids', 'line_ids', 'invited_partner_ids',
+    'inform_unsuccessful')
 
 
 class ProcurementSourcingEvent(models.Model):
@@ -70,6 +75,11 @@ class ProcurementSourcingEvent(models.Model):
     response_ids = fields.One2many('procurement.sourcing.response', 'event_id', string="Responses", copy=False)
     inform_unsuccessful = fields.Boolean(string="Inform unsuccessful suppliers")
     cancel_reason = fields.Text(readonly=True, copy=False)
+    award_rationale = fields.Text(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
+    awarded_date = fields.Datetime(readonly=True, copy=False)
+    purchase_order_ids = fields.One2many(
+        'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,
+        groups='purchase.group_purchase_user')
 
     @api.depends('company_id')
     def _compute_currency_id(self):
@@ -158,7 +168,11 @@ class ProcurementSourcingEvent(models.Model):
         """
         if not self.env.su and any(field in vals for field in WORKFLOW_FIELDS):
             raise AccessError(self.env._(
-                "The status of a sourcing event changes with its Send and Cancel buttons."))
+                "The status of a sourcing event changes with its Send, Cancel and Award buttons."))
+        if not self.env.su and any(field in vals for field in AWARD_EVIDENCE_FIELDS) and any(
+                event.state == 'awarded' for event in self):
+            raise UserError(self.env._(
+                "The assumptions, criteria and lines of an awarded event are the evidence of the award and cannot change."))
         if 'deadline' in vals and any(event.state in ('awarded', 'cancelled') for event in self):
             raise UserError(self.env._("The deadline of an awarded or cancelled event cannot change."))
         previous = {event: event.deadline for event in self}
@@ -171,6 +185,14 @@ class ProcurementSourcingEvent(models.Model):
                 sourcing.notify_suppliers(
                     self.env, event, sourcing.DEADLINE_TEMPLATE, event.response_ids.partner_id)
         return result
+
+    def unlink(self):
+        """An awarded event is the evidence of the award and is never deleted.
+
+        Requirements: FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self)
+        return super().unlink()
 
     def action_spm_send(self):
         """Send the event: one response per invited supplier, the invitation e-mail, then Open.
@@ -257,6 +279,38 @@ class ProcurementSourcingEvent(models.Model):
             'res_id': comparison.id,
             'view_mode': 'form',
         }
+
+    def action_spm_evaluate(self):
+        """Score and rank the current quotations of the event by the weighted criteria.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        self.ensure_one()
+        sourcing.evaluate(self)
+        return True
+
+    def action_spm_open_award_wizard(self):
+        """Open the dialog that awards the event with its rationale.
+
+        Requirements: FR-SPM-0039
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Award"),
+            'res_model': 'procurement.award.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_event_id': self.id},
+        }
+
+    def action_spm_generate_orders(self):
+        """Create or update one draft purchase order per awarded supplier; never confirm one.
+
+        Requirements: FR-SPM-0040
+        """
+        self.ensure_one()
+        return sourcing.generate_orders(self)
 
     def action_spm_open_cancel_wizard(self):
         """Open the dialog asking the cancellation reason."""

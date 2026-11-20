@@ -78,4 +78,18 @@
         </field>
         <field name="auto_delete" eval="True"/>
     </record>
+    <!-- Requirements: FR-SPM-0041 -->
+    <record id="mail_template_sourcing_awarded_other" model="mail.template">
+        <field name="name">Sourcing event: awarded to another offer</field>
+        <field name="model_id" ref="model_procurement_sourcing_event"/>
+        <field name="subject">Result of {{ object.name }}: {{ object.title }}</field>
+        <field name="email_from">{{ (object.buyer_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p>Thank you for your quotation. <t t-out="object.company_id.name"/> awarded <t t-out="object.name"/>: <t t-out="object.title"/> to another offer.</p>
+</div>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
 </odoo>

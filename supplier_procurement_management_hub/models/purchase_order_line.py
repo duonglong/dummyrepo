@@ -10,6 +10,8 @@ class PurchaseOrderLine(models.Model):  # sdd-allow: model-split the contract li
     """
     _inherit = 'purchase.order.line'
 
+    spm_sourcing_event_line_id = fields.Many2one(
+        'procurement.sourcing.event.line', string="Sourcing event line", copy=False, ondelete='set null')
     spm_contract_warning = fields.Char(string="Contract warning", compute='_compute_spm_contract_warning')
 
     @api.model_create_multi
