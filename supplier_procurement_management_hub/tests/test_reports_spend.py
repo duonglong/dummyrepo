@@ -86,6 +86,13 @@ class TestReportsSpend(SpmComparisonCase):
         self.assertAlmostEqual(acme.price_unit, 10.1, places=2)
         self.assertAlmostEqual(acme.price_variance, -0.95, places=2)
 
+    def test_fr_0100_price_and_variance_are_not_combined_above_the_row(self):
+        """FR-SPM-0100: grouped figures carry no mean of prices; only amount and quantity are summed."""
+        fields = self.env['procurement.report.price']._fields
+        self.assertFalse(fields['price_unit'].aggregator)
+        self.assertFalse(fields['price_variance'].aggregator)
+        self.assertEqual(fields['amount'].aggregator, 'sum')
+
     def test_fr_0101_approver_who_approved_does_not_wait(self):
         """FR-SPM-0101: in a step that needs every approver, the one who approved has no waiting age."""
         policy = self.env['procurement.approval.policy'].create({

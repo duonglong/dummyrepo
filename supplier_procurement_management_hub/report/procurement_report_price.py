@@ -21,15 +21,17 @@ class ProcurementReportPrice(models.Model):
     product_id = fields.Many2one('product.product', readonly=True)
     currency_id = fields.Many2one('res.currency', related='company_id.currency_id', readonly=True)
     price_unit = fields.Monetary(
-        string="Unit price", currency_field='currency_id', aggregator='avg', readonly=True,
-        help="Quantity-weighted price of the supplier in the quarter; amount over quantity for any grouping.")
+        string="Unit price", currency_field='currency_id', aggregator=None, readonly=True,
+        help="Quantity-weighted price of the supplier for one product in the quarter. Not summed or averaged "
+             "above that row; amount over quantity gives the weighted price of any grouping.")
     quantity = fields.Float(string="Quantity (product unit)", readonly=True)
     amount = fields.Monetary(
         string="Amount", currency_field='currency_id', readonly=True,
         help="Unit price times quantity; amount over quantity is the quantity-weighted price of any grouping.")
     price_variance = fields.Monetary(
-        string="Variance", currency_field='currency_id', aggregator='avg', readonly=True,
-        help="Supplier price minus the quantity-weighted average of the product in the quarter; exact per supplier and quarter.")
+        string="Variance", currency_field='currency_id', aggregator=None, readonly=True,
+        help="Supplier price minus the quantity-weighted average of the product in the quarter. "
+             "Shown per row only: grouped lines do not combine variances.")
 
     @property
     def _table_sql(self) -> SQL:

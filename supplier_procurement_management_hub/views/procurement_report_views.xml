@@ -74,11 +74,11 @@
         <field name="model">procurement.report.price</field>
         <field name="arch" type="xml">
             <pivot string="Prices" sample="1">
+                <field name="product_id" type="row"/>
                 <field name="partner_id" type="row"/>
                 <field name="date" interval="quarter" type="col"/>
-                <field name="price_unit" type="measure"/>
+                <field name="amount" type="measure"/>
                 <field name="quantity" type="measure"/>
-                <field name="price_variance" type="measure"/>
             </pivot>
         </field>
     </record>
@@ -87,8 +87,8 @@
         <field name="model">procurement.report.price</field>
         <field name="arch" type="xml">
             <graph string="Prices" type="line" sample="1">
-                <field name="date" interval="month"/>
-                <field name="price_variance" type="measure"/>
+                <field name="date" interval="quarter"/>
+                <field name="amount" type="measure"/>
             </graph>
         </field>
     </record>
