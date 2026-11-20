@@ -237,3 +237,74 @@ def evaluate(template, partner, start, end):
         'rows': rows, 'score': score, 'missing_metrics': left_out,
         'range': range_of(score, template.good_from, template.acceptable_from) if score is not None else False,
     }
+
+
+FORMULAS = {
+    'on_time': "Receipt lines done on or before the agreed date plus the tolerance, divided by the receipt lines done in the period.",
+    'fulfillment': "Quantity received divided by the quantity due in the period.",
+    'quality': "Quantity received minus returned and rejected, divided by the quantity received.",
+    'complaints': "100 minus the share of receipt lines done in the period that have a recorded complaint.",
+    'responsiveness': "Sourcing events answered before the deadline, divided by the events invited to in the period.",
+    'price_competitiveness': "Lowest comparable price divided by the supplier's price, averaged over its quoted lines.",
+}
+
+
+def templates_for(env, partner):
+    """Return the active templates that apply to the supplier, one company each.
+
+    Requirements: FR-SPM-0083
+    A template with no supplier and no category applies to every supplier of its company.
+    """
+    templates = env['procurement.scorecard.template'].search([('active', '=', True)])
+
+    def applies(template):
+        if template.company_id != (partner.company_id or template.company_id):
+            return False
+        if not template.partner_ids and not template.product_category_ids:
+            return True
+        return partner in template.partner_ids or bool(
+            partner.spm_product_category_ids & template.product_category_ids)
+    return templates.filtered(applies)
+
+
+def suppliers_with_template(env):
+    """Return the suppliers some active template applies to.
+
+    Requirements: FR-SPM-0083
+    """
+    partners = env['res.partner']
+    for template in env['procurement.scorecard.template'].search([('active', '=', True)]):
+        if template.partner_ids or template.product_category_ids:
+            domain = ['|', ('id', 'in', template.partner_ids.ids),
+                      ('spm_product_category_ids', 'in', template.product_category_ids.ids)]
+        else:
+            domain = [('spm_is_supplier', '=', True)]
+        partners |= env['res.partner'].search(
+            domain + ['|', ('company_id', '=', False), ('company_id', '=', template.company_id.id)])
+    return partners.sorted('id')
+
+
+def snapshot_values(template, partner, day):
+    """Return the values of the scorecard of the period holding ``day``, metric rows included.
+
+    Requirements: FR-SPM-0083, FR-SPM-0084, BR-SPM-0013
+    """
+    start, end = period_bounds(template.period, day)
+    result = evaluate(template, partner, start, end)
+    labels = dict(template.env['procurement.scorecard.template.metric']._fields['metric']
+                  ._description_selection(template.env))
+    missing = [
+        "%s: %s" % (labels.get(row['metric'], row['metric']), row['missing_reason'])
+        for row in result['rows'] if not row['has_data']]
+    metrics = [(0, 0, {
+        'metric': row['metric'], 'weight': row['weight'], 'value': row['value'], 'score': row['score'],
+        'numerator': row['numerator'], 'denominator': row['denominator'], 'has_data': row['has_data'],
+        'missing_reason': row['missing_reason'], 'evidence_model': row['evidence_model'],
+        'evidence_ids': row['evidence_ids'],
+    }) for row in result['rows']]
+    return {
+        'partner_id': partner.id, 'template_id': template.id, 'company_id': template.company_id.id,
+        'period_start': start, 'period_end': end,
+        'score': result['score'] or 0.0, 'range': result['range'],
+        'missing_metrics': "\n".join(missing), 'metric_ids': metrics,
+    }

@@ -359,3 +359,15 @@ access_spm_report_approval_finance,Approval cycle report finance,procurement.rep
 access_spm_report_approval_auditor,Approval cycle report auditor,procurement.report.approval,group_spm_auditor,r,
 access_spm_report_approval_admin,Approval cycle report admin,procurement.report.approval,group_spm_admin,r,
 spm_report_approval_comp_rule,procurement.report.approval: allowed companies,procurement.report.approval,,r,"[('company_id', 'in', company_ids)]"
+access_spm_supplier_scorecard_buyer,Supplier Scorecard buyer,procurement.supplier.scorecard,group_spm_buyer,r,
+access_spm_supplier_scorecard_manager,Supplier Scorecard manager,procurement.supplier.scorecard,group_spm_manager,r,
+access_spm_supplier_scorecard_finance,Supplier Scorecard finance,procurement.supplier.scorecard,group_spm_finance,r,
+access_spm_supplier_scorecard_auditor,Supplier Scorecard auditor,procurement.supplier.scorecard,group_spm_auditor,r,
+access_spm_supplier_scorecard_admin,Supplier Scorecard admin,procurement.supplier.scorecard,group_spm_admin,r,
+spm_supplier_scorecard_comp_rule,procurement.supplier.scorecard: allowed companies,procurement.supplier.scorecard,,crud,"[('company_id', 'in', company_ids)]"
+access_spm_supplier_metric_buyer,Supplier Metric buyer,procurement.supplier.metric,group_spm_buyer,r,
+access_spm_supplier_metric_manager,Supplier Metric manager,procurement.supplier.metric,group_spm_manager,r,
+access_spm_supplier_metric_finance,Supplier Metric finance,procurement.supplier.metric,group_spm_finance,r,
+access_spm_supplier_metric_auditor,Supplier Metric auditor,procurement.supplier.metric,group_spm_auditor,r,
+access_spm_supplier_metric_admin,Supplier Metric admin,procurement.supplier.metric,group_spm_admin,r,
+spm_supplier_metric_comp_rule,procurement.supplier.metric: allowed companies,procurement.supplier.metric,,crud,"[('company_id', 'in', company_ids)]"
