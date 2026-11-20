@@ -13,9 +13,12 @@ from . import audit
 
 # States of the orders that count as bought or pending in a cumulative period.
 COUNTED_STATES = ('purchase', 'to approve')
-# Orders still in draft or sent count too once the hub holds them for approval or has approved them.
-COUNTED_DRAFT_STATES = ('draft', 'sent')
-COUNTED_APPROVAL_STATES = ('pending', 'approved')
+# Orders still in draft or sent, held for approval or approved: the cumulative periods count them and
+# the material-change review watches them.
+WATCHED_ORDER_STATES = ('draft', 'sent')
+WATCHED_APPROVAL_STATES = ('pending', 'approved')
+# Deferral marker of the line hooks inside an order save: compared by identity, so a caller cannot forge it.
+REVIEW_DEFERRED = object()
 
 
 def _period_bounds(period, day):
@@ -50,7 +53,7 @@ def _cumulated_amount(order, period):
         ('id', '!=', order.id), ('company_id', '=', order.company_id.id),
         ('partner_id', '=', order.partner_id.id),
         '|', ('state', 'in', COUNTED_STATES),
-        '&', ('state', 'in', COUNTED_DRAFT_STATES), ('spm_approval_state', 'in', COUNTED_APPROVAL_STATES),
+        '&', ('state', 'in', WATCHED_ORDER_STATES), ('spm_approval_state', 'in', WATCHED_APPROVAL_STATES),
         ('date_order', '>=', fields.Datetime.to_datetime(start)),
         ('date_order', '<', fields.Datetime.to_datetime(end + relativedelta(days=1)))])
     return _company_amount(order) + sum(_company_amount(other) for other in others)
@@ -174,19 +177,17 @@ def _merged_steps(policies, order):
 
 # Submission, decisions, the confirmation guard and the material change ---------
 
-WATCHED_ORDER_STATES = ('draft', 'sent')
-WATCHED_APPROVAL_STATES = ('pending', 'approved')
-
-
 def latest_request(order):
     """Return the newest approval request of the order (empty when it never had one)."""
     return order.sudo().spm_approval_request_ids.sorted('id')[-1:]  # sudo: reading only; a Buyer sees the requests of his own orders through the record rules, the check is the caller's
 
 
 def is_approved(order):
-    """Return whether the order's newest request is approved for the order's current revision."""
+    """Return whether the order's newest request is approved for the order's current revision and the order
+    still matches the approved snapshot (so a change made while the line hooks were deferred cannot pass)."""
     request = latest_request(order)
-    return bool(request) and request.state == 'approved' and request.revision == order.spm_revision
+    return (bool(request) and request.state == 'approved' and request.revision == order.spm_revision
+            and not _differs_from_request(order, request) and not _total_beyond_tolerance(order))
 
 
 def check_confirmable(orders):
@@ -194,7 +195,7 @@ def check_confirmable(orders):
 
     Requirements: FR-SPM-0048
     """
-    for order in orders.filtered(lambda o: o.spm_controlled and o.state in ('draft', 'sent', 'to approve')):
+    for order in orders.filtered(lambda o: o.spm_controlled and o.state in WATCHED_ORDER_STATES + ('to approve',)):
         if is_approved(order):
             continue
         state = latest_request(order).state

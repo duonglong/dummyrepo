@@ -60,7 +60,7 @@ class PurchaseOrderLine(models.Model):  # sdd-allow: model-split the contract li
 
         Inside a save of the order itself nothing is done here: the order's write reviews the whole order.
         """
-        if not self.env.context.get('spm_review_after_save'):
+        if self.env.context.get('spm_review_after_save') is not approval.REVIEW_DEFERRED:
             approval.review_changes(orders)
 
     @api.depends('product_id', 'product_qty', 'price_unit', 'date_planned', 'uom_id', 'order_id.partner_id',

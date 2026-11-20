@@ -196,3 +196,21 @@ class TestApprovalFlow(SpmApprovalCase):
             form.comment = 'Fine by me'
         form.record.action_confirm()
         self.assertEqual(step.decision_ids.comment, 'Fine by me')
+
+    def test_a_forged_deferral_flag_does_not_hide_a_line_change(self):
+        """BR-SPM-0010: an external caller setting the deferral flag to a plain value still gets the review."""
+        order = self._pending_order()
+        order.order_line.with_user(self.buyer).with_context(spm_review_after_save=True).write(
+            {'product_id': self.laptop.id})
+        self.assertEqual(order.spm_revision, 2)
+
+    def test_an_approved_order_that_no_longer_matches_its_snapshot_cannot_be_confirmed(self):
+        """FR-SPM-0048: a change that slipped past the review (deferred hooks) still blocks the confirmation."""
+        order = self._pending_order()
+        self._approve_open_steps(order)
+        self.assertTrue(approval.is_approved(order))
+        order.order_line.with_context(spm_review_after_save=approval.REVIEW_DEFERRED).write(
+            {'product_id': self.laptop.id})
+        self.assertFalse(approval.is_approved(order))
+        with self.assertRaises(UserError):
+            order.with_user(self.buyer).button_confirm()

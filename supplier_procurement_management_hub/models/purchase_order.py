@@ -76,7 +76,7 @@ class PurchaseOrder(models.Model):
             approval.check_confirmable(self.filtered(lambda order: order.state != 'purchase'))
         watched = self.filtered(approval.is_watched)
         # the lines of a watched order are not reviewed one by one: the whole order is, once, after the save
-        result = super(PurchaseOrder, self.with_context(spm_review_after_save=True) if watched else self).write(vals)
+        result = super(PurchaseOrder, self.with_context(spm_review_after_save=approval.REVIEW_DEFERRED) if watched else self).write(vals)
         approval.review_changes(watched)
         if vals.get('state') == 'purchase':
             self._spm_ensure_commitments()
