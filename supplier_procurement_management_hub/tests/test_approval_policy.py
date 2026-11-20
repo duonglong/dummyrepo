@@ -51,10 +51,10 @@ class TestApprovalPolicy(SpmApprovalCase):
             result = approval.evaluate(self.env, self._order(price=3000.0, qty=1.0))
         self.assertIn(policy, result['policies'])
 
-    def test_the_requester_is_the_creating_person_and_empty_for_the_superuser(self):
-        """FR-SPM-0044: no default stamps a system user; a person's order records them."""
-        by_buyer = self._order()
-        self.assertEqual(by_buyer.spm_requester_id, self.buyer)
-        values = {'partner_id': self.acme.id}
-        by_system = self.env['purchase.order'].with_user(SUPERUSER_ID).create(values)
+    def test_the_requester_is_never_stamped_by_create(self):
+        """FR-SPM-0044: an order without a purchase request has no requester, whoever creates it."""
+        order = self._order()
+        self.assertFalse(order.spm_requester_id)
+        self.assertFalse(order.copy().spm_requester_id)
+        by_system = self.env['purchase.order'].with_user(SUPERUSER_ID).create({'partner_id': self.acme.id})
         self.assertFalse(by_system.spm_requester_id)

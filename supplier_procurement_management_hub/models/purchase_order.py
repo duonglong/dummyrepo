@@ -22,12 +22,10 @@ class PurchaseOrder(models.Model):
     def create(self, vals_list):
         """Give the goods lines of an order created already confirmed their delivery commitment.
 
+        The requester is never filled here: only the purchase-request flow sets it, else the buyer is used.
+
         Requirements: FR-SPM-0055
         """
-        # No field default: a default would stamp the installing or system user on existing and replenishment orders.
-        if not self.env.su and self.env.user._is_internal():
-            for vals in vals_list:
-                vals.setdefault('spm_requester_id', self.env.user.id)
         orders = super().create(vals_list)
         orders._spm_ensure_commitments()
         return orders
