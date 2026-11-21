@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Requirements: FR-SPM-0091, FR-SPM-0095 -->
+    <record id="mail_template_document_expiry" model="mail.template">
+        <field name="name">Supplier document: expiry reminder</field>
+        <field name="model_id" ref="model_procurement_supplier_document"/>
+        <field name="subject">{{ object.document_type_id.name }} expires on {{ object.expiry_date }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p>Your document <t t-out="object.document_type_id.name"/> expires on <t t-out="object.expiry_date"/>.
+       Please send a renewed copy.</p>
+    <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
+</div>
+        </field>
+    </record>
+
+    <!-- Requirements: FR-SPM-0092, FR-SPM-0095 -->
+    <record id="mail_template_quote_reminder" model="mail.template">
+        <field name="name">Sourcing event: quote deadline reminder</field>
+        <field name="model_id" ref="model_procurement_sourcing_event"/>
+        <field name="subject">Reminder: quotation due for {{ object.name }}: {{ object.title }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p>We have not received your quotation for <t t-out="object.name"/>: <t t-out="object.title"/>.
+       Quotations are accepted until <t t-out="format_datetime(object.deadline, tz='UTC', dt_format='yyyy-MM-dd HH:mm')"/> (UTC).</p>
+    <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
+</div>
+        </field>
+    </record>
+
+    <!-- Requirements: FR-SPM-0092, FR-SPM-0095 -->
+    <record id="mail_template_quote_missing" model="mail.template">
+        <field name="name">Sourcing event: suppliers without an answer</field>
+        <field name="model_id" ref="model_procurement_sourcing_event"/>
+        <field name="subject">No answer received for {{ object.name }}: {{ object.title }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>The deadline of <t t-out="object.name"/>: <t t-out="object.title"/> has passed. These suppliers did not answer:</p>
+    <ul>
+        <li t-foreach="object.response_ids.filtered_domain([('state', '=', 'invited')])" t-as="response">
+            <t t-out="response.partner_id.name"/>
+        </li>
+    </ul>
+</div>
+        </field>
+    </record>
+
+    <!-- Requirements: FR-SPM-0093, FR-SPM-0095 -->
+    <record id="mail_template_delivery_overdue" model="mail.template">
+        <field name="name">Delivery: overdue line</field>
+        <field name="model_id" ref="model_procurement_delivery_commitment"/>
+        <field name="subject">Overdue delivery on {{ object.order_id.name }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p>The delivery of <t t-out="object.product_id.display_name"/> on <t t-out="object.order_id.name"/> was
+       agreed for <t t-out="format_datetime(object.agreed_date, tz='UTC', dt_format='yyyy-MM-dd')"/> and
+       <t t-out="object.remaining_qty"/> are still to come.</p>
+    <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
+</div>
+        </field>
+    </record>
+
+    <!-- Requirements: FR-SPM-0094, FR-SPM-0095 -->
+    <record id="mail_template_contract_reminder" model="mail.template">
+        <field name="name">Contract: notice and renewal reminder</field>
+        <field name="model_id" ref="model_procurement_contract"/>
+        <field name="subject">Contract {{ object.name }}: notice or end date coming</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p>The contract <t t-out="object.name"/> with <t t-out="object.partner_id.name"/> has its notice date on
+       <t t-out="object.notice_date"/> and ends on <t t-out="object.date_end"/>. Renew, renegotiate or end it.</p>
+</div>
+        </field>
+    </record>
+</odoo>

@@ -25,6 +25,8 @@
         'data/procurement_delivery_data.xml',
         'data/ir_cron_approval.xml',
         'data/ir_cron_scorecard.xml',
+        'data/mail_templates.xml',
+        'data/ir_cron_reminders.xml',
         'views/procurement_audit_views.xml',
         'views/res_config_settings_views.xml',
         'views/procurement_config_views.xml',
@@ -62,6 +64,7 @@
         'views/procurement_supplier_scorecard_views.xml',
         'views/procurement_supplier_review_views.xml',
         'views/procurement_dashboard_views.xml',
+        'views/procurement_notification_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
