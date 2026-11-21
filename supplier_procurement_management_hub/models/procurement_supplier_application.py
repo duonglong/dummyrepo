@@ -287,7 +287,7 @@ class ProcurementSupplierApplication(models.Model):
     def action_spm_approve(self):
         """Approve a submitted application: link or create the one supplier contact.
 
-        Requirements: FR-SPM-0005
+        Requirements: FR-SPM-0005, FR-SPM-0011, BR-SPM-0006
         """
         self._spm_start_review(MANAGER_GROUP)
         for application in self:
@@ -313,6 +313,10 @@ class ProcurementSupplierApplication(models.Model):
                 "No default status of the Approved kind is configured: set one in the supplier statuses before approving."))
         onboarding.lock_tax_id(self.env, data['vat'])
         partner = (self.partner_id or onboarding.find_company_contact(self.env, data['vat'])).sudo()  # elevated: see above
+        if partner.spm_status_kind in ('blocked', 'suspended'):
+            raise UserError(self.env._(
+                "%(supplier)s is %(status)s: lift the status before approving an application for it.",
+                supplier=partner.display_name, status=partner.spm_status_id.name))
         next_requalification = fields.Date.context_today(self) + relativedelta(
             months=self.company_id.spm_requalification_months)
         partner_model = self.env['res.partner'].sudo().with_context(  # elevated: see above
