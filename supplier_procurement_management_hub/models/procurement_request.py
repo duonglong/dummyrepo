@@ -17,12 +17,13 @@ class ProcurementRequest(models.Model):
     _inherit = ['mail.thread']
     _description = 'Purchase Request'
     _order = 'id desc'
+    _check_company_auto = True
 
     name = fields.Char(readonly=True, copy=False, default='New')
     requester_id = fields.Many2one(
         'res.users', required=True, default=lambda self: self.env.user, ondelete='restrict',
         index=True, copy=False)
-    department_id = fields.Many2one('hr.department', ondelete='set null')
+    department_id = fields.Many2one('hr.department', ondelete='set null', check_company=True)
     needed_date = fields.Date(required=True)
     reason = fields.Text(required=True)
     line_ids = fields.One2many('procurement.request.line', 'request_id', string="Lines", copy=True)

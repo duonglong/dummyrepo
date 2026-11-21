@@ -15,6 +15,7 @@ class ProcurementApprovalPolicy(models.Model):
     _inherit = ['procurement.audit.mixin']
     _description = 'Approval Policy'
     _order = 'sequence, id'
+    _check_company_auto = True
 
     name = fields.Char(required=True)
     sequence = fields.Integer(required=True, default=10)
@@ -24,11 +25,11 @@ class ProcurementApprovalPolicy(models.Model):
     currency_id = fields.Many2one(related='company_id.currency_id', string="Currency")
     amount_min = fields.Monetary(string="Amount from", help="Matches orders of this amount or more; 0 sets no lower limit.")
     amount_max = fields.Monetary(string="Amount below", help="Matches orders below this amount; 0 sets no upper limit.")
-    department_ids = fields.Many2many('hr.department', string="Departments")
+    department_ids = fields.Many2many('hr.department', string="Departments", check_company=True)
     product_category_ids = fields.Many2many('product.category', string="Product categories")
-    product_ids = fields.Many2many('product.product', string="Products")
+    product_ids = fields.Many2many('product.product', string="Products", check_company=True)
     partner_ids = fields.Many2many('res.partner', string="Vendors")
-    analytic_account_ids = fields.Many2many('account.analytic.account', string="Analytic accounts")
+    analytic_account_ids = fields.Many2many('account.analytic.account', string="Analytic accounts", check_company=True)
     cumulative_period = fields.Selection(CUMULATIVE_PERIODS, required=True, default='none')
     reapproval_tolerance = fields.Monetary(default=0.0)
     escalation_hours = fields.Integer(default=48)

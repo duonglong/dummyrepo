@@ -10,9 +10,11 @@ class ProcurementRequestLine(models.Model):
     _name = 'procurement.request.line'
     _description = 'Purchase Request Line'
     _order = 'id'
+    _check_company_auto = True
 
     request_id = fields.Many2one('procurement.request', required=True, ondelete='cascade', index=True)
-    product_id = fields.Many2one('product.product', ondelete='restrict')
+    company_id = fields.Many2one(related='request_id.company_id', store=True, index=True)
+    product_id = fields.Many2one('product.product', ondelete='restrict', check_company=True)
     name = fields.Char(
         string="Description", compute='_compute_name', store=True, readonly=False, required=True)
     quantity = fields.Float(default=1.0, digits='Product Unit', required=True)

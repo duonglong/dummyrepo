@@ -83,3 +83,4 @@ from . import test_nfr_multicompany
 from . import test_nfr_performance
 from . import test_nfr_jobs_repeat
 from . import test_nfr_extension_points
+from . import test_company_links
