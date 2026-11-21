@@ -61,7 +61,13 @@
         'views/procurement_scorecard_template_views.xml',
         'views/procurement_supplier_scorecard_views.xml',
         'views/procurement_supplier_review_views.xml',
+        'views/procurement_dashboard_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'supplier_procurement_management_hub/static/src/dashboard/*',
+        ],
+    },
     'license': 'LGPL-3',
     'installable': True,
     'application': True,
