@@ -13,6 +13,7 @@ def idle_portal_users(env, company, now=None):
 
     Requirements: FR-SPM-0110
     A period of 0 days switches the rule off. A user who never logged in counts from its creation.
+    Users of a known customer (customer rank, no supplier signal) are left alone: only supplier accounts go.
     """
     days = company.spm_portal_inactivity_days
     if days <= 0:
@@ -21,7 +22,14 @@ def idle_portal_users(env, company, now=None):
     # sudo: the retention job reads the users of the company whatever the record rules of its user say
     users = env['res.users'].sudo().search([
         ('share', '=', True), ('group_ids', 'in', env.ref('base.group_portal').ids), ('company_id', '=', company.id)])
-    return users.filtered(lambda user: (user.login_date or user.create_date) <= cutoff)
+    return users.filtered(
+        lambda user: (user.login_date or user.create_date) <= cutoff and not _is_customer_only(user))
+
+
+def _is_customer_only(user):
+    """Tell whether the commercial contact of ``user`` is a customer with no supplier signal."""
+    commercial = user.partner_id.commercial_partner_id
+    return commercial.customer_rank > 0 and not commercial.spm_is_supplier
 
 
 def shared_retention_years(env):
@@ -36,13 +44,14 @@ def shared_retention_years(env):
 
 
 def _company_domain(company):
-    """Return the domain of the documents of ``company`` (``None``: documents that belong to no company)."""
-    company_id = company.id or False
+    """Return the domain of the documents of ``company``; an empty recordset means the documents of no company."""
+    if not company:
+        return Domain('partner_id.company_id', '=', False) & Domain.OR([
+            [('application_id', '=', False)], [('application_id.company_id', '=', False)]])
     return Domain.OR([
-        [('partner_id.company_id', '=', company_id)],
-        [('partner_id.company_id', '=', False), ('application_id.company_id', '=', company_id)],
-    ]) if company_id else Domain([('partner_id.company_id', '=', False)]) & Domain.OR([
-        [('application_id', '=', False)], [('application_id.company_id', '=', False)]])
+        [('partner_id.company_id', '=', company.id)],
+        [('partner_id.company_id', '=', False), ('application_id.company_id', '=', company.id)],
+    ])
 
 
 def purgeable_documents(env, company=None, now=None):

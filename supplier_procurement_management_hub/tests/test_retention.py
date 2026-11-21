@@ -49,6 +49,15 @@ class TestRetentionRules(TransactionCase):
             self.company.spm_portal_inactivity_days = 0
             self.assertFalse(retention.idle_portal_users(self.env, self.company))
 
+    def test_customer_portal_user_is_kept(self):
+        """An idle portal user of a customer is not found; one of a customer that is also a supplier is."""
+        user = self._idle_user()
+        self.acme.customer_rank = 1
+        with freeze_time('2030-01-01 08:00:00'):
+            self.assertNotIn(user, retention.idle_portal_users(self.env, self.company))
+            self.acme.supplier_rank = 1
+            self.assertIn(user, retention.idle_portal_users(self.env, self.company))
+
     def test_rejected_document_follows_its_review_date(self):
         """A current rejected document reviewed 7 years ago is found, one reviewed 6 years ago is not."""
         old = self._document(verification_state='rejected', review_comment='no', expiry_date='2099-01-01')
