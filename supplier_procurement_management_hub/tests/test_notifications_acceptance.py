@@ -164,7 +164,7 @@ class TestDocumentExpiryReminders(SpmReminderMixin, SpmDeliveryCase):
         """BR-SPM-0019: the expiry date moved to a new date, then due again, notifies again."""
         self._run_jobs('2026-11-16 08:00:00')
         first = len(self._reach(self.acme_user.partner_id))
-        self.doc.write({'expiry_date': '2026-12-20'})
+        self.doc.write({'expiry_date': '2026-12-17'})
         self._run_jobs('2026-11-17 08:00:00')
         self.assertGreater(len(self._reach(self.acme_user.partner_id)), first)
 
