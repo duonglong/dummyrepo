@@ -6,7 +6,7 @@ from ..services import audit, risk, supplier_control
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 # Fields that only the Complete action writes.
 RESULT_FIELDS = ('state', 'score', 'level', 'is_current')
-SCORE_RESULT_FIELDS = ('weight', 'score', 'document_ids', 'evidence')
+SCORE_RESULT_FIELDS = ('weight', 'score', 'document_ids', 'incident_ids', 'evidence')
 
 
 def _is_real_change(records, name, value):
@@ -152,6 +152,9 @@ class ProcurementRiskCategoryScore(models.Model):
     document_ids = fields.Many2many(
         'procurement.supplier.document', 'spm_risk_score_document_rel', 'score_id', 'document_id',
         string="Documents", copy=False, readonly=True)
+    incident_ids = fields.Many2many(
+        'procurement.supplier.review', 'spm_risk_score_incident_rel', 'score_id', 'review_id',
+        string="Incidents", copy=False, readonly=True)
     evidence = fields.Text(copy=False, readonly=True)
 
     def _spm_check_draft(self, assessments):
@@ -193,12 +196,14 @@ class ProcurementRiskCategoryScore(models.Model):
         Requirements: BR-SPM-0017, FR-SPM-0088
         The questionnaire's answers and the supplier's required documents are the
         evidence; a category that uses neither scores 0. When both count, the score
-        is their average.
+        is their average. The incidents of the supplier are listed as evidence when the
+        category uses them; they do not change the score.
         """
         self.ensure_one()
         category = self.category_id
         partner = self.assessment_id.partner_id
         parts, lines, documents = [], [], self.env['procurement.supplier.document']
+        incidents = self.env['procurement.supplier.review']
         if category.questionnaire_id:
             parts.append(risk.answers_score(category.questionnaire_id, self.answer_ids))
             lines += [f"{answer.question_id.name}: {answer.option_id.name} ({answer.option_id.points:g})"
@@ -210,9 +215,13 @@ class ProcurementRiskCategoryScore(models.Model):
                           missing=self.env._("Missing"))
             lines += [f"{document_type.name}: {labels[state]}"
                       for document_type, state in supplier_control.compliance_rows(self.env, partner)]
+        if category.uses_incidents:
+            incidents = risk.incidents_of(self.env, partner)
+            lines += [self.env._("Incident: %s", incident.display_name) for incident in incidents]
         score = sum(parts) / len(parts) if parts else 0.0
         # Elevated: the result fields are written by the Complete action only (write guard).
         self.sudo().write({'weight': category.weight, 'score': score, 'document_ids': [(6, 0, documents.ids)],
+                    'incident_ids': [(6, 0, incidents.ids)],
                     'evidence': '\n'.join(lines) or False})
         return score
 

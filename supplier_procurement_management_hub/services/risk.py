@@ -81,6 +81,16 @@ def documents_score(env, partner):
     return bad / len(rows) * 100, documents
 
 
+def incidents_of(env, partner):
+    """Return the supplier's incidents that are not cancelled, oldest first.
+
+    Requirements: FR-SPM-0088
+    """
+    return env['procurement.supplier.review'].search(
+        [('partner_id', '=', partner.id), ('kind', '=', 'incident'), ('state', '!=', 'cancelled')],
+        order='date, id')
+
+
 def weighted_total(scores):
     """Return the weighted average of ``[(score, weight)]``, 0 without weight.
 

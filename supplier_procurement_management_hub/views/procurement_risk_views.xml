@@ -11,6 +11,7 @@
                 <field name="weight"/>
                 <field name="questionnaire_id" context="{'default_purpose': 'risk'}"/>
                 <field name="uses_documents"/>
+                <field name="uses_incidents"/>
             </list>
         </field>
     </record>
@@ -69,6 +70,7 @@
                                         </list>
                                     </field>
                                     <field name="document_ids" widget="many2many_tags"/>
+                                    <field name="incident_ids" widget="many2many_tags"/>
                                     <field name="evidence"/>
                                 </form>
                             </field>

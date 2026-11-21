@@ -258,3 +258,46 @@ class TestRisk(TransactionCase):
         supplier_control.check_supplier_allowed(self.env, order, partner, self.env.company, 'confirm')
         notes = order.message_ids.filtered(lambda m: 'risk level' in (m.body or ''))
         self.assertEqual(len(notes), 2)
+
+    def _incident(self, partner, kind='incident', state='done', **extra):
+        return self.env['procurement.supplier.review'].create(
+            dict({'partner_id': partner.id, 'kind': kind, 'state': state, 'date': '2026-11-10'}, **extra))
+
+    def test_bug_b_0265_incidents_are_listed_as_evidence_of_a_category(self):
+        """Regression test for B-0265: a category that uses incidents lists the open and held incidents of the supplier.
+
+        Requirements: FR-SPM-0088, BR-SPM-0017
+        Cancelled incidents, other review kinds and other suppliers' incidents are not evidence.
+        """
+        manager = self._manager('risk_incident_manager')
+        partner = self.env['res.partner'].create({'name': 'Iota'})
+        other = self.env['res.partner'].create({'name': 'Kappa'})
+        incident = self._incident(partner)
+        self._incident(partner, state='cancelled')
+        self._incident(partner, kind='review')
+        self._incident(other)
+        with_incidents = self.env['procurement.risk.category'].create({
+            'name': 'Delivery', 'weight': 1, 'uses_documents': True, 'uses_incidents': True})
+        without = self.env['procurement.risk.category'].create({
+            'name': 'Compliance', 'weight': 1, 'uses_documents': True})
+        assessment = self.env['procurement.risk.assessment'].with_user(manager).create({
+            'partner_id': partner.id, 'category_score_ids': [
+                (0, 0, {'category_id': with_incidents.id}), (0, 0, {'category_id': without.id})]})
+        assessment.action_spm_complete()
+        scores = {score.category_id: score for score in assessment.category_score_ids}
+        self.assertEqual(scores[with_incidents].incident_ids, incident)
+        self.assertFalse(scores[without].incident_ids)
+
+    def test_bug_b_0265_incident_evidence_is_refused_to_a_user_write(self):
+        """Regression test for B-0265: the incident evidence is a result field only the Complete action writes.
+
+        Requirements: FR-SPM-0088
+        """
+        manager = self._manager('risk_incident_writer')
+        partner = self.env['res.partner'].create({'name': 'Lambda'})
+        incident = self._incident(partner)
+        category = self.env['procurement.risk.category'].create({'name': 'Delivery', 'weight': 1})
+        assessment = self.env['procurement.risk.assessment'].with_user(manager).create({
+            'partner_id': partner.id, 'category_score_ids': [(0, 0, {'category_id': category.id})]})
+        with self.assertRaises(AccessError):
+            assessment.category_score_ids.write({'incident_ids': [(4, incident.id)]})
