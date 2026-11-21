@@ -8,7 +8,6 @@ from . import procurement_portal_field
 from . import procurement_supplier_application
 from . import procurement_supplier_application_contact
 from . import procurement_portal_log
-from . import procurement_supplier_document
 from . import procurement_supplier_change
 from . import res_company
 from . import res_config_settings
@@ -39,6 +38,7 @@ from . import procurement_request_line
 from . import portal_wizard
 from . import procurement_job
 from . import procurement_job_run
+from . import procurement_supplier_document
 from . import procurement_contract_line
 from . import procurement_contract
 from . import procurement_contract_version

@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services import supplier_control
+from ..services import audit, retention, supplier_control
 
 # Fields of the review: only a Buyer or Procurement manager writes them.
 SPM_REVIEW_FIELDS = ('verification_state', 'reviewer_id', 'review_date', 'review_comment')
@@ -140,3 +140,36 @@ class ProcurementSupplierDocument(models.Model):
         if 'attachment_id' in vals:
             self._spm_bind_attachments()
         return result
+
+
+class ProcurementJobRetention(models.Model):  # sdd-allow: model-split the job runner is extended per code by the task that owns the job (procurement_job.py, not a file of this task)
+    """The daily retention job: idle supplier portal users and old supplier files.
+
+    Requirements: FR-SPM-0110
+    """
+    _inherit = 'procurement.job'
+
+    code = fields.Selection(selection_add=[('retention', 'Retention of portal accounts and files')],
+                            ondelete={'retention': 'cascade'})
+
+    def _spm_collect_retention(self):
+        """Return the companies: each applies its own periods."""
+        return self.env['res.company'].sudo().search([], order='id')
+
+    def _spm_process_retention(self, company):
+        """Deactivate the idle portal users of one company and delete its old supplier files.
+
+        Requirements: FR-SPM-0110
+        A user already inactive and a document without a file are not found again, so a second
+        run changes nothing. Each change is written to the audit trail. Returns 0 notifications.
+        """
+        for user in retention.idle_portal_users(self.env, company):
+            user.write({'active': False})
+            audit.log(self.env, 'configuration', user, old_values={'active': True}, new_values={'active': False},
+                      comment=self.env._("Portal account deactivated: no login for %s days.",
+                                         company.spm_portal_inactivity_days))
+        for document in retention.purgeable_documents(self.env, company):
+            document.attachment_id.sudo().unlink()  # sudo: the job's user may lack the right to delete a supplier's file
+            audit.log(self.env, 'configuration', document, old_values={'file': True}, new_values={'file': False},
+                      comment=self.env._("File deleted after %s years.", company.spm_document_retention_years))
+        return 0
