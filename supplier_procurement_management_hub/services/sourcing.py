@@ -326,6 +326,8 @@ TERM_ROWS = {
     'total_cost': False, 'lead_time': False, 'payment_terms': None, 'warranty': True, 'validity': True}
 # Rows that add up or take the maximum over the lines: an offer that left a line out never wins them.
 AGGREGATE_KINDS = ('price', 'total_cost', 'lead_time')
+# Criteria whose score is given by the buyer on the cell, not read from the quotation.
+GIVEN_KINDS = ('manual', 'yes_no')
 
 
 def _term_cell(version, key, total_cost, normalized_cost, incomplete):
@@ -419,7 +421,7 @@ def _mark_best(event, cells):
     rows = {}
     for cell in cells:
         if cell.get('missing') or not cell.get('rankable', True) or cell['row_kind'] == 'criterion' and (
-                criteria[cell['criterion_id']].kind == 'manual'):
+                criteria[cell['criterion_id']].kind in GIVEN_KINDS):
             continue
         key = (cell['row_kind'], cell.get('event_line_id'), cell.get('criterion_id'), cell.get('term_key'))
         rows.setdefault(key, []).append(cell)
@@ -456,9 +458,10 @@ def compare(event):
         cells.extend(_cells_of_response(env, event, response, normalized))
     _mark_best(event, cells)
     comparison = env['procurement.comparison'].search([('event_id', '=', event.id)])
-    kept = {(cell.criterion_id.id, cell.response_id.id): (cell.manual_score, cell.manual_comment)
+    kept = {(cell.criterion_id.id, cell.response_id.id): (
+                cell.manual_score, cell.manual_comment, cell.yes_no_value)
             for cell in comparison.line_ids if cell.row_kind == 'criterion'
-            and (cell.manual_score or cell.manual_comment)}
+            and (cell.manual_score or cell.manual_comment or cell.yes_no_value)}
     values = {
         'assumptions': comparison_assumptions(env, event), 'is_normalized': normalized,
         'computed_at': fields.Datetime.now(), 'line_ids': [(5, 0, 0)]}
@@ -472,7 +475,7 @@ def compare(event):
             cell.pop(internal, None)
         manual = kept.get((cell.get('criterion_id'), cell['response_id']))
         if manual:
-            cell['manual_score'], cell['manual_comment'] = manual
+            cell['manual_score'], cell['manual_comment'], cell['yes_no_value'] = manual
         rows.append(dict(cell, comparison_id=comparison.id))
     env['procurement.comparison.line'].create(rows)
     return comparison
@@ -529,10 +532,13 @@ def _criterion_scores(event, criterion, cells):
     Requirements: BR-SPM-0008
     A price criterion is scored on normalized values only; without normalization it is left out.
     A manual criterion is scored with the 0-100 score the buyer gave, as it is: ``higher`` is None
-    for it, and a cell with neither a score nor a comment is flagged missing.
+    for it, and a cell with neither a score nor a comment is flagged missing. A yes/no criterion
+    scores 100 for yes and 0 for no; a cell without an answer scores 0 and is flagged missing.
     """
     if criterion.kind == 'manual':
         return {cell: cell.manual_score or 0.0 for cell in cells}, None
+    if criterion.kind == 'yes_no':
+        return {cell: SCORE_MAX if cell.yes_no_value == 'yes' else 0.0 for cell in cells}, None
     money = criterion.kind in ('price', 'total_cost')
     if money and not event.is_normalized:
         return None, False
@@ -540,6 +546,13 @@ def _criterion_scores(event, criterion, cells):
         cell: None if cell.missing else (cell.normalized_value if money else cell.raw_value)
         for cell in cells}
     return values, criterion.direction == 'higher'
+
+
+def _is_given(criterion, cell):
+    """Whether the buyer gave the answer of a manual or yes/no cell."""
+    if criterion.kind == 'yes_no':
+        return bool(cell.yes_no_value)
+    return bool(cell.manual_score or (cell.manual_comment or '').strip())
 
 
 def evaluate(event):
@@ -568,8 +581,7 @@ def evaluate(event):
         scores = values if manual else _score_row(values, higher)
         weight_sum += criterion.weight
         for cell, score in scores.items():
-            unscored = not (cell.manual_score or (cell.manual_comment or '').strip()) if manual \
-                else values[cell] is None
+            unscored = not _is_given(criterion, cell) if manual else values[cell] is None
             cell.write({'score': score, 'missing': cell.missing or unscored})
             totals[cell.response_id] += criterion.weight * score
     result = {response: totals[response] / weight_sum if weight_sum else 0.0 for response in responses}

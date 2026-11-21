@@ -139,6 +139,56 @@ class TestAward(SpmComparisonCase):
             lambda c: c.row_kind == 'criterion' and c.response_id.partner_id == self.beta)
         self.assertFalse(beta_cell.missing)
 
+    def _yes_no_event(self):
+        """An event with only a yes/no criterion, two quoted responses and a first evaluation."""
+        event = self._sourcing(self.acme | self.beta, criteria=[('ISO 9001 certified', 'yes_no', 'higher', 1.0)])
+        self._quote(self._response(event, self.acme), [(event.line_ids, 11.9, 10)])
+        self._quote(self._response(event, self.beta), [(event.line_ids, 12.4, 5)])
+        event.with_user(self.buyer).action_spm_evaluate()
+        return event
+
+    def _yes_no_cells(self, event):
+        cells = self._cells(event).filtered(lambda c: c.row_kind == 'criterion')
+        return {c.response_id.partner_id: c for c in cells}
+
+    def test_bug_b_0261_a_yes_no_criterion_scores_100_or_0(self):
+        """Regression test for B-0261: yes scores 100, no scores 0, an unanswered cell scores 0 and is flagged.
+
+        Requirements: BR-SPM-0008, FR-SPM-0037
+        """
+        event = self._yes_no_event()
+        cells = self._yes_no_cells(event)
+        self.assertTrue(all(cell.missing and cell.score == 0.0 for cell in cells.values()))
+        cells[self.acme].with_user(self.buyer).write({'yes_no_value': 'yes'})
+        cells[self.beta].with_user(self.buyer).write({'yes_no_value': 'no'})
+        event.with_user(self.buyer).action_spm_evaluate()
+        cells = self._yes_no_cells(event)
+        self.assertEqual((cells[self.acme].score, cells[self.beta].score), (100.0, 0.0))
+        self.assertFalse(cells[self.acme].missing or cells[self.beta].missing)
+        self.assertEqual(
+            (self._response(event, self.acme).score, self._response(event, self.beta).score), (100.0, 0.0))
+
+    def test_bug_b_0261_a_yes_no_answer_survives_a_new_comparison(self):
+        """Regression test for B-0261: a second comparison keeps the yes/no answers.
+
+        Requirements: BR-SPM-0008
+        """
+        event = self._yes_no_event()
+        self._yes_no_cells(event)[self.acme].with_user(self.buyer).write({'yes_no_value': 'yes'})
+        event.with_user(self.buyer).action_spm_evaluate()
+        self.assertEqual(self._yes_no_cells(event)[self.acme].yes_no_value, 'yes')
+
+    def test_bug_b_0261_a_yes_no_answer_is_given_while_the_event_is_open(self):
+        """Regression test for B-0261: once awarded the yes/no answer is evidence and is refused.
+
+        Requirements: BR-SPM-0008, FR-SPM-0041
+        """
+        event = self._yes_no_event()
+        cell = self._yes_no_cells(event)[self.acme]
+        event.sudo().write({'state': 'awarded'})
+        with self.assertRaises(UserError):
+            cell.with_user(self.buyer).write({'yes_no_value': 'yes'})
+
     def test_generating_again_updates_the_same_draft_order(self):
         """FR-SPM-0040: a second generation changes the linked draft, it does not add an order."""
         event = self._event()

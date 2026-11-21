@@ -18,7 +18,7 @@ class ProcurementSourcingCriterion(models.Model):
     name = fields.Char(required=True, translate=True)
     kind = fields.Selection([
         ('price', 'Price'), ('total_cost', 'Total cost'), ('lead_time', 'Lead time'),
-        ('terms', 'Payment terms'), ('manual', 'Manual score'),
+        ('terms', 'Payment terms'), ('manual', 'Manual score'), ('yes_no', 'Yes/no'),
     ], required=True, default='manual')
     direction = fields.Selection([
         ('higher', 'Higher is better'), ('lower', 'Lower is better'),

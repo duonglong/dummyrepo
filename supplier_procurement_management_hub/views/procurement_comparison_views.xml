@@ -32,6 +32,7 @@
                             <field name="event_state" column_invisible="True"/>
                             <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
                             <field name="manual_comment" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                            <field name="yes_no_value" readonly="criterion_kind != 'yes_no' or event_state != 'open'"/>
                             <field name="is_best" readonly="True"/>
                             <field name="missing" readonly="True"/>
                         </list>

@@ -37,6 +37,9 @@ class ProcurementComparisonLine(models.Model):
     criterion_kind = fields.Selection(related='criterion_id.kind')
     event_state = fields.Selection(related='comparison_id.event_id.state')
     manual_comment = fields.Text()
+    yes_no_value = fields.Selection(
+        [('yes', 'Yes'), ('no', 'No')], string="Answer",
+        help="The buyer's answer to a yes/no criterion; empty counts as no and is flagged missing.")
 
     @api.constrains('manual_score', 'manual_comment')
     def _check_manual_comment(self):
@@ -69,10 +72,10 @@ class ProcurementComparisonLine(models.Model):
     def write(self, vals):
         """Manual scores are given while the event is open; once awarded the cells are evidence.
 
-        Requirements: FR-SPM-0038, FR-SPM-0041
+        Requirements: FR-SPM-0038, FR-SPM-0041, BR-SPM-0008
         """
         sourcing.check_event_not_awarded(self.env, self.comparison_id.event_id)
-        if not self.env.su and ('manual_score' in vals or 'manual_comment' in vals) and any(
+        if not self.env.su and {'manual_score', 'manual_comment', 'yes_no_value'}.intersection(vals) and any(
                 cell.comparison_id.event_id.state != 'open' for cell in self):
             raise UserError(self.env._("Manual scores can only be given while the event is open."))
         return super().write(vals)
