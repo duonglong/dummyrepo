@@ -76,3 +76,4 @@ from . import test_risk
 from . import test_notifications_acceptance
 from . import test_retention_acceptance
 from . import test_retention
+from . import test_notifications

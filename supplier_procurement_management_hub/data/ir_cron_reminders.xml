@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Requirements: FR-SPM-0091, FR-SPM-0092, FR-SPM-0093, FR-SPM-0094, FR-SPM-0096 -->
+    <record id="ir_cron_spm_document_expiry" model="ir.cron">
+        <field name="name">Procurement hub: supplier document expiry reminders</field>
+        <field name="model_id" ref="model_procurement_job"/>
+        <field name="state">code</field>
+        <field name="code">model._spm_run('document_expiry')</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="job_spm_document_expiry" model="procurement.job">
+        <field name="name">Supplier document expiry reminders</field>
+        <field name="code">document_expiry</field>
+        <field name="sequence">20</field>
+        <field name="cron_id" ref="ir_cron_spm_document_expiry"/>
+    </record>
+
+    <record id="ir_cron_spm_quote_reminder" model="ir.cron">
+        <field name="name">Procurement hub: quote deadline reminders</field>
+        <field name="model_id" ref="model_procurement_job"/>
+        <field name="state">code</field>
+        <field name="code">model._spm_run('quote_reminder')</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+    </record>
+    <record id="job_spm_quote_reminder" model="procurement.job">
+        <field name="name">Quote deadline reminders</field>
+        <field name="code">quote_reminder</field>
+        <field name="sequence">22</field>
+        <field name="cron_id" ref="ir_cron_spm_quote_reminder"/>
+    </record>
+
+    <record id="ir_cron_spm_delivery_escalation" model="ir.cron">
+        <field name="name">Procurement hub: delivery escalation</field>
+        <field name="model_id" ref="model_procurement_job"/>
+        <field name="state">code</field>
+        <field name="code">model._spm_run('delivery_escalation')</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="job_spm_delivery_escalation" model="procurement.job">
+        <field name="name">Delivery escalation</field>
+        <field name="code">delivery_escalation</field>
+        <field name="sequence">24</field>
+        <field name="cron_id" ref="ir_cron_spm_delivery_escalation"/>
+    </record>
+
+    <record id="ir_cron_spm_contract_reminder" model="ir.cron">
+        <field name="name">Procurement hub: contract notice and renewal reminders</field>
+        <field name="model_id" ref="model_procurement_job"/>
+        <field name="state">code</field>
+        <field name="code">model._spm_run('contract_reminder')</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="job_spm_contract_reminder" model="procurement.job">
+        <field name="name">Contract notice and renewal reminders</field>
+        <field name="code">contract_reminder</field>
+        <field name="sequence">26</field>
+        <field name="cron_id" ref="ir_cron_spm_contract_reminder"/>
+    </record>
+</odoo>

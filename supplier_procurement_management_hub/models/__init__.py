@@ -74,3 +74,4 @@ from . import procurement_corrective_action
 from . import procurement_risk_category
 from . import procurement_risk_assessment
 from . import procurement_screening
+from . import procurement_notification_log
