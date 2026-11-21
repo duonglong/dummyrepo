@@ -1,7 +1,4 @@
-"""A job run twice sends and logs once.
-
-Requirements: NFR-SPM-0002
-"""
+"""A job run twice sends and logs once (US-SPM-010: reminders run once per due event)."""
 from datetime import timedelta
 
 from odoo import fields
@@ -10,10 +7,10 @@ from .delivery_common import SpmDeliveryCase
 
 
 class TestJobsRepeat(SpmDeliveryCase):
-    """Requirements: NFR-SPM-0002"""
+    """A repeated run adds nothing."""
 
-    def test_nfr_0002_the_document_job_run_twice_notifies_once(self):
-        """NFR-SPM-0002: a second run of the expiry job on the same day adds no key, no message and no to-do."""
+    def test_the_document_job_run_twice_notifies_once(self):
+        """A second run of the expiry job on the same day adds no key, no message and no to-do."""
         self.acme.spm_responsible_user_id = self.buyer
         doc_type = self.env['procurement.document.type'].create(
             {'name': 'Insurance repeat', 'reminder_days': 30, 'needs_expiry': True})

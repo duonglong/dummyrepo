@@ -443,3 +443,5 @@ access_spm_notification_log_manager,Notification key manager,procurement.notific
 access_spm_notification_log_auditor,Notification key auditor,procurement.notification.log,group_spm_auditor,r,
 access_spm_notification_log_admin,Notification key admin,procurement.notification.log,group_spm_admin,r,
 spm_notification_log_comp_rule,Notification key: allowed companies and shared records,procurement.notification.log,,crud,"[('company_id', 'in', company_ids + [False])]"
+spm_application_comp_rule,Supplier application: allowed companies,procurement.supplier.application,,crud,"[('company_id', 'in', company_ids)]"
+spm_application_contact_comp_rule,Application contact: allowed companies of its application,procurement.supplier.application.contact,,crud,"[('application_id.company_id', 'in', company_ids)]"
