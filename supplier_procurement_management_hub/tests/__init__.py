@@ -77,3 +77,9 @@ from . import test_notifications_acceptance
 from . import test_retention_acceptance
 from . import test_retention
 from . import test_notifications
+from . import test_nfr_portal_isolation
+from . import test_nfr_least_privilege
+from . import test_nfr_multicompany
+from . import test_nfr_performance
+from . import test_nfr_jobs_repeat
+from . import test_nfr_extension_points
