@@ -24,15 +24,37 @@ def idle_portal_users(env, company, now=None):
     return users.filtered(lambda user: (user.login_date or user.create_date) <= cutoff)
 
 
-def purgeable_documents(env, company, now=None):
+def shared_retention_years(env):
+    """Return the retention period of documents that belong to no company, in years (0 = off).
+
+    Requirements: FR-SPM-0110
+    The longest period of the companies applies, so no company loses a file it still keeps;
+    one company with the rule off keeps the files of shared suppliers.
+    """
+    periods = env['res.company'].sudo().search([]).mapped('spm_document_retention_years')
+    return 0 if not periods or min(periods) <= 0 else max(periods)
+
+
+def _company_domain(company):
+    """Return the domain of the documents of ``company`` (``None``: documents that belong to no company)."""
+    company_id = company.id or False
+    return Domain.OR([
+        [('partner_id.company_id', '=', company_id)],
+        [('partner_id.company_id', '=', False), ('application_id.company_id', '=', company_id)],
+    ]) if company_id else Domain([('partner_id.company_id', '=', False)]) & Domain.OR([
+        [('application_id', '=', False)], [('application_id.company_id', '=', False)]])
+
+
+def purgeable_documents(env, company=None, now=None):
     """Return the supplier documents of ``company`` whose file is past the document retention period.
 
     Requirements: FR-SPM-0110
+    Without a company, the documents that belong to none (shared suppliers) with the shared period.
     Replaced versions count from their replaced date, current expired documents from their expiry date,
     rejected ones from their review date, documents of a rejected application from its last change.
     A period of 0 years switches the rule off. Only documents that still hold a file are returned.
     """
-    years = company.spm_document_retention_years
+    years = company.spm_document_retention_years if company else shared_retention_years(env)
     if years <= 0:
         return env['procurement.supplier.document']
     cutoff = (now or fields.Datetime.now()) - relativedelta(years=years)
@@ -44,8 +66,5 @@ def purgeable_documents(env, company, now=None):
          ('application_id.write_date', '<=', cutoff)],
     ])
     # sudo: the retention job reads the files of every supplier whatever the record rules of its user say
-    documents = env['procurement.supplier.document'].sudo().search(
-        Domain('attachment_id', '!=', False) & due)
-    company_ids = {company.id, False}
-    return documents.filtered(
-        lambda doc: (doc.partner_id.company_id.id or doc.application_id.company_id.id or False) in company_ids)
+    return env['procurement.supplier.document'].sudo().search(
+        Domain('attachment_id', '!=', False) & due & _company_domain(company or env['res.company']))

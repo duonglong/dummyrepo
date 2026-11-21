@@ -153,23 +153,34 @@ class ProcurementJobRetention(models.Model):  # sdd-allow: model-split the job r
                             ondelete={'retention': 'cascade'})
 
     def _spm_collect_retention(self):
-        """Return the companies: each applies its own periods."""
-        return self.env['res.company'].sudo().search([], order='id')
+        """Return the records due: idle portal users, then supplier documents with an old file.
 
-    def _spm_process_retention(self, company):
-        """Deactivate the idle portal users of one company and delete its old supplier files.
+        Requirements: FR-SPM-0110
+        A list, not a recordset: the two models mix. The runner gives each record its own savepoint.
+        """
+        companies = self.env['res.company'].sudo().search([], order='id')
+        records = []
+        for company in companies:
+            records += list(retention.idle_portal_users(self.env, company))
+        for company in list(companies) + [self.env['res.company']]:
+            records += list(retention.purgeable_documents(self.env, company))
+        return records
+
+    def _spm_process_retention(self, record):
+        """Deactivate one idle portal user or delete the file of one supplier document.
 
         Requirements: FR-SPM-0110
         A user already inactive and a document without a file are not found again, so a second
         run changes nothing. Each change is written to the audit trail. Returns 0 notifications.
         """
-        for user in retention.idle_portal_users(self.env, company):
-            user.write({'active': False})
-            audit.log(self.env, 'configuration', user, old_values={'active': True}, new_values={'active': False},
-                      comment=self.env._("Portal account deactivated: no login for %s days.",
-                                         company.spm_portal_inactivity_days))
-        for document in retention.purgeable_documents(self.env, company):
-            document.attachment_id.sudo().unlink()  # sudo: the job's user may lack the right to delete a supplier's file
-            audit.log(self.env, 'configuration', document, old_values={'file': True}, new_values={'file': False},
-                      comment=self.env._("File deleted after %s years.", company.spm_document_retention_years))
+        if record._name == 'res.users':
+            record.write({'active': False})
+            audit.log(self.env, 'configuration', record, old_values={'active': True}, new_values={'active': False},
+                      comment=self.env._("Portal account deactivated: no login for the retention period."))
+            return 0
+        attachment = record.attachment_id.sudo()
+        old_values = {'file': attachment.name, 'attachment_id': attachment.id}
+        attachment.unlink()  # sudo: the job's user may lack the right to delete a supplier's file
+        audit.log(self.env, 'configuration', record, old_values=old_values, new_values={'file': False},
+                  comment=self.env._("File deleted after the retention period."))
         return 0
