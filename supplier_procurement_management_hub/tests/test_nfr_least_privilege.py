@@ -46,7 +46,7 @@ class TestLeastPrivilege(SpmPortalCase):
                 self.assertIn('/onboarding', rule.rule, rule.rule)
             else:
                 self.assertEqual(routing['auth'], 'user', rule.rule)
-            if 'POST' in (routing.get('methods') or ()):
+            if set(routing.get('methods') or ('POST',)) - {'GET', 'HEAD'}:
                 self.assertTrue(routing.get('csrf', True), rule.rule)
         self.assertGreater(seen, 8)
 

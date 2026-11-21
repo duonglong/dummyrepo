@@ -2,6 +2,8 @@
 
 Requirements: NFR-SPM-0008
 """
+import re
+
 from odoo.tests.common import TransactionCase
 
 MODULE = 'supplier_procurement_management_hub'
@@ -28,8 +30,7 @@ class TestMultiCompany(TransactionCase):
         """The models of the app that hold their own stored company field."""
         return [model for name, model in self.env.registry.items()
                 if model._original_module == MODULE and not model._abstract and not model._transient
-                and 'company_id' in model._fields and model._fields['company_id'].store
-                and not model._fields['company_id'].relational == 'res.users']
+                and 'company_id' in model._fields and model._fields['company_id'].store]
 
     def test_nfr_0008_every_company_owned_model_has_a_company_rule(self):
         """NFR-SPM-0008: a rule for all users (no group) limits each company-owned model to the allowed companies."""
@@ -37,7 +38,7 @@ class TestMultiCompany(TransactionCase):
         missing = []
         for model in self._own_models():
             domains = accesses.filtered(lambda a: a.model_id.model == model._name).mapped('domain')
-            if not any('company' in (domain or '') for domain in domains):
+            if not any(re.search(r"company_id', 'in', company_ids", domain or '') for domain in domains):
                 missing.append(model._name)
         self.assertEqual(missing, [], 'company-owned models without a company rule')
 
