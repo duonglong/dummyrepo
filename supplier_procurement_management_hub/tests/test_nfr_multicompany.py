@@ -5,9 +5,6 @@ Requirements: NFR-SPM-0008
 from odoo.tests.common import TransactionCase
 
 MODULE = 'supplier_procurement_management_hub'
-# Known gap, raised as an open point of T-036: the supplier application holds a company but has no
-# company rule yet (the rule is a change of security/ir.access.csv, outside this task's files).
-UNRULED = ('procurement.supplier.application',)
 
 
 class TestMultiCompany(TransactionCase):
@@ -41,8 +38,7 @@ class TestMultiCompany(TransactionCase):
         for model in self._own_models():
             domains = accesses.filtered(lambda a: a.model_id.model == model._name).mapped('domain')
             if not any('company' in (domain or '') for domain in domains):
-                if model._name not in UNRULED:
-                    missing.append(model._name)
+                missing.append(model._name)
         self.assertEqual(missing, [], 'company-owned models without a company rule')
 
     def test_nfr_0008_a_user_of_one_company_sees_nothing_of_the_other(self):
