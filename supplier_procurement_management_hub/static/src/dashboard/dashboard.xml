@@ -3,12 +3,12 @@
     <t t-name="supplier_procurement_management_hub.Dashboard">
         <div class="o_action o_spm_dashboard p-3 overflow-auto">
             <div class="d-flex flex-wrap gap-3">
-                <div t-foreach="this.state.tiles" t-as="tile" t-key="tile.key"
-                     class="o_spm_tile card p-3" role="button" t-att-data-tile="tile.key"
+                <button type="button" t-foreach="this.state.tiles" t-as="tile" t-key="tile.key"
+                     class="o_spm_tile card p-3 text-start" t-att-data-tile="tile.key"
                      t-on-click="() => this.openTile(tile)">
                     <div class="fs-1 fw-bold" t-out="this.figure(tile)"/>
                     <div t-out="tile.name"/>
-                </div>
+                </button>
             </div>
         </div>
     </t>

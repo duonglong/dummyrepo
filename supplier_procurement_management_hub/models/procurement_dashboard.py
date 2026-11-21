@@ -3,6 +3,8 @@ from datetime import timedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from .procurement_reconciliation_exception import UNDECIDED_STATES
+
 # xml id of the window action each tile starts from, per tile key
 TILE_ACTIONS = {
     'closing_events': 'supplier_procurement_management_hub.procurement_sourcing_event_action',
@@ -12,7 +14,6 @@ TILE_ACTIONS = {
     'open_requests': 'supplier_procurement_management_hub.procurement_request_action',
     'spend_month': 'supplier_procurement_management_hub.procurement_report_spend_action',
 }
-UNDECIDED_EXCEPTION_STATES = ['open', 'in_review']
 OPEN_REQUEST_STATES = ['submitted', 'sourcing']
 
 
@@ -38,12 +39,12 @@ class ProcurementDashboard(models.AbstractModel):
             self._queue_tile('closing_events', self.env._("Sourcing events closing soon"),
                              'procurement.sourcing.event', self._closing_events_domain()),
             self._queue_tile('expiring_documents', self.env._("Supplier documents expiring or expired"),
-                             'procurement.supplier.document', [('validity_state', 'in', ['expiring', 'expired'])]),
+                             'procurement.supplier.document', [('is_current', '=', True), ('validity_state', 'in', ['expiring', 'expired'])]),
             self._queue_tile('overdue_deliveries', self.env._("Overdue deliveries"),
                              'procurement.delivery.commitment', [('is_overdue', '=', True)]),
             self._queue_tile('invoice_exceptions', self.env._("My open invoice exceptions"),
                              'procurement.reconciliation.exception',
-                             [('state', 'in', UNDECIDED_EXCEPTION_STATES), ('owner_id', '=', self.env.uid)]),
+                             [('state', 'in', list(UNDECIDED_STATES)), ('owner_id', '=', self.env.uid)]),
             self._queue_tile('open_requests', self.env._("Open purchase requests"),
                              'procurement.request', [('state', 'in', OPEN_REQUEST_STATES)]),
             self._spend_tile(),
@@ -59,7 +60,7 @@ class ProcurementDashboard(models.AbstractModel):
         action = step.action_spm_open_inbox()
         action['name'] = self.env._("Approvals waiting for me")
         return {'key': 'approvals', 'name': action['name'],
-                'count': len(action['domain'][0][2]), 'action': action}
+                'count': step.search_count(action['domain']), 'action': action}
 
     @api.model
     def _closing_events_domain(self):
