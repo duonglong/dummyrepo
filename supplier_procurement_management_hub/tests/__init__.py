@@ -73,3 +73,5 @@ from . import test_reviews
 from . import test_reports_spend
 from . import test_scorecard_metrics
 from . import test_risk
+from . import test_notifications_acceptance
+from . import test_retention_acceptance
