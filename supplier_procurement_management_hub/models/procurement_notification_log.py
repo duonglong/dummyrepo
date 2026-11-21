@@ -20,6 +20,10 @@ class ProcurementNotificationLog(models.Model):
     recipient_partner_id = fields.Many2one(
         'res.partner', string="Recipient", required=True, readonly=True, ondelete='cascade', index=True)
     due_date = fields.Date(required=True, readonly=True)
+    company_id = fields.Many2one(
+        'res.company', string="Company", readonly=True, index=True, ondelete='cascade',
+        help="The company of the record the notification is about; empty for a shared record.")
+    sent_date = fields.Datetime(string="Sent", readonly=True)
 
     _key_unique = models.Constraint(
         'UNIQUE(kind, res_model, res_id, recipient_partner_id, due_date)',

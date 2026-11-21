@@ -56,7 +56,7 @@
 <div>
     <p>Hello,</p>
     <p>The delivery of <t t-out="object.product_id.display_name"/> on <t t-out="object.order_id.name"/> was
-       agreed for <t t-out="format_datetime(object.agreed_date, tz='UTC', dt_format='yyyy-MM-dd')"/> and
+       agreed for <t t-out="ctx.get('spm_due_date') or format_datetime(object.agreed_date, tz='UTC', dt_format='yyyy-MM-dd')"/> and
        <t t-out="object.remaining_qty"/> are still to come.</p>
     <p><a t-att-href="object.get_base_url() + '/my/procurement'">Open your supplier portal</a></p>
 </div>
@@ -71,8 +71,10 @@
         <field name="body_html" type="html">
 <div>
     <p>Hello,</p>
-    <p>The contract <t t-out="object.name"/> with <t t-out="object.partner_id.name"/> has its notice date on
-       <t t-out="object.notice_date"/> and ends on <t t-out="object.date_end"/>. Renew, renegotiate or end it.</p>
+    <p>The contract <t t-out="object.name"/> with <t t-out="object.partner_id.name"/>
+       <t t-if="ctx.get('spm_kind') == 'contract_notice'">has its notice date on</t>
+       <t t-else="">ends on</t>
+       <t t-out="ctx.get('spm_due_date')"/>. Renew, renegotiate or end it.</p>
 </div>
         </field>
     </record>
