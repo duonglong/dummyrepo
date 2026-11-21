@@ -25,6 +25,7 @@
         'data/procurement_delivery_data.xml',
         'data/ir_cron_approval.xml',
         'data/ir_cron_scorecard.xml',
+        'data/ir_cron_retention.xml',
         'views/procurement_audit_views.xml',
         'views/res_config_settings_views.xml',
         'views/procurement_config_views.xml',
