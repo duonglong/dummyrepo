@@ -4,10 +4,13 @@ Requirements: FR-SPM-0075, FR-SPM-0076, FR-SPM-0077, FR-SPM-0078
 """
 from unittest.mock import patch
 
+from lxml import etree
+
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, tagged
 
+from ..models.procurement_exception_route import EXCEPTION_KINDS
 from ..services import reconciliation as reconciliation_service
 
 from .matching_common import SpmMatchingCommon
@@ -42,6 +45,41 @@ class TestExceptionLifecycle(SpmMatchingCommon):
         self.assertIn('Agreed', self._decision_history(self.exc))
         with self.assertRaises(UserError):
             self.bill.with_user(self.user_acc).action_post()
+
+    def test_bug_b_0279_the_matching_says_why_the_bill_cannot_be_posted(self):
+        """Regression test for B-0279: the matching record names the exceptions that hold the posting, and
+        says nothing once they are released.
+
+        Requirements: FR-SPM-0077
+        """
+        recon = self._recon(self.bill).with_user(self.user_fin)
+        self.assertIn(dict(EXCEPTION_KINDS)['price'], recon.posting_block_reason)
+        self.exc.with_user(self.user_fin).action_spm_accept('Agreed')
+        recon.invalidate_recordset()
+        self.assertFalse(recon.posting_block_reason)
+
+    def test_bug_b_0279_the_reason_is_the_one_the_posting_refusal_gives(self):
+        """Regression test for B-0279: the posting is refused with the same lines the matching shows.
+
+        Requirements: FR-SPM-0077
+        """
+        recon = self._recon(self.bill).with_user(self.user_fin)
+        with self.assertRaises(UserError) as refusal:
+            self.bill.with_user(self.user_acc).action_post()
+        self.assertIn(recon.posting_block_reason, str(refusal.exception))
+
+    def test_bug_b_0279_the_matching_form_shows_the_reason_and_computed_lines_cannot_be_added(self):
+        """Regression test for B-0279: the form carries the reason, and the computed lines offer no add or delete.
+
+        Requirements: FR-SPM-0071, FR-SPM-0077
+        It cannot reach the rendered form: it reads the form the server sends to the finance reviewer.
+        """
+        view = self.env['procurement.reconciliation'].with_user(self.user_fin).get_view(
+            self.env.ref('supplier_procurement_management_hub.procurement_reconciliation_view_form').id, 'form')
+        arch = etree.fromstring(view['arch'])
+        self.assertTrue(arch.xpath("//field[@name='posting_block_reason']"))
+        lines = arch.xpath("//field[@name='line_ids']/list")[0]
+        self.assertEqual((lines.get('create'), lines.get('delete')), ('0', '0'))
 
     def test_a_user_cannot_write_the_decision_directly(self):
         """Requirements: FR-SPM-0077. Users hold read access only."""

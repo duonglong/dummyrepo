@@ -40,6 +40,8 @@ class ProcurementReconciliation(models.Model):
     duplicate_cleared_by_id = fields.Many2one('res.users', string="Cleared by", readonly=True)
     duplicate_comment = fields.Text(string="Clearing comment", readonly=True)
     refreshed_date = fields.Datetime(readonly=True)
+    posting_block_reason = fields.Text(
+        string="Posting held by", compute='_compute_posting_block_reason')
 
     _move_unique = models.Constraint('UNIQUE(move_id)', 'A vendor bill has one reconciliation.')
 
@@ -51,6 +53,17 @@ class ProcurementReconciliation(models.Model):
         """
         for reconciliation in self:
             reconciliation.display_name = reconciliation.move_id.display_name or reconciliation._description
+
+    @api.depends('exception_ids.state', 'exception_ids.kind', 'exception_ids.requires_approval')
+    def _compute_posting_block_reason(self):
+        """Requirements: FR-SPM-0077
+
+        The lines of the refusal a posting gets: the exceptions that hold the bill until they are released.
+        """
+        holds = self.env['procurement.reconciliation.exception']._spm_posting_holds(self.move_id)
+        for reconciliation in self:
+            held = holds.filtered(lambda exception: exception.reconciliation_id == reconciliation)
+            reconciliation.posting_block_reason = "\n".join(held._spm_hold_lines()) or False
 
     @api.model_create_multi
     def create(self, vals_list):

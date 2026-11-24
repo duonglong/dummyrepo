@@ -1,10 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
-from odoo.fields import Domain
 
 from ..services import portal_access, reconciliation
-from .procurement_exception_route import EXCEPTION_KINDS
-from .procurement_reconciliation_exception import EXCEPTION_STATES, RELEASING_STATES
 
 # Changes of a bill that can alter its matching.
 MATCHED_MOVE_FIELDS = {
@@ -58,19 +55,10 @@ class AccountMove(models.Model):
         Requirements: FR-SPM-0077, BR-SPM-0016
         Only the posting is held; Odoo's own posting then runs unchanged.
         """
-        # sudo: the posting user may lack access to the hub's exceptions; only the held bills are read
-        # the approval setting is read from the routes now, not from a copy taken at matching time
-        routes = self.env['procurement.exception.route'].sudo().search([('requires_approval', '=', True)])
-        approval_scopes = Domain.OR([[('company_id', '=', route.company_id.id), ('kind', '=', route.kind)]
-                                     for route in routes]) if routes else Domain.FALSE
-        held = self.env['procurement.reconciliation.exception'].sudo().search(
-            Domain([('move_id', 'in', self.ids), ('state', 'not in', RELEASING_STATES)]) & approval_scopes)
+        held = self.env['procurement.reconciliation.exception']._spm_posting_holds(self)
         if held:
-            lines = [self.env._("%(kind)s (%(state)s) on %(bill)s", kind=dict(EXCEPTION_KINDS)[exc.kind],
-                                state=dict(EXCEPTION_STATES)[exc.state], bill=exc.move_id.display_name)
-                     for exc in held]
             raise UserError(self.env._(
-                "These exceptions need approval before the bill can be posted:\n%s", "\n".join(lines)))
+                "These exceptions need approval before the bill can be posted:\n%s", "\n".join(held._spm_hold_lines())))
         return super()._post(soft=soft)
 
     def _search_spm_match_state(self, operator, value):

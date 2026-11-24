@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.fields import Domain
 
 from ..services import audit
 
@@ -49,6 +50,26 @@ class ProcurementReconciliationException(models.Model):
     decision_comment = fields.Text()
 
     # decisions -----------------------------------------------------------
+    @api.model
+    def _spm_posting_holds(self, moves):
+        """Return the undecided exceptions of ``moves`` on a kind its company wants approved before posting.
+
+        Requirements: FR-SPM-0077, BR-SPM-0016
+        The approval setting is read from the routes now, not from a copy taken at matching time.
+        """
+        # sudo: the posting user may lack access to the hub's exceptions; only the held bills are read
+        routes = self.env['procurement.exception.route'].sudo().search([('requires_approval', '=', True)])
+        approval_scopes = Domain.OR([[('company_id', '=', route.company_id.id), ('kind', '=', route.kind)]
+                                     for route in routes]) if routes else Domain.FALSE
+        return self.sudo().search(
+            Domain([('move_id', 'in', moves.ids), ('state', 'not in', RELEASING_STATES)]) & approval_scopes)
+
+    def _spm_hold_lines(self):
+        """One line per exception: its kind, its state and its bill; the reason a posting is refused."""
+        return [self.env._("%(kind)s (%(state)s) on %(bill)s", kind=dict(EXCEPTION_KINDS)[exception.kind],
+                           state=dict(EXCEPTION_STATES)[exception.state], bill=exception.move_id.display_name)
+                for exception in self]
+
     def _spm_check_decider(self):
         """Refuse a caller who is not a decider or cannot read these exceptions.
 
