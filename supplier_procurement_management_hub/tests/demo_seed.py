@@ -27,7 +27,7 @@ SEEDED = {}
 COUNTED = ('res.users', 'product.product', 'res.partner', 'procurement.supplier.document',
            'procurement.request', 'procurement.sourcing.event', 'procurement.sourcing.response.version',
            'procurement.approval.policy', 'procurement.approval.request', 'purchase.order',
-           'procurement.contract', 'account.move', 'procurement.reconciliation',
+           'procurement.contract', 'procurement.supplier.application', 'account.move', 'procurement.reconciliation',
            'procurement.scorecard.template', 'procurement.supplier.scorecard')
 
 uid = xc.ServerProxy(URL + '/xmlrpc/2/common').authenticate(DB, 'admin', PWD, {})
@@ -255,6 +255,7 @@ def quote_event(eid, sup, unit):
     call('procurement.sourcing.event', 'write', [eid], {'rate_date': d(0), 'tax_basis': 'excluded'})
     call('procurement.sourcing.event.line', 'write', event['line_ids'], {'comparison_uom_id': unit})
     call_as('demo_buyer', 'procurement.sourcing.event', 'action_spm_compare', [eid])
+    call_as('demo_buyer', 'procurement.sourcing.event', 'action_spm_evaluate', [eid])
     return eid
 
 
@@ -377,6 +378,28 @@ def run_jobs():
             call('procurement.job', 'action_spm_run_now', job)
 
 
+def seed_portal(users, sup):
+    """Portal logins of two suppliers and one invited onboarding application."""
+    for supplier, name, login in ((sup['Acme Office Supplies'], 'Jane Acme', 'demo_portal_acme'),
+                                  (sup['Beta Furniture Works'], 'Bob Beta', 'demo_portal_beta')):
+        contact = make('res.partner', ['email'], {
+            'name': name, 'parent_id': supplier, 'type': 'contact', 'email': f'{login}@supplier.example'})
+        make('res.users', ['login'], {
+            'partner_id': contact, 'login': login, 'password': 'demo',
+            'group_ids': [(6, 0, [ref('base.group_portal')])]},
+            context={'no_reset_password': True, 'tracking_disable': True})
+    docs = call('procurement.document.type', 'search', [])
+    stype = make('procurement.supplier.type', ['name'], {
+        'name': 'Goods supplier', 'required_document_type_ids': [(6, 0, docs[:2])]})
+    company = call('res.users', 'read', [uid], ['company_id'])[0]['company_id'][0]
+    app = make('procurement.supplier.application', ['email'], {
+        'email': 'hello@newsupplier.example', 'supplier_type_id': stype, 'company_id': company,
+        'legal_name': 'Newcomer Trading Ltd'})
+    if call('procurement.supplier.application', 'read', [app], ['invitation_expiry'])[0]['invitation_expiry'] is False:
+        call_as('demo_buyer', 'procurement.supplier.application', 'action_spm_send_invitation', [app])
+    return app
+
+
 def main_seed():
     users = seed_users()
     cats, prods = seed_catalog()
@@ -389,6 +412,7 @@ def main_seed():
     section(seed_deliveries, users, prods, sup)
     section(seed_bills, users, prods, sup)
     section(seed_scorecards, users, sup)
+    section(seed_portal, users, sup)
     section(run_jobs)
     return users, cats, prods, sup
 
