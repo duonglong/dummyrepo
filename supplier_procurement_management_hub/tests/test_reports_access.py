@@ -471,3 +471,34 @@ class TestSupplierRankingReport(SpmScorecardCase):
         menu = self.env.ref('supplier_procurement_management_hub.menu_spm_report_ranking')
         self.assertEqual(action.res_model, 'procurement.report.ranking')
         self.assertEqual(menu.parent_id, self.env.ref('supplier_procurement_management_hub.menu_spm_reports'))
+
+    def _print_bindings(self, model_name):
+        bindings = self.env['ir.actions.actions'].with_user(self.manager).get_bindings(model_name)
+        return [action for action in bindings.get('action', []) if action['name'] == 'Print as PDF']
+
+    def test_b_0268_the_ranking_and_the_contract_utilization_lists_offer_print_as_pdf(self):
+        """Regression test for B-0268: FR-SPM-0104 every report list of the Reports menu carries the
+        Print as PDF binding, the ranking and the contract utilization included.
+
+        Cannot reach: the pressing of the Print action in the rendered list.
+        """
+        for model_name in ('procurement.report.ranking', 'procurement.contract', 'procurement.report.spend',
+                           'procurement.report.price', 'procurement.report.sourcing', 'procurement.report.approval',
+                           'procurement.report.exception', 'procurement.report.delivery'):
+            with self.subTest(model=model_name):
+                self.assertEqual([action['name'] for action in self._print_bindings(model_name)], ['Print as PDF'])
+
+    def test_b_0268_the_printed_ranking_holds_the_filtered_rows(self):
+        """Regression test for B-0268: FR-SPM-0104 the ranking printed from a filtered list holds the filtered rows."""
+        template = self._template([('on_time', 1.0)])
+        self._card(template, self.acme, 70.0)
+        self._card(template, self.beta, 90.0)
+        self.env.flush_all()
+        context = {'active_model': 'procurement.report.ranking',
+                   'active_domain': [('partner_id', '=', self.beta.id)], 'active_ids': []}
+        wizard = self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(**context).create(
+            self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(
+                **context).default_get(['report_model', 'domain']))
+        wizard.group_by = 'partner_id'
+        _labels, rows = wizard.spm_figures()
+        self.assertEqual([row['label'] for row in rows], [self.beta.name, 'Total'])

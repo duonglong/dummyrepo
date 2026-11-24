@@ -306,6 +306,22 @@
         <field name="binding_model_id" ref="model_procurement_report_delivery"/>
         <field name="binding_view_types">list</field>
     </record>
+    <record id="procurement_report_pdf_wizard_bind_ranking" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_report_ranking"/>
+        <field name="binding_view_types">list</field>
+    </record>
+    <record id="procurement_report_pdf_wizard_bind_contract" model="ir.actions.act_window">
+        <field name="name">Print as PDF</field>
+        <field name="res_model">procurement.report.pdf.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_procurement_contract"/>
+        <field name="binding_view_types">list</field>
+    </record>
 
     <menuitem id="menu_spm_report_contract" name="Contract utilization" parent="menu_spm_reports" sequence="50"
               action="procurement_contract_utilization_action"/>
