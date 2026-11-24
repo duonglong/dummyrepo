@@ -52,7 +52,8 @@ class ProcurementDeliveryCommitment(models.Model):
         The order line the supplier promised a date for.
         """
         for commitment in self:
-            commitment.display_name = f"{commitment.order_id.name} - {commitment.order_line_id.display_name}"
+            commitment.display_name = " - ".join(filter(None, [
+                commitment.order_id.name, commitment.order_line_id.display_name])) or commitment._description
 
     def _spm_rounding(self):
         """Return the rounding of the quantities, the product unit precision of the database."""

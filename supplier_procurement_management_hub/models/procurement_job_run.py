@@ -39,8 +39,8 @@ class ProcurementJobRun(models.Model):
         The job and its start.
         """
         for run in self:
-            run.display_name = self.env._(
-                "%(job)s - %(start)s", job=run.job_id.name, start=fields.Datetime.to_string(run.date_start))
+            run.display_name = " - ".join(filter(None, [
+                run.job_id.name, run.date_start and fields.Datetime.to_string(run.date_start)])) or run._description
 
     @api.depends('errors')
     def _compute_error_count(self):

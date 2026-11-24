@@ -37,9 +37,9 @@ class ProcurementSupplierEvaluation(models.Model):
         The supplier and the day the evaluation is about.
         """
         for evaluation in self:
-            evaluation.display_name = self.env._(
-                "Evaluation - %(supplier)s - %(date)s",
-                supplier=evaluation.partner_id.display_name, date=fields.Date.to_string(evaluation.date))
+            evaluation.display_name = " - ".join(filter(None, [
+                self.env._("Evaluation"), evaluation.partner_id.display_name,
+                evaluation.date and fields.Date.to_string(evaluation.date)]))
 
     @api.depends('recorded_on')
     def _compute_editable_until(self):

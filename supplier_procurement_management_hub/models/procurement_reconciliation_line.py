@@ -43,4 +43,4 @@ class ProcurementReconciliationLine(models.Model):
         The bill line that is matched.
         """
         for line in self:
-            line.display_name = line.move_line_id.display_name
+            line.display_name = line.move_line_id.display_name or line._description

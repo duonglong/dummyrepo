@@ -30,7 +30,7 @@ class ProcurementComparison(models.Model):
         The sourcing event that is compared.
         """
         for comparison in self:
-            comparison.display_name = comparison.event_id.display_name
+            comparison.display_name = comparison.event_id.display_name or comparison._description
 
     def write(self, vals):
         """Requirements: FR-SPM-0041: the evidence of an awarded event is not changed by a user."""

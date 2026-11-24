@@ -50,7 +50,7 @@ class ProcurementReconciliation(models.Model):
         The vendor bill that is matched.
         """
         for reconciliation in self:
-            reconciliation.display_name = reconciliation.move_id.display_name
+            reconciliation.display_name = reconciliation.move_id.display_name or reconciliation._description
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -47,10 +47,10 @@ class ProcurementSupplierReview(models.Model):
         """
         kinds = dict(self._fields['kind']._description_selection(self.env))
         for review in self:
-            parts = [kinds[review.kind], review.partner_id.display_name]
-            if review.date:
-                parts.append(fields.Date.to_string(review.date))
-            review.display_name = " - ".join(parts)
+            parts = [
+                kinds.get(review.kind), review.partner_id.display_name,
+                review.date and fields.Date.to_string(review.date)]
+            review.display_name = " - ".join(filter(None, parts)) or review._description
 
     @api.constrains('date', 'state', 'rejected_qty')
     def _check_date(self):

@@ -41,7 +41,9 @@ class ProcurementDeliveryProposal(models.Model):
         The commitment the proposal is about.
         """
         for proposal in self:
-            proposal.display_name = self.env._("Date proposal - %s", proposal.commitment_id.display_name)
+            proposal.display_name = (
+                self.env._("Date proposal - %s", proposal.commitment_id.display_name)
+                if proposal.commitment_id else self.env._("Date proposal"))
 
     @api.constrains('line_ids', 'commitment_id')
     def _check_split_total(self):

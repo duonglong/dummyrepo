@@ -46,6 +46,9 @@ class ProcurementScreening(models.Model):
         """
         results = dict(self._fields['result']._description_selection(self.env))
         for screening in self:
+            if not screening.source:
+                screening.display_name = screening._description
+                continue
             outcome = results.get(screening.result, '')
             note = (screening.note or '').strip()
             if note:

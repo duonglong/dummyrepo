@@ -114,3 +114,39 @@ class TestComparisonDisplayNames(SpmComparisonCase):
         comparison = self._compare(event)
         self.assertIn(event.display_name, comparison.display_name)
         self.assertNotIn('procurement.comparison', comparison.display_name)
+
+
+class TestNewRecordDisplayNames(SpmScorecardCase):
+    """Requirements: FR-SPM-0086"""
+
+    def test_bug_b_0269_new_review_form_opens(self):
+        """Regression test for B-0269: the form of a new review asks for its display name without error.
+
+        Requirements: FR-SPM-0086
+        It cannot reach the rendered form: it runs the onchange the form sends when it opens.
+        """
+        review = self.env['procurement.supplier.review']
+        spec = {'display_name': {}, 'partner_id': {}, 'kind': {}, 'date': {}}
+        review.onchange({}, [], spec)
+        review.onchange({'kind': False}, ['kind'], spec)
+
+    def test_bug_b_0269_new_review_without_kind_or_supplier_is_named(self):
+        """Regression test for B-0269: a review missing its kind, supplier or date shows only what is set.
+
+        Requirements: FR-SPM-0086
+        """
+        review = self.env['procurement.supplier.review']
+        self.assertEqual(review.new({'partner_id': self.acme.id, 'kind': False}).display_name, "Acme")
+        self.assertEqual(review.new({'kind': 'incident'}).display_name, "Incident")
+
+    def test_bug_b_0269_sibling_new_records_never_show_false(self):
+        """Regression test for B-0269 (same mistake): a new record of a model with a display name shows no 'False'.
+
+        Requirements: FR-SPM-0085, FR-SPM-0096, FR-SPM-0055, BR-SPM-0020
+        """
+        for model in ('procurement.supplier.evaluation', 'procurement.job.run',
+                      'procurement.delivery.commitment', 'procurement.delivery.proposal',
+                      'procurement.screening', 'procurement.comparison', 'procurement.reconciliation',
+                      'procurement.reconciliation.line'):
+            with self.subTest(model=model):
+                self.assertNotIn('False', self.env[model].new({}).display_name)
