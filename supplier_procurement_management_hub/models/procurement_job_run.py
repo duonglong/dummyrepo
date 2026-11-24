@@ -32,6 +32,16 @@ class ProcurementJobRun(models.Model):
     error_count = fields.Integer(compute='_compute_error_count', store=True)
     error_summary = fields.Text(compute='_compute_error_summary')
 
+    @api.depends('job_id', 'date_start')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0096
+
+        The job and its start.
+        """
+        for run in self:
+            run.display_name = self.env._(
+                "%(job)s - %(start)s", job=run.job_id.name, start=fields.Datetime.to_string(run.date_start))
+
     @api.depends('errors')
     def _compute_error_count(self):
         for run in self:

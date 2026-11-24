@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 from .procurement_matching_policy import MATCHING_METHODS
 
@@ -35,3 +35,12 @@ class ProcurementReconciliationLine(models.Model):
     amount_difference = fields.Monetary(currency_field='currency_id')
     price_within_tolerance = fields.Boolean()
     qty_within_tolerance = fields.Boolean()
+
+    @api.depends('move_line_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0071
+
+        The bill line that is matched.
+        """
+        for line in self:
+            line.display_name = line.move_line_id.display_name

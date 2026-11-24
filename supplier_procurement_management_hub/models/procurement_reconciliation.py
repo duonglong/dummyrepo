@@ -43,6 +43,15 @@ class ProcurementReconciliation(models.Model):
 
     _move_unique = models.Constraint('UNIQUE(move_id)', 'A vendor bill has one reconciliation.')
 
+    @api.depends('move_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0071
+
+        The vendor bill that is matched.
+        """
+        for reconciliation in self:
+            reconciliation.display_name = reconciliation.move_id.display_name
+
     @api.model_create_multi
     def create(self, vals_list):
         """Keep the duplicate decision and the match results to the hub's own code.

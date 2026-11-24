@@ -45,6 +45,15 @@ class ProcurementDeliveryCommitment(models.Model):
 
     _order_line_unique = models.Constraint('UNIQUE(order_line_id)', 'An order line has one delivery commitment.')
 
+    @api.depends('order_id', 'order_line_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0055
+
+        The order line the supplier promised a date for.
+        """
+        for commitment in self:
+            commitment.display_name = f"{commitment.order_id.name} - {commitment.order_line_id.display_name}"
+
     def _spm_rounding(self):
         """Return the rounding of the quantities, the product unit precision of the database."""
         return 10 ** -self.env['decimal.precision'].precision_get('Product Unit')

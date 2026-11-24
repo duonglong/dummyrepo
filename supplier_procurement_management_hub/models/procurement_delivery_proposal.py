@@ -34,6 +34,15 @@ class ProcurementDeliveryProposal(models.Model):
     decided_by_id = fields.Many2one('res.users', string="Decided by", readonly=True, ondelete='set null')
     decided_date = fields.Datetime(readonly=True)
 
+    @api.depends('commitment_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0058
+
+        The commitment the proposal is about.
+        """
+        for proposal in self:
+            proposal.display_name = self.env._("Date proposal - %s", proposal.commitment_id.display_name)
+
     @api.constrains('line_ids', 'commitment_id')
     def _check_split_total(self):
         """Refuse a split whose quantities do not add up to the ordered quantity.

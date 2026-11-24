@@ -39,6 +39,19 @@ class ProcurementSupplierReview(models.Model):
     _rejected_qty_positive = models.Constraint(
         'CHECK(rejected_qty >= 0)', 'The rejected quantity cannot be negative.')
 
+    @api.depends('kind', 'partner_id', 'date')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0086
+
+        The kind, the supplier and the date, so an incident or a review is told apart in a picker.
+        """
+        kinds = dict(self._fields['kind']._description_selection(self.env))
+        for review in self:
+            parts = [kinds[review.kind], review.partner_id.display_name]
+            if review.date:
+                parts.append(fields.Date.to_string(review.date))
+            review.display_name = " - ".join(parts)
+
     @api.constrains('date', 'state', 'rejected_qty')
     def _check_date(self):
         """A review that is planned or held has a date; so has one with a rejected quantity.

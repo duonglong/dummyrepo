@@ -30,6 +30,17 @@ class ProcurementSupplierEvaluation(models.Model):
     editable_until = fields.Date(compute='_compute_editable_until', store=True)
     company_id = fields.Many2one('res.company', required=True, default=lambda self: self.env.company, index=True)
 
+    @api.depends('partner_id', 'date')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0085
+
+        The supplier and the day the evaluation is about.
+        """
+        for evaluation in self:
+            evaluation.display_name = self.env._(
+                "Evaluation - %(supplier)s - %(date)s",
+                supplier=evaluation.partner_id.display_name, date=fields.Date.to_string(evaluation.date))
+
     @api.depends('recorded_on')
     def _compute_editable_until(self):
         """Requirements: FR-SPM-0085"""

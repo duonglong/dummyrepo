@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 from ..services import sourcing
 
@@ -22,6 +22,15 @@ class ProcurementComparison(models.Model):
     company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
 
     _event_unique = models.Constraint('UNIQUE(event_id)', 'An event has one comparison.')
+
+    @api.depends('event_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0035
+
+        The sourcing event that is compared.
+        """
+        for comparison in self:
+            comparison.display_name = comparison.event_id.display_name
 
     def write(self, vals):
         """Requirements: FR-SPM-0041: the evidence of an awarded event is not changed by a user."""
