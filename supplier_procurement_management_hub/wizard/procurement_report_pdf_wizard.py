@@ -6,6 +6,15 @@ from odoo.fields import Domain
 
 # Models besides the report views that the dialog prints.
 PRINTABLE_MODELS = ('procurement.contract',)
+# Lists printed row by row, with the columns of the screen they are opened from: their figures are
+# computed or not additive (a rank, an amount in the currency of its contract), so no group is summed.
+ROW_PRINTOUTS = {
+    'procurement.contract': (
+        'name', 'partner_id', 'state', 'date_end', 'notice_date', 'days_to_notice',
+        'ceiling_value', 'consumed_value', 'used_share'),
+    'procurement.report.ranking': (
+        'period_start', 'period_end', 'template_id', 'rank', 'partner_id', 'score', 'range'),
+}
 REPORT_PREFIX = 'procurement.report.'
 PRINT_TIME_FORMAT = '%Y-%m-%d %H:%M'
 
@@ -190,6 +199,35 @@ class ProcurementReportPdfWizard(models.TransientModel):
             titles.append(f"{label} ({granularity})" if granularity else label)
         return ' / '.join(titles) or self.env._("Group")
 
+    def _spm_cell(self, record, field):
+        """One value of a list as the screen shows it: money in the currency of its record, no sum."""
+        value = record[field.name]
+        if field.type == 'monetary':
+            return record[field.currency_field].format(value)
+        if field.type in ('many2one', 'selection'):
+            return self._spm_key_label(record, field.name, value) if value else '-'
+        if value is False or value is None:
+            return '-'
+        if field.type == 'float':
+            digits = field.get_digits(self.env) or (16, 2)
+            return f"{value:,.{digits[1]}f}"
+        return str(value)
+
+    def _spm_list_figures(self, model, domain):
+        """The column labels and one row per record of a list, in the order of the list.
+
+        Requirements: FR-SPM-0104
+        The rows are read with the rights of the user who prints; amounts keep their own currency and
+        are never added up, so no total row is printed.
+        """
+        fields_ = [model._fields[name] for name in ROW_PRINTOUTS[model._name]]
+        labels = [field._description_string(self.env) for field in fields_]
+        rows = []
+        for record in model.search(domain):
+            cells = [self._spm_cell(record, field) for field in fields_]
+            rows.append({'label': cells[0], 'cells': cells[1:]})
+        return labels, rows
+
     def spm_figures(self):
         """Return the column labels and the rows (the groups, then the totals) of the printout.
 
@@ -200,6 +238,8 @@ class ProcurementReportPdfWizard(models.TransientModel):
         self.ensure_one()
         model = self._spm_model()
         domain = self._spm_domain()
+        if model._name in ROW_PRINTOUTS:
+            return self._spm_list_figures(model, domain)
         measures = self._spm_measures(model)
         groups = self._spm_groups(model)
         aggregates = [f"{name}:{field.aggregator}" for name, field in measures] + ['__count']

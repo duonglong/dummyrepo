@@ -13,6 +13,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, tagged
 
 from .comparison_common import SpmComparisonCase
+from .contract_common import SpmContractCase
 from .delivery_common import SpmDeliveryCase
 from .scorecard_common import SpmScorecardCase
 
@@ -488,17 +489,71 @@ class TestSupplierRankingReport(SpmScorecardCase):
             with self.subTest(model=model_name):
                 self.assertEqual([action['name'] for action in self._print_bindings(model_name)], ['Print as PDF'])
 
+    def _printed_ranking(self, domain):
+        context = {'active_model': 'procurement.report.ranking', 'active_domain': domain, 'active_ids': []}
+        wizard = self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(**context)
+        return wizard.create(wizard.default_get(['report_model', 'domain'])).spm_figures()
+
     def test_b_0268_the_printed_ranking_holds_the_filtered_rows(self):
         """Regression test for B-0268: FR-SPM-0104 the ranking printed from a filtered list holds the filtered rows."""
         template = self._template([('on_time', 1.0)])
         self._card(template, self.acme, 70.0)
         self._card(template, self.beta, 90.0)
         self.env.flush_all()
-        context = {'active_model': 'procurement.report.ranking',
-                   'active_domain': [('partner_id', '=', self.beta.id)], 'active_ids': []}
-        wizard = self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(**context).create(
-            self.env['procurement.report.pdf.wizard'].with_user(self.manager).with_context(
-                **context).default_get(['report_model', 'domain']))
-        wizard.group_by = 'partner_id'
-        _labels, rows = wizard.spm_figures()
-        self.assertEqual([row['label'] for row in rows], [self.beta.name, 'Total'])
+        _labels, rows = self._printed_ranking([('partner_id', '=', self.beta.id)])
+        self.assertEqual(len(rows), 1)
+        self.assertIn(self.beta.name, rows[0]['cells'])
+
+    def test_b_0271_the_printed_ranking_holds_the_rank_of_each_supplier(self):
+        """Regression test for B-0271: FR-SPM-0104, FR-SPM-0102 the printout holds the rows of the ranking list,
+        rank and score included, in the order of the list, and no total.
+
+        Cannot reach: the rendered PDF, only the figures the report template prints.
+        """
+        template = self._template([('on_time', 1.0)])
+        self._card(template, self.acme, 70.0)
+        self._card(template, self.beta, 90.0)
+        self.env.flush_all()
+        labels, rows = self._printed_ranking([])
+        self.assertEqual(labels[:2] + labels[3:5], ['Period start', 'Period end', 'Rank', 'Supplier'])
+        self.assertEqual([(row['cells'][2], row['cells'][3], row['cells'][4]) for row in rows],
+                         [('1', self.beta.name, '90.00'), ('2', self.acme.name, '70.00')])
+
+
+@tagged('post_install', '-at_install')
+class TestPrintedContractUtilization(SpmContractCase):
+    """Requirements: FR-SPM-0104, FR-SPM-0070"""
+
+    def _printed(self, domain=None):
+        context = {'active_model': 'procurement.contract', 'active_domain': domain or [], 'active_ids': []}
+        wizard = self.env['procurement.report.pdf.wizard'].with_user(self.ann).with_context(**context)
+        return wizard.create(wizard.default_get(['report_model', 'domain'])).spm_figures()
+
+    def test_b_0271_the_printed_contracts_hold_their_utilization_and_no_cross_currency_total(self):
+        """Regression test for B-0271: FR-SPM-0104 the printout holds one row per contract of the list, with its
+        end and notice dates, ceiling in its own currency, consumed value and used share; a ceiling in dollars and
+        one in euros are never added into a total.
+
+        Cannot reach: the rendered PDF, only the figures the report template prints.
+        """
+        usd = self._contract(notice=30, ceiling_value=1000.0)
+        eur = self._contract(partner=self.beta, notice=60, ceiling_value=500.0, currency_id=self.eur.id)
+        self.env.flush_all()
+        labels, rows = self._printed([('id', 'in', (usd | eur).ids)])
+        self.assertEqual(labels[0], 'Name')
+        for label in ('Consumed value', 'Used (%)', 'Days to notice', 'Value ceiling'):
+            self.assertIn(label, labels)
+        self.assertCountEqual([row['label'] for row in rows], [usd.name, eur.name])
+        cells = {row['label']: row['cells'] for row in rows}
+        self.assertIn(self.currency.format(1000.0), cells[usd.name])
+        self.assertIn(self.eur.format(500.0), cells[eur.name])
+        self.assertIn(self.eur.format(0.0), cells[eur.name])
+        self.assertIn('0.0', cells[eur.name])
+
+    def test_b_0271_the_printed_contracts_follow_the_filter(self):
+        """Regression test for B-0271: FR-SPM-0104 a filtered contract list prints only its rows."""
+        first = self._contract(ceiling_value=1000.0)
+        self._contract(partner=self.beta, ceiling_value=500.0)
+        self.env.flush_all()
+        _labels, rows = self._printed([('id', '=', first.id)])
+        self.assertEqual([row['label'] for row in rows], [first.name])
