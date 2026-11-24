@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import performance
+from ..services import naming, performance
 
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 
@@ -31,6 +31,18 @@ class ProcurementSupplierScorecard(models.Model):
     _scorecard_key = models.Constraint(
         'UNIQUE(partner_id, template_id, company_id, period_start)',
         'A supplier has one scorecard per template and period.')
+
+    @api.depends('partner_id', 'period_start', 'period_end')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0083
+
+        The supplier and the period, so a scorecard is told apart in a title and a picker.
+        """
+        for card in self:
+            period = card.period_start and card.period_end and self.env._(
+                "%(start)s to %(end)s", start=fields.Date.to_string(card.period_start),
+                end=fields.Date.to_string(card.period_end))
+            card.display_name = naming.join_name([card.partner_id.display_name, period], card._description)
 
     @api.model
     def _spm_snapshot(self, template, partner, day):

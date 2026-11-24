@@ -1,12 +1,16 @@
+from textwrap import shorten
+
 from markupsafe import Markup
 
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import portal_access, sourcing
+from ..services import naming, portal_access, sourcing
 
 # The longest question a supplier asks from the portal.
 QUESTION_MAX = 2000
+# The part of a question that names it in a picker or a title.
+QUESTION_NAME_WIDTH = 50
 # The fields a buyer edits by hand; the others are set by the ask and the answer.
 BUYER_FIELDS = {'draft_answer', 'shared'}
 
@@ -36,6 +40,16 @@ class ProcurementSourcingQuestion(models.Model):
     asked_date = fields.Datetime(default=fields.Datetime.now, readonly=True)
     answered_date = fields.Datetime(readonly=True, copy=False)
     company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
+
+    @api.depends('partner_id', 'question')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0023
+
+        The supplier and the start of its question.
+        """
+        for question in self:
+            text = shorten(question.question or '', QUESTION_NAME_WIDTH, placeholder="...")
+            question.display_name = naming.join_name([question.partner_id.display_name, text], question._description)
 
     @api.model_create_multi
     def create(self, vals_list):

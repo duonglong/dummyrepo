@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services import audit, retention, supplier_control
+from ..services import audit, naming, retention, supplier_control
 
 # Fields of the review: only a Buyer or Procurement manager writes them.
 SPM_REVIEW_FIELDS = ('verification_state', 'reviewer_id', 'review_date', 'review_comment')
@@ -49,6 +49,18 @@ class ProcurementSupplierDocument(models.Model):
         ('rejected', 'Rejected'),
         ('expired', 'Expired'),
     ], string="Validity", compute='_compute_validity_state', search='_search_validity_state')
+
+    @api.depends('document_type_id', 'partner_id', 'application_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0008
+
+        The document type and the supplier, or the application the document came with.
+        """
+        for document in self:
+            # sudo: the name of the type and of the application is shown with the document the user may read
+            owner = document.partner_id.display_name or document.application_id.sudo().display_name
+            document.display_name = naming.join_name(
+                [document.document_type_id.sudo().name, owner], document._description)
 
     @api.constrains('issue_date', 'expiry_date')
     def _check_dates(self):

@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
 
-from ..services import portal_access, sourcing
+from ..services import naming, portal_access, sourcing
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
 # Roles that read the internal score and rank of a response (BR-SPM-0003): never the supplier.
@@ -43,6 +43,17 @@ class ProcurementSourcingResponse(models.Model):
 
     _event_partner_unique = models.Constraint(
         'UNIQUE(event_id, partner_id)', 'A supplier answers an event once.')
+
+    @api.depends('partner_id', 'event_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0035
+
+        The supplier and the sourcing event it answers.
+        """
+        for response in self:
+            # sudo: a supplier reads the title of the event it is invited to
+            response.display_name = naming.join_name(
+                [response.partner_id.display_name, response.event_id.sudo().display_name], response._description)
 
     @api.depends('event_id.deadline', 'reopened_deadline')
     def _compute_effective_deadline(self):

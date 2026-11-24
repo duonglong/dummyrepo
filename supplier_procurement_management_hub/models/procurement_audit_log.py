@@ -1,5 +1,7 @@
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
+
+from ..services import naming
 
 
 class ProcurementAuditLog(models.Model):
@@ -38,6 +40,18 @@ class ProcurementAuditLog(models.Model):
 
     _date_event_idx = models.Index('(date, event)')
     _record_idx = models.Index('(res_model, res_id)')
+
+    @api.depends('event', 'record_name', 'date')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0109
+
+        The kind of event, the record it is about and when.
+        """
+        kinds = dict(self._fields['event']._description_selection(self.env))
+        for entry in self:
+            entry.display_name = naming.join_name(
+                [kinds.get(entry.event), entry.record_name, entry.date and fields.Datetime.to_string(entry.date)],
+                entry._description)
 
     def write(self, vals):
         """Requirements: BR-SPM-0018, FR-SPM-0109 (refused for everyone)."""

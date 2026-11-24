@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..services import naming
+
 
 class ProcurementSourcingResponseVersion(models.Model):
     """One submitted quotation version of a supplier; never changed after its submission.
@@ -35,6 +37,16 @@ class ProcurementSourcingResponseVersion(models.Model):
 
     _version_unique = models.Constraint(
         'UNIQUE(response_id, version)', 'A version number is used once per response.')
+
+    @api.depends('response_id', 'version')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0035
+
+        The response it belongs to and its version number.
+        """
+        for version in self:
+            number = version.version and f"v{version.version}"
+            version.display_name = naming.join_name([version.response_id.display_name, number], version._description)
 
     @api.depends('line_ids.price_subtotal', 'line_ids.tax_ids', 'currency_id')
     def _compute_amounts(self):

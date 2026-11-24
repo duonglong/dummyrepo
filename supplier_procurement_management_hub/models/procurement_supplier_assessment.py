@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..services import audit, supplier_control
+from ..services import audit, naming, supplier_control
 
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 BUYER_GROUP = 'supplier_procurement_management_hub.group_spm_buyer'
@@ -40,6 +40,17 @@ class ProcurementSupplierAssessment(models.Model):
     open_items = fields.Text(string="Open items", copy=False)
     approved_by_id = fields.Many2one('res.users', string="Approved by", copy=False, ondelete='set null')
     approved_date = fields.Datetime(copy=False)
+
+    @api.depends('partner_id', 'questionnaire_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0009
+
+        The supplier and the questionnaire it answers.
+        """
+        for assessment in self:
+            assessment.display_name = naming.join_name(
+                [assessment.partner_id.display_name, assessment.questionnaire_id.display_name],
+                assessment._description)
 
     @api.constrains('partner_id', 'application_id')
     def _check_application_partner(self):

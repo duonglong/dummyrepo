@@ -1,7 +1,7 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from ..services import audit, risk, supplier_control
+from ..services import audit, naming, risk, supplier_control
 
 MANAGER_GROUP = 'supplier_procurement_management_hub.group_spm_manager'
 # Fields that only the Complete action writes.
@@ -51,6 +51,17 @@ class ProcurementRiskAssessment(models.Model):
     is_current = fields.Boolean(string="Current", copy=False, index=True, readonly=True)
 
     # --- write guards ---------------------------------------------------
+
+    @api.depends('partner_id', 'date')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0088
+
+        The supplier and the date of the assessment.
+        """
+        for assessment in self:
+            assessment.display_name = naming.join_name(
+                [assessment.partner_id.display_name, assessment.date and fields.Date.to_string(assessment.date)],
+                assessment._description)
 
     def _spm_refuse_result_values(self, vals):
         """Refuse a change of the result fields by a user: the Complete action writes them.

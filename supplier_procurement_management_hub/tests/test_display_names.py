@@ -150,3 +150,67 @@ class TestNewRecordDisplayNames(SpmScorecardCase):
                       'procurement.reconciliation.line'):
             with self.subTest(model=model):
                 self.assertNotIn('False', self.env[model].new({}).display_name)
+
+
+class TestScorecardDisplayNames(SpmScorecardCase):
+    """Requirements: FR-SPM-0083"""
+
+    def test_bug_b_0275_scorecard_is_named_by_supplier_and_period(self):
+        """Regression test for B-0275: a scorecard shows its supplier and period, not its technical name.
+
+        Requirements: FR-SPM-0083
+        It cannot reach the rendered title or breadcrumb: it reads the display name they show.
+        """
+        template = self._template([('on_time', 100.0)])
+        scorecard = self.env['procurement.supplier.scorecard'].create({
+            'partner_id': self.acme.id, 'template_id': template.id, 'company_id': self.company.id,
+            'period_start': '2026-11-01', 'period_end': '2026-11-30'})
+        self.assertEqual(scorecard.display_name, "Acme - 2026-11-01 to 2026-11-30")
+
+    def test_bug_b_0275_sibling_records_with_a_form_never_show_the_technical_name(self):
+        """Regression test for B-0275 (same mistake): a record that opens in a form is named, even when new.
+
+        Requirements: FR-SPM-0083, FR-SPM-0008, FR-SPM-0035, FR-SPM-0088, FR-SPM-0009
+        """
+        for model in ('procurement.supplier.scorecard', 'procurement.supplier.document',
+                      'procurement.sourcing.response', 'procurement.sourcing.response.version',
+                      'procurement.risk.assessment', 'procurement.sourcing.question',
+                      'procurement.supplier.assessment', 'procurement.audit.log'):
+            with self.subTest(model=model):
+                name = self.env[model].new({}).display_name
+                self.assertNotIn(model, name)
+                self.assertNotIn('False', name)
+
+    def test_bug_b_0275_sibling_risk_assessment_is_named_by_supplier_and_date(self):
+        """Regression test for B-0275 (same mistake): a risk assessment shows its supplier and date.
+
+        Requirements: FR-SPM-0088
+        """
+        assessment = self.env['procurement.risk.assessment'].create({
+            'partner_id': self.acme.id, 'date': '2026-11-17'})
+        self.assertEqual(assessment.display_name, "Acme - 2026-11-17")
+
+    def test_bug_b_0275_sibling_supplier_document_is_named_by_type_and_supplier(self):
+        """Regression test for B-0275 (same mistake): a supplier document shows its type and supplier.
+
+        Requirements: FR-SPM-0008
+        """
+        document_type = self.env['procurement.document.type'].create({'name': 'Licence B0275'})
+        document = self.env['procurement.supplier.document'].create({
+            'partner_id': self.acme.id, 'document_type_id': document_type.id})
+        self.assertEqual(document.display_name, "Licence B0275 - Acme")
+
+
+class TestResponseDisplayNames(SpmComparisonCase):
+    """Requirements: FR-SPM-0035"""
+
+    def test_bug_b_0275_sibling_response_and_version_name_the_supplier_and_event(self):
+        """Regression test for B-0275 (same mistake): a quotation response and its version are named.
+
+        Requirements: FR-SPM-0035
+        """
+        event = self._sourcing(self.acme | self.beta)
+        response = event.response_ids.filtered(lambda r: r.partner_id == self.acme)
+        self.assertEqual(response.display_name, f"Acme - {event.display_name}")
+        version = self._quote(response, [(event.line_ids, 10.0, 5)])
+        self.assertEqual(version.display_name, f"Acme - {event.display_name} - v1")
