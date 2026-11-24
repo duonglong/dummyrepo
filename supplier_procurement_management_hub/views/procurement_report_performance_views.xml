@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104 -->
+    <!-- Requirements: FR-SPM-0102, FR-SPM-0103, FR-SPM-0104, NFR-SPM-0006 -->
     <record id="procurement_report_exception_pivot" model="ir.ui.view">
         <field name="name">procurement.report.exception.pivot</field>
         <field name="model">procurement.report.exception</field>
@@ -113,6 +113,57 @@
         <field name="view_mode">pivot,list</field>
         <field name="search_view_id" ref="procurement_report_delivery_search"/>
         <field name="help">Confirm a purchase order to see its delivery performance.</field>
+    </record>
+
+    <record id="procurement_report_ranking_list" model="ir.ui.view">
+        <field name="name">procurement.report.ranking.list</field>
+        <field name="model">procurement.report.ranking</field>
+        <field name="arch" type="xml">
+            <list string="Supplier ranking" create="0" edit="0" delete="0">
+                <field name="period_start"/>
+                <field name="period_end"/>
+                <field name="template_id"/>
+                <field name="rank"/>
+                <field name="partner_id"/>
+                <field name="score"/>
+                <field name="range" widget="badge"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_ranking_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.ranking.pivot</field>
+        <field name="model">procurement.report.ranking</field>
+        <field name="arch" type="xml">
+            <pivot string="Supplier ranking" sample="1">
+                <field name="partner_id" type="row"/>
+                <field name="period_start" interval="quarter" type="col"/>
+                <field name="score" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_ranking_search" model="ir.ui.view">
+        <field name="name">procurement.report.ranking.search</field>
+        <field name="model">procurement.report.ranking</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="template_id"/>
+                <filter name="top_three" string="Top three" domain="[('rank', '&lt;=', 3)]"/>
+                <group>
+                    <filter name="group_period" string="Period" context="{'group_by': 'period_start:month'}"/>
+                    <filter name="group_template" string="Template" context="{'group_by': 'template_id'}"/>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_ranking_action" model="ir.actions.act_window">
+        <field name="name">Supplier ranking</field>
+        <field name="res_model">procurement.report.ranking</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="search_view_id" ref="procurement_report_ranking_search"/>
+        <field name="help">Scorecards appear after the nightly job has run.</field>
     </record>
 
     <record id="procurement_contract_utilization_list" model="ir.ui.view">
@@ -262,6 +313,8 @@
               action="procurement_report_delivery_action"/>
     <menuitem id="menu_spm_report_exception" name="Exception rates" parent="menu_spm_reports" sequence="70"
               action="procurement_report_exception_action"/>
+    <menuitem id="menu_spm_report_ranking" name="Supplier ranking" parent="menu_spm_reports" sequence="65"
+              action="procurement_report_ranking_action"/>
     <menuitem id="menu_spm_report_savings" name="Savings" parent="menu_spm_reports" sequence="80"
               action="procurement_report_savings_action"/>
 </odoo>

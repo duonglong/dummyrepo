@@ -14,6 +14,7 @@ from odoo.tests import Form, tagged
 
 from .comparison_common import SpmComparisonCase
 from .delivery_common import SpmDeliveryCase
+from .scorecard_common import SpmScorecardCase
 
 CRITERIA = [('Price', 'price', 'lower', 100.0)]
 EXPORT_PASSWORD = 'spm-export-pass'
@@ -423,3 +424,50 @@ class TestSavingsScreen(SpmComparisonCase):
         fields_ = self.env['procurement.sourcing.event']._fields
         for name in ('budget_amount', 'baseline_amount', 'awarded_amount', 'savings_amount'):
             self.assertFalse(fields_[name].aggregator, name)
+
+
+@tagged('post_install', '-at_install')
+class TestSupplierRankingReport(SpmScorecardCase):
+    """Requirements: FR-SPM-0102, NFR-SPM-0006"""
+
+    def _card(self, template, supplier, score, start='2026-10-01', end='2026-10-31'):
+        return self.env['procurement.supplier.scorecard'].sudo().create({
+            'partner_id': supplier.id, 'template_id': template.id, 'company_id': self.company.id,
+            'period_start': start, 'period_end': end, 'score': score})
+
+    def test_b_0262_three_snapshots_of_one_period_are_ranked_by_score(self):
+        """Regression test for B-0262: FR-SPM-0102 supplier rankings by period come from the scorecard
+        snapshots; three snapshots of one template and period rank 1, 2 and 3 by falling score, and a
+        later period starts again at 1.
+
+        Cannot reach: the menu entry and its screen, only the report model read as a manager.
+        """
+        template = self._template([('on_time', 1.0)])
+        third = self.env['res.partner'].create({'name': 'Gamma ranking', 'is_company': True})
+        self._card(template, self.acme, 70.0)
+        self._card(template, self.beta, 90.0)
+        self._card(template, third, 55.0)
+        self._card(template, self.acme, 40.0, '2026-11-01', '2026-11-30')
+        self.env.flush_all()
+        report = self.env['procurement.report.ranking'].with_user(self.manager)
+        october = report.search([('period_start', '=', '2026-10-01')], order='rank')
+        self.assertEqual(october.mapped('partner_id'), self.beta | self.acme | third)
+        self.assertEqual(october.mapped('rank'), [1, 2, 3])
+        november = report.search([('period_start', '=', '2026-11-01')])
+        self.assertEqual(november.mapped('rank'), [1])
+
+    def test_b_0262_equal_scores_share_a_rank(self):
+        """Regression test for B-0262: two suppliers with the same score hold the same rank."""
+        template = self._template([('on_time', 1.0)])
+        self._card(template, self.acme, 80.0)
+        self._card(template, self.beta, 80.0)
+        self.env.flush_all()
+        ranks = self.env['procurement.report.ranking'].with_user(self.manager).search([]).mapped('rank')
+        self.assertEqual(ranks, [1, 1])
+
+    def test_b_0262_the_ranking_screen_is_on_the_reports_menu(self):
+        """Regression test for B-0262: FR-SPM-0102 Reports > Supplier ranking opens the ranking report."""
+        action = self.env.ref('supplier_procurement_management_hub.procurement_report_ranking_action')
+        menu = self.env.ref('supplier_procurement_management_hub.menu_spm_report_ranking')
+        self.assertEqual(action.res_model, 'procurement.report.ranking')
+        self.assertEqual(menu.parent_id, self.env.ref('supplier_procurement_management_hub.menu_spm_reports'))

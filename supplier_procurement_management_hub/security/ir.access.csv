@@ -448,3 +448,9 @@ access_spm_notification_log_admin,Notification key admin,procurement.notificatio
 spm_notification_log_comp_rule,Notification key: allowed companies and shared records,procurement.notification.log,,crud,"[('company_id', 'in', company_ids + [False])]"
 spm_application_comp_rule,Supplier application: allowed companies,procurement.supplier.application,,crud,"[('company_id', 'in', company_ids)]"
 spm_application_contact_comp_rule,Application contact: allowed companies of its application,procurement.supplier.application.contact,,crud,"[('application_id.company_id', 'in', company_ids)]"
+access_spm_report_ranking_buyer,Supplier ranking report buyer,procurement.report.ranking,group_spm_buyer,r,
+access_spm_report_ranking_manager,Supplier ranking report manager,procurement.report.ranking,group_spm_manager,r,
+access_spm_report_ranking_finance,Supplier ranking report finance,procurement.report.ranking,group_spm_finance,r,
+access_spm_report_ranking_auditor,Supplier ranking report auditor,procurement.report.ranking,group_spm_auditor,r,
+access_spm_report_ranking_admin,Supplier ranking report admin,procurement.report.ranking,group_spm_admin,r,
+spm_report_ranking_comp_rule,procurement.report.ranking: allowed companies,procurement.report.ranking,,r,"[('company_id', 'in', company_ids)]"
