@@ -41,6 +41,9 @@
                             <field name="validity_state"/>
                         </list>
                     </field>
+                </page>
+                <page string="Bank changes" name="spm_bank_changes"
+                      groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager">
                     <field name="spm_change_ids">
                         <list decoration-warning="state == 'pending'" decoration-muted="state == 'refused'">
                             <field name="date"/>
