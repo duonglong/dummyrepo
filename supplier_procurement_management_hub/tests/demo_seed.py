@@ -28,7 +28,8 @@ COUNTED = ('res.users', 'product.product', 'res.partner', 'procurement.supplier.
            'procurement.request', 'procurement.sourcing.event', 'procurement.sourcing.response.version',
            'procurement.approval.policy', 'procurement.approval.request', 'purchase.order',
            'procurement.contract', 'procurement.supplier.application', 'account.move', 'procurement.reconciliation',
-           'procurement.scorecard.template', 'procurement.supplier.scorecard')
+           'procurement.scorecard.template', 'procurement.supplier.scorecard',
+           'procurement.questionnaire', 'procurement.supplier.assessment')
 
 uid = xc.ServerProxy(URL + '/xmlrpc/2/common').authenticate(DB, 'admin', PWD, {})
 _obj = xc.ServerProxy(URL + '/xmlrpc/2/object', allow_none=True)
@@ -400,6 +401,36 @@ def seed_portal(users, sup):
     return app
 
 
+def seed_qualification(users, sup):
+    """One questionnaire with three questions and an approved assessment for two suppliers."""
+    quest = make('procurement.questionnaire', ['name'], {
+        'name': 'Supplier qualification', 'purpose': 'qualification', 'pass_score': 50.0})
+    questions = []
+    for seq, text in enumerate(('Is the quality system certified?', 'Is delivery tracked per shipment?',
+                                'Does the supplier hold liability insurance?'), start=1):
+        qid = make('procurement.questionnaire.question', ['questionnaire_id', 'name'], {
+            'questionnaire_id': quest, 'name': text, 'sequence': seq * 10, 'kind': 'choice', 'max_points': 10.0})
+        good = make('procurement.questionnaire.option', ['question_id', 'name'], {
+            'question_id': qid, 'name': 'Yes', 'points': 10.0})
+        weak = make('procurement.questionnaire.option', ['question_id', 'name'], {
+            'question_id': qid, 'name': 'Partly', 'points': 5.0})
+        questions.append((qid, good, weak))
+    for name, pick in (('Acme Office Supplies', 1), ('Gamma IT Distribution', 2)):
+        found = call('procurement.supplier.assessment', 'search',
+                     [('partner_id', '=', sup[name]), ('questionnaire_id', '=', quest)], limit=1)
+        SEEDED.setdefault('procurement.supplier.assessment', 0)
+        SEEDED['procurement.supplier.assessment'] += 1
+        if found:
+            continue
+        answers = [(0, 0, {'question_id': q, 'option_id': (opts[0] if i < pick + 1 else opts[1])})
+                   for i, (q, *opts) in enumerate(questions)]
+        assessment = call('procurement.supplier.assessment', 'create', {
+            'partner_id': sup[name], 'questionnaire_id': quest, 'answer_ids': answers},
+            context={'tracking_disable': True})
+        call_as('demo_buyer', 'procurement.supplier.assessment', 'action_spm_submit', [assessment])
+        call_as('demo_manager', 'procurement.supplier.assessment', 'action_spm_approve', [assessment])
+
+
 def main_seed():
     users = seed_users()
     cats, prods = seed_catalog()
@@ -413,6 +444,7 @@ def main_seed():
     section(seed_bills, users, prods, sup)
     section(seed_scorecards, users, sup)
     section(seed_portal, users, sup)
+    section(seed_qualification, users, sup)
     section(run_jobs)
     return users, cats, prods, sup
 
