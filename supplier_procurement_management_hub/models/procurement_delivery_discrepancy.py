@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..services import naming
+
 
 class ProcurementDeliveryDiscrepancy(models.Model):
     """A recorded delivery problem with its follow-up action, person and deadline.
@@ -29,6 +31,16 @@ class ProcurementDeliveryDiscrepancy(models.Model):
     state = fields.Selection([('open', 'Open'), ('done', 'Done')], default='open', required=True, readonly=True)
 
     _quantity_not_negative = models.Constraint('CHECK(quantity >= 0)', 'The quantity cannot be negative.')
+
+    @api.depends('reason_id', 'commitment_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0060
+
+        The reason of the problem and the order line it concerns.
+        """
+        for discrepancy in self:
+            discrepancy.display_name = naming.join_name(
+                [discrepancy.reason_id.name, discrepancy.commitment_id.display_name], discrepancy._description)
 
     @api.model_create_multi
     def create(self, vals_list):

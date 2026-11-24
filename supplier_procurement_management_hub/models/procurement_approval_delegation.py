@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services import approval
+from ..services import approval, naming
 
 
 class ProcurementApprovalDelegation(models.Model):
@@ -25,6 +25,16 @@ class ProcurementApprovalDelegation(models.Model):
     active = fields.Boolean(default=True)
 
     _spm_audited_fields = ('delegator_id', 'delegate_id', 'date_from', 'date_to', 'active')
+
+    @api.depends('delegator_id', 'delegate_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0050
+
+        Who gave the approval rights and to whom.
+        """
+        for delegation in self:
+            delegation.display_name = naming.join_name(
+                [delegation.delegator_id.name, delegation.delegate_id.name], delegation._description)
 
     def write(self, vals):
         """Refuse to re-point a delegation to another delegator; only a hub admin does.

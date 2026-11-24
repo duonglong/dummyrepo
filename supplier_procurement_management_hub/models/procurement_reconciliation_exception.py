@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 
-from ..services import audit
+from ..services import audit, naming
 
 from .procurement_exception_route import EXCEPTION_KINDS
 
@@ -48,6 +48,17 @@ class ProcurementReconciliationException(models.Model):
     requires_approval = fields.Boolean(string="Needs approval before posting")
     decided_by_id = fields.Many2one('res.users', string="Decided by")
     decision_comment = fields.Text()
+
+    @api.depends('move_id', 'kind')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0076
+
+        The vendor bill and the kind of the discrepancy.
+        """
+        kinds = dict(EXCEPTION_KINDS)
+        for exception in self:
+            exception.display_name = naming.join_name(
+                [exception.move_id.display_name, kinds.get(exception.kind)], exception._description)
 
     # decisions -----------------------------------------------------------
     @api.model

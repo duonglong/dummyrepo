@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import portal_access
+from ..services import naming, portal_access
 
 EVENT_KINDS = [
     ('shipped', 'Shipped'), ('in_transit', 'In transit'), ('delayed', 'Delayed'), ('delivered', 'Delivered'),
@@ -27,6 +27,17 @@ class ProcurementDeliveryEvent(models.Model):
     note = fields.Text()
     origin = fields.Selection([('backoffice', 'Back office'), ('portal', 'Supplier portal')], readonly=True)
     user_id = fields.Many2one('res.users', string="Recorded by", readonly=True, ondelete='set null')
+
+    @api.depends('kind', 'order_id')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0057
+
+        The kind of the shipment event and the order it belongs to.
+        """
+        kinds = dict(EVENT_KINDS)
+        for event in self:
+            event.display_name = naming.join_name(
+                [kinds.get(event.kind), event.order_id.name], event._description)
 
     @api.model_create_multi
     def create(self, vals_list):

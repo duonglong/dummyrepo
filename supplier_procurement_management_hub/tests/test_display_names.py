@@ -214,3 +214,44 @@ class TestResponseDisplayNames(SpmComparisonCase):
         self.assertEqual(response.display_name, f"Acme - {event.display_name}")
         version = self._quote(response, [(event.line_ids, 10.0, 5)])
         self.assertEqual(version.display_name, f"Acme - {event.display_name} - v1")
+
+
+class TestExceptionDisplayNames(SpmMatchingCommon):
+    """Requirements: FR-SPM-0076"""
+
+    def setUp(self):
+        super().setUp()
+        self._clear_config()
+
+    def test_bug_b_0281_an_exception_is_named_by_its_bill_and_kind(self):
+        """Regression test for B-0281: a matching exception shows its bill and kind, not its technical name.
+
+        Requirements: FR-SPM-0076
+        It cannot reach the rendered title or breadcrumb: it reads the display name they show.
+        """
+        bill = self._bill(self._order(receive=100), 100, 12.5)
+        exception = self._recon(bill).exception_ids
+        self.assertEqual(exception.kind, 'price')
+        self.assertEqual(exception.display_name, f"{bill.display_name} - Price")
+
+    def test_bug_b_0281_sibling_records_with_a_form_are_named_even_when_new(self):
+        """Regression test for B-0281 (same mistake): the other records that open in a form without a name
+        field of their own show no technical name and no 'False', even when new.
+
+        Requirements: FR-SPM-0076, FR-SPM-0050, FR-SPM-0057, FR-SPM-0060
+        """
+        for model in ('procurement.reconciliation.exception', 'procurement.approval.delegation',
+                      'procurement.delivery.discrepancy', 'procurement.delivery.event'):
+            with self.subTest(model=model):
+                name = self.env[model].new({}).display_name
+                self.assertNotIn(model, name)
+                self.assertNotIn('False', name)
+
+    def test_bug_b_0281_sibling_delegation_is_named_by_delegator_and_delegate(self):
+        """Regression test for B-0281 (same mistake): a delegation shows who gave it and to whom.
+
+        Requirements: FR-SPM-0050
+        """
+        delegation = self.env['procurement.approval.delegation'].new({
+            'delegator_id': self.user_ann.id, 'delegate_id': self.user_fin.id})
+        self.assertEqual(delegation.display_name, f"{self.user_ann.name} - {self.user_fin.name}")
