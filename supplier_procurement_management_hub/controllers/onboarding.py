@@ -72,6 +72,8 @@ class SupplierOnboarding(http.Controller):
         rules = application.spm_field_rules()
         return request.render('supplier_procurement_management_hub.onboarding_form', {
             'application': application,
+            'state_label': dict(application._fields['state']._description_selection(request.env))[
+                application.state],
             'rules': rules,
             'token': token,
             'countries': request.env['res.country'].sudo().search([]),  # sudo: reference list for a visitor

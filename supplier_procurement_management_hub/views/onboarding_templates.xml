@@ -20,7 +20,11 @@
     <template id="onboarding_form" name="Supplier onboarding: application form">
         <t t-call="portal.frontend_layout">
             <div id="wrap" class="container py-4">
-                <h1 class="h3">Supplier application</h1>
+                <h1 class="h3">Supplier application
+                    <span class="badge text-bg-secondary ms-2 align-middle"><t t-out="state_label"/></span>
+                </h1>
+                <div t-if="application.state == 'changes_requested' and application.change_request_comment"
+                     class="alert alert-warning" role="alert"><t t-out="application.change_request_comment"/></div>
                 <div t-foreach="errors" t-as="error" class="alert alert-danger" role="alert"><t t-out="error"/></div>
                 <form method="post" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
@@ -69,7 +73,7 @@
                         <h2 class="h5">Documents</h2>
                         <div t-foreach="required_documents" t-as="doc_type" class="mb-2">
                             <label t-attf-for="spm_document_#{doc_type.id}" class="form-label">
-                                <t t-out="doc_type.name"/>
+                                <t t-out="doc_type.name"/><span class="text-danger"> *</span>
                                 <span t-if="doc_type in uploaded" class="badge text-bg-success ms-2">Uploaded</span>
                             </label>
                             <input type="file" class="form-control" t-attf-name="document_#{doc_type.id}"

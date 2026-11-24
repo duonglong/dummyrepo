@@ -201,6 +201,35 @@ class TestOnboardingPortal(HttpCase):
         self.assertNotIn('name="website"', page)
         self.assertIn('name="phone"', page)
 
+    def test_bug_b_0278_the_page_shows_the_state_and_the_reviewer_request(self):
+        """Regression test for B-0278: the supplier sees the state of the application and, when changes were
+        requested, the reviewer's note on top of the page.
+
+        Requirements: FR-SPM-0004
+        It cannot reach the browser's rendering: it reads the page the server sends.
+        """
+        page = self.url_open(f'/my/procurement/onboarding/{self.token}').text
+        self.assertRegex(page, r'badge[^>]*>\s*Invited\s*<')
+        self.assertNotIn('Please attach the licence', page)
+        self.application.sudo().write({
+            'state': 'changes_requested', 'change_request_comment': 'Please attach the licence'})
+        self.env.flush_all()
+        page = self.url_open(f'/my/procurement/onboarding/{self.token}').text
+        self.assertRegex(page, r'badge[^>]*>\s*Changes requested\s*<')
+        self.assertRegex(page, r'alert[^>]*>\s*Please attach the licence')
+
+    def test_bug_b_0278_required_documents_carry_the_required_mark(self):
+        """Regression test for B-0278: a document the type requires is marked required like the fields are.
+
+        Requirements: FR-SPM-0003
+        It cannot reach the browser's rendering: it reads the page the server sends.
+        """
+        doc_type = self.env['procurement.document.type'].create({'name': 'Business licence B0278'})
+        self.goods.required_document_type_ids = doc_type
+        self.env.flush_all()
+        page = self.url_open(f'/my/procurement/onboarding/{self.token}').text
+        self.assertRegex(page, r'Business licence B0278\s*(<span[^>]*badge[^>]*>[^<]*</span>\s*)?<span class="text-danger">')
+
     def test_unknown_token_is_refused_and_logged(self):
         """FR-SPM-0001: a made-up link is refused and the attempt is logged."""
         response = self.url_open('/my/procurement/onboarding/not-a-token')
