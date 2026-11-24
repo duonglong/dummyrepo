@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="procurement_supplier_change_pending_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.change.pending.list</field>
+        <field name="model">procurement.supplier.change</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" edit="0" decoration-warning="state == 'pending'">
+                <field name="date"/>
+                <field name="partner_id"/>
+                <field name="user_id"/>
+                <field name="origin"/>
+                <field name="restricted_new_value"/>
+                <field name="state" widget="badge"/>
+                <button name="action_spm_verify" type="object" string="Verify" invisible="state != 'pending'"/>
+                <button name="action_spm_refuse" type="object" string="Refuse" invisible="state != 'pending'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="procurement_supplier_change_pending_action" model="ir.actions.act_window">
+        <field name="name">Pending bank changes</field>
+        <field name="res_model">procurement.supplier.change</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('field_name', '=', 'bank_ids'), ('state', '=', 'pending')]</field>
+        <field name="view_id" ref="procurement_supplier_change_pending_list"/>
+        <field name="help">No bank change waits for verification.</field>
+    </record>
+
+    <menuitem id="menu_spm_pending_bank_changes" name="Pending bank changes" parent="menu_spm_root" sequence="12"
+              action="procurement_supplier_change_pending_action"
+              groups="group_spm_finance,group_spm_manager,group_spm_admin"/>
+</odoo>

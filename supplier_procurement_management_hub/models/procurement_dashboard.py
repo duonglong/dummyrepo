@@ -8,6 +8,7 @@ from .procurement_reconciliation_exception import UNDECIDED_STATES
 # xml id of the window action each tile starts from, per tile key
 TILE_ACTIONS = {
     'closing_events': 'supplier_procurement_management_hub.procurement_sourcing_event_action',
+    'pending_bank_changes': 'supplier_procurement_management_hub.procurement_supplier_change_pending_action',
     'expiring_documents': 'supplier_procurement_management_hub.procurement_supplier_document_action',
     'overdue_deliveries': 'supplier_procurement_management_hub.procurement_delivery_commitment_action',
     'invoice_exceptions': 'supplier_procurement_management_hub.procurement_reconciliation_exception_action',
@@ -38,6 +39,7 @@ class ProcurementDashboard(models.AbstractModel):
             self._approvals_tile(),
             self._queue_tile('closing_events', self.env._("Sourcing events closing soon"),
                              'procurement.sourcing.event', self._closing_events_domain()),
+            self._bank_changes_tile(),
             self._queue_tile('expiring_documents', self.env._("Supplier documents expiring or expired"),
                              'procurement.supplier.document', [('is_current', '=', True), ('validity_state', 'in', ['expiring', 'expired'])]),
             self._queue_tile('overdue_deliveries', self.env._("Overdue deliveries"),
@@ -61,6 +63,19 @@ class ProcurementDashboard(models.AbstractModel):
         action['name'] = self.env._("Approvals waiting for me")
         return {'key': 'approvals', 'name': action['name'],
                 'count': step.search_count(action['domain']), 'action': action}
+
+    @api.model
+    def _bank_changes_tile(self):
+        """The pending bank changes, for the roles that verify them.
+
+        Requirements: FR-SPM-0015
+        """
+        if not any(self.env.user.has_group(f'supplier_procurement_management_hub.group_spm_{role}')
+                   for role in ('finance', 'manager')):
+            return None
+        return self._queue_tile(
+            'pending_bank_changes', self.env._("Pending bank changes"), 'procurement.supplier.change',
+            [('field_name', '=', 'bank_ids'), ('state', '=', 'pending')])
 
     @api.model
     def _closing_events_domain(self):
