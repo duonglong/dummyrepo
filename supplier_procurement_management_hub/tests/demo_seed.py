@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generated demo data for the procurement hub: users, suppliers, requests, sourcing,
 contracts, approvals, deliveries, bills and scorecards.
 
@@ -12,18 +11,18 @@ import glob
 import json
 import sys
 import xmlrpc.client as xc
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 COUNT_FILE = HERE.parent.parent / '.runs' / 'demo-seed-counts.json'
-RUNS = sorted(glob.glob(str(HERE.parent.parent / '.runs' / 'demo-*.url')))[0]
+RUNS = min(glob.glob(str(HERE.parent.parent / '.runs' / 'demo-*.url')))
 URL = Path(RUNS).read_text().strip()
 DB = Path(RUNS).name[len('demo-'):-len('.url')]
 PWD = 'admin'
 MODULE = 'supplier_procurement_management_hub'
-TODAY = date.today()
-NOW = datetime.now().replace(microsecond=0)
+NOW = datetime.now(tz=timezone.utc).replace(microsecond=0, tzinfo=None)
+TODAY = NOW.date()
 SEEDED = {}
 COUNTED = ('res.users', 'product.product', 'res.partner', 'procurement.supplier.document',
            'procurement.request', 'procurement.sourcing.event', 'procurement.sourcing.response.version',
