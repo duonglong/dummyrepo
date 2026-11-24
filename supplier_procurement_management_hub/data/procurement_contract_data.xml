@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0062, FR-SPM-0064 -->
+    <data noupdate="1">
+        <record id="seq_procurement_contract" model="ir.sequence">
+            <field name="name">Purchase contract</field>
+            <field name="code">procurement.contract</field>
+            <field name="prefix">CTR</field>
+            <field name="padding">5</field>
+        </record>
+    </data>
+    <!-- the scheduled action is updated with the module: it now runs through the job runner (ADR-SPM-007) -->
+    <record id="ir_cron_spm_contract_states" model="ir.cron">
+        <field name="name">Procurement hub: contract start and expiry</field>
+        <field name="model_id" ref="model_procurement_job"/>
+        <field name="state">code</field>
+        <field name="code">model._spm_run('contract_states')</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <data noupdate="1">
+        <record id="job_spm_contract_states" model="procurement.job">
+            <field name="name">Contract start and expiry</field>
+            <field name="code">contract_states</field>
+            <field name="sequence">20</field>
+            <field name="cron_id" ref="ir_cron_spm_contract_states"/>
+        </record>
+    </data>
+</odoo>

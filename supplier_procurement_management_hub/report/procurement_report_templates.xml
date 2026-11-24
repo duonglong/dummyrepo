@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0104 -->
+    <record id="action_report_spm_report" model="ir.actions.report">
+        <field name="name">Procurement report</field>
+        <field name="model">procurement.report.pdf.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">supplier_procurement_management_hub.report_spm_report</field>
+        <field name="print_report_name">'Procurement report'</field>
+    </record>
+    <template id="report_spm_report">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.basic_layout">
+                    <t t-set="figures" t-value="doc.spm_figures()"/>
+                    <div class="page">
+                        <h2 t-out="doc.env[doc.report_model]._description"/>
+                        <p><strong>Filters:</strong> <span t-out="doc.spm_filter_text()"/></p>
+                        <p><strong>Printed by:</strong> <span t-out="doc.env.user.name"/>
+                            <strong> on </strong> <span t-out="doc.spm_print_time()"/></p>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th t-foreach="figures[0]" t-as="label" t-att-class="'text-end' if not label_first else ''"><t t-out="label"/></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="figures[1]" t-as="row">
+                                    <td><t t-out="row['label']"/></td>
+                                    <td t-foreach="row['cells']" t-as="cell" class="text-end"><t t-out="cell"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

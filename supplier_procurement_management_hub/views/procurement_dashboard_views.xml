@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="procurement_dashboard_action" model="ir.actions.client">
+        <field name="name">Dashboard</field>
+        <field name="tag">spm_dashboard</field>
+    </record>
+    <menuitem id="menu_spm_dashboard" name="Procurement dashboard" sequence="42"
+              action="procurement_dashboard_action" groups="group_spm_requester"/>
+</odoo>

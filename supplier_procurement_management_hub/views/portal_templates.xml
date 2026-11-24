@@ -37,6 +37,16 @@
                         <td><span t-field="document.expiry_date"/></td>
                     </tr>
                 </table>
+                <h2 class="h5 mt-4">Quote requests</h2>
+                <table class="table table-sm" t-if="quote_rows">
+                    <thead><tr><th>Request</th><th>Title</th><th>Deadline</th><th>Status</th></tr></thead>
+                    <tr t-foreach="quote_rows" t-as="row">
+                        <td><a t-attf-href="/my/procurement/rfq/#{row['event_id']}" t-out="row['name']"/></td>
+                        <td t-out="row['title']"/>
+                        <td t-out="row['deadline']" t-options="{'widget': 'datetime'}"/>
+                        <td t-out="row['state']"/>
+                    </tr>
+                </table>
                 <h2 class="h5 mt-4">Purchase orders</h2>
                 <table class="table table-sm" t-if="order_rows">
                     <thead><tr><th>Order</th><th>Receipt</th><th>Bills</th></tr></thead>

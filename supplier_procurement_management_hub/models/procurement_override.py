@@ -35,7 +35,8 @@ class ProcurementOverride(models.Model):
 
         Requirements: FR-SPM-0013, BR-SPM-0001
         The client names only the record, action, kind and reason; the company
-        and the supplier come from the record the user can read.
+        and the supplier come from the record the user can read (an order's own
+        supplier; for a sourcing event the one named, checked against the event).
         """
         record = supplier_control.controlled_record(self.env, vals.get('res_model'), vals.get('res_id'))
         reason = (vals.get('reason') or '').strip()
@@ -44,7 +45,7 @@ class ProcurementOverride(models.Model):
         return dict(
             vals, reason=reason, user_id=self.env.user.id, date=fields.Datetime.now(),
             company_id=record.company_id.id,
-            partner_id=record.partner_id.commercial_partner_id.id)
+            partner_id=supplier_control.override_partner(self.env, record, vals.get('partner_id')).id)
 
     @api.model_create_multi
     def create(self, vals_list):

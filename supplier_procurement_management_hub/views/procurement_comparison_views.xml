@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0035, FR-SPM-0036, FR-SPM-0037 -->
+    <record id="procurement_comparison_view_form" model="ir.ui.view">
+        <field name="name">procurement.comparison.form</field>
+        <field name="model">procurement.comparison</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="event_id"/>
+                            <field name="computed_at"/>
+                        </group>
+                        <group>
+                            <field name="is_normalized"/>
+                            <field name="assumptions"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list editable="bottom" create="0" delete="0" default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
+                              decoration-success="is_best" decoration-warning="missing">
+                            <field name="row_kind" readonly="True"/>
+                            <field name="event_line_id" readonly="True"/>
+                            <field name="criterion_id" readonly="True"/>
+                            <field name="term_key" readonly="True"/>
+                            <field name="partner_id" readonly="True"/>
+                            <field name="raw_display" readonly="True"/>
+                            <field name="normalized_value" column_invisible="not parent.is_normalized" readonly="True"/>
+                            <field name="score" readonly="True"/>
+                            <field name="criterion_kind" column_invisible="True"/>
+                            <field name="event_state" column_invisible="True"/>
+                            <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                            <field name="manual_comment" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                            <field name="yes_no_value" readonly="criterion_kind != 'yes_no' or event_state != 'open'"/>
+                            <field name="is_best" readonly="True"/>
+                            <field name="missing" readonly="True"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="procurement_revision_wizard_view_form" model="ir.ui.view">
+        <field name="name">procurement.revision.wizard.form</field>
+        <field name="model">procurement.revision.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="response_id"/>
+                    <field name="new_deadline"/>
+                    <field name="note_to_supplier"/>
+                    <field name="internal_note"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Request" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

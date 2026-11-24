@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The Override button of a sourcing event opens the reason dialog for the event -->
+    <record id="procurement_override_event_action" model="ir.actions.act_window">
+        <field name="name">Override supplier control</field>
+        <field name="res_model">procurement.reason.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'default_res_model': 'procurement.sourcing.event', 'default_res_ids': [active_id],
+            'default_action': 'override'}</field>
+    </record>
+
+    <!-- Requirements: FR-SPM-0031, FR-SPM-0032, FR-SPM-0033, FR-SPM-0042 -->
+    <record id="procurement_sourcing_event_view_list" model="ir.ui.view">
+        <field name="name">procurement.sourcing.event.list</field>
+        <field name="model">procurement.sourcing.event</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'cancelled'" decoration-success="state == 'awarded'">
+                <field name="name"/>
+                <field name="title"/>
+                <field name="buyer_id"/>
+                <field name="deadline"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_sourcing_event_view_form" model="ir.ui.view">
+        <field name="name">procurement.sourcing.event.form</field>
+        <field name="model">procurement.sourcing.event</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_spm_send" type="object" string="Send" class="btn-primary"
+                            invisible="state != 'draft' or not id"/>
+                    <button name="action_spm_compare" type="object" string="Compare"
+                            invisible="state == 'draft' or not id"/>
+                    <button name="action_spm_evaluate" type="object" string="Evaluate"
+                            invisible="state != 'open' or not id"/>
+                    <button name="action_spm_open_award_wizard" type="object" string="Award" class="btn-primary"
+                            invisible="state != 'open' or not id"/>
+                    <button name="action_spm_generate_orders" type="object" string="Generate orders"
+                            invisible="state != 'awarded'"/>
+                    <button name="action_spm_open_cancel_wizard" type="object" string="Cancel"
+                            invisible="state not in ('draft', 'open') or not id"/>
+                    <button name="%(procurement_override_event_action)d" type="action" string="Override"
+                            invisible="state not in ('draft', 'open') or not id"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,open,awarded"/>
+                </header>
+                <sheet>
+                    <h1><field name="name"/></h1>
+                    <group>
+                        <group>
+                            <field name="title"/>
+                            <field name="buyer_id"/>
+                            <field name="deadline"/>
+                            <field name="template_id" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="picking_type_id" options="{'no_create': True}"/>
+                            <field name="currency_id" readonly="state != 'draft'"/>
+                            <field name="rate_date"/>
+                            <field name="tax_basis"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                            <field name="cancel_reason" invisible="not cancel_reason"/>
+                            <field name="award_rationale" invisible="not award_rationale"/>
+                            <field name="awarded_date" invisible="not awarded_date"/>
+                            <field name="baseline_kind" invisible="state != 'awarded'"/>
+                            <field name="baseline_amount" invisible="state != 'awarded'"/>
+                            <field name="awarded_amount" invisible="state != 'awarded'"/>
+                            <field name="savings_amount" invisible="state != 'awarded'"/>
+                            <field name="company_currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Lines" name="lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="name"/>
+                                    <field name="quantity"/>
+                                    <field name="uom_id"/>
+                                    <field name="comparison_uom_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Suppliers" name="suppliers">
+                            <field name="invited_partner_ids" widget="many2many_tags" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="response_ids" readonly="True">
+                                <list>
+                                    <field name="partner_id"/>
+                                    <field name="state" widget="badge"/>
+                                    <field name="score"/>
+                                    <field name="rank"/>
+                                    <field name="missing_line_count" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Criteria" name="criteria">
+                            <field name="criterion_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="kind"/>
+                                    <field name="direction"/>
+                                    <field name="weight"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Purchase orders" name="orders" invisible="not purchase_order_ids" groups="purchase.group_purchase_user">
+                            <field name="purchase_order_ids" readonly="True"/>
+                        </page>
+                        <page string="Negotiation" name="negotiation">
+                            <field name="negotiation_ids" readonly="True">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="partner_id"/>
+                                    <field name="note_to_supplier"/>
+                                    <field name="internal_note"/>
+                                    <field name="new_deadline"/>
+                                    <field name="user_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Requests and terms" name="terms">
+                            <field name="request_ids" widget="many2many_tags" readonly="True"/>
+                            <field name="terms"/>
+                            <field name="supplier_file_ids" widget="many2many_binary"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_sourcing_event_view_search" model="ir.ui.view">
+        <field name="name">procurement.sourcing.event.search</field>
+        <field name="model">procurement.sourcing.event</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="title"/>
+                <field name="buyer_id"/>
+                <filter string="Open" name="open" domain="[('state', '=', 'open')]"/>
+                <group>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Buyer" name="group_buyer" context="{'group_by': 'buyer_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_sourcing_event_action" model="ir.actions.act_window">
+        <field name="name">Sourcing events</field>
+        <field name="res_model">procurement.sourcing.event</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Create a sourcing event, or select submitted purchase requests and create one from them.</field>
+    </record>
+
+    <record id="procurement_sourcing_template_view_form" model="ir.ui.view">
+        <field name="name">procurement.sourcing.template.form</field>
+        <field name="model">procurement.sourcing.template</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="inform_unsuccessful"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                    </group>
+                    <field name="criterion_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="direction"/>
+                            <field name="weight"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_sourcing_template_view_list" model="ir.ui.view">
+        <field name="name">procurement.sourcing.template.list</field>
+        <field name="model">procurement.sourcing.template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_sourcing_template_action" model="ir.actions.act_window">
+        <field name="name">Sourcing templates</field>
+        <field name="res_model">procurement.sourcing.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Create a template of criteria and weights.</field>
+    </record>
+
+    <!-- The Create sourcing event button on the selected requests -->
+    <record id="procurement_request_create_event_action" model="ir.actions.server">
+        <field name="name">Create sourcing event</field>
+        <field name="model_id" ref="model_procurement_request"/>
+        <field name="binding_model_id" ref="model_procurement_request"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="group_ids" eval="[(4, ref('group_spm_buyer'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_spm_create_sourcing_event()</field>
+    </record>
+
+    <record id="procurement_reason_wizard_view_form_sourcing" model="ir.ui.view">
+        <field name="name">procurement.reason.wizard.form.sourcing</field>
+        <field name="model">procurement.reason.wizard</field>
+        <field name="inherit_id" ref="procurement_reason_wizard_view_form_review"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='reason']" position="attributes">
+                <attribute name="required">action in ('override', 'request_changes', 'reject', 'cancel') or status_kind in ('suspended', 'blocked')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='reason']" position="before">
+                <field name="override_partner_ids" invisible="True"/>
+                <field name="override_action" invisible="action != 'override' or res_model != 'procurement.sourcing.event'"
+                       required="action == 'override' and res_model == 'procurement.sourcing.event'"/>
+                <field name="override_partner_id" invisible="action != 'override' or res_model != 'procurement.sourcing.event'"
+                       required="action == 'override' and res_model == 'procurement.sourcing.event'"
+                       domain="[('id', 'in', override_partner_ids)]" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_spm_sourcing_event" name="Sourcing events" parent="menu_spm_root" sequence="46"
+              action="procurement_sourcing_event_action" groups="group_spm_buyer"/>
+    <menuitem id="menu_spm_sourcing_template" name="Sourcing templates" parent="menu_spm_configuration"
+              sequence="60" action="procurement_sourcing_template_action"
+              groups="group_spm_manager,group_spm_admin"/>
+</odoo>

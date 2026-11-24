@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services import supplier_control
+from ..services import audit, retention, supplier_control
 
 # Fields of the review: only a Buyer or Procurement manager writes them.
 SPM_REVIEW_FIELDS = ('verification_state', 'reviewer_id', 'review_date', 'review_comment')
@@ -140,3 +140,47 @@ class ProcurementSupplierDocument(models.Model):
         if 'attachment_id' in vals:
             self._spm_bind_attachments()
         return result
+
+
+class ProcurementJobRetention(models.Model):  # sdd-allow: model-split the job runner is extended per code by the task that owns the job (procurement_job.py, not a file of this task)
+    """The daily retention job: idle supplier portal users and old supplier files.
+
+    Requirements: FR-SPM-0110
+    """
+    _inherit = 'procurement.job'
+
+    code = fields.Selection(selection_add=[('retention', 'Retention of portal accounts and files')],
+                            ondelete={'retention': 'cascade'})
+
+    def _spm_collect_retention(self):
+        """Return the records due: idle portal users, then supplier documents with an old file.
+
+        Requirements: FR-SPM-0110
+        A list, not a recordset: the two models mix. The runner gives each record its own savepoint.
+        """
+        companies = self.env['res.company'].sudo().search([], order='id')
+        records = []
+        for company in companies:
+            records += list(retention.idle_portal_users(self.env, company))
+        for company in list(companies) + [self.env['res.company']]:
+            records += list(retention.purgeable_documents(self.env, company))
+        return records
+
+    def _spm_process_retention(self, record):
+        """Deactivate one idle portal user or delete the file of one supplier document.
+
+        Requirements: FR-SPM-0110
+        A user already inactive and a document without a file are not found again, so a second
+        run changes nothing. Each change is written to the audit trail. Returns 0 notifications.
+        """
+        if record._name == 'res.users':
+            record.write({'active': False})
+            audit.log(self.env, 'configuration', record, old_values={'active': True}, new_values={'active': False},
+                      comment=self.env._("Portal account deactivated: no login for the retention period."))
+            return 0
+        attachment = record.attachment_id.sudo()
+        old_values = {'file': attachment.name, 'attachment_id': attachment.id}
+        attachment.unlink()  # sudo: the job's user may lack the right to delete a supplier's file
+        audit.log(self.env, 'configuration', record, old_values=old_values, new_values={'file': False},
+                  comment=self.env._("File deleted after the retention period."))
+        return 0

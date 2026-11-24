@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0083, FR-SPM-0084 -->
+    <record id="procurement_supplier_scorecard_view_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.scorecard.list</field>
+        <field name="model">procurement.supplier.scorecard</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-success="range == 'good'" decoration-warning="range == 'acceptable'"
+                  decoration-danger="range == 'poor'">
+                <field name="partner_id"/>
+                <field name="template_id" optional="hide"/>
+                <field name="period_start"/>
+                <field name="period_end"/>
+                <field name="score" invisible="not range"/>
+                <field name="range"/>
+                <field name="computed_at"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_supplier_scorecard_view_form" model="ir.ui.view">
+        <field name="name">procurement.supplier.scorecard.form</field>
+        <field name="model">procurement.supplier.scorecard</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_spm_recompute" type="object" string="Recompute"
+                            invisible="period_closed" groups="supplier_procurement_management_hub.group_spm_manager"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="template_id"/>
+                            <field name="period_start"/>
+                            <field name="period_end"/>
+                            <field name="period_closed"/>
+                        </group>
+                        <group>
+                            <field name="score" invisible="not range"/>
+                            <field name="range"/>
+                            <field name="computed_at"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <field name="metric_ids">
+                        <list>
+                            <field name="metric"/>
+                            <field name="has_data" column_invisible="True"/>
+                            <field name="value" invisible="not has_data"/>
+                            <field name="missing_reason" invisible="has_data"/>
+                            <field name="weight"/>
+                            <field name="trend"/>
+                            <field name="formula"/>
+                            <button name="action_spm_open_evidence" type="object" string="Evidence"
+                                    invisible="not has_data or not evidence_model"/>
+                            <field name="evidence_model" column_invisible="True"/>
+                        </list>
+                    </field>
+                    <field name="missing_metrics" invisible="not missing_metrics"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_supplier_scorecard_action" model="ir.actions.act_window">
+        <field name="name">Supplier scorecards</field>
+        <field name="res_model">procurement.supplier.scorecard</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Scorecards appear after the nightly job has run.</field>
+    </record>
+    <menuitem id="menu_spm_supplier_scorecard" name="Scorecards" parent="menu_spm_root" sequence="55"
+              action="procurement_supplier_scorecard_action"
+              groups="group_spm_buyer,group_spm_manager,group_spm_finance,group_spm_auditor,group_spm_admin"/>
+</odoo>

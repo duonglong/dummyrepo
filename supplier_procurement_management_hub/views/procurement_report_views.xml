@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0099, FR-SPM-0100, FR-SPM-0101 -->
+    <record id="procurement_report_spend_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.spend.pivot</field>
+        <field name="model">procurement.report.spend</field>
+        <field name="arch" type="xml">
+            <pivot string="Spend" sample="1">
+                <field name="partner_id" type="row"/>
+                <field name="date" interval="month" type="col"/>
+                <field name="amount_untaxed" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_spend_graph" model="ir.ui.view">
+        <field name="name">procurement.report.spend.graph</field>
+        <field name="model">procurement.report.spend</field>
+        <field name="arch" type="xml">
+            <graph string="Spend" type="bar" sample="1">
+                <field name="partner_id"/>
+                <field name="amount_untaxed" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="procurement_report_spend_list" model="ir.ui.view">
+        <field name="name">procurement.report.spend.list</field>
+        <field name="model">procurement.report.spend</field>
+        <field name="arch" type="xml">
+            <list string="Spend" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="order_id"/>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="categ_id" optional="hide"/>
+                <field name="department_id" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_untaxed" sum="Total"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_spend_search" model="ir.ui.view">
+        <field name="name">procurement.report.spend.search</field>
+        <field name="model">procurement.report.spend</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="categ_id"/>
+                <field name="department_id"/>
+                <filter name="this_year" string="This year" domain="[('date', '&gt;=', (context_today().replace(month=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_categ" string="Product category" context="{'group_by': 'categ_id'}"/>
+                    <filter name="group_department" string="Department" context="{'group_by': 'department_id'}"/>
+                    <filter name="group_company" string="Company" context="{'group_by': 'company_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_spend_action" model="ir.actions.act_window">
+        <field name="name">Spend</field>
+        <field name="res_model">procurement.report.spend</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="procurement_report_spend_search"/>
+        <field name="context">{'search_default_this_year': 1}</field>
+        <field name="help">No confirmed purchase order lines yet.</field>
+    </record>
+
+    <record id="procurement_report_price_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.price.pivot</field>
+        <field name="model">procurement.report.price</field>
+        <field name="arch" type="xml">
+            <pivot string="Prices" sample="1">
+                <field name="product_id" type="row"/>
+                <field name="partner_id" type="row"/>
+                <field name="date" interval="quarter" type="col"/>
+                <field name="amount" type="measure"/>
+                <field name="quantity" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_price_graph" model="ir.ui.view">
+        <field name="name">procurement.report.price.graph</field>
+        <field name="model">procurement.report.price</field>
+        <field name="arch" type="xml">
+            <graph string="Prices" type="line" sample="1">
+                <field name="date" interval="quarter"/>
+                <field name="amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="procurement_report_price_list" model="ir.ui.view">
+        <field name="name">procurement.report.price.list</field>
+        <field name="model">procurement.report.price</field>
+        <field name="arch" type="xml">
+            <list string="Prices" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="product_id"/>
+                <field name="partner_id"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="price_unit"/>
+                <field name="price_variance"/>
+                <field name="amount"/>
+                <field name="quantity"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_price_search" model="ir.ui.view">
+        <field name="name">procurement.report.price.search</field>
+        <field name="model">procurement.report.price</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_id"/>
+                <field name="partner_id"/>
+                <group>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_quarter" string="Quarter" context="{'group_by': 'date:quarter'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_price_action" model="ir.actions.act_window">
+        <field name="name">Prices</field>
+        <field name="res_model">procurement.report.price</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="procurement_report_price_search"/>
+        <field name="help">No priced purchase order lines yet.</field>
+    </record>
+
+    <record id="procurement_report_sourcing_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.sourcing.pivot</field>
+        <field name="model">procurement.report.sourcing</field>
+        <field name="arch" type="xml">
+            <pivot string="Sourcing cycle" sample="1">
+                <field name="date_sent" interval="month" type="row"/>
+                <field name="invited_count" type="measure"/>
+                <field name="responded_count" type="measure"/>
+                <field name="cycle_days" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_sourcing_graph" model="ir.ui.view">
+        <field name="name">procurement.report.sourcing.graph</field>
+        <field name="model">procurement.report.sourcing</field>
+        <field name="arch" type="xml">
+            <graph string="Sourcing cycle" type="bar" sample="1">
+                <field name="awarded_partner_id"/>
+                <field name="cycle_days" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="procurement_report_sourcing_list" model="ir.ui.view">
+        <field name="name">procurement.report.sourcing.list</field>
+        <field name="model">procurement.report.sourcing</field>
+        <field name="arch" type="xml">
+            <list string="Sourcing cycle" create="0" edit="0" delete="0">
+                <field name="event_id"/>
+                <field name="date_sent"/>
+                <field name="date_awarded"/>
+                <field name="invited_count" sum="Invited"/>
+                <field name="responded_count" sum="Answered"/>
+                <field name="cycle_days"/>
+                <field name="awarded_partner_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_sourcing_action" model="ir.actions.act_window">
+        <field name="name">Sourcing cycle</field>
+        <field name="res_model">procurement.report.sourcing</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="help">No sourcing event has been sent yet.</field>
+    </record>
+
+    <record id="procurement_report_approval_pivot" model="ir.ui.view">
+        <field name="name">procurement.report.approval.pivot</field>
+        <field name="model">procurement.report.approval</field>
+        <field name="arch" type="xml">
+            <pivot string="Approval cycle" sample="1">
+                <field name="approver_id" type="row"/>
+                <field name="state" type="col"/>
+                <field name="cycle_hours" type="measure"/>
+                <field name="waiting_hours" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="procurement_report_approval_list" model="ir.ui.view">
+        <field name="name">procurement.report.approval.list</field>
+        <field name="model">procurement.report.approval</field>
+        <field name="arch" type="xml">
+            <list string="Approval cycle" create="0" edit="0" delete="0">
+                <field name="step_id"/>
+                <field name="approver_id"/>
+                <field name="submitted_date"/>
+                <field name="decided_date"/>
+                <field name="cycle_hours" widget="float_time"/>
+                <field name="waiting_hours" widget="float_time"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_report_approval_search" model="ir.ui.view">
+        <field name="name">procurement.report.approval.search</field>
+        <field name="model">procurement.report.approval</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="approver_id"/>
+                <filter name="pending" string="Pending" domain="[('state', '=', 'open')]"/>
+                <group>
+                    <filter name="group_approver" string="Approver" context="{'group_by': 'approver_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'submitted_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_report_approval_action" model="ir.actions.act_window">
+        <field name="name">Approval cycle</field>
+        <field name="res_model">procurement.report.approval</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="search_view_id" ref="procurement_report_approval_search"/>
+        <field name="help">No approval has been submitted yet.</field>
+    </record>
+
+    <menuitem id="menu_spm_reports" name="Reports" parent="menu_spm_root" sequence="60"
+              groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor"/>
+    <menuitem id="menu_spm_report_spend" name="Spend" parent="menu_spm_reports" sequence="10"
+              action="procurement_report_spend_action"/>
+    <menuitem id="menu_spm_report_price" name="Prices" parent="menu_spm_reports" sequence="20"
+              action="procurement_report_price_action"/>
+    <menuitem id="menu_spm_report_sourcing" name="Sourcing cycle" parent="menu_spm_reports" sequence="30"
+              action="procurement_report_sourcing_action"/>
+    <menuitem id="menu_spm_report_approval" name="Approval cycle" parent="menu_spm_reports" sequence="40"
+              action="procurement_report_approval_action"/>
+</odoo>

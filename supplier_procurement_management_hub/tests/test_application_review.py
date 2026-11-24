@@ -87,3 +87,43 @@ class TestApplicationReview(TransactionCase):
         self.assertTrue(partner.spm_status_id)
         self.assertEqual(partner.name, 'Acme Old')
         self.assertEqual(partner.city, 'Ghent')
+
+    def _spm_block_matching_supplier(self, kind):
+        """Return a contact with the tax id of the application, set to a status of ``kind`` through the manager action."""
+        partner = self.env['res.partner'].create({'name': 'Acme Old', 'is_company': True, 'vat': 'BE0123456789'})
+        status = self.env['procurement.supplier.status'].create({'name': f'{kind} T0257', 'kind': kind})
+        partner.with_user(self.manager).action_spm_set_status(status, 'Audit failed')
+        return partner, status
+
+    def test_bug_b_0257_approval_refuses_a_blocked_match(self):
+        """Regression test for B-0257: a new application for the tax id of a Blocked supplier is refused.
+
+        Requirements: FR-SPM-0005, FR-SPM-0011, BR-SPM-0006
+        """
+        partner, status = self._spm_block_matching_supplier('blocked')
+        with self.assertRaises(UserError) as caught:
+            self.application.with_user(self.manager).action_spm_approve()
+        self.assertIn('Acme Old', str(caught.exception))
+        self.assertEqual(partner.spm_status_id, status)
+        self.assertEqual(self.application.state, 'submitted')
+
+    def test_bug_b_0257_approval_refuses_a_suspended_match(self):
+        """Regression test for B-0257: the Suspended kind is refused the same way.
+
+        Requirements: FR-SPM-0005, FR-SPM-0011, BR-SPM-0006
+        """
+        partner, status = self._spm_block_matching_supplier('suspended')
+        with self.assertRaises(UserError):
+            self.application.with_user(self.manager).action_spm_approve()
+        self.assertEqual(partner.spm_status_id, status)
+
+    def test_bug_b_0257_requalification_approval_refuses_a_blocked_supplier(self):
+        """Regression test for B-0257: a re-qualification application of a Blocked supplier is refused.
+
+        Requirements: FR-SPM-0005, FR-SPM-0011, BR-SPM-0006
+        """
+        partner, status = self._spm_block_matching_supplier('blocked')
+        self.application.sudo().write({'partner_id': partner.id, 'is_requalification': True})
+        with self.assertRaises(UserError):
+            self.application.with_user(self.manager).action_spm_approve()
+        self.assertEqual(partner.spm_status_id, status)

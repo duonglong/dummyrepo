@@ -1,7 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import audit, supplier_control
+from ..services import audit, portal_access, supplier_control
+from .procurement_corrective_action import OPEN_STATES as OPEN_ACTION_STATES
 from .procurement_supplier_change import SPM_RESTRICTED_GROUPS
 
 # Watched fields whose values only the restricted groups may read (BR-SPM-0004).
@@ -13,6 +14,10 @@ SPM_WATCHED = (
 )
 SPM_BANK_WATCHED = {'account_number', 'bank_name', 'holder_name', 'partner_id'}
 SPM_REASON_KINDS = ('suspended', 'blocked')
+# The roles that read the reviews and corrective actions of a supplier.
+SPM_PERFORMANCE_GROUPS = (
+    'supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_finance,'
+    'supplier_procurement_management_hub.group_spm_auditor')
 # The status and the stored kind copied from it: both are written only elevated.
 SPM_GUARDED_STATUS_FIELDS = ('spm_status_id', 'spm_status_kind')
 
@@ -20,7 +25,7 @@ SPM_GUARDED_STATUS_FIELDS = ('spm_status_id', 'spm_status_kind')
 class ResPartner(models.Model):
     """The one supplier master: lifecycle status, change history.
 
-    Requirements: FR-SPM-0008, FR-SPM-0011, FR-SPM-0014, BR-SPM-0004, BR-SPM-0005
+    Requirements: FR-SPM-0008, FR-SPM-0011, FR-SPM-0014, FR-SPM-0086, BR-SPM-0004, BR-SPM-0005
     """
     _inherit = 'res.partner'
 
@@ -60,6 +65,11 @@ class ResPartner(models.Model):
     spm_compliance_summary = fields.Text(
         string="Required documents", compute='_compute_spm_compliance')
 
+    spm_review_ids = fields.One2many(
+        'procurement.supplier.review', 'partner_id', string="Reviews", groups=SPM_PERFORMANCE_GROUPS)
+    spm_open_action_count = fields.Integer(
+        string="Open corrective actions", compute='_compute_spm_open_action_count', groups=SPM_PERFORMANCE_GROUPS)
+
     @api.depends('spm_status_id', 'spm_supplier_type_id', 'supplier_rank')
     def _compute_spm_is_supplier(self):
         """Requirements: FR-SPM-0005
@@ -69,6 +79,26 @@ class ResPartner(models.Model):
         for partner in self:
             partner.spm_is_supplier = bool(
                 partner.spm_status_id or partner.spm_supplier_type_id or partner.supplier_rank > 0)
+
+    @api.depends('spm_review_ids.action_ids.state')
+    def _compute_spm_open_action_count(self):
+        """Requirements: FR-SPM-0086"""
+        counts = dict(self.env['procurement.corrective.action']._read_group(
+            [('partner_id', 'in', self.ids), ('state', 'in', OPEN_ACTION_STATES)], ['partner_id'], ['__count']))
+        for partner in self:
+            partner.spm_open_action_count = counts.get(partner, 0)
+
+    def action_spm_open_actions(self):
+        """Open the open corrective actions of the supplier.
+
+        Requirements: FR-SPM-0086
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window', 'name': self.env._("Corrective actions"),
+            'res_model': 'procurement.corrective.action', 'view_mode': 'list,form',
+            'domain': [('partner_id', '=', self.id), ('state', 'in', OPEN_ACTION_STATES)],
+        }
 
     # --- document compliance --------------------------------------------
 
@@ -281,6 +311,15 @@ class ResPartner(models.Model):
                 'default_action': 'set_status',
             },
         }
+
+    def _get_share_message_domain(self):
+        """Messages of the portal page: the supplier sees only those to or from its own company.
+
+        Requirements: FR-SPM-0026
+        """
+        return portal_access.supplier_message_domain(
+            self.env, super()._get_share_message_domain(),
+            self.sudo().commercial_partner_id)  # sudo: ids of the page's own supplier only
 
 
 class ResPartnerBank(models.Model):
