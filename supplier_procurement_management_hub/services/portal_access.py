@@ -261,6 +261,19 @@ def bank_details(post):
     return details if details['account_number'] else {}
 
 
+def bank_length_errors(env, details):
+    """One refusal text per bank value longer than the cap, naming the field and the limit.
+
+    Requirements: FR-SPM-0015
+    """
+    labels = {
+        'account_number': env._("Account number"), 'bank_name': env._("Bank"),
+        'bank_bic': env._("BIC"), 'holder_name': env._("Account holder")}
+    return [
+        env._("%(field)s is too long (at most %(limit)s characters).", field=labels[key], limit=PROFILE_TEXT_MAX)
+        for key, value in details.items() if len(value) > PROFILE_TEXT_MAX]
+
+
 def plain_account(number):
     """An account number as the native unique constraint reads it, to tell whether two are the same."""
     return sanitize_account_number(number) or ''
@@ -318,6 +331,8 @@ def update_profile(env, supplier, post):
             continue
         if value != supplier.sudo()[name] and (value or supplier.sudo()[name]):  # sudo: plain values of the own company
             values[name] = value
+    details = bank_details(post)
+    errors.extend(bank_length_errors(env, details))
     if errors:
         return errors
     if values:
@@ -326,10 +341,6 @@ def update_profile(env, supplier, post):
                 supplier._spm_portal_write(values)
         except (UserError, ValidationError) as error:
             return [str(error)]
-    details = bank_details(post)
-    too_long = [key for key, value in details.items() if len(value) > PROFILE_TEXT_MAX]
-    if too_long:
-        return [env._("The bank details are too long.")]
     if details and not _bank_is_known(supplier, details):
         change = env['procurement.supplier.change']._spm_hold_bank_change(supplier, details)
         log(env, 'submit', 'ok', supplier=supplier, record=change, detail='bank change pending')

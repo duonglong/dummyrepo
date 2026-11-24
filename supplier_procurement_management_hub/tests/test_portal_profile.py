@@ -157,6 +157,24 @@ class TestPortalProfile(SpmPortalCase):
         self._post('/my/procurement/profile', {'bank_account_number': 'BE99 9999', 'bank_name': 'x' * 1001})
         self.assertFalse(self._pending())
 
+    def test_oversized_bank_value_keeps_the_whole_save_back_and_names_the_field(self):
+        """FR-SPM-0015: a refused bank value saves no profile field and the message names the field and limit."""
+        self._login(self.acme_user)
+        phone_before = self.acme.phone
+        response = self._post('/my/procurement/profile', {
+            'phone': '555-0777', 'bank_account_number': 'BE99 9999', 'bank_name': 'x' * 1001})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.acme.phone, phone_before)
+        self.assertIn('Bank is too long (at most 1000 characters).', response.text)
+
+    def test_finance_reviewer_sees_the_verify_button_on_the_supplier_form(self):
+        """FR-SPM-0015: the bank change list with its buttons is on the form of a Finance-only user (view test)."""
+        finance = self._finance_user('fin_view_t11')
+        arch = self.env['res.partner'].with_user(finance).get_view(
+            self.env.ref('base.view_partner_form').id)['arch']
+        self.assertIn('action_spm_verify', arch)
+        self.assertIn('action_spm_refuse', arch)
+
     def test_readonly_field_marked_editable_is_not_writable(self):
         """FR-SPM-0018: a field that became readonly after it was marked editable is not offered or written."""
         self.assertIn('phone', portal_access.editable_fields(self.env))
