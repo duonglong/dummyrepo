@@ -373,7 +373,7 @@ def _cells_of_response(env, event, response, normalized):
         rline = quoted.get(event_line)
         base = {'row_kind': 'line', 'event_line_id': event_line.id, 'response_id': response.id}
         if not rline:
-            cells.append(dict(base, missing=True))
+            cells.append(dict(base, missing=True, raw_display=env._("Missing")))
             continue
         price = _unit_price(rline)
         cells.append(dict(

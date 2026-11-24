@@ -13,7 +13,7 @@
                             <field name="computed_at"/>
                         </group>
                         <group>
-                            <field name="is_normalized"/>
+                            <field name="is_normalized" string="Normalized"/>
                             <field name="assumptions"/>
                         </group>
                     </group>
@@ -25,9 +25,11 @@
                             <field name="criterion_id" readonly="True"/>
                             <field name="term_key" readonly="True"/>
                             <field name="partner_id" readonly="True"/>
+                            <field name="response_rank"/>
+                            <field name="response_score"/>
                             <field name="raw_display" readonly="True"/>
-                            <field name="normalized_value" column_invisible="not parent.is_normalized" readonly="True"/>
-                            <field name="score" readonly="True"/>
+                            <field name="normalized_value" column_invisible="not parent.is_normalized" invisible="missing" readonly="True"/>
+                            <field name="score" invisible="row_kind != 'criterion'" readonly="True"/>
                             <field name="criterion_kind" column_invisible="True"/>
                             <field name="event_state" column_invisible="True"/>
                             <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>

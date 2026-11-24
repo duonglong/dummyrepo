@@ -3,6 +3,7 @@ from odoo.exceptions import UserError, ValidationError
 
 from ..services import sourcing
 from ..services.sourcing import SCORE_MAX
+from .procurement_sourcing_response import SPM_SCORE_GROUPS
 
 
 class ProcurementComparisonLine(models.Model):
@@ -27,6 +28,9 @@ class ProcurementComparisonLine(models.Model):
     criterion_id = fields.Many2one('procurement.sourcing.criterion', ondelete='cascade')
     response_id = fields.Many2one('procurement.sourcing.response', required=True, ondelete='cascade', index=True)
     partner_id = fields.Many2one(related='response_id.partner_id', string="Supplier")
+    response_score = fields.Float(
+        related='response_id.score', string="Weighted score", groups=SPM_SCORE_GROUPS)
+    response_rank = fields.Integer(related='response_id.rank', string="Rank", groups=SPM_SCORE_GROUPS)
     raw_value = fields.Float(digits=(16, 4))
     raw_display = fields.Char()
     normalized_value = fields.Float(digits=(16, 4))

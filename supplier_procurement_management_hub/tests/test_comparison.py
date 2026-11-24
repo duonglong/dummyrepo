@@ -5,6 +5,7 @@ Requirements: FR-SPM-0035, FR-SPM-0036, FR-SPM-0037, BR-SPM-0007
 from datetime import datetime
 
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form
@@ -173,3 +174,57 @@ class TestComparison(SpmComparisonCase):
         event, chairs, acme, beta = self._two()
         with self.assertRaises(AccessError):
             acme.with_user(self.buyer).write({'reopened_deadline': datetime(2027, 1, 1)})
+
+
+class TestComparisonScreen(SpmComparisonCase):
+    """Requirements: FR-SPM-0035, FR-SPM-0038"""
+
+    def _scored_comparison(self):
+        event = self._sourcing(
+            self.acme | self.beta, lines=[('Chair', self.chair, 60.0), ('Desk', self.desk, 10.0)],
+            criteria=[('Lead time', 'lead_time', 'lower', 100.0)])
+        acme, beta = self._response(event, self.acme), self._response(event, self.beta)
+        chair, desk = event.line_ids
+        self._quote(acme, [(chair, 10.0, 5), (desk, 100.0, 5)])
+        self._quote(beta, [(chair, 12.0, 10)])
+        event.with_user(self.buyer).action_spm_evaluate()
+        return event, acme, beta, self._compare(event)
+
+    def test_bug_b_0274_cells_carry_the_weighted_score_and_rank_of_their_response(self):
+        """Regression test for B-0274: every cell of the comparison shows the weighted score and the rank of
+        its supplier, as the event's Suppliers tab does.
+
+        Requirements: FR-SPM-0038
+        It cannot reach the rendered list: it reads the values the list columns show.
+        """
+        event, acme, beta, comparison = self._scored_comparison()
+        self.assertNotEqual(acme.rank, beta.rank)
+        for cell in comparison.line_ids.with_user(self.buyer):
+            with self.subTest(row=cell.row_kind, supplier=cell.partner_id.name):
+                self.assertEqual(cell.response_score, cell.response_id.score)
+                self.assertEqual(cell.response_rank, cell.response_id.rank)
+        self.assertTrue(any(comparison.line_ids.with_user(self.buyer).mapped('response_score')))
+
+    def test_bug_b_0274_the_comparison_list_has_score_and_rank_columns_and_hides_values_of_missing_cells(self):
+        """Regression test for B-0274: the list the buyer opens has the rank and weighted score columns, and a
+        missing cell shows no 0.0000 beside its Missing flag.
+
+        Requirements: FR-SPM-0035, FR-SPM-0038
+        It cannot reach the rendered list: it reads the form the server sends to the buyer.
+        """
+        view = self.env['procurement.comparison'].with_user(self.buyer).get_view(
+            self.env.ref('supplier_procurement_management_hub.procurement_comparison_view_form').id, 'form')
+        columns = {node.get('name'): node for node in etree.fromstring(view['arch']).xpath('//list/field')}
+        self.assertIn('response_rank', columns)
+        self.assertIn('response_score', columns)
+        self.assertIn('missing', columns['normalized_value'].get('invisible', ''))
+
+    def test_bug_b_0274_a_line_the_offer_left_out_says_missing(self):
+        """Regression test for B-0274: the cell of a line left out of an offer reads Missing, not an empty value.
+
+        Requirements: FR-SPM-0035
+        """
+        event, acme, beta, comparison = self._scored_comparison()
+        cell = comparison.line_ids.filtered(lambda c: c.row_kind == 'line' and c.response_id == beta and c.missing)
+        self.assertEqual(len(cell), 1)
+        self.assertEqual(cell.raw_display, "Missing")
