@@ -77,6 +77,26 @@ class TestMultiCompany(TransactionCase):
             allowed_company_ids=(self.company_a | self.company_b).ids)
         self.assertEqual(both.search([('id', '=', contact.id)]), contact)
 
+    def test_nfr_0008_files_of_a_pending_application_stay_in_its_company(self):
+        """BR-SPM-0001, FR-SPM-0107: a user of company B alone finds neither the document of a pending
+        company-A application nor its file; a supplier's own document stays shared."""
+        Document = self.env['procurement.supplier.document']
+        document_type = self.env['procurement.document.type'].create({'name': 'Tax form NFR8'})
+        application = self.env['procurement.supplier.application'].create({
+            'legal_name': 'Applicant Files', 'email': 'files@example.com', 'company_id': self.company_a.id,
+            'supplier_type_id': self.env['procurement.supplier.type'].create({'name': 'Goods NFR8 files'}).id})
+        attachment = self.env['ir.attachment'].create({'name': 'tax.pdf', 'raw': b'%PDF-1.4'})
+        pending = Document.create({
+            'application_id': application.id, 'document_type_id': document_type.id, 'attachment_id': attachment.id})
+        supplier = self.env['res.partner'].create({'name': 'Approved supplier NFR8'})
+        shared = Document.create({'partner_id': supplier.id, 'document_type_id': document_type.id})
+        domain = [('id', 'in', (pending | shared).ids)]
+        self.assertEqual(Document.with_user(self.only_b).search(domain), shared)
+        self.assertEqual(self.env['ir.attachment'].with_user(self.only_b).search([('id', '=', attachment.id)]),
+                         self.env['ir.attachment'])
+        both = Document.with_user(self.both).with_context(allowed_company_ids=(self.company_a | self.company_b).ids)
+        self.assertEqual(both.search(domain), pending | shared)
+
     def test_nfr_0008_a_user_of_one_company_sees_nothing_of_the_other(self):
         """NFR-SPM-0008: two policies of two companies: the user of company B alone reads B's, the user of both reads both."""
         Policy = self.env['procurement.approval.policy']
