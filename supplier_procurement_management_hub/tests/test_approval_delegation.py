@@ -84,6 +84,19 @@ class TestApprovalDelegation(SpmApprovalCase):
         action = self.env['procurement.approval.step'].with_user(self.bob).action_spm_open_inbox()
         self.assertEqual(action['domain'], [('id', 'in', step.ids)])
 
+    def test_bug_b_0272_the_inbox_menu_action_runs_for_every_internal_role(self):
+        """Regression test for B-0272: the Inbox menu entry opens for the roles that reach the menu.
+
+        Requirements: FR-SPM-0054
+        It cannot reach the rendered menu click: it runs the menu's server action as each user.
+        """
+        action = self.env.ref('supplier_procurement_management_hub.procurement_approval_inbox_action')
+        for user in (self.bob, self.ann, self.buyer, self.auditor):
+            with self.subTest(user=user.login):
+                result = action.with_user(user).with_context(
+                    active_model='procurement.approval.step').run()
+                self.assertEqual(result['res_model'], 'procurement.approval.step')
+
     def test_a_step_without_escalation_target_is_still_marked(self):
         """FR-SPM-0051: no escalation user and no manager: the step is marked and the approver told, once."""
         order, step = self._bob_step('2026-11-14 09:00:00')
