@@ -38,16 +38,16 @@
                 <header>
                     <button name="action_spm_review" type="object" string="Start review"
                             invisible="state != 'open'"
-                            groups="group_spm_finance,group_spm_manager"/>
+                            groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
                     <button name="action_spm_open_accept_wizard" type="object" string="Accept" class="btn-primary"
                             invisible="state not in ('open', 'in_review')"
-                            groups="group_spm_finance,group_spm_manager"/>
+                            groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
                     <button name="action_spm_open_reject_wizard" type="object" string="Reject"
                             invisible="state not in ('open', 'in_review')"
-                            groups="group_spm_finance,group_spm_manager"/>
+                            groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
                     <button name="action_spm_open_resolve_wizard" type="object" string="Resolve"
                             invisible="state not in ('open', 'in_review', 'rejected')"
-                            groups="group_spm_finance,group_spm_manager"/>
+                            groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
                     <field name="state" widget="statusbar" statusbar_visible="open,in_review,accepted"/>
                 </header>
                 <sheet>
@@ -98,7 +98,7 @@
             <xpath expr="//button[@name='action_spm_run_matching']" position="after">
                 <button name="action_spm_open_not_duplicate_wizard" type="object" string="Not a duplicate"
                         invisible="not duplicate_move_ids"
-                        groups="group_spm_finance"/>
+                        groups="supplier_procurement_management_hub.group_spm_finance"/>
             </xpath>
             <xpath expr="//field[@name='line_ids']" position="before">
                 <group invisible="not duplicate_move_ids and not duplicate_cleared">

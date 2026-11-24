@@ -184,7 +184,7 @@
                         </list>
                     </field>
                     <field name="spm_delivery_event_ids" context="{'default_order_id': id}"
-                           groups="group_spm_buyer,group_spm_manager,group_spm_admin"/>
+                           groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_admin"/>
                 </page>
             </xpath>
         </field>

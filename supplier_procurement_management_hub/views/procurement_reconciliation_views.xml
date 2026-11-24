@@ -22,7 +22,7 @@
             <form create="0">
                 <header>
                     <button name="action_spm_run_matching" type="object" string="Run matching"
-                            groups="group_spm_finance,group_spm_manager,group_spm_admin"
+                            groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager,supplier_procurement_management_hub.group_spm_admin"
                             invisible="move_id.state != 'draft'"/>
                     <field name="state" widget="statusbar"/>
                 </header>

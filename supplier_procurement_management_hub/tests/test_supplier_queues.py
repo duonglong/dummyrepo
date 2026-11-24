@@ -106,3 +106,59 @@ class TestSupplierQueues(TransactionCase):
         listed = self.env['res.partner'].search(safe_eval(action.domain))
         self.assertIn(self.supplier, listed)
         self.assertNotIn(other, listed)
+
+
+class TestViewGroupQualification(TransactionCase):
+    """Buttons and fields inside a view arch name the hub groups with the module prefix.
+
+    Requirements: FR-SPM-0057, FR-SPM-0072, FR-SPM-0075, FR-SPM-0076, FR-SPM-0077
+
+    Cannot reach: pressing the buttons in the rendered form.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.users = {
+            role: cls.env['res.users'].with_context(no_reset_password=True).create({
+                'name': f'Arch {role}', 'login': f'spm_arch_{role}', 'email': f'{role}@example.com',
+                'group_ids': [(6, 0, [cls.env.ref(f'{MODULE}.group_spm_{role}').id])]})
+            for role in ('buyer', 'finance', 'manager', 'admin')}
+
+    def _arch(self, role, model, view_type='form'):
+        return self.env[model].with_user(self.users[role]).get_view(view_type=view_type)['arch']
+
+    def test_r3_2_exception_decision_buttons_shown(self):
+        for role in ('finance', 'manager', 'admin'):
+            arch = self._arch(role, 'procurement.reconciliation.exception')
+            for button in ('action_spm_review', 'action_spm_open_accept_wizard',
+                           'action_spm_open_reject_wizard', 'action_spm_open_resolve_wizard'):
+                with self.subTest(role=role, button=button):
+                    self.assertIn(button, arch)
+
+    def test_r3_2_run_matching_shown(self):
+        for role in ('finance', 'manager', 'admin'):
+            with self.subTest(role=role):
+                self.assertIn('action_spm_run_matching', self._arch(role, 'procurement.reconciliation'))
+
+    def test_r3_2_not_a_duplicate_shown_to_finance(self):
+        self.assertIn('action_spm_open_not_duplicate_wizard', self._arch('finance', 'procurement.reconciliation'))
+
+    def test_r3_2_shipment_events_shown_on_order(self):
+        for role in ('buyer', 'manager', 'admin'):
+            with self.subTest(role=role):
+                self.assertIn('spm_delivery_event_ids', self._arch(role, 'purchase.order'))
+
+    def test_r3_2_no_unqualified_group_in_any_arch(self):
+        """The sweep: no arch node of the module names a group without a module prefix."""
+        from lxml import etree
+        views = self.env['ir.ui.view'].search([
+            ('id', 'in', self.env['ir.model.data'].search([
+                ('module', '=', MODULE), ('model', '=', 'ir.ui.view')]).mapped('res_id'))])
+        bad = []
+        for view in views:
+            for node in etree.fromstring(view.arch_db.encode()).iter():
+                groups = node.get('groups') if isinstance(node.tag, str) else None
+                if groups and any('.' not in g for g in groups.replace('!', '').split(',')):
+                    bad.append((view.xml_id, node.tag, groups))
+        self.assertEqual(bad, [])
