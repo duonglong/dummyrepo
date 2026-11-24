@@ -127,7 +127,8 @@ class TestPortalUploadAcceptance(SpmPortalCase):
     def setUp(self):
         super().setUp()
         self.insurance = self.env['procurement.document.type'].create({
-            'name': 'Insurance M2', 'needs_expiry': True, 'reminder_days': 30})
+            'name': 'Insurance M2', 'needs_expiry': True, 'reminder_days': 30,
+            'portal_upload': True})
         self.docs = self.env['procurement.supplier.document']
         self.old = self.docs.with_user(self.buyer).create({
             'partner_id': self.acme.id, 'document_type_id': self.insurance.id,
