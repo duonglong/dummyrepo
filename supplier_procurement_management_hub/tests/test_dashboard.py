@@ -94,3 +94,19 @@ class TestDashboard(SpmApprovalCase):
             tile = self._tiles(self.bob)['spend_month']
             self.assertAlmostEqual(tile['amount'] - before, 100.0, places=2)
             self.assertEqual(tile['currency_id'], self.env.company.currency_id.id)
+
+    def test_bug_b_0276_tile_lists_carry_a_plain_one_line_empty_message(self):
+        """Regression test for B-0276: a tile's list says in plain text what it counts, with no markup.
+
+        Requirements: FR-SPM-0098
+        The client hands the tile's action to the action service as it is, so markup in the help shows as
+        literal tags. It cannot reach the rendered empty list: it reads the help the tile's action carries.
+        """
+        tiles = self._tiles(self.bob)
+        self.assertGreaterEqual(len(tiles), 7)
+        for key, tile in tiles.items():
+            with self.subTest(tile=key):
+                help_text = tile['action'].get('help')
+                self.assertTrue(help_text, "The empty list of the tile says nothing")
+                self.assertNotIn('<', str(help_text))
+                self.assertNotIn('\n', str(help_text))

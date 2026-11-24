@@ -61,6 +61,7 @@ class ProcurementDashboard(models.AbstractModel):
             return None
         action = step.action_spm_open_inbox()
         action['name'] = self.env._("Approvals waiting for me")
+        action['help'] = self._tile_empty_message('approvals')
         return {'key': 'approvals', 'name': action['name'],
                 'count': step.search_count(action['domain']), 'action': action}
 
@@ -102,8 +103,26 @@ class ProcurementDashboard(models.AbstractModel):
     def _tile_action(self, key, name, domain):
         """The tile's native window action, narrowed to the domain, with no default filter."""
         action = self.env['ir.actions.act_window']._for_xml_id(TILE_ACTIONS[key])
-        action.update({'name': name, 'domain': domain, 'context': {'create': False}})
+        action.update({'name': name, 'domain': domain, 'context': {'create': False},
+                       'help': self._tile_empty_message(key)})
         return action
+
+    @api.model
+    def _tile_empty_message(self, key):
+        """The one plain line an empty tile list shows: what the tile counts, with no markup.
+
+        The client opens a tile's action as it is, so a help in markup would show its tags.
+        """
+        return {
+            'approvals': self.env._("No approval is waiting for you."),
+            'closing_events': self.env._("No sourcing event is closing soon."),
+            'pending_bank_changes': self.env._("No bank change is waiting for verification."),
+            'expiring_documents': self.env._("No supplier document is expiring or expired."),
+            'overdue_deliveries': self.env._("No delivery is overdue."),
+            'invoice_exceptions': self.env._("You own no open invoice exception."),
+            'open_requests': self.env._("No purchase request is open."),
+            'spend_month': self.env._("No spend this month."),
+        }[key]
 
     @api.model
     def _spend_tile(self):
