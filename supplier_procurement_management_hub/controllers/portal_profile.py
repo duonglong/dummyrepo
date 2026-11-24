@@ -17,8 +17,12 @@ class SupplierPortalProfile(SupplierPortal):
     The supplier is the session user's company contact; nothing in the request names it.
     """
 
-    def _render_profile(self, supplier, errors=None, saved=False):
-        """The profile page: editable fields, bank details and the upload form."""
+    def _render_profile(self, supplier, errors=None, saved=False, posted=None):
+        """The profile page: editable fields, bank details and the upload form.
+
+        After a refusal ``posted`` holds the typed input, shown again in place of the stored values.
+        """
+        posted = {key: value for key, value in (posted or {}).items() if isinstance(value, str)}
         env = request.env
         document_types = env['procurement.document.type'].search([('portal_upload', '=', True)])
         values = self._prepare_portal_layout_values()
@@ -27,15 +31,22 @@ class SupplierPortalProfile(SupplierPortal):
             'supplier_name': supplier.sudo().name,  # sudo: the own company contact's name
             'fields': [{
                 'name': name, 'label': field._description_string(env), 'type': field.type,
-                'value': supplier.sudo()[name] or '',  # sudo: plain values of the own company contact
+                'value': self._posted_value(field, posted, name) if name in posted
+                else supplier.sudo()[name] or '',  # sudo: plain values of the own company contact
                 'options': dict(field._description_selection(env)) if field.type == 'selection' else {},
             } for name, field in portal_access.editable_fields(env).items()],
             'document_types': document_types,
             'max_mb': onboarding.UPLOAD_MAX_MB,
             'errors': errors or [],
             'saved': saved,
+            'posted': posted,
         })
         return request.render(PROFILE_TEMPLATE, values, status=400 if errors else 200)
+
+    @staticmethod
+    def _posted_value(field, posted, name):
+        """The typed value of a field in the shape the template compares: a boolean as a flag."""
+        return posted[name] == '1' if field.type == 'boolean' else posted[name]
 
     def _profile_supplier(self):
         """Return ``(supplier, None)`` or ``(None, refusal page)`` for the session user."""
@@ -61,7 +72,7 @@ class SupplierPortalProfile(SupplierPortal):
             return refusal_page
         errors = portal_access.update_profile(request.env, supplier, post)
         if errors:
-            return self._render_profile(supplier, errors)
+            return self._render_profile(supplier, errors, posted=post)
         return request.redirect('/my/procurement/profile?saved=1')
 
     @http.route('/my/procurement/documents/upload', type='http', auth='user', website=True, methods=['POST'])
@@ -78,7 +89,7 @@ class SupplierPortalProfile(SupplierPortal):
                 request.env, supplier, post, request.httprequest.files.get('file'))
         except ValueError as error:
             portal_access.log(request.env, 'submit', 'refused', supplier=supplier, detail='upload')
-            return self._render_profile(supplier, [str(error)])
+            return self._render_profile(supplier, [str(error)], posted=post)
         return request.redirect('/my/procurement/profile?saved=1')
 
     @http.route('/my/procurement/file/<int:document_id>', type='http', auth='user', website=True)

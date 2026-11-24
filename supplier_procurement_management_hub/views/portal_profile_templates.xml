@@ -33,19 +33,19 @@
                     <h2 class="h5 mt-4">Bank account</h2>
                     <div class="mb-3">
                         <label class="form-label" for="bank_account_number">Account number</label>
-                        <input class="form-control" type="text" name="bank_account_number" id="bank_account_number"/>
+                        <input class="form-control" type="text" name="bank_account_number" id="bank_account_number" t-att-value="posted.get('bank_account_number')"/>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="bank_name">Bank</label>
-                        <input class="form-control" type="text" name="bank_name" id="bank_name"/>
+                        <input class="form-control" type="text" name="bank_name" id="bank_name" t-att-value="posted.get('bank_name')"/>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="bank_bic">BIC</label>
-                        <input class="form-control" type="text" name="bank_bic" id="bank_bic"/>
+                        <input class="form-control" type="text" name="bank_bic" id="bank_bic" t-att-value="posted.get('bank_bic')"/>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="bank_holder">Account holder</label>
-                        <input class="form-control" type="text" name="bank_holder" id="bank_holder"/>
+                        <input class="form-control" type="text" name="bank_holder" id="bank_holder" t-att-value="posted.get('bank_holder')"/>
                     </div>
                     <button type="submit" class="btn btn-primary">Save</button>
                 </form>
@@ -56,16 +56,17 @@
                         <label class="form-label" for="document_type_id">Document type</label>
                         <select class="form-select" name="document_type_id" id="document_type_id" required="required">
                             <option t-foreach="document_types" t-as="document_type" t-att-value="document_type.id"
+                                    t-att-selected="str(document_type.id) == posted.get('document_type_id')"
                                     t-out="document_type.name"/>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="issue_date">Issue date</label>
-                        <input class="form-control" type="date" name="issue_date" id="issue_date"/>
+                        <input class="form-control" type="date" name="issue_date" id="issue_date" t-att-value="posted.get('issue_date')"/>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="expiry_date">Expiry date</label>
-                        <input class="form-control" type="date" name="expiry_date" id="expiry_date"/>
+                        <input class="form-control" type="date" name="expiry_date" id="expiry_date" t-att-value="posted.get('expiry_date')"/>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="file">File (PDF, PNG or JPEG, up to <t t-out="max_mb"/> MB)</label>

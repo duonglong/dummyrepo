@@ -221,7 +221,8 @@ def editable_fields(env):
     rows = env['procurement.portal.field'].sudo().search([('editable', '=', True)])
     partner_fields = env['res.partner']._fields
     return {row.field_id.name: partner_fields[row.field_id.name]
-            for row in rows if row.field_id.name in partner_fields}
+            for row in rows if row.field_id.name in partner_fields
+            and not partner_fields[row.field_id.name].readonly}
 
 
 def parse_field_value(env, field, raw):
@@ -291,7 +292,8 @@ def log_unknown_keys(env, supplier, post, known, route):
     """
     unknown = sorted(key for key in post if key not in known and key != 'csrf_token')
     if unknown:
-        log(env, 'submit', 'ok', supplier=supplier, detail='%s ignored keys: %s' % (route, ', '.join(unknown)))
+        names = ', '.join(unknown)[:PROFILE_TEXT_MAX]
+        log(env, 'submit', 'ok', supplier=supplier, detail='%s ignored keys: %s' % (route, names))
 
 
 def update_profile(env, supplier, post):
@@ -325,6 +327,9 @@ def update_profile(env, supplier, post):
         except (UserError, ValidationError) as error:
             return [str(error)]
     details = bank_details(post)
+    too_long = [key for key, value in details.items() if len(value) > PROFILE_TEXT_MAX]
+    if too_long:
+        return [env._("The bank details are too long.")]
     if details and not _bank_is_known(supplier, details):
         change = env['procurement.supplier.change']._spm_hold_bank_change(supplier, details)
         log(env, 'submit', 'ok', supplier=supplier, record=change, detail='bank change pending')
@@ -354,11 +359,14 @@ def upload_document(env, supplier, post, upload):
 
     Requirements: FR-SPM-0019, NFR-SPM-0003
 
-    Raises ValueError with the refusal text. The document type is searched with the user's own rights.
+    Raises ValueError with the refusal text. The document type is searched with the user's own rights
+    and must be one suppliers may upload.
     """
     log_unknown_keys(env, supplier, post, UPLOAD_KEYS, 'upload')
-    document_type = get_owned(env, 'procurement.document.type', int(post['document_type_id'])
-                              if str(post.get('document_type_id', '')).isdigit() else 0)
+    document_type = get_owned(
+        env, 'procurement.document.type',
+        int(post['document_type_id']) if str(post.get('document_type_id', '')).isdigit() else 0,
+        domain=[('portal_upload', '=', True)])
     if not document_type:
         raise ValueError(env._("Choose a document type from the list."))
     try:

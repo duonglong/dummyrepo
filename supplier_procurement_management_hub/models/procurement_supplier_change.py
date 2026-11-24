@@ -102,17 +102,35 @@ class ProcurementSupplierChange(models.Model):
         change.restricted_new_value = change._spm_bank_description()
         return change
 
+    def _spm_check_pending(self):
+        """Refuse unless the user is a Finance reviewer or Procurement manager and every change is pending."""
+        user = self.env.user
+        if not (user.has_group('supplier_procurement_management_hub.group_spm_finance')
+                or user.has_group('supplier_procurement_management_hub.group_spm_manager')):
+            raise AccessError(self.env._(
+                "Only a Finance reviewer or a Procurement manager can verify or refuse a bank change."))
+        self.check_access('read')
+        if self.filtered(lambda change: change.state != 'pending'):
+            raise UserError(self.env._("Only a pending change can be verified or refused."))
+
+    def action_spm_refuse(self, reason=None):
+        """Refuse the pending bank changes: the supplier's accounts stay as they are.
+
+        Requirements: FR-SPM-0015
+        """
+        self._spm_check_pending()
+        # sudo: the role is checked above; the acting user stays the verifier
+        self.sudo().write({
+            'state': 'refused', 'verified_by_id': self.env.user.id, 'verified_date': fields.Datetime.now(),
+            'reason': reason or self.env._("Refused by %s.", self.env.user.name)})
+        return True
+
     def action_spm_verify(self):
         """Apply the pending bank changes: the account becomes the supplier's first account.
 
         Requirements: FR-SPM-0015
         """
-        if not self.env.user.has_group('supplier_procurement_management_hub.group_spm_finance') \
-                and not self.env.user.has_group('supplier_procurement_management_hub.group_spm_manager'):
-            raise AccessError(self.env._("Only a Finance reviewer or a Procurement manager can verify a bank change."))
-        self.check_access('read')
-        if self.filtered(lambda change: change.state != 'pending'):
-            raise UserError(self.env._("Only a pending change can be verified."))
+        self._spm_check_pending()
         for change in self:
             # sudo: the role is checked above; the acting user stays the verifier
             elevated = change.sudo()
@@ -123,14 +141,13 @@ class ProcurementSupplierChange(models.Model):
         return True
 
     def _spm_apply_bank_change(self):
-        """Make the verified account the supplier's first, trusted account (called elevated).
+        """Make the verified account the supplier's first account (called elevated).
 
         Requirements: FR-SPM-0015
 
         A known number, archived or not, is updated and activated instead of created again:
-        the account number is unique per supplier, archived rows included. The account is
-        created trusted (allow_out_payment): finance verified it, and an untrusted one could
-        never be paid while an older trusted account stays the bill's default.
+        the account number is unique per supplier, archived rows included. The account is never
+        trusted here: only a person with Odoo's bank-validation right makes it payable.
         """
         self.ensure_one()
         Bank = self.env['res.partner.bank'].with_context(active_test=False)
@@ -140,7 +157,6 @@ class ProcurementSupplierChange(models.Model):
             'holder_name': self.bank_holder or self.partner_id.name,
             'sequence': min(existing.mapped('sequence') or [1]) - 1,
             'active': True,
-            'allow_out_payment': True,
         }
         if self.bank_name or self.bank_bic:
             domain = [('bic', '=', self.bank_bic)] if self.bank_bic else [('name', '=', self.bank_name)]

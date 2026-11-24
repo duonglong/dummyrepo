@@ -42,9 +42,10 @@
                         </list>
                     </field>
                     <field name="spm_change_ids">
-                        <list>
+                        <list decoration-warning="state == 'pending'" decoration-muted="state == 'refused'">
                             <field name="date"/>
                             <field name="user_id"/>
+                            <field name="state" widget="badge"/>
                             <field name="field_label"/>
                             <field name="old_value"/>
                             <field name="new_value"/>
@@ -52,6 +53,12 @@
                             <field name="restricted_new_value"/>
                             <field name="origin"/>
                             <field name="reason"/>
+                            <button name="action_spm_verify" type="object" string="Verify"
+                                    invisible="state != 'pending'"
+                                    groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
+                            <button name="action_spm_refuse" type="object" string="Refuse"
+                                    invisible="state != 'pending'"
+                                    groups="supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_manager"/>
                         </list>
                     </field>
                 </page>
