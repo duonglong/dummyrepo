@@ -2,6 +2,8 @@
 
 Requirements: FR-SPM-0009, FR-SPM-0010
 """
+from lxml import etree
+
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from .test_qualification_acceptance import QualificationCase
@@ -58,3 +60,36 @@ class TestQualificationRules(QualificationCase):
             'name': 'Other', 'purpose': 'qualification', 'pass_score': 10})
         with self.assertRaises(ValidationError):
             assessment.write({'questionnaire_id': other.id})
+
+
+class TestSupplierFormQualification(QualificationCase):
+    """Requirements: FR-SPM-0010, FR-SPM-0086"""
+
+    def test_bug_b_0273_the_supplier_shows_the_score_of_its_latest_approved_qualification(self):
+        """Regression test for B-0273: the supplier holds the score of its latest approved assessment.
+
+        Requirements: FR-SPM-0010
+        """
+        self.assertFalse(self.acme.spm_qualification_score)
+        assessment = self._assessment([10, 10, 10, 0])
+        assessment.with_user(self.buyer).action_spm_submit()
+        self.assertFalse(self.acme.spm_qualification_score, "A submitted assessment is not a qualification yet")
+        assessment.with_user(self.manager).action_spm_approve()
+        self.assertEqual(self.acme.spm_qualification_score, 80.0)
+
+    def test_bug_b_0273_the_procurement_tab_shows_score_actions_and_status_kind(self):
+        """Regression test for B-0273: the Procurement tab of a buyer carries the score, the open corrective
+        actions and the kind of the status, and no heading stands over an empty value.
+
+        Requirements: FR-SPM-0010, FR-SPM-0086
+        It cannot reach the rendered tab: it reads the form the server sends to the buyer.
+        """
+        view = self.env['res.partner'].with_user(self.buyer).get_view(
+            self.env.ref('base.view_partner_form').id, 'form')
+        arch = etree.fromstring(view['arch'])
+        tab = arch.xpath("//page[@name='spm_procurement']")[0]
+        shown = {node.get('name'): node for node in tab.iter('field')}
+        for name in ('spm_qualification_score', 'spm_open_action_count', 'spm_status_kind'):
+            self.assertIn(name, shown)
+        for name in ('spm_compliance_state', 'spm_compliance_summary'):
+            self.assertIn('not ' + name, shown[name].get('invisible', ''))

@@ -67,6 +67,11 @@ class ResPartner(models.Model):
 
     spm_review_ids = fields.One2many(
         'procurement.supplier.review', 'partner_id', string="Reviews", groups=SPM_PERFORMANCE_GROUPS)
+    spm_assessment_ids = fields.One2many(
+        'procurement.supplier.assessment', 'partner_id', string="Qualifications", groups=SPM_PERFORMANCE_GROUPS)
+    spm_qualification_score = fields.Float(
+        string="Qualification score", compute='_compute_spm_qualification_score', groups=SPM_PERFORMANCE_GROUPS,
+        help="The score of the latest approved qualification assessment.")
     spm_open_action_count = fields.Integer(
         string="Open corrective actions", compute='_compute_spm_open_action_count', groups=SPM_PERFORMANCE_GROUPS)
 
@@ -79,6 +84,14 @@ class ResPartner(models.Model):
         for partner in self:
             partner.spm_is_supplier = bool(
                 partner.spm_status_id or partner.spm_supplier_type_id or partner.supplier_rank > 0)
+
+    @api.depends('spm_assessment_ids.state', 'spm_assessment_ids.score')
+    def _compute_spm_qualification_score(self):
+        """Requirements: FR-SPM-0010"""
+        for partner in self:
+            # sudo: the score is read on the supplier form, the assessment rows stay behind their own access
+            approved = partner.sudo().spm_assessment_ids.filtered(lambda assessment: assessment.state == 'approved')
+            partner.spm_qualification_score = approved[:1].score
 
     @api.depends('spm_review_ids.action_ids.state')
     def _compute_spm_open_action_count(self):
