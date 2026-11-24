@@ -29,7 +29,7 @@ COUNTED = ('res.users', 'product.product', 'res.partner', 'procurement.supplier.
            'procurement.approval.policy', 'procurement.approval.request', 'purchase.order',
            'procurement.contract', 'procurement.supplier.application', 'account.move', 'procurement.reconciliation',
            'procurement.scorecard.template', 'procurement.supplier.scorecard',
-           'procurement.questionnaire', 'procurement.supplier.assessment')
+           'procurement.questionnaire', 'procurement.supplier.assessment', 'procurement.delivery.proposal')
 
 uid = xc.ServerProxy(URL + '/xmlrpc/2/common').authenticate(DB, 'admin', PWD, {})
 _obj = xc.ServerProxy(URL + '/xmlrpc/2/object', allow_none=True)
@@ -371,6 +371,24 @@ def seed_scorecards(users, sup):
                        (0, 0, {'metric': 'price_competitiveness', 'weight': 30.0})]})
 
 
+def seed_states(users, prods, sup):
+    """Extra states for the screens: a possible duplicate bill and a pending delivery date proposal."""
+    delta = sup['Delta Cleaning Co']
+    order = find('purchase.order', [('partner_id', '=', delta), ('state', '=', 'purchase')])
+    if order:
+        line = call('purchase.order.line', 'search_read', [('order_id', '=', order[0])], ['product_id'], limit=1)[0]
+        if call('account.move', 'search_count', [('ref', '=', 'DEMO-BILL-002')]) < 2:
+            call('account.move', 'create', {
+                'move_type': 'in_invoice', 'partner_id': delta, 'ref': 'DEMO-BILL-002', 'invoice_date': d(-2),
+                'invoice_line_ids': [(0, 0, {'product_id': line['product_id'][0], 'name': 'Floor cleaner 5L',
+                                             'quantity': 80.0, 'price_unit': 14.9, 'purchase_line_id': line['id'],
+                                             'tax_ids': [(6, 0, [])]})]})
+    commit = find('procurement.delivery.commitment', [('order_id.partner_id', '=', sup['Beta Furniture Works'])])
+    if commit and not call('procurement.delivery.proposal', 'search_count', [('commitment_id', '=', commit[0])]):
+        call('procurement.delivery.proposal', 'create', {
+            'commitment_id': commit[0], 'date': dt(0, 9), 'reason': 'Raw material shortage', 'state': 'pending'})
+
+
 def run_jobs():
     """Run the scorecard, document expiry and delivery escalation jobs once so their results show."""
     for code in ('scorecard', 'document_expiry', 'delivery_escalation', 'contract_reminder'):
@@ -445,6 +463,7 @@ def main_seed():
     section(seed_scorecards, users, sup)
     section(seed_portal, users, sup)
     section(seed_qualification, users, sup)
+    section(seed_states, users, prods, sup)
     section(run_jobs)
     return users, cats, prods, sup
 
