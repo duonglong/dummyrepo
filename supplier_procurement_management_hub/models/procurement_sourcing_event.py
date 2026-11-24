@@ -334,6 +334,25 @@ class ProcurementSourcingEvent(models.Model):
         self.ensure_one()
         return sourcing.generate_orders(self)
 
+    def action_spm_open_override_wizard(self):
+        """Open the reason dialog to record an override for this event.
+
+        Requirements: FR-SPM-0013
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Override supplier control"),
+            'res_model': 'procurement.reason.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': self._name,
+                'default_res_ids': self.ids,
+                'default_action': 'override',
+            },
+        }
+
     def action_spm_open_cancel_wizard(self):
         """Open the dialog asking the cancellation reason."""
         self.ensure_one()

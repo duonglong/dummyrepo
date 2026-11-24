@@ -48,7 +48,7 @@
                 <field name="product_id"/>
                 <field name="categ_id"/>
                 <field name="department_id"/>
-                <filter name="this_year" string="This year" domain="[('date', '&gt;=', (context_today().replace(month=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter name="this_year" string="This year" domain="[('date', '&gt;=', (context_today() + relativedelta(month=1, day=1)).strftime('%Y-%m-%d'))]"/>
                 <group>
                     <filter name="group_partner" string="Supplier" context="{'group_by': 'partner_id'}"/>
                     <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>

@@ -58,7 +58,7 @@
                 <field name="event"/>
                 <field name="res_model"/>
                 <filter string="This month" name="this_month"
-                        domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
                 <group>
                     <filter string="Kind" name="group_event" context="{'group_by': 'event'}"/>
                     <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
