@@ -58,3 +58,59 @@ class TestPurchaseRequest(TransactionCase):
         request.line_ids.with_user(self.ann).unlink()
         with self.assertRaises(UserError):
             request.with_user(self.ann).action_spm_submit()
+
+
+class TestPurchaseRequestAccess(TransactionCase):
+    """Requirements: FR-SPM-0106, FR-SPM-0030"""
+
+    def setUp(self):
+        super().setUp()
+        Users = self.env['res.users'].with_context(no_reset_password=True)
+        self.manager_user = Users.create({
+            'name': 'Dana DM', 'login': 'spm_dana_dm', 'email': 'dana_dm@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_department_manager').id])]})
+        self.other_manager_user = Users.create({
+            'name': 'Omar DM', 'login': 'spm_omar_dm', 'email': 'omar_dm@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_department_manager').id])]})
+        self.ann = Users.create({
+            'name': 'Ann R', 'login': 'spm_ann_acc', 'email': 'ann_acc@example.com',
+            'group_ids': [(6, 0, [self.env.ref(f'{MODULE}.group_spm_requester').id])]})
+        Employee = self.env['hr.employee']
+        dana = Employee.create({'name': 'Dana', 'user_id': self.manager_user.id})
+        omar = Employee.create({'name': 'Omar', 'user_id': self.other_manager_user.id})
+        self.sales = self.env['hr.department'].create({'name': 'Sales SPM', 'manager_id': dana.id})
+        self.ops = self.env['hr.department'].create({'name': 'Ops SPM', 'manager_id': omar.id})
+        product = self.env['product.product'].create({'name': 'Chair', 'type': 'consu'})
+        self.request = self._request(self.sales, product)
+        self.other_request = self._request(self.ops, product)
+
+    def _request(self, department, product):
+        return self.env['procurement.request'].create({
+            'requester_id': self.ann.id, 'department_id': department.id, 'needed_date': '2027-02-01',
+            'reason': 'Growth', 'line_ids': [(0, 0, {'product_id': product.id, 'name': product.name, 'quantity': 1})]})
+
+    def test_department_manager_reads_the_requests_of_their_department(self):
+        """FR-SPM-0106: a department manager reads the requests and lines of their own department only."""
+        Request = self.env['procurement.request'].with_user(self.manager_user)
+        domain = [('id', 'in', (self.request | self.other_request).ids)]
+        self.assertEqual(Request.search(domain), self.request)
+        self.assertEqual(
+            self.env['procurement.request.line'].with_user(self.manager_user).search(
+                [('request_id', 'in', (self.request | self.other_request).ids)]).request_id,
+            self.request)
+
+    def test_department_manager_cannot_change_a_request(self):
+        """FR-SPM-0106: the department manager's access is read only."""
+        with self.assertRaises(AccessError):
+            self.request.with_user(self.manager_user).write({'reason': 'Changed'})
+
+    def test_requester_deletes_their_own_draft(self):
+        """FR-SPM-0030: a requester deletes a draft they created."""
+        self.request.with_user(self.ann).unlink()
+        self.assertFalse(self.request.exists())
+
+    def test_requester_cannot_delete_a_submitted_request(self):
+        """FR-SPM-0030: once submitted a request stays."""
+        self.request.with_user(self.ann).action_spm_submit()
+        with self.assertRaises(AccessError):
+            self.request.with_user(self.ann).unlink()

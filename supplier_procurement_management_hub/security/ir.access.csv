@@ -112,12 +112,15 @@ access_spm_answer_finance,Assessment answer finance,procurement.assessment.answe
 access_spm_answer_auditor,Assessment answer auditor,procurement.assessment.answer,group_spm_auditor,r,
 access_spm_answer_admin,Assessment answer admin,procurement.assessment.answer,group_spm_admin,crud,
 access_spm_request_requester,Purchase request requester (own),procurement.request,group_spm_requester,cru,"[('requester_id', '=', user.id)]"
+access_spm_request_requester_delete,Purchase request requester (own drafts),procurement.request,group_spm_requester,d,"[('requester_id', '=', user.id), ('state', '=', 'draft')]"
+access_spm_request_department_manager,Purchase request department manager (department),procurement.request,group_spm_department_manager,r,"[('department_id.manager_id.user_id', '=', user.id)]"
 access_spm_request_buyer,Purchase request buyer,procurement.request,group_spm_buyer,crud,
 access_spm_request_manager,Purchase request manager,procurement.request,group_spm_manager,crud,
 access_spm_request_auditor,Purchase request auditor,procurement.request,group_spm_auditor,r,
 access_spm_request_admin,Purchase request admin,procurement.request,group_spm_admin,crud,
 spm_request_comp_rule,procurement.request: allowed companies,procurement.request,,crud,"[('company_id', 'in', company_ids)]"
 access_spm_request_line_requester,Purchase request line requester (own),procurement.request.line,group_spm_requester,crud,"[('request_id.requester_id', '=', user.id)]"
+access_spm_request_line_department_manager,Purchase request line department manager (department),procurement.request.line,group_spm_department_manager,r,"[('request_id.department_id.manager_id.user_id', '=', user.id)]"
 access_spm_request_line_buyer,Purchase request line buyer,procurement.request.line,group_spm_buyer,crud,
 access_spm_request_line_manager,Purchase request line manager,procurement.request.line,group_spm_manager,crud,
 access_spm_request_line_auditor,Purchase request line auditor,procurement.request.line,group_spm_auditor,r,
