@@ -228,3 +228,49 @@ class TestComparisonScreen(SpmComparisonCase):
         cell = comparison.line_ids.filtered(lambda c: c.row_kind == 'line' and c.response_id == beta and c.missing)
         self.assertEqual(len(cell), 1)
         self.assertEqual(cell.raw_display, "Missing")
+
+    def test_bug_b_0283_criterion_cells_keep_their_score_when_the_comparison_is_opened_again(self):
+        """Regression test for B-0283 and B-0285: the criterion rows of the comparison show the score of the
+        offer on that criterion, the same figures that make up the weighted score, after Compare rebuilds it.
+
+        Requirements: FR-SPM-0035, FR-SPM-0038
+        It cannot reach the rendered list: it reads the values the Score column shows.
+        """
+        event, acme, beta, comparison = self._scored_comparison()
+        criterion = event.criterion_ids
+        scores = {
+            response: self._cell(comparison, response, 'criterion', criterion=criterion).score
+            for response in (acme, beta)}
+        self.assertEqual(scores, {acme: 100.0, beta: 0.0})
+        self.assertEqual(scores, {acme: acme.score, beta: beta.score})
+
+    def test_bug_b_0283_sibling_unanswered_manual_and_yes_no_cells_stay_flagged_missing(self):
+        """Regression test for B-0283 (same mistake): a manual or yes/no cell nobody answered keeps its Missing
+        flag after Compare rebuilds the comparison, as it had after the evaluation.
+
+        Requirements: FR-SPM-0035, FR-SPM-0038
+        """
+        event = self._sourcing(
+            self.acme | self.beta, criteria=[
+                ('Service', 'manual', 'higher', 30.0), ('Certified', 'yes_no', 'higher', 30.0)])
+        acme = self._response(event, self.acme)
+        self._quote(acme, [(event.line_ids, 12.0, 10)])
+        event.with_user(self.buyer).action_spm_evaluate()
+        comparison = self._compare(event)
+        for criterion in event.criterion_ids:
+            with self.subTest(criterion=criterion.name):
+                self.assertTrue(self._cell(comparison, acme, 'criterion', criterion=criterion).missing)
+
+    def test_bug_b_0283_normalized_value_is_not_shown_on_rows_that_have_none(self):
+        """Regression test for B-0283: a lead time or criterion row shows no 0.0000 normalized value; only the
+        rows of money (unit prices, total cost, price criteria) carry one.
+
+        Requirements: FR-SPM-0037
+        It cannot reach the rendered list: it reads the condition the list column carries.
+        """
+        view = self.env['procurement.comparison'].with_user(self.buyer).get_view(
+            self.env.ref('supplier_procurement_management_hub.procurement_comparison_view_form').id, 'form')
+        node = etree.fromstring(view['arch']).xpath('//list/field[@name="normalized_value"]')[0]
+        hidden_when = node.get('invisible', '')
+        self.assertIn('term_key', hidden_when)
+        self.assertIn('criterion_kind', hidden_when)

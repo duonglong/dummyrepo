@@ -28,7 +28,7 @@
                             <field name="response_rank"/>
                             <field name="response_score"/>
                             <field name="raw_display" readonly="True"/>
-                            <field name="normalized_value" column_invisible="not parent.is_normalized" invisible="missing" readonly="True"/>
+                            <field name="normalized_value" column_invisible="not parent.is_normalized" invisible="missing or (row_kind == 'criterion' and criterion_kind not in ('price', 'total_cost')) or (row_kind == 'term' and term_key != 'total_cost')" readonly="True"/>
                             <field name="score" invisible="row_kind != 'criterion'" readonly="True"/>
                             <field name="criterion_kind" column_invisible="True"/>
                             <field name="event_state" column_invisible="True"/>

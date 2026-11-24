@@ -443,7 +443,19 @@ def _mark_best(event, cells):
 
 
 def compare(event):
-    """Rebuild the stored comparison of the current quotations of the event and return it.
+    """Rebuild the stored comparison of the current quotations of the event, scored cell by cell, and return it.
+
+    Requirements: FR-SPM-0035, FR-SPM-0037, FR-SPM-0038, BR-SPM-0007
+    The criterion cells carry their score again after the rebuild, so the figures shown agree with
+    the weighted score of the responses.
+    """
+    comparison = _build_comparison(event)
+    _score_cells(event, comparison)
+    return comparison
+
+
+def _build_comparison(event):
+    """Rebuild the cells of the stored comparison and return it, before any criterion is scored.
 
     Requirements: FR-SPM-0035, FR-SPM-0037, BR-SPM-0007
     One cell per line, criterion and total of every response that has a current version,
@@ -555,22 +567,14 @@ def _is_given(criterion, cell):
     return bool(cell.manual_score or (cell.manual_comment or '').strip())
 
 
-def evaluate(event):
-    """Rebuild the comparison, score every response by the weighted criteria and rank them.
+def _score_cells(event, comparison):
+    """Score the criterion cells of the comparison and return the weighted totals and the weight sum.
 
     Requirements: FR-SPM-0038, BR-SPM-0008
-    A response score is the weighted average of its criterion scores; a missing value scores 0
-    and is flagged on its cell. Scores and ranks are written with elevated rights after the
-    checks, since only this evaluation sets them.
+    A cell scores its offer on one criterion, 0 to 100; a missing value scores 0 and is flagged on its cell.
     """
-    env = event.env
-    event.check_access('write')
-    if event.state != 'open':
-        raise UserError(env._("Only an open event can be evaluated."))
-    comparison = compare(event)
     cells = comparison.line_ids.filtered(lambda cell: cell.row_kind == 'criterion')
-    responses = event.response_ids.filtered('current_version_id')
-    totals = {response: 0.0 for response in responses}
+    totals = {response: 0.0 for response in event.response_ids.filtered('current_version_id')}
     weight_sum = 0.0
     for criterion in event.criterion_ids:
         row = cells.filtered(lambda cell: cell.criterion_id == criterion)
@@ -584,7 +588,22 @@ def evaluate(event):
             unscored = not _is_given(criterion, cell) if manual else values[cell] is None
             cell.write({'score': score, 'missing': cell.missing or unscored})
             totals[cell.response_id] += criterion.weight * score
-    result = {response: totals[response] / weight_sum if weight_sum else 0.0 for response in responses}
+    return totals, weight_sum
+
+
+def evaluate(event):
+    """Rebuild the comparison, score every response by the weighted criteria and rank them.
+
+    Requirements: FR-SPM-0038, BR-SPM-0008
+    A response score is the weighted average of its criterion scores. Scores and ranks are
+    written with elevated rights after the checks, since only this evaluation sets them.
+    """
+    env = event.env
+    event.check_access('write')
+    if event.state != 'open':
+        raise UserError(env._("Only an open event can be evaluated."))
+    totals, weight_sum = _score_cells(event, _build_comparison(event))
+    result = {response: total / weight_sum if weight_sum else 0.0 for response, total in totals.items()}
     ordered = sorted(result.values(), reverse=True)
     for response in event.response_ids:
         # sudo: the score, rank and missing count are internal results only this evaluation writes
