@@ -24,6 +24,8 @@ from datetime import datetime
 
 from freezegun import freeze_time
 
+from odoo import fields
+
 from .portal_common import SpmPortalCase
 
 DEADLINE = datetime(2026, 11, 30, 17, 0, 0)
@@ -58,6 +60,11 @@ class SpmComparisonCase(SpmPortalCase):
                     for name, kind, direction, weight in criteria],
             }, **extra))
             event.with_user(self.buyer).action_spm_send()
+            # create_date is set by the database clock, which freezegun does not reach
+            self.env.cr.execute(
+                "UPDATE procurement_sourcing_response SET create_date = %s WHERE event_id = %s",
+                [fields.Datetime.now(), event.id])
+            self.env.invalidate_all()
         return event
 
     def _assume(self, event, currency=None):
