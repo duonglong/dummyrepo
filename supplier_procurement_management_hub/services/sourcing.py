@@ -308,6 +308,16 @@ def comparison_assumptions(env, event):
         basis=basis, units=units)
 
 
+def _payment_days(version):
+    """The payment days of a version: the stated days, else the longest day count of its payment term."""
+    return version.payment_days or max(version.payment_term_id.line_ids.mapped('nb_days'), default=0)
+
+
+def _term_given(version):
+    """Whether the offer states its payment terms, as days or as a payment term (immediate payment counts)."""
+    return bool(version.payment_days or version.payment_term_id)
+
+
 def _criterion_value(criterion, version, total, lines):
     """The raw value of a criterion for one quotation version."""
     if criterion.kind == 'price':
@@ -317,7 +327,7 @@ def _criterion_value(criterion, version, total, lines):
     if criterion.kind == 'lead_time':
         return max((line.lead_time_days for line in lines), default=0)
     if criterion.kind == 'terms':
-        return version.payment_days
+        return _payment_days(version)
     return 0.0
 
 
@@ -347,9 +357,9 @@ def _term_cell(version, key, total_cost, normalized_cost, incomplete):
         days = max((line.lead_time_days for line in version.line_ids), default=0)
         cell.update(raw_value=days, raw_display=f"{days}", rankable=bool(days))
     elif key == 'payment_terms':
-        cell.update(raw_value=version.payment_days,
+        cell.update(raw_value=_payment_days(version),
                     raw_display=version.payment_term_id.name or f"{version.payment_days}",
-                    rankable=bool(version.payment_days or version.payment_term_id))
+                    rankable=_term_given(version))
     elif key == 'warranty':
         cell.update(raw_value=version.warranty_months, raw_display=f"{version.warranty_months}",
                     rankable=bool(version.warranty_months))
@@ -413,7 +423,8 @@ def _cells_of_response(env, event, response, normalized):
             'has_normalized': normalized and money,
             'normalized_value': normalized_value if normalized else 0.0,
             'missing': incomplete and criterion.kind in AGGREGATE_KINDS or (
-                criterion.kind in BLANK_ZERO_KINDS and not value)})
+                criterion.kind in BLANK_ZERO_KINDS and not (
+                    _term_given(version) if criterion.kind == 'terms' else value))})
     return cells
 
 

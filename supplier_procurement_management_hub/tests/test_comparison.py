@@ -347,6 +347,59 @@ class TestBlankTerms(SpmComparisonCase):
         self.assertTrue(self._term(comparison, beta, 'payment_terms').missing)
         self.assertFalse(self._term(comparison, acme, 'payment_terms').missing)
 
+    def _term_offer(self, direction, nb_days):
+        """Compare an offer paying 15 days with one that picked a payment term of ``nb_days`` and left days blank."""
+        term = self.env['account.payment.term'].create({
+            'name': f'B-0293 {nb_days}', 'line_ids': [(0, 0, {
+                'value': 'percent', 'value_amount': 100.0, 'nb_days': nb_days})]})
+        event = self._sourcing(
+            self.acme | self.beta, criteria=[('Criterion', 'terms', direction, 100.0)])
+        chairs = event.line_ids
+        acme, beta = self._response(event, self.acme), self._response(event, self.beta)
+        self._quote(acme, [(chairs, 12.0, 5)], payment_days=15)
+        self._quote(beta, [(chairs, 12.0, 5)], payment_term_id=term.id)
+        return self._compare(event), acme, beta, event.criterion_ids
+
+    def test_b_0293_a_chosen_payment_term_scores_on_its_days_when_higher_is_better(self):
+        """Regression test for B-0293: a payment term without days is given, valued at its days, and wins.
+
+        Requirements: FR-SPM-0035, FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._term_offer('higher', 30)
+        cell = self._cell(comparison, beta, 'criterion', criterion=criterion)
+        self.assertFalse(cell.missing)
+        self.assertEqual(cell.raw_value, 30)
+        self.assertEqual(cell.score, 100.0)
+        self.assertEqual(self._cell(comparison, acme, 'criterion', criterion=criterion).score, 50.0)
+
+    def test_b_0293_a_chosen_payment_term_scores_on_its_days_when_lower_is_better(self):
+        """Regression test for B-0293: the same offer is given and valued at its days, lower direction.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._term_offer('lower', 30)
+        cell = self._cell(comparison, beta, 'criterion', criterion=criterion)
+        self.assertFalse(cell.missing)
+        self.assertEqual(cell.raw_value, 30)
+        self.assertEqual(self._cell(comparison, acme, 'criterion', criterion=criterion).score, 100.0)
+
+    def test_b_0293_immediate_payment_term_is_given_not_missing(self):
+        """Regression test for B-0293: a payment term of 0 days is stated, so given and not missing.
+
+        Requirements: FR-SPM-0035, FR-SPM-0038
+        """
+        comparison, _acme, beta, criterion = self._term_offer('lower', 0)
+        self.assertFalse(self._cell(comparison, beta, 'criterion', criterion=criterion).missing)
+        self.assertFalse(self._term(comparison, beta, 'payment_terms').missing)
+
+    def test_b_0293_payment_terms_row_ranks_on_the_term_days(self):
+        """Regression test for B-0293 (sibling): the Payment terms row values a term without days at its days.
+
+        Requirements: FR-SPM-0035
+        """
+        comparison, _acme, beta, _criterion = self._term_offer('higher', 30)
+        self.assertEqual(self._term(comparison, beta, 'payment_terms').raw_value, 30)
+
     def test_b_0291_blank_warranty_and_validity_show_missing_on_the_term_rows(self):
         """Regression test for B-0291 (sibling): an empty warranty or validity is missing, not a 0 or empty cell.
 
