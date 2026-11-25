@@ -10,3 +10,4 @@ from . import approval
 from . import performance
 from . import report
 from . import notification
+from . import comparison_grid

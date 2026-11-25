@@ -89,3 +89,5 @@ from . import test_supplier_queues
 from . import test_client_expressions
 from . import test_approval_inbox_screen
 from . import test_reconciliation_open_exception_note
+from . import test_matching_duplicate_label
+from . import test_comparison_grid

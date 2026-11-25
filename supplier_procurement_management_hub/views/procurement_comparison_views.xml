@@ -17,28 +17,35 @@
                             <field name="assumptions"/>
                         </group>
                     </group>
-                    <field name="line_ids">
-                        <list editable="bottom" create="0" delete="0" default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
-                              decoration-success="is_best" decoration-warning="missing">
-                            <field name="row_kind" readonly="True"/>
-                            <field name="event_line_id" readonly="True"/>
-                            <field name="criterion_id" readonly="True"/>
-                            <field name="term_key" readonly="True"/>
-                            <field name="partner_id" readonly="True"/>
-                            <field name="response_rank"/>
-                            <field name="response_score"/>
-                            <field name="raw_display" readonly="True"/>
-                            <field name="normalized_value" column_invisible="not parent.is_normalized" invisible="missing or (row_kind == 'criterion' and criterion_kind not in ('price', 'total_cost')) or (row_kind == 'term' and term_key != 'total_cost')" readonly="True"/>
-                            <field name="score" invisible="row_kind != 'criterion'" readonly="True"/>
-                            <field name="criterion_kind" column_invisible="True"/>
-                            <field name="event_state" column_invisible="True"/>
-                            <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
-                            <field name="manual_comment" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
-                            <field name="yes_no_value" readonly="criterion_kind != 'yes_no' or event_state != 'open'"/>
-                            <field name="is_best" readonly="True"/>
-                            <field name="missing" readonly="True"/>
-                        </list>
-                    </field>
+                    <notebook>
+                        <page string="Comparison" name="grid">
+                            <field name="grid_html" nolabel="1" readonly="True"/>
+                        </page>
+                        <page string="Cells" name="cells">
+                            <field name="line_ids">
+                                <list editable="bottom" create="0" delete="0" default_order="row_kind, event_line_id, criterion_id, term_key, response_id"
+                                      decoration-success="is_best" decoration-warning="missing">
+                                    <field name="row_kind" readonly="True"/>
+                                    <field name="event_line_id" readonly="True"/>
+                                    <field name="criterion_id" readonly="True"/>
+                                    <field name="term_key" readonly="True"/>
+                                    <field name="partner_id" readonly="True"/>
+                                    <field name="response_rank"/>
+                                    <field name="response_score"/>
+                                    <field name="raw_display" readonly="True"/>
+                                    <field name="normalized_value" column_invisible="not parent.is_normalized" invisible="missing or (row_kind == 'criterion' and criterion_kind not in ('price', 'total_cost')) or (row_kind == 'term' and term_key != 'total_cost')" readonly="True"/>
+                                    <field name="score" invisible="row_kind != 'criterion'" readonly="True"/>
+                                    <field name="criterion_kind" column_invisible="True"/>
+                                    <field name="event_state" column_invisible="True"/>
+                                    <field name="manual_score" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                                    <field name="manual_comment" readonly="criterion_kind != 'manual' or event_state != 'open'"/>
+                                    <field name="yes_no_value" readonly="criterion_kind != 'yes_no' or event_state != 'open'"/>
+                                    <field name="is_best" readonly="True"/>
+                                    <field name="missing" readonly="True"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
