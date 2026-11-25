@@ -206,8 +206,16 @@ def _qty_label(env, quantity) -> str:
     return float_repr(quantity, env['decimal.precision'].precision_get('Product Unit'))
 
 
-def _move_label(move) -> str:
-    return move.name if move.name and move.name != '/' else (move.ref or move.display_name)
+def move_label(move) -> str:
+    """Return the label that tells one vendor bill from its twins.
+
+    Requirements: FR-SPM-0075
+    A posted bill is named by its number. A draft has none and twins share the
+    reference, so its record id is added to the reference.
+    """
+    if move.state != 'draft' and move.name and move.name != '/':
+        return move.name
+    return f"{move.ref or move.env._('Draft')} (#{move.id})"
 
 
 def _exception_values(env, reconciliation, duplicates) -> dict:
@@ -245,7 +253,7 @@ def _exception_values(env, reconciliation, duplicates) -> dict:
     if duplicates:
         wanted[('duplicate', False)] = {
             'expected_value': env._("No other bill with the same reference or amount"),
-            'found_value': ', '.join(_move_label(move) for move in duplicates),
+            'found_value': ', '.join(move_label(move) for move in duplicates),
             'amount_at_stake': currency.round(reconciliation.move_id.amount_total),
         }
     return wanted

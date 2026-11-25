@@ -102,7 +102,7 @@
             </xpath>
             <xpath expr="//field[@name='line_ids']" position="before">
                 <group invisible="not duplicate_move_ids and not duplicate_cleared">
-                    <field name="duplicate_move_ids" widget="many2many_tags"/>
+                    <field name="duplicate_move_ids" widget="many2many_tags" context="{'spm_duplicate_label': True}"/>
                     <field name="duplicate_cleared"/>
                     <field name="duplicate_cleared_by_id" invisible="not duplicate_cleared"/>
                     <field name="duplicate_comment" invisible="not duplicate_cleared"/>

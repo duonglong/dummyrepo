@@ -49,6 +49,17 @@ class AccountMove(models.Model):
             else:
                 move.spm_match_state = False
 
+    @api.depends_context('spm_duplicate_label')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0075
+
+        Within the matching page's duplicate tags a bill reads by its own label, not by the name its twins share.
+        """
+        super()._compute_display_name()
+        if self.env.context.get('spm_duplicate_label'):
+            for move in self.filtered('id'):
+                move.display_name = reconciliation.move_label(move)
+
     def _post(self, soft=True):
         """Refuse to post a bill that holds an exception its company wants approved.
 
