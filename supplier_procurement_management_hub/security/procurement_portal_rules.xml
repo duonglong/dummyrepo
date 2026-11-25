@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: BR-SPM-0002, FR-SPM-0016 (a supplier portal user reads only the documents of its company contact) -->
+    <record id="access_spm_document_portal" model="ir.access">
+        <field name="name">Supplier document portal: own company</field>
+        <field name="model_id" ref="model_procurement_supplier_document"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <record id="access_spm_document_type_portal" model="ir.access">
+        <field name="name">Document type portal</field>
+        <field name="model_id" ref="model_procurement_document_type"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+    </record>
+    <!-- Requirements: FR-SPM-0016, FR-SPM-0032 (a supplier portal user reads only the responses of its company contact) -->
+    <record id="access_spm_sourcing_response_portal" model="ir.access">
+        <field name="name">Sourcing response portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0023, BR-SPM-0003 (a portal user of a supplier that is not Blocked reads its own questions and the
+         answers already sent and shared on events the supplier is invited to; the status is a condition of
+         the domain, as a value evaluated here would stay cached;
+         who asked is hidden because the asker field is internal-only and the creator is the superuser) -->
+    <record id="access_spm_sourcing_question_portal" model="ir.access">
+        <field name="name">Sourcing question portal: own and shared</field>
+        <field name="model_id" ref="model_procurement_sourcing_question"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">['|', '&amp;', ('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked'), '&amp;', ('shared', '=', True), '&amp;', ('answered_date', '!=', False), ('event_id.response_ids', 'any', [('partner_id', '=', user.commercial_partner_id.id), ('partner_id.spm_status_kind', '!=', 'blocked')])]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0026, BR-SPM-0003 (on the records of the hub and on the supplier contact a
+         portal user reads only the messages sent to its company or written by it, never an internal note
+         or a discussion between colleagues; the chatter route applies the same condition, see
+         services/portal_access.py) -->
+    <record id="access_spm_message_supplier_portal" model="ir.access">
+        <field name="name">Messages: only those sent to the supplier for portal users</field>
+        <field name="model_id" ref="mail.model_mail_message"/>
+        <field name="operation">r</field>
+        <field name="domain">['|', '|', ('model', 'not in', ('purchase.order', 'account.move', 'res.partner')), ('partner_ids', 'child_of', user.commercial_partner_id.id), ('author_id', 'child_of', user.commercial_partner_id.id)] if user.share else []</field>
+    </record>
+    <!-- Requirements: FR-SPM-0017, FR-SPM-0021 (a supplier portal user reads only the quotation versions of its own responses) -->
+    <record id="access_spm_response_version_portal" model="ir.access">
+        <field name="name">Quotation version portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response_version"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('response_id.partner_id', '=', user.commercial_partner_id.id), ('response_id.partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <record id="access_spm_response_line_portal" model="ir.access">
+        <field name="name">Quotation line portal: own company</field>
+        <field name="model_id" ref="model_procurement_sourcing_response_line"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('version_id.response_id.partner_id', '=', user.commercial_partner_id.id), ('version_id.response_id.partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0020, NFR-SPM-0003 (a supplier portal user may make a file of its own that belongs to
+         nothing yet; the quotation then binds it. Native Odoo grants portal users no attachment right.) -->
+    <record id="access_spm_attachment_portal_create" model="ir.access">
+        <field name="name">Attachments: a portal user's own unbound file</field>
+        <field name="model_id" ref="base.model_ir_attachment"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">c</field>
+        <field name="domain">[('res_model', '=', False), ('create_uid', '=', user.id)]</field>
+    </record>
+    <!-- Requirements: FR-SPM-0028 (a Blocked supplier's portal users read none of its orders and vendor
+         bills, through pages or direct data calls; messages and attachments follow their record) -->
+    <record id="access_spm_purchase_order_blocked_supplier" model="ir.access">
+        <field name="name">Purchase orders: none of a Blocked supplier for portal users</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="operation">crud</field>
+        <field name="domain">['!', ('partner_id.commercial_partner_id.spm_status_kind', '=', 'blocked')] if user.share else []</field>
+    </record>
+    <record id="access_spm_vendor_bill_blocked_supplier" model="ir.access">
+        <field name="name">Vendor bills: none of a Blocked supplier for portal users</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="operation">crud</field>
+        <field name="domain">['|', ('move_type', 'not in', ('in_invoice', 'in_refund', 'in_receipt')), '!', ('partner_id.commercial_partner_id.spm_status_kind', '=', 'blocked')] if user.share else []</field>
+    </record>
+    <!-- Requirements: FR-SPM-0057 (a supplier portal user reads the delivery history of its own orders) -->
+    <record id="access_spm_delivery_event_portal" model="ir.access">
+        <field name="name">Delivery events portal: own orders</field>
+        <field name="model_id" ref="model_procurement_delivery_event"/>
+        <field name="group_id" ref="base.group_portal"/>
+        <field name="operation">r</field>
+        <field name="domain">[('order_id.partner_id.commercial_partner_id', '=', user.commercial_partner_id.id), ('order_id.partner_id.commercial_partner_id.spm_status_kind', '!=', 'blocked')]</field>
+    </record>
+</odoo>

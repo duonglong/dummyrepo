@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0001 -->
+    <record id="mail_template_supplier_invitation" model="mail.template">
+        <field name="name">Supplier onboarding invitation</field>
+        <field name="model_id" ref="model_procurement_supplier_application"/>
+        <field name="subject">Invitation to become a supplier of {{ object.company_id.name }}</field>
+        <field name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="email_to">{{ object.email }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p><t t-out="object.company_id.name"/> invites you to complete your supplier application.</p>
+    <p><a t-att-href="ctx.get('spm_onboarding_url')">Open your application</a></p>
+    <p>The link works once and expires after <t t-out="ctx.get('spm_valid_days')"/> days.</p>
+</div>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+
+    <!-- Requirements: FR-SPM-0004 -->
+    <record id="mail_template_supplier_changes_requested" model="mail.template">
+        <field name="name">Supplier application: changes requested</field>
+        <field name="model_id" ref="model_procurement_supplier_application"/>
+        <field name="subject">Changes requested on your application to {{ object.company_id.name }}</field>
+        <field name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="email_to">{{ object.email }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p><t t-out="object.company_id.name"/> asks you to correct your supplier application:</p>
+    <p><t t-out="ctx.get('spm_comment')"/></p>
+    <p><a t-att-href="ctx.get('spm_onboarding_url')">Open your application</a></p>
+    <p>The link works once and expires after <t t-out="ctx.get('spm_valid_days')"/> days.</p>
+</div>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+
+    <!-- Requirements: FR-SPM-0006 -->
+    <record id="mail_template_supplier_rejected" model="mail.template">
+        <field name="name">Supplier application: not accepted</field>
+        <field name="model_id" ref="model_procurement_supplier_application"/>
+        <field name="subject">Your application to {{ object.company_id.name }}</field>
+        <field name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="email_to">{{ object.email }}</field>
+        <field name="body_html" type="html">
+<div>
+    <p>Hello,</p>
+    <p><t t-out="object.company_id.name"/> has not accepted your supplier application.</p>
+</div>
+        </field>
+        <field name="auto_delete" eval="True"/>
+    </record>
+</odoo>

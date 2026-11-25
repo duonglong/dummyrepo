@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0023 -->
+    <record id="procurement_sourcing_question_view_list" model="ir.ui.view">
+        <field name="name">procurement.sourcing.question.list</field>
+        <field name="model">procurement.sourcing.question</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="event_id"/>
+                <field name="partner_id"/>
+                <field name="question"/>
+                <field name="answer"/>
+                <field name="shared"/>
+                <field name="asked_date"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_sourcing_question_view_form" model="ir.ui.view">
+        <field name="name">procurement.sourcing.question.form</field>
+        <field name="model">procurement.sourcing.question</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_spm_send_answer" type="object" string="Send answer" class="btn-primary"
+                            invisible="answered_date or not id"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="event_id" readonly="1"/>
+                        <field name="partner_id" readonly="1"/>
+                        <field name="question" readonly="1"/>
+                        <field name="draft_answer" invisible="answered_date"/>
+                        <field name="answer" invisible="not answered_date"/>
+                        <field name="shared" readonly="answered_date"/>
+                        <field name="answered_by_id"/>
+                        <field name="answered_date" invisible="not answered_date"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_sourcing_question_action" model="ir.actions.act_window">
+        <field name="name">Questions</field>
+        <field name="res_model">procurement.sourcing.question</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html"><p class="o_view_nocontent_smiling_face">No question yet</p></field>
+    </record>
+    <menuitem id="menu_spm_sourcing_question" name="Questions" parent="menu_spm_root" sequence="47"
+              action="procurement_sourcing_question_action" groups="group_spm_buyer"/>
+</odoo>

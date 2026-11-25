@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0062, FR-SPM-0063, FR-SPM-0064, FR-SPM-0065 -->
+    <record id="procurement_contract_view_list" model="ir.ui.view">
+        <field name="name">procurement.contract.list</field>
+        <field name="model">procurement.contract</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'expired'" decoration-success="state == 'active'">
+                <field name="name"/>
+                <field name="reference" optional="hide"/>
+                <field name="partner_id"/>
+                <field name="owner_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="notice_date" optional="hide"/>
+                <field name="version"/>
+                <field name="state" widget="badge"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_contract_view_form" model="ir.ui.view">
+        <field name="name">procurement.contract.form</field>
+        <field name="model">procurement.contract</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_spm_submit" type="object" string="Send to approval" class="btn-primary"
+                            invisible="state not in ('draft', 'revision') or not id"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                    <button name="action_spm_approve" type="object" string="Approve" class="btn-primary"
+                            invisible="state != 'to_approve'"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                    <button name="action_spm_revise" type="object" string="Revise"
+                            invisible="state != 'active'"
+                            groups="supplier_procurement_management_hub.group_spm_manager"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,to_approve,approved,active"/>
+                </header>
+                <sheet>
+                    <h1><field name="name"/></h1>
+                    <group>
+                        <group>
+                            <field name="partner_id" readonly="state not in ('draft', 'revision')"/>
+                            <field name="owner_id"/>
+                            <field name="reference" readonly="state not in ('draft', 'revision')"/>
+                            <field name="payment_term_id" readonly="state not in ('draft', 'revision')"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="date_start" readonly="state not in ('draft', 'revision')"/>
+                            <field name="date_end" readonly="state not in ('draft', 'revision')"/>
+                            <field name="notice_days" readonly="state not in ('draft', 'revision')"/>
+                            <field name="notice_date"/>
+                            <field name="currency_id" readonly="state not in ('draft', 'revision')"/>
+                            <field name="version"/>
+                            <field name="author_id"/>
+                            <field name="approved_by_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Scope" name="scope">
+                            <group>
+                                <field name="scope_kind" readonly="state not in ('draft', 'revision')"/>
+                                <field name="product_category_ids" widget="many2many_tags"
+                                       invisible="scope_kind != 'categories'"
+                                       readonly="state not in ('draft', 'revision')"/>
+                                <field name="service_description" invisible="scope_kind != 'service'"
+                                       readonly="state not in ('draft', 'revision')"/>
+                                <field name="ceiling_value" readonly="state not in ('draft', 'revision')"/>
+                                <field name="ceiling_qty" readonly="state not in ('draft', 'revision')"/>
+                            </group>
+                        </page>
+                        <page string="Lines" name="lines">
+                            <field name="line_ids" readonly="state not in ('draft', 'revision')">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="product_category_id"/>
+                                    <field name="price_unit"/>
+                                    <field name="uom_id"/>
+                                    <field name="discount"/>
+                                    <field name="min_qty"/>
+                                    <field name="lead_time_days"/>
+                                    <field name="ceiling_qty"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Earlier versions" name="versions" invisible="not version_ids">
+                            <field name="version_ids" readonly="True">
+                                <list>
+                                    <field name="version"/>
+                                    <field name="date"/>
+                                    <field name="author_id"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <field name="version"/>
+                                        <field name="date"/>
+                                        <field name="author_id"/>
+                                        <field name="approved_by_id"/>
+                                        <field name="date_start"/>
+                                        <field name="date_end"/>
+                                    </group>
+                                    <field name="diff_html"/>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_contract_view_search" model="ir.ui.view">
+        <field name="name">procurement.contract.search</field>
+        <field name="model">procurement.contract</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="reference"/>
+                <field name="partner_id"/>
+                <field name="owner_id"/>
+                <filter string="To approve" name="to_approve" domain="[('state', '=', 'to_approve')]"/>
+                <filter string="Active" name="active_contracts" domain="[('state', '=', 'active')]"/>
+                <group>
+                    <filter string="Supplier" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="procurement_contract_action" model="ir.actions.act_window">
+        <field name="name">Contracts</field>
+        <field name="res_model">procurement.contract</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Create a contract with a supplier.</field>
+    </record>
+    <menuitem id="menu_spm_contracts" name="Contracts" parent="menu_spm_root" sequence="45"
+              action="procurement_contract_action" groups="group_spm_buyer"/>
+</odoo>

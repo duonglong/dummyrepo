@@ -1,0 +1,370 @@
+from datetime import timedelta
+
+from odoo import api, fields, models
+from odoo.exceptions import AccessError, UserError, ValidationError
+
+from ..services import report, sourcing
+from .procurement_sourcing_response import SPM_SCORE_GROUPS
+
+# Days between the creation of an event made from requests and its first deadline.
+DEFAULT_DEADLINE_DAYS = 7
+# Fields only the module's own actions write (they write with elevated rights after their checks).
+SAVINGS_FIELDS = ('baseline_kind', 'budget_amount', 'baseline_amount', 'awarded_amount', 'savings_amount')
+WORKFLOW_FIELDS = ('state', 'cancel_reason', 'award_rationale', 'awarded_date', 'sent_date') + SAVINGS_FIELDS
+# Roles that read prices and savings (BR-SPM-0004): never a requester, a department manager or a supplier.
+SPM_PRICE_GROUPS = (
+    'supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_manager,'
+    'supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor,'
+    'supplier_procurement_management_hub.group_spm_admin')
+# Evidence of the award: the assumptions, criteria and lines no longer change once the event is awarded.
+AWARD_EVIDENCE_FIELDS = (
+    'currency_id', 'rate_date', 'tax_basis', 'criterion_ids', 'line_ids', 'invited_partner_ids',
+    'inform_unsuccessful')
+
+
+class ProcurementSourcingEvent(models.Model):
+    """A request for quotation sent to several invited suppliers at once.
+
+    Requirements: FR-SPM-0031, FR-SPM-0032, FR-SPM-0033, FR-SPM-0042
+    """
+    _name = 'procurement.sourcing.event'
+    _inherit = ['mail.thread']
+    _description = 'Sourcing Event'
+    _order = 'id desc'
+    _check_company_auto = True
+
+    name = fields.Char(readonly=True, copy=False, default='New')
+    title = fields.Char(required=True)
+    buyer_id = fields.Many2one(
+        'res.users', string="Buyer", required=True, default=lambda self: self.env.user,
+        ondelete='restrict', index=True)
+    state = fields.Selection([
+        ('draft', 'Draft'), ('open', 'Open'), ('awarded', 'Awarded'), ('cancelled', 'Cancelled'),
+    ], default='draft', required=True, copy=False, tracking=True, index=True)
+    deadline = fields.Datetime(
+        required=True, tracking=True, copy=False,
+        default=lambda self: fields.Datetime.now() + timedelta(days=DEFAULT_DEADLINE_DAYS))
+    line_ids = fields.One2many('procurement.sourcing.event.line', 'event_id', string="Lines", copy=True)
+    criterion_ids = fields.One2many('procurement.sourcing.criterion', 'event_id', string="Criteria", copy=True)
+    request_ids = fields.Many2many(
+        'procurement.request', 'procurement_sourcing_event_request_rel', 'event_id', 'request_id',
+        string="Purchase requests", copy=False, check_company=True)
+    template_id = fields.Many2one('procurement.sourcing.template', string="Template", ondelete='set null', check_company=True)
+    picking_type_id = fields.Many2one(
+        'stock.picking.type', string="Delivery location", ondelete='restrict', check_company=True,
+        domain="[('code', '=', 'incoming')]")
+    terms = fields.Html(string="Commercial terms")
+    company_id = fields.Many2one(
+        'res.company', required=True, default=lambda self: self.env.company, index=True)
+    currency_id = fields.Many2one(
+        'res.currency', compute='_compute_currency_id', store=True, precompute=True, readonly=False,
+        required=True)
+    rate_date = fields.Date(
+        string="Exchange rate date", tracking=True,
+        help="Prices are converted at the rate of this day when the comparison is normalized.")
+    tax_basis = fields.Selection([
+        ('unset', 'Not stated'), ('excluded', 'Without tax'), ('included', 'With tax'),
+    ], string="Tax basis", default='unset', required=True, tracking=True,
+        help="Whether prices are compared with or without tax.")
+    is_normalized = fields.Boolean(
+        compute='_compute_is_normalized',
+        help="Set when the currency, rate date, tax basis and every line's comparison unit are stated.")
+    negotiation_ids = fields.One2many(
+        'procurement.sourcing.negotiation', 'event_id', string="Negotiation history", copy=False)
+    invited_partner_ids = fields.Many2many(
+        'res.partner', 'procurement_sourcing_event_partner_rel', 'event_id', 'partner_id',
+        string="Invited suppliers", domain="[('spm_is_supplier', '=', True)]", copy=False)
+    supplier_file_ids = fields.Many2many(
+        'ir.attachment', 'procurement_sourcing_event_file_rel', 'event_id', 'attachment_id',
+        string="Files for suppliers", copy=False,
+        help="The only files of this event that invited suppliers can see and download.")
+    response_ids = fields.One2many('procurement.sourcing.response', 'event_id', string="Responses", copy=False)
+    inform_unsuccessful = fields.Boolean(string="Inform unsuccessful suppliers")
+    cancel_reason = fields.Text(readonly=True, copy=False)
+    award_rationale = fields.Text(readonly=True, copy=False, groups=SPM_SCORE_GROUPS)
+    awarded_date = fields.Datetime(readonly=True, copy=False)
+    sent_date = fields.Datetime(readonly=True, copy=False)  # built for T-031: the cycle report starts here
+    company_currency_id = fields.Many2one(related='company_id.currency_id', string="Company currency")
+    baseline_kind = fields.Selection(
+        report.BASELINE_KINDS, readonly=True, copy=False, groups=SPM_PRICE_GROUPS,
+        help="What the awarded total is compared with to compute the savings.")
+    budget_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
+    baseline_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
+    awarded_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS)
+    savings_amount = fields.Monetary(
+        currency_field='company_currency_id', readonly=True, aggregator=False, copy=False, groups=SPM_PRICE_GROUPS,
+        help="The baseline minus the awarded total, in the company currency.")
+    purchase_order_ids = fields.One2many(
+        'purchase.order', 'spm_sourcing_event_id', string="Purchase orders", copy=False,
+        groups='purchase.group_purchase_user')
+
+    @api.depends('company_id')
+    def _compute_currency_id(self):
+        for event in self:
+            event.currency_id = event.company_id.currency_id
+
+    @api.depends('currency_id', 'rate_date', 'tax_basis', 'line_ids.comparison_uom_id')
+    def _compute_is_normalized(self):
+        """Quotations are comparable only when every assumption is stated.
+
+        Requirements: BR-SPM-0007
+        """
+        for event in self:
+            event.is_normalized = bool(
+                event.currency_id and event.rate_date and event.tax_basis in ('excluded', 'included')
+                and event.line_ids and all(line.comparison_uom_id for line in event.line_ids))
+
+    @api.onchange('template_id')
+    def _onchange_template_id(self):
+        """Copy the criteria and the settings of the template onto the event.
+
+        Requirements: FR-SPM-0031
+        """
+        template = self.template_id
+        if template:
+            self.criterion_ids = [(5, 0, 0)] + [
+                (0, 0, {'name': c.name, 'kind': c.kind, 'direction': c.direction,
+                        'weight': c.weight, 'sequence': c.sequence})
+                for c in template.criterion_ids]
+            self.inform_unsuccessful = template.inform_unsuccessful
+
+    @api.constrains('deadline')
+    def _check_deadline_not_past(self):
+        """Refuse a deadline in the past.
+
+        Requirements: FR-SPM-0031
+        """
+        now = fields.Datetime.now()
+        for event in self:
+            if event.deadline and event.deadline < now:
+                raise ValidationError(self.env._(
+                    "The deadline %(deadline)s is in the past: choose a later date and time.",
+                    deadline=fields.Datetime.to_string(event.deadline)))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Number the event; only a draft is created by a user.
+
+        Requirements: FR-SPM-0031
+        """
+        for vals in vals_list:
+            if not self.env.su:
+                vals.pop('cancel_reason', None)
+                for name in SAVINGS_FIELDS:
+                    vals.pop(name, None)
+                vals['state'] = 'draft'
+            if vals.get('name', 'New') == 'New':
+                vals['name'] = self.env['ir.sequence'].next_by_code('procurement.sourcing.event') or 'New'
+        events = super().create(vals_list)
+        for event in events.filtered(lambda e: e.template_id and not e.criterion_ids):
+            event._onchange_template_id()
+        events._bind_supplier_files(events.supplier_file_ids)
+        return events
+
+    def _bind_supplier_files(self, files):
+        """Attach the files shared with suppliers to their event, so every buyer of it sees them.
+
+        Requirements: BR-SPM-0003
+        A file added before the event's first save belongs to nobody; only the user's own
+        files that belong to no other record may be shared.
+        """
+        for event in self:
+            # sudo: reads who made each file and what it belongs to, to refuse a file of someone else
+            for attachment in (files & event.supplier_file_ids).sudo():
+                if attachment.res_model == self._name and attachment.res_id == event.id:
+                    continue
+                if (attachment.create_uid != self.env.user or attachment.res_id
+                        or attachment.res_model not in (False, self._name)):
+                    raise UserError(self.env._("A file shared with suppliers is not available."))
+                attachment.write({'res_model': self._name, 'res_id': event.id})
+
+    def write(self, vals):
+        """Guard the workflow fields, and tell the suppliers when an open event's deadline moves.
+
+        Requirements: FR-SPM-0033
+        The state and the cancellation reason change only through the actions of the event;
+        the old and new deadline are kept by the tracking of the field.
+        """
+        if not self.env.su and any(field in vals for field in WORKFLOW_FIELDS):
+            raise AccessError(self.env._(
+                "The status of a sourcing event changes with its Send, Cancel and Award buttons."))
+        if not self.env.su and any(field in vals for field in AWARD_EVIDENCE_FIELDS) and any(
+                event.state == 'awarded' for event in self):
+            raise UserError(self.env._(
+                "The assumptions, criteria and lines of an awarded event are the evidence of the award and cannot change."))
+        if 'deadline' in vals and any(event.state in ('awarded', 'cancelled') for event in self):
+            raise UserError(self.env._("The deadline of an awarded or cancelled event cannot change."))
+        previous = {event: event.deadline for event in self}
+        shared_before = self.supplier_file_ids
+        result = super().write(vals)
+        if 'supplier_file_ids' in vals:
+            self._bind_supplier_files(self.supplier_file_ids - shared_before)
+        if 'deadline' in vals:
+            for event in self.filtered(lambda e: e.state == 'open' and e.deadline != previous[e]):
+                sourcing.notify_suppliers(
+                    self.env, event, sourcing.DEADLINE_TEMPLATE, event.response_ids.partner_id)
+        return result
+
+    def unlink(self):
+        """An awarded event is the evidence of the award and is never deleted.
+
+        Requirements: FR-SPM-0041
+        """
+        sourcing.check_event_not_awarded(self.env, self)
+        return super().unlink()
+
+    def action_spm_send(self):
+        """Send the event: one response per invited supplier, the invitation e-mail, then Open.
+
+        Requirements: FR-SPM-0032
+        Rights are the user's own; the state is written with elevated rights only after
+        the draft, supplier and supplier control checks.
+        """
+        for event in self:
+            event.check_access('write')
+            if event.state != 'draft':
+                raise UserError(self.env._("Only a draft event is sent."))
+            if event.deadline <= fields.Datetime.now():
+                raise UserError(self.env._(
+                    "The deadline %(deadline)s has passed: set a later deadline before sending.",
+                    deadline=fields.Datetime.to_string(event.deadline)))
+            sourcing.check_invitable(self.env, event)
+            suppliers = event.invited_partner_ids.commercial_partner_id
+            self.env['procurement.sourcing.response'].create([
+                {'event_id': event.id, 'partner_id': partner.id} for partner in suppliers])
+            # sudo: the state is a workflow field no user writes directly; the checks are above
+            event.sudo().write({'state': 'open', 'sent_date': fields.Datetime.now()})
+            sourcing.notify_suppliers(self.env, event, sourcing.INVITATION_TEMPLATE, suppliers)
+        return True
+
+    def action_spm_cancel(self, reason=None):
+        """Cancel the event with a reason: suppliers are told, the requests are free again.
+
+        Requirements: FR-SPM-0042
+        """
+        reason = (reason or '').strip()
+        if not reason:
+            raise UserError(self.env._("A reason is required to cancel a sourcing event."))
+        for event in self:
+            event.check_access('write')
+            if event.state == 'awarded':
+                raise UserError(self.env._("The event %s is already awarded and cannot be cancelled.", event.name))
+            if event.state == 'cancelled':
+                raise UserError(self.env._("The event %s is already cancelled.", event.name))
+            # sudo: the state is a workflow field no user writes directly; the checks are above
+            event.sudo().write({'state': 'cancelled', 'cancel_reason': reason})
+            sourcing.notify_suppliers(
+                self.env, event, sourcing.CANCEL_TEMPLATE, event.response_ids.partner_id)
+            event._spm_release_requests()
+        return True
+
+    def _spm_release_requests(self):
+        """Put the requests of the event that no other live event covers back to Submitted.
+
+        Requirements: FR-SPM-0042
+        """
+        self.ensure_one()
+        free = self.request_ids.filtered(lambda request: request.state == 'sourcing' and not any(
+            other.state in ('draft', 'open', 'awarded') for other in request.sourcing_event_ids - self))
+        free.write({'state': 'submitted'})
+
+    def _spm_comparison_to_open(self):
+        """The comparison the Compare button opens: rebuilt, or the stored one when it must not change.
+
+        Requirements: FR-SPM-0035
+        An awarded or cancelled event keeps its comparison as evidence, and the roles that only
+        read comparisons open the stored one.
+        """
+        stored = self.env['procurement.comparison'].search([('event_id', '=', self.id)])
+        comparisons = self.env['procurement.comparison']
+        frozen = self.state in ('awarded', 'cancelled')
+        if not frozen and comparisons.has_access('create'):
+            return sourcing.compare(self)
+        if not stored:
+            raise UserError(self.env._("No comparison was built for this event."))
+        return stored
+
+    def action_spm_compare(self):
+        """Rebuild the comparison of the current quotations and open it.
+
+        Requirements: FR-SPM-0035, FR-SPM-0037
+        """
+        self.ensure_one()
+        comparison = self._spm_comparison_to_open()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Comparison"),
+            'res_model': comparison._name,
+            'res_id': comparison.id,
+            'view_mode': 'form',
+        }
+
+    def action_spm_evaluate(self):
+        """Score and rank the current quotations of the event by the weighted criteria.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        self.ensure_one()
+        sourcing.evaluate(self)
+        return True
+
+    def action_spm_open_award_wizard(self):
+        """Open the dialog that awards the event with its rationale.
+
+        Requirements: FR-SPM-0039
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Award"),
+            'res_model': 'procurement.award.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_event_id': self.id},
+        }
+
+    def action_spm_generate_orders(self):
+        """Create or update one draft purchase order per awarded supplier; never confirm one.
+
+        Requirements: FR-SPM-0040
+        """
+        self.ensure_one()
+        return sourcing.generate_orders(self)
+
+    def action_spm_open_override_wizard(self):
+        """Open the reason dialog to record an override for this event.
+
+        Requirements: FR-SPM-0013
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Override supplier control"),
+            'res_model': 'procurement.reason.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': self._name,
+                'default_res_ids': self.ids,
+                'default_action': 'override',
+            },
+        }
+
+    def action_spm_open_cancel_wizard(self):
+        """Open the dialog asking the cancellation reason."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.env._("Cancel sourcing event"),
+            'res_model': 'procurement.reason.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model': self._name,
+                'default_res_ids': self.ids,
+                'default_action': 'cancel',
+            },
+        }

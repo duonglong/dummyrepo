@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0060 -->
+    <data noupdate="1">
+        <record id="discrepancy_reason_late" model="procurement.discrepancy.reason">
+            <field name="name">Late</field>
+            <field name="kind">late</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="discrepancy_reason_short" model="procurement.discrepancy.reason">
+            <field name="name">Short</field>
+            <field name="kind">short</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="discrepancy_reason_over" model="procurement.discrepancy.reason">
+            <field name="name">Over</field>
+            <field name="kind">over</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="discrepancy_reason_damaged" model="procurement.discrepancy.reason">
+            <field name="name">Damaged</field>
+            <field name="kind">damaged</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="discrepancy_reason_wrong_item" model="procurement.discrepancy.reason">
+            <field name="name">Wrong item</field>
+            <field name="kind">wrong_item</field>
+            <field name="sequence">50</field>
+        </record>
+    </data>
+</odoo>

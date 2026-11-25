@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0085, FR-SPM-0086, FR-SPM-0087 -->
+    <record id="procurement_evaluation_criterion_view_list" model="ir.ui.view">
+        <field name="name">procurement.evaluation.criterion.list</field>
+        <field name="model">procurement.evaluation.criterion</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_evaluation_criterion_action" model="ir.actions.act_window">
+        <field name="name">Evaluation criteria</field>
+        <field name="res_model">procurement.evaluation.criterion</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="procurement_supplier_evaluation_view_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.evaluation.list</field>
+        <field name="model">procurement.supplier.evaluation</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="partner_id"/>
+                <field name="date"/>
+                <field name="author_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_supplier_evaluation_view_form" model="ir.ui.view">
+        <field name="name">procurement.supplier.evaluation.form</field>
+        <field name="model">procurement.supplier.evaluation</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="author_id" readonly="1"/>
+                            <field name="editable_until"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <field name="rating_ids">
+                        <list editable="bottom">
+                            <field name="criterion_id"/>
+                            <field name="rating"/>
+                        </list>
+                    </field>
+                    <field name="comment" placeholder="Comment"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_supplier_evaluation_action" model="ir.actions.act_window">
+        <field name="name">Evaluations</field>
+        <field name="res_model">procurement.supplier.evaluation</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Record an evaluation of a supplier.</field>
+    </record>
+
+    <record id="procurement_supplier_review_view_list" model="ir.ui.view">
+        <field name="name">procurement.supplier.review.list</field>
+        <field name="model">procurement.supplier.review</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state in ('done', 'cancelled')">
+                <field name="partner_id"/>
+                <field name="kind"/>
+                <field name="date"/>
+                <field name="responsible_id"/>
+                <field name="trigger" optional="hide"/>
+                <field name="state"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_supplier_review_view_form" model="ir.ui.view">
+        <field name="name">procurement.supplier.review.form</field>
+        <field name="model">procurement.supplier.review</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_plan" type="object" string="Plan" class="btn-primary"
+                            invisible="state != 'to_plan'"/>
+                    <button name="action_done" type="object" string="Done" invisible="state not in ('to_plan', 'planned')"/>
+                    <button name="action_cancel" type="object" string="Cancel" invisible="state not in ('to_plan', 'planned')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="to_plan,planned,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="kind"/>
+                            <field name="date"/>
+                            <field name="responsible_id"/>
+                        </group>
+                        <group>
+                            <field name="trigger"/>
+                            <field name="scorecard_id" invisible="not scorecard_id"/>
+                            <field name="rejected_qty" invisible="kind == 'review'"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="participant_ids" widget="many2many_tags"/>
+                    </group>
+                    <field name="findings" placeholder="Findings"/>
+                    <field name="action_ids" context="{'default_state': 'open'}">
+                        <list editable="bottom">
+                            <field name="name"/>
+                            <field name="responsible_id"/>
+                            <field name="deadline"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_supplier_review_action" model="ir.actions.act_window">
+        <field name="name">Reviews and incidents</field>
+        <field name="res_model">procurement.supplier.review</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Record a review, an incident or a complaint.</field>
+    </record>
+
+    <record id="procurement_corrective_action_view_list" model="ir.ui.view">
+        <field name="name">procurement.corrective.action.list</field>
+        <field name="model">procurement.corrective.action</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state in ('done', 'cancelled')">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="responsible_id"/>
+                <field name="deadline"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_corrective_action_view_form" model="ir.ui.view">
+        <field name="name">procurement.corrective.action.form</field>
+        <field name="model">procurement.corrective.action</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_done" type="object" string="Done" class="btn-primary" invisible="state != 'open'"/>
+                    <button name="action_cancel" type="object" string="Cancel" invisible="state != 'open'"/>
+                    <button name="action_reopen" type="object" string="Reopen" invisible="state == 'open'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="open,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="review_id"/>
+                        <field name="partner_id"/>
+                        <field name="responsible_id"/>
+                        <field name="deadline"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_corrective_action_action" model="ir.actions.act_window">
+        <field name="name">Corrective actions</field>
+        <field name="res_model">procurement.corrective.action</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_open': 1}</field>
+    </record>
+    <record id="procurement_corrective_action_view_search" model="ir.ui.view">
+        <field name="name">procurement.corrective.action.search</field>
+        <field name="model">procurement.corrective.action</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="responsible_id"/>
+                <filter name="open" string="Open" domain="[('state', 'in', ('open',))]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="res_partner_view_form_spm_reviews" model="ir.ui.view">
+        <field name="name">res.partner.form.spm.reviews</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_spm_open_actions" type="object" class="oe_stat_button" icon="checklist"
+                        invisible="spm_open_action_count == 0"
+                        groups="supplier_procurement_management_hub.group_spm_buyer,supplier_procurement_management_hub.group_spm_finance,supplier_procurement_management_hub.group_spm_auditor">
+                    <field name="spm_open_action_count" widget="statinfo" string="Open actions"/>
+                </button>
+            </div>
+        </field>
+    </record>
+
+    <menuitem id="menu_spm_performance" name="Performance" parent="menu_spm_root" sequence="56"
+              groups="group_spm_buyer,group_spm_manager,group_spm_finance,group_spm_auditor,group_spm_admin"/>
+    <menuitem id="menu_spm_supplier_evaluation" name="Evaluations" parent="menu_spm_performance" sequence="10"
+              action="procurement_supplier_evaluation_action"/>
+    <menuitem id="menu_spm_supplier_review" name="Reviews and incidents" parent="menu_spm_performance" sequence="20"
+              action="procurement_supplier_review_action"/>
+    <menuitem id="menu_spm_corrective_action" name="Corrective actions" parent="menu_spm_performance" sequence="30"
+              action="procurement_corrective_action_action"/>
+    <menuitem id="menu_spm_evaluation_criterion" name="Evaluation criteria" parent="menu_spm_configuration"
+              sequence="62" action="procurement_evaluation_criterion_action"/>
+</odoo>

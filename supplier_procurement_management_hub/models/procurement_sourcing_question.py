@@ -1,0 +1,154 @@
+from textwrap import shorten
+
+from markupsafe import Markup
+
+from odoo import SUPERUSER_ID, api, fields, models
+from odoo.exceptions import AccessError, UserError
+
+from ..services import naming, portal_access, sourcing
+
+# The longest question a supplier asks from the portal.
+QUESTION_MAX = 2000
+# The part of a question that names it in a picker or a title.
+QUESTION_NAME_WIDTH = 50
+# The fields a buyer edits by hand; the others are set by the ask and the answer.
+BUYER_FIELDS = {'draft_answer', 'shared'}
+
+
+class ProcurementSourcingQuestion(models.Model):
+    """A supplier's question on a sourcing event and the buyer's answer, private or shared.
+
+    Requirements: FR-SPM-0023, BR-SPM-0003
+    The asker is a field of internal users only and the record is created as the superuser, so a
+    supplier who gets a shared answer never learns who asked; the portal record rule shows a supplier
+    its own questions and the shared answers of the events it is invited to.
+    """
+    _name = 'procurement.sourcing.question'
+    _description = 'Sourcing Question'
+    _order = 'id desc'
+
+    event_id = fields.Many2one(
+        'procurement.sourcing.event', required=True, ondelete='cascade', index=True)
+    partner_id = fields.Many2one(
+        'res.partner', string="Asked by", required=True, ondelete='restrict', index=True,
+        groups='base.group_user')
+    question = fields.Text(required=True)
+    draft_answer = fields.Text(string="Answer", copy=False, groups='base.group_user')
+    answer = fields.Text(readonly=True, copy=False)
+    shared = fields.Boolean(string="Shared with all suppliers", copy=False)
+    answered_by_id = fields.Many2one('res.users', readonly=True, copy=False)
+    asked_date = fields.Datetime(default=fields.Datetime.now, readonly=True)
+    answered_date = fields.Datetime(readonly=True, copy=False)
+    company_id = fields.Many2one(related='event_id.company_id', store=True, index=True)
+
+    @api.depends('partner_id', 'question')
+    def _compute_display_name(self):
+        """Requirements: FR-SPM-0023
+
+        The supplier and the start of its question.
+        """
+        for question in self:
+            text = shorten(question.question or '', QUESTION_NAME_WIDTH, placeholder="...")
+            question.display_name = naming.join_name([question.partner_id.display_name, text], question._description)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Refuse a question made outside spm_ask (a form, an import or a copy).
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        spm_ask creates as the superuser; any other creator could name an event or an asker
+        that never asked, and the answer would then be mailed to that supplier.
+        """
+        if not self.env.su:
+            raise AccessError(self.env._("A question is recorded only when a supplier asks it."))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        """Let a buyer edit only the draft answer and the Shared choice, before the answer is sent.
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        The event, the asker and the question stay as the supplier asked them.
+        """
+        if not self.env.su:
+            if set(vals) - BUYER_FIELDS:
+                raise AccessError(self.env._("Only the answer and its Shared choice can be changed."))
+            if self.filtered('answered_date'):
+                raise UserError(self.env._("This question is already answered."))
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_answered(self):
+        """Keep an answered question: suppliers read it in the portal and the chatter refers to it.
+
+        Requirements: FR-SPM-0023
+        """
+        if not self.env.su and self.filtered('answered_date'):
+            raise UserError(self.env._("An answered question cannot be deleted."))
+
+    def spm_ask(self, event_id, text):
+        """Record a question of the session user's supplier on an open event it is invited to.
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        The event id comes from the client: it must be an open event the supplier has a
+        response for (the portal rule decides what the user reads), then the question is
+        created with elevated rights, as a portal user has no create right.
+        """
+        text = (text or '').strip()
+        if not text:
+            raise UserError(self.env._("A question cannot be empty."))
+        if len(text) > QUESTION_MAX:
+            raise UserError(self.env._("A question holds at most %s characters.", QUESTION_MAX))
+        supplier = portal_access.current_supplier(self.env)
+        response = self.env['procurement.sourcing.response'].search(
+            [('event_id', '=', event_id), ('partner_id', '=', supplier.id)], limit=1)
+        # sudo: the portal user has no right on the event; its state is read after the invitation check
+        event = response.event_id.sudo()
+        if not response or event.state != 'open':
+            raise AccessError(self.env._("You cannot ask a question on this quote request."))
+        # superuser, not sudo(): sudo keeps the uid, which would make create_uid name the asker
+        question = self.with_user(SUPERUSER_ID).create({
+            'event_id': event.id, 'partner_id': supplier.id, 'question': text})
+        # sudo (event): the event thread is internal; the note records who asked, for the buyer
+        event.message_post(
+            body=Markup("%s: %s") % (supplier.name, text), subtype_xmlid='mail.mt_note',
+            partner_ids=event.buyer_id.partner_id.ids, author_id=self.env.user.partner_id.id)
+        # sudo: the asker field is internal-only; the caller gets the record it just created, readable whole
+        return question.sudo()
+
+    def action_spm_answer(self, answer, shared=False):
+        """Answer the question: to the asker, or to every invited supplier without the asker.
+
+        Requirements: FR-SPM-0023, BR-SPM-0003
+        Each supplier gets its own message, so no recipient list names another supplier.
+        """
+        answer = (answer or '').strip()
+        if not answer:
+            raise UserError(self.env._("An answer cannot be empty."))
+        for question in self:
+            question.check_access('write')
+            if question.answered_date:
+                raise UserError(self.env._("This question is already answered."))
+            # sudo: the answer fields are not hand-editable; the write right was checked above
+            question.sudo().write({
+                'answer': answer, 'draft_answer': False, 'shared': bool(shared), 'answered_by_id': self.env.user.id,
+                'answered_date': fields.Datetime.now()})
+            event = question.event_id
+            suppliers = event.response_ids.partner_id if shared else question.partner_id
+            body = Markup("<p>%s</p><p>%s</p>") % (question.question, answer)
+            for supplier in suppliers:
+                recipients = sourcing.portal_users(self.env, supplier).partner_id
+                if recipients:
+                    event.message_post(
+                        body=body, subject=self.env._("Answer on %s", event.name),
+                        message_type='comment', subtype_xmlid='mail.mt_comment',
+                        partner_ids=recipients.ids)
+        return True
+
+    def action_spm_send_answer(self):
+        """Send the answer typed on the form (the draft stays internal until now) with its Shared choice.
+
+        Requirements: FR-SPM-0023
+        """
+        for question in self:
+            question.action_spm_answer(question.draft_answer, question.shared)
+        return True

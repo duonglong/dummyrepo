@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-SPM-0043, FR-SPM-0044, FR-SPM-0045, FR-SPM-0046 -->
+    <record id="procurement_approval_policy_view_list" model="ir.ui.view">
+        <field name="name">procurement.approval.policy.list</field>
+        <field name="model">procurement.approval.policy</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="amount_min"/>
+                <field name="amount_max"/>
+                <field name="cumulative_period"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+    <record id="procurement_approval_policy_view_form" model="ir.ui.view">
+        <field name="name">procurement.approval.policy.form</field>
+        <field name="model">procurement.approval.policy</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <field name="active" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="sequence"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="amount_min"/>
+                            <field name="amount_max"/>
+                            <field name="cumulative_period"/>
+                            <field name="reapproval_tolerance"/>
+                            <field name="escalation_hours"/>
+                            <field name="escalation_user_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Steps" name="steps">
+                            <field name="step_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="approver_type"/>
+                                    <field name="user_ids" widget="many2many_tags"
+                                           invisible="approver_type != 'users'"/>
+                                    <field name="manager_levels" invisible="approver_type != 'manager'"/>
+                                    <field name="group_id" invisible="approver_type != 'group'"/>
+                                    <field name="mode"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Conditions" name="conditions">
+                            <group>
+                                <field name="partner_ids" widget="many2many_tags"/>
+                                <field name="department_ids" widget="many2many_tags"/>
+                                <field name="product_category_ids" widget="many2many_tags"/>
+                                <field name="product_ids" widget="many2many_tags"/>
+                                <field name="analytic_account_ids" widget="many2many_tags"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="procurement_approval_policy_action" model="ir.actions.act_window">
+        <field name="name">Approval policies</field>
+        <field name="res_model">procurement.approval.policy</field>
+        <field name="view_mode">list,form</field>
+        <field name="help">Add a policy to name who approves which orders.</field>
+    </record>
+    <menuitem id="menu_spm_approval_policy" name="Approval policies" parent="menu_spm_configuration"
+              sequence="72" action="procurement_approval_policy_action"
+              groups="group_spm_manager,group_spm_admin"/>
+</odoo>
