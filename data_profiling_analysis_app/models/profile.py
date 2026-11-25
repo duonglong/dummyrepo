@@ -1,8 +1,11 @@
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 TECHNICAL_FIELDS = ('id', 'create_uid', 'create_date', 'write_uid', 'write_date')
-UNPROFILABLE_TYPES = ('binary', 'one2many', 'json', 'properties', 'reference', 'many2one_reference')
+PROFILABLE_TYPES = (
+    'char', 'text', 'html', 'integer', 'float', 'monetary', 'boolean',
+    'date', 'datetime', 'selection', 'many2one', 'many2many',
+)
 OWN_MODEL_PREFIX = 'dpa.'
 
 
@@ -84,7 +87,7 @@ class DpaProfile(models.Model):
             name for name, field in model._fields.items()
             if field.store
             and name not in TECHNICAL_FIELDS
-            and field.type not in UNPROFILABLE_TYPES
+            and field.type in PROFILABLE_TYPES
             and model._has_field_access(field, 'read')
         ]
 
@@ -110,7 +113,7 @@ class DpaProfile(models.Model):
         """
         for profile in self:
             if not self._model_is_profilable(profile.model_id.model):
-                raise ValidationError(_("You are not allowed to read the records of this model."))
+                raise ValidationError(self.env._("You are not allowed to read the records of this model."))
 
     @api.constrains('field_ids', 'model_id')
     def _check_fields_profilable(self):
@@ -120,7 +123,7 @@ class DpaProfile(models.Model):
         """
         for profile in self.filtered('field_ids'):
             if profile.field_ids - profile.allowed_field_ids:
-                raise ValidationError(_("Some chosen fields cannot be profiled on this model."))
+                raise ValidationError(self.env._("This field cannot be profiled."))
 
     @api.constrains('empty_threshold')
     def _check_empty_threshold(self):
@@ -129,7 +132,7 @@ class DpaProfile(models.Model):
         Requirements: FR-DPA-0006
         """
         if any(not 0 <= profile.empty_threshold <= 100 for profile in self):
-            raise ValidationError(_("The empty-value threshold must be between 0 and 100."))
+            raise ValidationError(self.env._("The empty-value threshold must be between 0 and 100."))
 
     @api.constrains('outdated_days')
     def _check_outdated_days(self):
@@ -138,4 +141,4 @@ class DpaProfile(models.Model):
         Requirements: FR-DPA-0012
         """
         if any(profile.outdated_days < 1 for profile in self):
-            raise ValidationError(_("The outdated period must be at least 1 day."))
+            raise ValidationError(self.env._("The outdated period must be at least 1 day."))
