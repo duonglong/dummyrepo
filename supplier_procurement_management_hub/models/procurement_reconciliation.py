@@ -3,7 +3,7 @@ from odoo.exceptions import AccessError, UserError
 
 from ..services import audit
 from .procurement_matching_policy import MATCHING_METHODS
-from .procurement_reconciliation_exception import RELEASING_STATES
+from .procurement_reconciliation_exception import RELEASING_STATES, UNDECIDED_STATES
 
 PROTECTED_FIELDS = {
     'state', 'method', 'duplicate_move_ids', 'duplicate_cleared', 'duplicate_cleared_by_id', 'duplicate_comment',
@@ -42,6 +42,9 @@ class ProcurementReconciliation(models.Model):
     refreshed_date = fields.Datetime(readonly=True)
     posting_block_reason = fields.Text(
         string="Posting held by", compute='_compute_posting_block_reason')
+    open_exception_note = fields.Char(
+        string="Open exceptions", compute='_compute_open_exception_note',
+        help="Says the exceptions still open do not hold the posting; empty when one of them does.")
 
     _move_unique = models.Constraint('UNIQUE(move_id)', 'A vendor bill has one reconciliation.')
 
@@ -64,6 +67,29 @@ class ProcurementReconciliation(models.Model):
         for reconciliation in self:
             held = holds.filtered(lambda exception: exception.reconciliation_id == reconciliation)
             reconciliation.posting_block_reason = "\n".join(held._spm_hold_lines()) or False
+
+    @api.depends('exception_ids.state', 'exception_ids.kind', 'exception_ids.requires_approval')
+    def _compute_open_exception_note(self):
+        """Requirements: FR-SPM-111
+
+        One line with the number of open exceptions when none of the bill's exceptions holds its posting.
+        """
+        exception_model = self.env['procurement.reconciliation.exception']
+        held_moves = exception_model._spm_posting_holds(self.move_id).move_id
+        # sudo: only a count is read, so every reader sees the same number as the posting warning gives
+        groups = exception_model.sudo()._read_group(
+            [('move_id', 'in', self.move_id.ids), ('state', 'in', UNDECIDED_STATES)],
+            ['move_id'], ['__count'])
+        counts = {move.id: count for move, count in groups}
+        for reconciliation in self:
+            count = 0 if reconciliation.move_id in held_moves else counts.get(reconciliation.move_id.id, 0)
+            if not count:
+                reconciliation.open_exception_note = False
+            elif count == 1:
+                reconciliation.open_exception_note = self.env._("1 open exception, posting not held")
+            else:
+                reconciliation.open_exception_note = self.env._(
+                    "%(count)s open exceptions, posting not held", count=count)
 
     @api.model_create_multi
     def create(self, vals_list):
