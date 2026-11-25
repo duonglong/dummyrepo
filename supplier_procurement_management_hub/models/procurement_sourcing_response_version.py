@@ -25,8 +25,12 @@ class ProcurementSourcingResponseVersion(models.Model):
     currency_id = fields.Many2one('res.currency', required=True)
     payment_term_id = fields.Many2one('account.payment.term', string="Payment terms")
     payment_days = fields.Integer()
+    payment_days_given = fields.Boolean(
+        string="Payment days stated", help="Set when the supplier stated the payment days, a stated 0 included.")
     validity_date = fields.Date(string="Valid until")
     warranty_months = fields.Integer()
+    warranty_given = fields.Boolean(
+        string="Warranty stated", help="Set when the supplier stated the warranty, a stated 0 included.")
     notes = fields.Text()
     attachment_ids = fields.Many2many(
         'ir.attachment', 'procurement_sourcing_response_version_attachment_rel',
@@ -59,6 +63,14 @@ class ProcurementSourcingResponseVersion(models.Model):
                 total += taxes['total_included']
             version.amount_untaxed = untaxed
             version.amount_total = total
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """A term the creator did not mark as stated counts as stated when it holds a number."""
+        for vals in vals_list:
+            vals.setdefault('payment_days_given', bool(vals.get('payment_days')))
+            vals.setdefault('warranty_given', bool(vals.get('warranty_months')))
+        return super().create(vals_list)
 
     def write(self, vals):
         """Refuse every change except the current mark.
@@ -97,6 +109,8 @@ class ProcurementSourcingResponseLine(models.Model):
     tax_ids = fields.Many2many(
         'account.tax', 'procurement_sourcing_response_line_tax_rel', 'line_id', 'tax_id', string="Taxes")
     lead_time_days = fields.Integer()
+    lead_time_given = fields.Boolean(
+        string="Lead time stated", help="Set when the supplier stated the lead time, a stated 0 included.")
     price_subtotal = fields.Monetary(compute='_compute_price_subtotal', store=True)
     awarded = fields.Boolean(copy=False)
 
@@ -118,6 +132,8 @@ class ProcurementSourcingResponseLine(models.Model):
         """Lines exist only with the version being submitted."""
         if not self.env.context.get('spm_new_version'):
             raise UserError(self.env._("The lines of a quotation version are set when it is submitted."))
+        for vals in vals_list:
+            vals.setdefault('lead_time_given', bool(vals.get('lead_time_days')))
         return super().create(vals_list)
 
     def write(self, vals):
@@ -147,10 +163,18 @@ class ProcurementQuotationEntry(models.TransientModel):
     line_ids = fields.One2many('procurement.quotation.entry.line', 'entry_id', string="Lines")
     payment_term_id = fields.Many2one('account.payment.term', string="Payment terms")
     payment_days = fields.Integer()
+    payment_days_given = fields.Boolean(string="Stated")
     validity_date = fields.Date(string="Valid until")
     warranty_months = fields.Integer()
+    warranty_given = fields.Boolean(string="Stated")
     notes = fields.Text()
     attachment_ids = fields.Many2many('ir.attachment', string="Attachments")
+
+    @api.onchange('payment_days', 'warranty_months')
+    def _onchange_stated(self):
+        """A typed number states its term; a stated 0 is ticked by hand."""
+        self.payment_days_given = self.payment_days_given or bool(self.payment_days)
+        self.warranty_given = self.warranty_given or bool(self.warranty_months)
 
     @api.model
     def default_get(self, fields_list):
@@ -169,12 +193,14 @@ class ProcurementQuotationEntry(models.TransientModel):
         quoted = self.line_ids.filtered(lambda line: line.quoted or line.price_unit)
         self.response_id.spm_enter_quotation(
             [{'event_line_id': line.event_line_id.id, 'price_unit': line.price_unit,
-              'discount': line.discount, 'lead_time_days': line.lead_time_days,
-               'tax_ids': line.tax_ids.ids} for line in quoted],
+              'discount': line.discount,
+              'lead_time_days': line.lead_time_days if line.lead_time_given else '',
+              'tax_ids': line.tax_ids.ids} for line in quoted],
             attachment_ids=self.attachment_ids.ids,
-            payment_term_id=self.payment_term_id.id, payment_days=self.payment_days,
+            payment_term_id=self.payment_term_id.id,
+            payment_days=self.payment_days if self.payment_days_given else '',
             validity_date=self.validity_date or False,
-            warranty_months=self.warranty_months, notes=self.notes or False)
+            warranty_months=self.warranty_months if self.warranty_given else '', notes=self.notes or False)
         return {'type': 'ir.actions.act_window_close'}
 
 
@@ -196,3 +222,10 @@ class ProcurementQuotationEntryLine(models.TransientModel):
         domain="[('type_tax_use', '=', 'purchase'), ('company_id', 'parent_of', company_id)]")
     company_id = fields.Many2one(related='event_line_id.event_id.company_id')
     lead_time_days = fields.Integer()
+    lead_time_given = fields.Boolean(string="Stated")
+
+    @api.onchange('lead_time_days')
+    def _onchange_lead_time_days(self):
+        """A typed lead time is stated; a stated 0 is ticked by hand."""
+        for line in self:
+            line.lead_time_given = line.lead_time_given or bool(line.lead_time_days)

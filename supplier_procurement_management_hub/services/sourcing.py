@@ -99,10 +99,15 @@ def check_accepts_quotation(env, response, by_buyer):
             deadline=fields.Datetime.to_string(deadline)))
 
 
+def _given(value):
+    """Whether a submitted value was filled in: a typed 0 is given, a blank field is not."""
+    return not (value is None or value is False or value == '')
+
+
 def _number(env, value, label, integer=False):
-    """A finite number from a submitted value, or a UserError naming the field."""
+    """A finite number from a submitted value (blank counts as 0), or a UserError naming the field."""
     try:
-        number = float(value if value not in (None, False, '') else 0)
+        number = float(value if _given(value) else 0)
     except (TypeError, ValueError):
         number = math.nan
     if not math.isfinite(number) or number < 0 or (integer and number != int(number)):
@@ -146,6 +151,7 @@ def prepare_lines(env, response, lines):
             'price_unit': _number(env, offer.get('price_unit'), env._("The price")),
             'discount': discount,
             'lead_time_days': _number(env, offer.get('lead_time_days'), env._("The lead time"), integer=True),
+            'lead_time_given': _given(offer.get('lead_time_days')),
             'tax_ids': [(6, 0, tax_ids)]})
     if not values:
         raise UserError(env._("Quote at least one line."))
@@ -166,6 +172,8 @@ def prepare_terms(env, terms):
             raise UserError(env._("The validity date is not a valid date.")) from None
     for key, label in (('payment_days', env._("The payment days")), ('warranty_months', env._("The warranty"))):
         values[key] = _number(env, terms.get(key), label, integer=True)
+    values['payment_days_given'] = _given(terms.get('payment_days'))
+    values['warranty_given'] = _given(terms.get('warranty_months'))
     term_id = terms.get('payment_term_id')
     if term_id:
         if not env['account.payment.term'].search_count([('id', '=', term_id)]):
@@ -315,7 +323,13 @@ def _payment_days(version):
 
 def _term_given(version):
     """Whether the offer states its payment terms, as days or as a payment term (immediate payment counts)."""
-    return bool(version.payment_days or version.payment_term_id)
+    return bool(version.payment_days_given or version.payment_term_id)
+
+
+def _lead_time(version):
+    """The lead time of a version: the longest of the lines that state one, None when none does."""
+    given = [line.lead_time_days for line in version.line_ids if line.lead_time_given]
+    return max(given) if given else None
 
 
 def _criterion_value(criterion, version, total, lines):
@@ -325,7 +339,7 @@ def _criterion_value(criterion, version, total, lines):
     if criterion.kind == 'total_cost':
         return version.amount_total
     if criterion.kind == 'lead_time':
-        return max((line.lead_time_days for line in lines), default=0)
+        return _lead_time(version) or 0
     if criterion.kind == 'terms':
         return _payment_days(version)
     return 0.0
@@ -336,8 +350,6 @@ TERM_ROWS = {
     'total_cost': False, 'lead_time': False, 'payment_terms': None, 'warranty': True, 'validity': True}
 # Rows that add up or take the maximum over the lines: an offer that left a line out never wins them.
 AGGREGATE_KINDS = ('price', 'total_cost', 'lead_time')
-# Criteria whose value is an integer the supplier may leave blank: a stored 0 means not given, so missing.
-BLANK_ZERO_KINDS = ('lead_time', 'terms')
 # Criteria whose score is given by the buyer on the cell, not read from the quotation.
 GIVEN_KINDS = ('manual', 'yes_no')
 
@@ -345,7 +357,8 @@ GIVEN_KINDS = ('manual', 'yes_no')
 def _term_cell(version, key, total_cost, normalized_cost, incomplete):
     """The cell of one fixed term row of a response (total cost, lead time, terms, warranty, validity).
 
-    A lead time, payment days, warranty or validity left blank is stored as 0 or empty: not given, so missing.
+    A lead time, payment days, warranty or validity the supplier left blank is not given, so missing;
+    a stated 0 is given.
     """
     currency = version.currency_id
     cell = {'row_kind': 'term', 'term_key': key, 'raw_display': '', 'rankable': True}
@@ -354,15 +367,15 @@ def _term_cell(version, key, total_cost, normalized_cost, incomplete):
                     has_normalized=normalized_cost is not None,
                     raw_display=f"{total_cost:.{currency.decimal_places}f} {currency.name}")
     elif key == 'lead_time':
-        days = max((line.lead_time_days for line in version.line_ids), default=0)
-        cell.update(raw_value=days, raw_display=f"{days}", rankable=bool(days))
+        days = _lead_time(version)
+        cell.update(raw_value=days or 0, raw_display=f"{days or 0}", rankable=days is not None)
     elif key == 'payment_terms':
         cell.update(raw_value=_payment_days(version),
                     raw_display=version.payment_term_id.name or f"{version.payment_days}",
                     rankable=_term_given(version))
     elif key == 'warranty':
         cell.update(raw_value=version.warranty_months, raw_display=f"{version.warranty_months}",
-                    rankable=bool(version.warranty_months))
+                    rankable=version.warranty_given)
     else:
         cell.update(raw_value=version.validity_date.toordinal() if version.validity_date else 0,
                     raw_display=fields.Date.to_string(version.validity_date) if version.validity_date else '',
@@ -423,8 +436,8 @@ def _cells_of_response(env, event, response, normalized):
             'has_normalized': normalized and money,
             'normalized_value': normalized_value if normalized else 0.0,
             'missing': incomplete and criterion.kind in AGGREGATE_KINDS or (
-                criterion.kind in BLANK_ZERO_KINDS and not (
-                    _term_given(version) if criterion.kind == 'terms' else value))})
+                criterion.kind == 'terms' and not _term_given(version)
+                or criterion.kind == 'lead_time' and _lead_time(version) is None)})
     return cells
 
 

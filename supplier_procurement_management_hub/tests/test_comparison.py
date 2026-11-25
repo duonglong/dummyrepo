@@ -10,6 +10,7 @@ from lxml import etree
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form
 
+from ..services import portal_access
 from .comparison_common import SpmComparisonCase
 
 
@@ -410,3 +411,116 @@ class TestBlankTerms(SpmComparisonCase):
         for key in ('warranty', 'validity'):
             self.assertTrue(self._term(comparison, beta, key).missing, key)
             self.assertFalse(self._term(comparison, acme, key).missing, key)
+
+
+class TestTypedZero(SpmComparisonCase):
+    """Requirements: FR-SPM-0035, FR-SPM-0038, BR-SPM-0008"""
+
+    def _enter(self, response, lead, **terms):
+        """The buyer enters a one-line quotation; ``lead`` and the terms are the typed values ('' is blank)."""
+        line = response.event_id.line_ids
+        response.with_user(self.buyer).spm_enter_quotation(
+            [{'event_line_id': line.id, 'price_unit': 12.0, 'discount': 0.0, 'lead_time_days': lead}], **terms)
+
+    def _offers(self, kind, direction, typed, other, **terms):
+        """Compare an offer typed as ``typed`` with one typed as ``other``; each is a (lead, terms) pair."""
+        event = self._sourcing(self.acme | self.beta, criteria=[('Criterion', kind, direction, 100.0)])
+        acme, beta = self._response(event, self.acme), self._response(event, self.beta)
+        self._enter(acme, typed[0], **typed[1])
+        self._enter(beta, other[0], **other[1])
+        return self._compare(event), acme, beta, event.criterion_ids
+
+    def _term(self, comparison, response, key):
+        return comparison.line_ids.filtered(
+            lambda c: c.row_kind == 'term' and c.response_id == response and c.term_key == key)
+
+    def test_b_0294_typed_zero_lead_time_is_best_and_scores_full(self):
+        """Regression test for B-0294: a lead time typed as 0 is given, the fastest, and scores 100.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._offers('lead_time', 'lower', ('0', {}), ('10', {}))
+        cell = self._cell(comparison, acme, 'criterion', criterion=criterion)
+        self.assertFalse(cell.missing)
+        self.assertEqual(cell.score, 100.0)
+        self.assertTrue(self._term(comparison, acme, 'lead_time').is_best)
+        self.assertFalse(self._term(comparison, acme, 'lead_time').missing)
+
+    def test_b_0294_blank_lead_time_stays_missing(self):
+        """Regression test for B-0294: a lead time left blank is still missing and never best.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._offers('lead_time', 'lower', ('', {}), ('10', {}))
+        cell = self._cell(comparison, acme, 'criterion', criterion=criterion)
+        self.assertTrue(cell.missing)
+        self.assertEqual(cell.score, 0.0)
+        self.assertTrue(self._term(comparison, acme, 'lead_time').missing)
+        self.assertTrue(self._term(comparison, beta, 'lead_time').is_best)
+
+    def test_b_0294_typed_zero_payment_days_win_a_lower_is_better_criterion(self):
+        """Regression test for B-0294 (sibling): payment days typed as 0 with no payment term are given and best.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._offers(
+            'terms', 'lower', ('5', {'payment_days': '0'}), ('5', {'payment_days': '30'}))
+        cell = self._cell(comparison, acme, 'criterion', criterion=criterion)
+        self.assertFalse(cell.missing)
+        self.assertEqual(cell.score, 100.0)
+        self.assertFalse(self._term(comparison, acme, 'payment_terms').missing)
+
+    def test_b_0294_blank_payment_days_stay_missing(self):
+        """Regression test for B-0294 (sibling): payment days left blank stay missing.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._offers(
+            'terms', 'lower', ('5', {}), ('5', {'payment_days': '30'}))
+        self.assertTrue(self._cell(comparison, acme, 'criterion', criterion=criterion).missing)
+        self.assertTrue(self._term(comparison, acme, 'payment_terms').missing)
+
+    def test_b_0294_typed_zero_warranty_is_given_and_blank_is_missing(self):
+        """Regression test for B-0294 (sibling): a warranty typed as 0 is shown as given, a blank one as missing.
+
+        Requirements: FR-SPM-0035
+        """
+        comparison, acme, beta, _criterion = self._offers(
+            'lead_time', 'lower', ('5', {'warranty_months': '0'}), ('5', {}))
+        self.assertFalse(self._term(comparison, acme, 'warranty').missing)
+        self.assertTrue(self._term(comparison, beta, 'warranty').missing)
+
+    def test_b_0294_portal_form_keeps_a_blank_lead_time_blank_and_a_typed_zero_given(self):
+        """Regression test for B-0294: the portal form's blank lead time field is not turned into a typed 0.
+
+        Requirements: FR-SPM-0020, FR-SPM-0038
+        """
+        event = self._sourcing(self.acme | self.beta)
+        response = self._response(event, self.acme)
+        line = event.line_ids
+        blank, _terms = portal_access.parse_quotation_post(
+            self.env, response, {f'price_unit_{line.id}': '5', f'lead_time_{line.id}': ''})
+        typed, _terms = portal_access.parse_quotation_post(
+            self.env, response, {f'price_unit_{line.id}': '5', f'lead_time_{line.id}': '0'})
+        for lines, given in ((blank, False), (typed, True)):
+            response.with_user(self.buyer).spm_enter_quotation(lines)
+            self.assertEqual(response.current_version_id.line_ids.lead_time_given, given)
+
+    def test_b_0294_buyer_dialog_records_a_stated_zero_lead_time(self):
+        """Regression test for B-0294: the dialog's Stated mark makes a typed 0 given; untouched it stays blank.
+
+        Requirements: FR-SPM-0034, FR-SPM-0038
+        """
+        event = self._sourcing(self.acme | self.beta)
+        response = self._response(event, self.acme)
+        for stated, given in ((True, True), (False, False)):
+            with Form(self.env['procurement.quotation.entry'].with_user(self.buyer).with_context(
+                    default_response_id=response.id)) as form:
+                with form.line_ids.edit(0) as line:
+                    line.price_unit = 8.0
+                    line.lead_time_given = stated
+                form.payment_days_given = stated
+            form.save().action_confirm()
+            version = response.current_version_id
+            self.assertEqual(version.line_ids.lead_time_given, given)
+            self.assertEqual(version.payment_days_given, given)

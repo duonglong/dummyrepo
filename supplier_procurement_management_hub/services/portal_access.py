@@ -494,7 +494,8 @@ def quote_page_values(env, response):
             'id': line.id, 'name': line.name, 'quantity': line.quantity, 'uom': line.uom_id.name,
             'price_unit': offered[line.id].price_unit if line.id in offered else '',
             'discount': offered[line.id].discount if line.id in offered else '',
-            'lead_time_days': offered[line.id].lead_time_days if line.id in offered else '',
+            'lead_time_days': (
+                offered[line.id].lead_time_days if line.id in offered and offered[line.id].lead_time_given else ''),
             'tax_id': (offered_taxes[line.id] or [''])[0] if line.id in offered else '',
         } for line in event.line_ids],
         'files': [{'id': attachment.id, 'name': attachment.name} for attachment in files],
@@ -524,7 +525,7 @@ def parse_quotation_post(env, response, post):
         lines.append({
             'event_line_id': int(line_id), 'price_unit': str(price).strip().replace(',', '.'),
             'discount': str(post.get('discount_' + line_id) or 0).strip().replace(',', '.'),
-            'lead_time_days': post.get('lead_time_' + line_id) or 0,
+            'lead_time_days': str(post.get('lead_time_' + line_id) or '').strip(),
             'tax_ids': [int(tax)] if tax.isdigit() else []})
     terms = {key: post[key].strip() for key in QUOTE_TERM_KEYS if str(post.get(key) or '').strip()}
     return lines, terms

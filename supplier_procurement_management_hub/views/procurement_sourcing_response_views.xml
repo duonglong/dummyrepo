@@ -60,7 +60,9 @@
                             <field name="validity_date"/>
                             <field name="payment_term_id"/>
                             <field name="payment_days"/>
+                            <field name="payment_days_given"/>
                             <field name="warranty_months"/>
+                            <field name="warranty_given"/>
                         </group>
                     </group>
                     <field name="line_ids">
@@ -70,6 +72,7 @@
                             <field name="price_unit"/>
                             <field name="discount"/>
                             <field name="lead_time_days"/>
+                            <field name="lead_time_given"/>
                             <field name="price_subtotal"/>
                             <field name="currency_id" column_invisible="True"/>
                         </list>
@@ -94,7 +97,9 @@
                     <group>
                         <field name="payment_term_id"/>
                         <field name="payment_days"/>
+                        <field name="payment_days_given"/>
                         <field name="warranty_months"/>
+                        <field name="warranty_given"/>
                     </group>
                 </group>
                 <field name="line_ids">
@@ -108,6 +113,7 @@
                         <field name="discount"/>
                         <field name="tax_ids" widget="many2many_tags"/>
                         <field name="lead_time_days"/>
+                        <field name="lead_time_given"/>
                     </list>
                 </field>
                 <field name="notes" placeholder="Notes"/>
