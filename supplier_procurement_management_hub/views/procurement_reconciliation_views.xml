@@ -31,6 +31,9 @@
                         <strong>Cannot be posted until released:</strong>
                         <field name="posting_block_reason" nolabel="1"/>
                     </div>
+                    <div class="alert alert-info" role="status" invisible="not open_exception_note">
+                        <field name="open_exception_note" nolabel="1"/>
+                    </div>
                     <group>
                         <group>
                             <field name="move_id"/>
