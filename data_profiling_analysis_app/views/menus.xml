@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0032 -->
+    <menuitem id="menu_data_profiling_root" name="Data Profiling" sequence="60"
+              groups="data_profiling_analysis_app.group_data_profiling"/>
+</odoo>

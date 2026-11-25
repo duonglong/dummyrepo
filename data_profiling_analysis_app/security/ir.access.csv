@@ -1,0 +1,4 @@
+id,name,model_id,group_id/id,operation,domain
+access_ir_model_dpa,ir.model dpa,ir.model,data_profiling_analysis_app.group_data_profiling,r,
+access_ir_model_fields_dpa,ir.model.fields dpa,ir.model.fields,data_profiling_analysis_app.group_data_profiling,r,
+access_ir_model_fields_selection_dpa,ir.model.fields.selection dpa,ir.model.fields.selection,data_profiling_analysis_app.group_data_profiling,r,
