@@ -274,3 +274,86 @@ class TestComparisonScreen(SpmComparisonCase):
         hidden_when = node.get('invisible', '')
         self.assertIn('term_key', hidden_when)
         self.assertIn('criterion_kind', hidden_when)
+
+
+class TestBlankTerms(SpmComparisonCase):
+    """Requirements: FR-SPM-0035, FR-SPM-0038, BR-SPM-0008"""
+
+    def _blank_offer(self, kind, direction, given, blank, **terms):
+        """Compare two offers on one criterion; ``blank`` leaves its lead time and payment days empty."""
+        event = self._sourcing(
+            self.acme | self.beta, criteria=[('Criterion', kind, direction, 100.0)])
+        chairs = event.line_ids
+        acme, beta = self._response(event, self.acme), self._response(event, self.beta)
+        self._quote(acme, [(chairs, 12.0, given)], payment_days=given, **terms)
+        self._quote(beta, [(chairs, 12.0, blank)], payment_days=blank)
+        comparison = self._compare(event)
+        return comparison, acme, beta, event.criterion_ids
+
+    def _term(self, comparison, response, key):
+        return comparison.line_ids.filtered(
+            lambda c: c.row_kind == 'term' and c.response_id == response and c.term_key == key)
+
+    def test_b_0291_a_blank_lead_time_scores_zero_and_is_flagged(self):
+        """Regression test for B-0291: a blank lead time never wins the criterion; the others keep their score.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._blank_offer('lead_time', 'lower', 10, 0)
+        blank = self._cell(comparison, beta, 'criterion', criterion=criterion)
+        given = self._cell(comparison, acme, 'criterion', criterion=criterion)
+        self.assertTrue(blank.missing)
+        self.assertEqual(blank.score, 0.0)
+        self.assertEqual(given.score, 100.0)
+        self.assertFalse(given.missing)
+
+    def test_b_0291_a_blank_lead_time_is_missing_not_best_in_the_grid_row(self):
+        """Regression test for B-0291: the Lead time term row shows the blank offer as missing, never best.
+
+        Requirements: FR-SPM-0035
+        """
+        comparison, acme, beta, _criterion = self._blank_offer('lead_time', 'lower', 10, 0)
+        self.assertTrue(self._term(comparison, beta, 'lead_time').missing)
+        self.assertFalse(self._term(comparison, beta, 'lead_time').is_best)
+        self.assertTrue(self._term(comparison, acme, 'lead_time').is_best)
+
+    def test_b_0291_blank_payment_days_score_zero_and_are_flagged_when_lower_is_better(self):
+        """Regression test for B-0291 (sibling): blank payment days never win a lower-is-better terms criterion.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, acme, beta, criterion = self._blank_offer('terms', 'lower', 30, 0)
+        blank = self._cell(comparison, beta, 'criterion', criterion=criterion)
+        self.assertTrue(blank.missing)
+        self.assertEqual(blank.score, 0.0)
+        self.assertEqual(self._cell(comparison, acme, 'criterion', criterion=criterion).score, 100.0)
+
+    def test_b_0291_blank_payment_days_are_flagged_when_higher_is_better(self):
+        """Regression test for B-0291 (sibling): blank payment days score 0 and are flagged missing, higher or lower.
+
+        Requirements: FR-SPM-0038, BR-SPM-0008
+        """
+        comparison, _acme, beta, criterion = self._blank_offer('terms', 'higher', 30, 0)
+        blank = self._cell(comparison, beta, 'criterion', criterion=criterion)
+        self.assertTrue(blank.missing)
+        self.assertEqual(blank.score, 0.0)
+
+    def test_b_0291_blank_payment_days_show_missing_on_the_terms_row(self):
+        """Regression test for B-0291 (sibling): the payment terms row shows blank days as missing.
+
+        Requirements: FR-SPM-0035
+        """
+        comparison, acme, beta, _criterion = self._blank_offer('terms', 'lower', 30, 0)
+        self.assertTrue(self._term(comparison, beta, 'payment_terms').missing)
+        self.assertFalse(self._term(comparison, acme, 'payment_terms').missing)
+
+    def test_b_0291_blank_warranty_and_validity_show_missing_on_the_term_rows(self):
+        """Regression test for B-0291 (sibling): an empty warranty or validity is missing, not a 0 or empty cell.
+
+        Requirements: FR-SPM-0035
+        """
+        comparison, acme, beta, _criterion = self._blank_offer(
+            'lead_time', 'lower', 10, 10, warranty_months=12, validity_date='2026-12-31')
+        for key in ('warranty', 'validity'):
+            self.assertTrue(self._term(comparison, beta, key).missing, key)
+            self.assertFalse(self._term(comparison, acme, key).missing, key)

@@ -326,12 +326,17 @@ TERM_ROWS = {
     'total_cost': False, 'lead_time': False, 'payment_terms': None, 'warranty': True, 'validity': True}
 # Rows that add up or take the maximum over the lines: an offer that left a line out never wins them.
 AGGREGATE_KINDS = ('price', 'total_cost', 'lead_time')
+# Criteria whose value is an integer the supplier may leave blank: a stored 0 means not given, so missing.
+BLANK_ZERO_KINDS = ('lead_time', 'terms')
 # Criteria whose score is given by the buyer on the cell, not read from the quotation.
 GIVEN_KINDS = ('manual', 'yes_no')
 
 
 def _term_cell(version, key, total_cost, normalized_cost, incomplete):
-    """The cell of one fixed term row of a response (total cost, lead time, terms, warranty, validity)."""
+    """The cell of one fixed term row of a response (total cost, lead time, terms, warranty, validity).
+
+    A lead time, payment days, warranty or validity left blank is stored as 0 or empty: not given, so missing.
+    """
     currency = version.currency_id
     cell = {'row_kind': 'term', 'term_key': key, 'raw_display': '', 'rankable': True}
     if key == 'total_cost':
@@ -340,10 +345,11 @@ def _term_cell(version, key, total_cost, normalized_cost, incomplete):
                     raw_display=f"{total_cost:.{currency.decimal_places}f} {currency.name}")
     elif key == 'lead_time':
         days = max((line.lead_time_days for line in version.line_ids), default=0)
-        cell.update(raw_value=days, raw_display=f"{days}")
+        cell.update(raw_value=days, raw_display=f"{days}", rankable=bool(days))
     elif key == 'payment_terms':
         cell.update(raw_value=version.payment_days,
-                    raw_display=version.payment_term_id.name or f"{version.payment_days}")
+                    raw_display=version.payment_term_id.name or f"{version.payment_days}",
+                    rankable=bool(version.payment_days or version.payment_term_id))
     elif key == 'warranty':
         cell.update(raw_value=version.warranty_months, raw_display=f"{version.warranty_months}",
                     rankable=bool(version.warranty_months))
@@ -351,7 +357,7 @@ def _term_cell(version, key, total_cost, normalized_cost, incomplete):
         cell.update(raw_value=version.validity_date.toordinal() if version.validity_date else 0,
                     raw_display=fields.Date.to_string(version.validity_date) if version.validity_date else '',
                     rankable=bool(version.validity_date))
-    cell['missing'] = incomplete and key in AGGREGATE_KINDS
+    cell['missing'] = incomplete and key in AGGREGATE_KINDS or not cell['rankable']
     return cell
 
 
@@ -406,7 +412,8 @@ def _cells_of_response(env, event, response, normalized):
             'currency': currency.id if money else False,
             'has_normalized': normalized and money,
             'normalized_value': normalized_value if normalized else 0.0,
-            'missing': incomplete and criterion.kind in AGGREGATE_KINDS})
+            'missing': incomplete and criterion.kind in AGGREGATE_KINDS or (
+                criterion.kind in BLANK_ZERO_KINDS and not value)})
     return cells
 
 
