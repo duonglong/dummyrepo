@@ -25,7 +25,7 @@ EVENTS = [
 PRECISION_DIGITS = 6
 
 
-def within_tolerance(difference, reference, kind, value):
+def within_tolerance(difference: float, reference: float, kind: str, value: float) -> bool:
     """Tell whether a difference is within the tolerance; equality is accepted.
 
     Requirements: BR-IPR-0001
@@ -34,7 +34,7 @@ def within_tolerance(difference, reference, kind, value):
     return float_compare(abs(difference), limit, precision_digits=PRECISION_DIGITS) <= 0
 
 
-def compare(lines, tolerances):
+def compare(lines: list[dict], tolerances: dict) -> tuple[list[dict], list[dict]]:
     """Compare bill lines with their order lines.
 
     Each line is a dict with `key`, `on_order`, `first_of_order_line` and the
@@ -68,7 +68,7 @@ def compare(lines, tolerances):
     return rows, exceptions
 
 
-def verdict(rows, duplicates):
+def verdict(rows: list[dict], duplicates: list) -> str:
     """Return 'matched' when nothing is an exception, else 'waiting'.
 
     Requirements: FR-IPR-0010
