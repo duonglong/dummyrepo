@@ -9,11 +9,11 @@ from odoo.tools.misc import format_date
 
 from ..services import profiler
 from ..services.const import RUN_LOCK_KEY
-from .snapshot import DpaSnapshotFrozen
 
 _logger = logging.getLogger(__name__)
 
 OWN_MODEL_PREFIX = 'dpa.'
+SCHEDULE_SYSTEM_FIELDS = ('schedule_owner_id', 'schedule_company_ids')
 
 
 class DpaProfile(models.Model):
@@ -37,21 +37,21 @@ class DpaProfile(models.Model):
         string="Outdated period (days)", required=True, default=365,
         help="A record is outdated when it was not updated for more than this many days.")
 
-    schedule_active = fields.Boolean(string="Schedule")
+    schedule_active = fields.Boolean(string="Schedule", copy=False)
     schedule_interval_number = fields.Integer(string="Every", default=1)
     schedule_interval_type = fields.Selection(
         [('days', "Days"), ('weeks', "Weeks"), ('months', "Months")],
         string="Interval", default='weeks', required=True)
-    schedule_next_run = fields.Datetime(string="Next run")
+    schedule_next_run = fields.Datetime(string="Next run", copy=False)
     schedule_owner_id = fields.Many2one(
-        'res.users', string="Schedule owner", readonly=True, ondelete='set null',
+        'res.users', string="Schedule owner", readonly=True, copy=False, ondelete='set null',
         help="The scheduled run counts what this person may read.")
     schedule_company_ids = fields.Many2many(
-        'res.company', string="Companies counted", readonly=True,
+        'res.company', string="Companies counted", readonly=True, copy=False,
         help="The companies the owner had selected when the schedule was turned on.")
-    schedule_stop_date = fields.Datetime(readonly=True)
-    schedule_failure_date = fields.Datetime(readonly=True)
-    schedule_failure_message = fields.Char(readonly=True)
+    schedule_stop_date = fields.Datetime(readonly=True, copy=False)
+    schedule_failure_date = fields.Datetime(readonly=True, copy=False)
+    schedule_failure_message = fields.Char(readonly=True, copy=False)
     schedule_notice = fields.Char(compute='_compute_schedule_notice')
 
     snapshot_ids = fields.One2many(
@@ -185,6 +185,8 @@ class DpaProfile(models.Model):
 
         Requirements: FR-DPA-0001
         """
+        vals_list = [{key: value for key, value in vals.items() if key not in SCHEDULE_SYSTEM_FIELDS}
+                     for vals in vals_list]
         profiles = super().create(vals_list)
         profiles._check_model_readable()
         profiles.filtered('schedule_active')._start_schedule()
@@ -193,8 +195,11 @@ class DpaProfile(models.Model):
     def write(self, vals):
         """Archiving stops the schedule; turning it on makes the current user its owner.
 
+        The owner and the companies of a schedule are set only by turning it on, never by a write.
+
         Requirements: FR-DPA-0019, FR-DPA-0031
         """
+        vals = {key: value for key, value in vals.items() if key not in SCHEDULE_SYSTEM_FIELDS}
         if 'active' in vals and not vals['active']:
             vals = {**vals, 'schedule_active': False}
         turning_on = self.filtered(lambda profile: not profile.schedule_active) if vals.get('schedule_active') \
@@ -209,7 +214,9 @@ class DpaProfile(models.Model):
 
         Requirements: FR-DPA-0019
         """
-        self.write({
+        # sudo: a plain write would not see, and so not replace, the stored companies outside the selected ones;
+        # only the owner, the companies and the stop and failure marks are written, with the current user's values.
+        super(DpaProfile, self.sudo()).write({
             'schedule_owner_id': self.env.user.id,
             'schedule_company_ids': [fields.Command.set(self.env.companies.ids)],
             'schedule_stop_date': False,
@@ -246,7 +253,7 @@ class DpaProfile(models.Model):
                 profile.schedule_notice = self.env._(
                     "The schedule was stopped on %s because its owner can no longer run profiling.",
                     profile._local_date(profile.schedule_stop_date))
-            elif profile.schedule_failure_date:
+            elif profile.schedule_active and profile.schedule_failure_date:
                 profile.schedule_notice = self.env._(
                     "The scheduled run of %(date)s failed: %(message)s. It is tried again at the next check.",
                     date=profile._local_date(profile.schedule_failure_date),
@@ -267,6 +274,7 @@ class DpaProfile(models.Model):
         now = fields.Datetime.now()
         # sudo: the scheduled action reads the profiles of every analyst and writes their schedule state;
         # the profiling itself runs as the owner of each schedule.
+        self.env['dpa.snapshot'].sudo().search([('profile_id', '=', False), ('is_saved', '=', False)]).unlink()
         due = self.sudo().search(
             [('schedule_active', '=', True), ('schedule_next_run', '<=', now)], order='schedule_next_run, id')
         for profile in due:
@@ -284,12 +292,15 @@ class DpaProfile(models.Model):
         group = self.env.ref('data_profiling_analysis_app.group_data_profiling')
         if not owner.active or group not in owner.all_group_ids:
             self.write({'schedule_active': False, 'schedule_stop_date': now})
+            _logger.info("Schedule of profile %s stopped: owner %s has no access", self.id, owner.id)
             return
         if not self._try_run_lock():
+            _logger.info("Scheduled profiling of profile %s skipped: a run is in progress", self.id)
             return
         try:
             with self.env.cr.savepoint():
-                self._take_scheduled_snapshot(owner, now)
+                report = self._take_scheduled_snapshot(owner, now)
+            _logger.info("Scheduled profiling of profile %s done: snapshot %s", self.id, report.id)
         except Exception as error:  # noqa: BLE001 - one failing profile must not stop the others
             _logger.exception(
                 "Scheduled profiling of profile %s (model %s, owner %s) failed", self.id, self.model_name, owner.id)
@@ -304,13 +315,13 @@ class DpaProfile(models.Model):
         as_owner = self.with_user(owner).with_context(allowed_company_ids=companies.ids)
         result = profiler.profile(
             as_owner.env, self.model_name, self.field_ids.mapped('name'), self.outdated_days, now)
-        report = as_owner.env['dpa.snapshot']._store_report(as_owner, result, now)
-        super(DpaSnapshotFrozen, report).write({'is_saved': True, 'origin': 'scheduled'})
+        report = as_owner.env['dpa.snapshot']._store_report(as_owner, result, now, origin='scheduled')
         self.write({
             'schedule_next_run': self._next_run_after(now),
             'schedule_failure_date': False,
             'schedule_failure_message': False,
         })
+        return report
 
     def _next_run_after(self, now):
         """The first run date after now, a whole number of intervals after the current one.
