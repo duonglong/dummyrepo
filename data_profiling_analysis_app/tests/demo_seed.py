@@ -14,7 +14,7 @@ from pathlib import Path
 
 PASSWORD = 'demo-dpa-pass'
 PREFIX = 'DPA-'
-STORE = Path(__file__).with_name('demo_seed_counts.json')
+STORE = Path('/workspace/out/demo_seed_counts.json')
 CITIES = ['Brussels'] * 20 + ['Paris'] * 12 + ['Ghent'] * 8 + ['Lyon'] * 5 + [False] * 5
 PHONES = [f'555-01{i:02d}' for i in range(41)] + ['5550101', '+32 470 123', 'n/a', False, '  ', False, False, False, False]
 TYPES = ['contact'] * 30 + ['invoice'] * 12 + ['delivery'] * 8
@@ -151,6 +151,7 @@ def main():
     for model, number in current.items():
         print(model, number)
     if args.count and args.store:
+        STORE.parent.mkdir(parents=True, exist_ok=True)
         STORE.write_text(json.dumps(current))
     elif args.count and STORE.exists() and json.loads(STORE.read_text()) != current:
         print('COUNTS DIFFER from', STORE.name, file=sys.stderr)
