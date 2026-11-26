@@ -77,7 +77,12 @@ class TestStatsAcceptance(TransactionCase):
         return found.filtered(lambda f: f.field_line_id == line) if line else found
 
     def _age(self, partner, when):
-        """Set the last update of a record, as the ORM would have saved it."""
+        """Set the last update of a record, as the ORM would have saved it.
+
+        Pending recomputations are flushed first, so that no later flush
+        rewrites the write date set here.
+        """
+        self.env.flush_all()
         self.env.cr.execute("UPDATE res_partner SET write_date = %s WHERE id = %s", (when, partner.id))
         self.env.invalidate_all()
 
