@@ -11,6 +11,7 @@
         'security/ir.access.csv',
         'views/ipr_tolerance_views.xml',
         'views/ipr_history_views.xml',
+        'views/account_move_views.xml',
     ],
     'application': True,
 }
