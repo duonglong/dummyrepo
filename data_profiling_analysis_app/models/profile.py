@@ -1,11 +1,10 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
+from odoo.tools import SQL
 
-TECHNICAL_FIELDS = ('id', 'create_uid', 'create_date', 'write_uid', 'write_date')
-PROFILABLE_TYPES = (
-    'char', 'text', 'html', 'integer', 'float', 'monetary', 'boolean',
-    'date', 'datetime', 'selection', 'many2one', 'many2many',
-)
+from ..services import profiler
+from ..services.const import RUN_LOCK_KEY
+
 OWN_MODEL_PREFIX = 'dpa.'
 
 
@@ -82,14 +81,33 @@ class DpaProfile(models.Model):
         Requirements: BR-DPA-0002
         """
         self.ensure_one()
-        model = self.env[self.model_name]
-        return [
-            name for name, field in model._fields.items()
-            if field.store
-            and name not in TECHNICAL_FIELDS
-            and field.type in PROFILABLE_TYPES
-            and model._has_field_access(field, 'read')
-        ]
+        return profiler.profilable_fields(self.env, self.model_name)
+
+    def action_run(self):
+        """Run the profile as the current user and open the new report.
+
+        Requirements: FR-DPA-0003, FR-DPA-0029, FR-DPA-0033, NFR-REL-0001
+        """
+        self.ensure_one()
+        self._take_run_lock()
+        result = profiler.profile(self.env, self.model_name, self.field_ids.mapped('name'))
+        report = self.env['dpa.snapshot']._store_report(self, result, fields.Datetime.now())
+        return {
+            'type': 'ir.actions.act_window',
+            'name': report.name,
+            'res_model': 'dpa.snapshot',
+            'res_id': report.id,
+            'view_mode': 'form',
+        }
+
+    def _take_run_lock(self):
+        """Hold the run lock of this profile until the transaction ends, or refuse the run.
+
+        Requirements: FR-DPA-0029
+        """
+        self.env.cr.execute(SQL("SELECT pg_try_advisory_xact_lock(%s, %s)", RUN_LOCK_KEY, self.id))
+        if not self.env.cr.fetchone()[0]:
+            raise UserError(self.env._("This profile is already running. Try again when it has finished."))
 
     @api.onchange('model_id')
     def _onchange_model_id(self):

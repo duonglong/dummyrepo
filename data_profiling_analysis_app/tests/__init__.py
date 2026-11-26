@@ -6,3 +6,4 @@ from . import test_run_acceptance
 from . import test_values_acceptance
 from . import test_format_range_acceptance
 from . import test_stats_acceptance
+from . import test_run
