@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
 from ..services import reconciliation
@@ -125,7 +125,7 @@ class AccountMove(models.Model):
         Takes the row lock on the bills itself, so every caller is covered.
 
         Requirements: FR-IPR-0001, FR-IPR-0003, FR-IPR-0004, FR-IPR-0005, FR-IPR-0006,
-        FR-IPR-0010, FR-IPR-0020
+        FR-IPR-0009, FR-IPR-0010, FR-IPR-0020
         """
         self.lock_for_update()
         for move in self:
@@ -134,8 +134,9 @@ class AccountMove(models.Model):
                 move._ipr_comparison_inputs(), move._ipr_bill_tolerances(tolerances))
             # sudo: users may only read the comparison, only a check writes it
             move_sudo = move.sudo()
-            exception_data = move_sudo._ipr_store_results(rows, exceptions)
-            state = reconciliation.verdict(rows, [])
+            duplicates = move._ipr_find_duplicates()
+            exception_data = move_sudo._ipr_store_results(rows, exceptions, duplicates)
+            state = reconciliation.verdict(rows, duplicates)
             move_sudo.write({
                 'ipr_state': state,
                 'ipr_checked_date': fields.Datetime.now(),
@@ -143,6 +144,42 @@ class AccountMove(models.Model):
                 'ipr_waiting_since': fields.Datetime.now() if state == 'waiting' else False,
             })
             move._ipr_add_history('check', state, exceptions=exception_data, tolerances=tolerances)
+
+    def _ipr_find_duplicates(self):
+        """Return the other vendor bills of the company with the same supplier and reference.
+
+        One query on the bill's company and supplier company; cancelled bills and bills
+        without a reference never match, and references compare without case or edge spaces.
+
+        Requirements: BR-IPR-0002, FR-IPR-0009
+        """
+        self.ensure_one()
+        reference = reconciliation.normalize_ref(self.ref)
+        if not reference:
+            return self.browse()
+        self.env.flush_all()
+        self.env.cr.execute("""
+            SELECT id
+              FROM account_move
+             WHERE move_type = 'in_invoice'
+               AND company_id = %s
+               AND commercial_partner_id = %s
+               AND state != 'cancel'
+               AND id != %s
+               AND lower(btrim(ref)) = %s
+             ORDER BY id""", (self.company_id.id, self.commercial_partner_id.id, self.id, reference))
+        return self.browse([row[0] for row in self.env.cr.fetchall()])
+
+    def init(self):
+        """Index the vendor bills by company, supplier and normalised reference.
+
+        Requirements: FR-IPR-0009
+        """
+        super().init()
+        self.env.cr.execute("""
+            CREATE INDEX IF NOT EXISTS account_move_ipr_duplicate_ref_idx
+                ON account_move (company_id, commercial_partner_id, lower(btrim(ref)))
+             WHERE move_type = 'in_invoice'""")
 
     def _ipr_bill_tolerances(self, tolerances):
         """Return the tolerances to compare with, the fixed price in the bill currency.
@@ -197,10 +234,10 @@ class AccountMove(models.Model):
             inputs.append(vals)
         return inputs
 
-    def _ipr_store_results(self, rows, exceptions):
+    def _ipr_store_results(self, rows, exceptions, duplicates):
         """Replace the comparison lines and exceptions of the bill; return the history data.
 
-        Requirements: FR-IPR-0001, FR-IPR-0003, FR-IPR-0004
+        Requirements: FR-IPR-0001, FR-IPR-0003, FR-IPR-0004, FR-IPR-0009
         """
         self.ensure_one()
         self.ipr_check_line_ids.unlink()
@@ -230,6 +267,12 @@ class AccountMove(models.Model):
             'kind': exception['kind'],
             'check_line_id': line_by_key[exception['key']].id,
         } for exception in exceptions])
+        if duplicates:
+            created |= self.env['ipr.exception'].create({
+                'move_id': self.id,
+                'kind': 'duplicate',
+                'duplicate_move_ids': [Command.set(duplicates.ids)],
+            })
         return [{
             'kind': record.kind,
             'product': record.check_line_id.name,
@@ -239,6 +282,7 @@ class AccountMove(models.Model):
             'received_qty': record.check_line_id.received_qty,
             'billed_qty': record.check_line_id.billed_qty,
             'qty_difference': record.check_line_id.qty_difference,
+            'other_bills': record.duplicate_move_ids.mapped('display_name'),
         } for record in created]
 
     def _ipr_add_history(self, event, state_after, comment=None, exceptions=None, tolerances=None):

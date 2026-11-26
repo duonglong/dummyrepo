@@ -8,4 +8,5 @@ from . import test_history_deletion_acceptance
 from . import test_check_acceptance
 from . import test_duplicate_acceptance
 from . import test_check
+from . import test_duplicate
 from . import test_reconciliation_service

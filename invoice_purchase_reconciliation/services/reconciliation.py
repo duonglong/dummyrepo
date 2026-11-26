@@ -34,6 +34,14 @@ def within_tolerance(difference: float, reference: float, kind: str, value: floa
     return float_compare(abs(difference), limit, precision_digits=PRECISION_DIGITS) <= 0
 
 
+def normalize_ref(ref: str | bool | None) -> str:
+    """Return the reference without surrounding spaces and in lower case; '' for none.
+
+    Requirements: BR-IPR-0002
+    """
+    return (ref or '').strip().lower()
+
+
 def compare(lines: list[dict], tolerances: dict) -> tuple[list[dict], list[dict]]:
     """Compare bill lines with their order lines.
 
