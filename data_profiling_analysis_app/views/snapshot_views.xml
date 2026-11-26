@@ -66,6 +66,10 @@
                             <group>
                                 <field name="field_label"/>
                                 <field name="field_type_label"/>
+                                <field name="is_rated" invisible="1"/>
+                                <field name="completeness" invisible="not is_rated"/>
+                                <field name="filled_count" invisible="not is_rated"/>
+                                <field name="empty_count" invisible="not is_rated"/>
                                 <field name="distinct_count"/>
                                 <field name="flag_labels" invisible="not flag_labels"/>
                                 <field name="unused_values" invisible="not unused_values"/>
@@ -98,7 +102,6 @@
                                     <field name="share"/>
                                 </list>
                             </field>
-                            <field name="filled_count" invisible="1"/>
                             <field name="finding_ids" invisible="not finding_ids">
                                 <list>
                                     <field name="kind"/>

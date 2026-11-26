@@ -22,3 +22,4 @@ from . import test_schedule
 from . import test_polish
 from . import test_benchmark
 from . import test_latest_report
+from . import test_field_details
