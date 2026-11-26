@@ -57,6 +57,33 @@ class DpaProfile(models.Model):
     snapshot_ids = fields.One2many(
         'dpa.snapshot', 'profile_id', string="Snapshots", domain=[('is_saved', '=', True)])
     snapshot_count = fields.Integer(compute='_compute_snapshot_count')
+    report_id = fields.Many2one(
+        'dpa.snapshot', string="Latest report", compute='_compute_report_id',
+        help="The report of the last run, until it is saved as a snapshot.")
+
+    def _compute_report_id(self):
+        """The unsaved report of each profile, the one a run leaves for the analyst.
+
+        Requirements: FR-DPA-0003
+        """
+        reports = self.env['dpa.snapshot'].search([('profile_id', 'in', self.ids), ('is_saved', '=', False)])
+        by_profile = reports.grouped('profile_id')
+        for profile in self:
+            profile.report_id = by_profile.get(profile, reports.browse())[:1]
+
+    def action_open_report(self):
+        """Open the latest report of this profile again.
+
+        Requirements: FR-DPA-0003
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.report_id.name,
+            'res_model': 'dpa.snapshot',
+            'res_id': self.report_id.id,
+            'view_mode': 'form',
+        }
 
     @api.depends('snapshot_ids')
     def _compute_snapshot_count(self):

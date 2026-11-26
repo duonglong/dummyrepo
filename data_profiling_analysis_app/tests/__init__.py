@@ -21,3 +21,4 @@ from . import test_compare
 from . import test_schedule
 from . import test_polish
 from . import test_benchmark
+from . import test_latest_report

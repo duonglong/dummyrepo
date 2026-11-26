@@ -100,6 +100,7 @@ class DpaSnapshot(models.Model):
         if self.is_saved:
             raise UserError(self.env._("This report is already saved as a snapshot."))
         super(DpaSnapshotFrozen, self).write({'is_saved': True, 'origin': 'manual', 'user_id': self.env.uid})
+        self.profile_id.invalidate_recordset(['report_id'])
 
     def export_basename(self):
         """The file name of an export without its extension: the profile name and the run day.
@@ -236,6 +237,7 @@ class DpaSnapshot(models.Model):
             ],
         })
         report._store_findings(result)
+        profile.invalidate_recordset(['report_id'])
         if origin:
             super(DpaSnapshotFrozen, report).write({'is_saved': True, 'origin': origin})
         return report

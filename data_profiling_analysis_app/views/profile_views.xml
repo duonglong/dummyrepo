@@ -25,6 +25,8 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_open_report" type="object" string="Latest report"
+                                class="oe_stat_button" invisible="not report_id"/>
                         <button name="action_open_snapshots" type="object"
                                 class="oe_stat_button" invisible="not snapshot_count">
                             <field name="snapshot_count" widget="statinfo" string="Snapshots"/>
