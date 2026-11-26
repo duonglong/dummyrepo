@@ -11,10 +11,10 @@ class AccountMoveLine(models.Model):
 
         Requirements: FR-IPR-0018
         """
-        if self.env.context.get('ipr_skip_reset'):
-            return self.browse()
+        deleting = self.env.cr.cache.get(reconciliation.DELETING_MOVES_KEY, ())
         return self.filtered(
-            lambda line: line.display_type == 'product' and line.move_id._ipr_resettable())
+            lambda line: line.display_type == 'product' and line.move_id.id not in deleting
+            and line.move_id._ipr_resettable())
 
     @api.model_create_multi
     def create(self, vals_list):

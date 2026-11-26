@@ -66,6 +66,21 @@ class TestReset(IprCommon):
         self.assertFalse(history.filtered(lambda h: h.event == 'reset'))
         self.assertTrue(history.filtered(lambda h: h.event == 'delete'))
 
+    def test_caller_context_cannot_skip_the_reset(self):
+        """FR-IPR-0018: a client-supplied context key never turns the reset off."""
+        for key in ('ipr_skip_reset', 'ipr_deleting_move_ids'):
+            bill = self._checked_bill('T8-CTX-%s' % key)
+            self._product_line(bill).with_context(**{key: True}).write({'price_unit': 15.0})
+            self.assertEqual(bill.ipr_state, 'not_checked')
+
+    def test_failed_deletion_leaves_no_marker(self):
+        """FR-IPR-0018: after a refused deletion the bill still resets on a change."""
+        bill = self._checked_bill('T8-FAILDEL')
+        with self.assertRaises(Exception), self.cr.savepoint():
+            bill.with_user(self.env.ref('base.public_user')).unlink()
+        self._product_line(bill).write({'price_unit': 15.0})
+        self.assertEqual(bill.ipr_state, 'not_checked')
+
     def test_section_line_added_keeps_status(self):
         """FR-IPR-0018: a section line is not a product line."""
         bill = self._checked_bill('T8-SECTION')

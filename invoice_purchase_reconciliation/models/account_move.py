@@ -578,5 +578,12 @@ class AccountMove(models.Model):
             by_last_state[move.ipr_history_ids.sorted('id')[-1].state_after] |= move
         for last_state, moves in by_last_state.items():
             moves._ipr_add_history('delete', last_state, comment=self.env._('Bill deleted'))
-        # the lines go with the bill: that is a deletion, not a change to reset on
-        return super(AccountMove, self.with_context(ipr_skip_reset=True)).unlink()
+        # the lines go with the bill: that is a deletion, not a change to reset on; the
+        # marker lives in server-side transaction state, never in a context a client sends
+        deleting = self.env.cr.cache.setdefault(reconciliation.DELETING_MOVES_KEY, set())
+        added = set(self.ids) - deleting
+        deleting |= added
+        try:
+            return super().unlink()
+        finally:
+            deleting -= added
