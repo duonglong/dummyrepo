@@ -1,0 +1,18 @@
+id,name,model_id,group_id/id,operation,domain
+access_ipr_tolerance_manager,ipr.tolerance account manager,ipr.tolerance,account.group_account_manager,crud,
+access_ipr_tolerance_invoice,ipr.tolerance billing user,ipr.tolerance,account.group_account_invoice,r,
+access_ipr_tolerance_purchase_user,ipr.tolerance purchase user,ipr.tolerance,purchase.group_purchase_user,r,
+access_ipr_tolerance_purchase_manager,ipr.tolerance purchase manager,ipr.tolerance,purchase.group_purchase_manager,r,
+ipr_tolerance_comp_rule,Bill reconciliation tolerances: company,ipr.tolerance,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_history_invoice,ipr.history billing user,ipr.history,account.group_account_invoice,r,"[('move_id', '!=', False)]"
+access_ipr_history_purchase_user,ipr.history purchase user,ipr.history,purchase.group_purchase_user,r,"[('move_id', '!=', False)]"
+access_ipr_history_manager,ipr.history account manager,ipr.history,account.group_account_manager,r,
+ipr_history_comp_rule,Bill reconciliation history: company,ipr.history,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_check_line_invoice,ipr.check.line billing user,ipr.check.line,account.group_account_invoice,r,
+access_ipr_check_line_purchase_user,ipr.check.line purchase user,ipr.check.line,purchase.group_purchase_user,r,
+ipr_check_line_comp_rule,Bill reconciliation comparison lines: company,ipr.check.line,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_exception_invoice,ipr.exception billing user,ipr.exception,account.group_account_invoice,r,
+access_ipr_exception_purchase_user,ipr.exception purchase user,ipr.exception,purchase.group_purchase_user,r,
+ipr_exception_comp_rule,Bill reconciliation exceptions: company,ipr.exception,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_reject_wizard_purchase_manager,ipr.reject.wizard purchase manager,ipr.reject.wizard,purchase.group_purchase_manager,cru,
+access_ipr_reject_wizard_account_manager,ipr.reject.wizard account manager,ipr.reject.wizard,account.group_account_manager,cru,
