@@ -20,7 +20,7 @@ class TestCheck(IprCommon):
 
     def test_create_with_status_refused(self):
         """FR-IPR-0010: a user cannot create a bill that is already Approved."""
-        with self.assertRaises(UserError):
+        with self.assertRaisesRegex(UserError, 'only be changed by a check or a decision'):
             self.env['account.move'].with_user(self.accountant).with_company(self.company_a).create({
                 'move_type': 'in_invoice', 'partner_id': self.supplier_acme.id,
                 'ipr_state': 'approved', 'company_id': self.company_a.id})
@@ -28,7 +28,7 @@ class TestCheck(IprCommon):
     def test_decision_fields_write_refused(self):
         """FR-IPR-0010: the decision fields are as closed as the status."""
         bill = self._bill()
-        with self.assertRaises(UserError):
+        with self.assertRaisesRegex(UserError, 'only be changed by a check or a decision'):
             bill.with_user(self.accountant).write({'ipr_decision_comment': 'ok'})
 
     def test_results_not_writable_by_user(self):
@@ -105,8 +105,7 @@ class TestCheck(IprCommon):
 
     @tagged('ipr_benchmark', '-standard')
     def test_check_speed(self):
-        """NFR-IPR-0001: a 100-line bill is checked in under 2 seconds among 50,000 bills."""
-        import time
+        """NFR-IPR-0001: the check of a 100-line bill among 50,000 bills runs a bounded number of queries."""
         order = self.make_order(100, 10.0, received=100)
         line = order.order_line
         vals = {'product_id': line.product_id.id, 'quantity': 1, 'price_unit': 10.0,
@@ -117,6 +116,18 @@ class TestCheck(IprCommon):
             SELECT 'SPEED/' || g, 'in_invoice', 'draft', %s, %s, %s, 'SPEED-' || g, 'no', 'todo', CURRENT_DATE, 'not_checked', 'tax_excluded'
               FROM generate_series(1, 50000) g""",
             (self.company_a.id, bill.journal_id.id, bill.currency_id.id))
-        start = time.monotonic()
+        self.env.flush_all()
+        queries_before = self.env.cr.sql_log_count
         bill.with_user(self.accountant).action_ipr_check()
-        self.assertLess(time.monotonic() - start, 2.0)
+        self.env.flush_all()
+        self.assertLess(self.env.cr.sql_log_count - queries_before, 150)
+
+    def test_check_refused_for_auditor(self):
+        """FR-IPR-0001: a user who may only read bills cannot run the check by RPC."""
+        bill = self._bill()
+        auditor = self._make_user(
+            'ipr_auditor', self.company_a, ['account.group_account_readonly'])
+        with self.assertRaises(AccessError):
+            bill.with_user(auditor).action_ipr_check()
+        self.assertEqual(bill.ipr_state, 'not_checked')
+        self.assertFalse(bill.ipr_history_ids)

@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import float_repr
 
 EXCEPTION_KINDS = [
     ('price', 'Price difference'),
@@ -40,11 +41,13 @@ class IprException(models.Model):
                     billed=line.currency_id.format(line.billed_price),
                     difference=line.currency_id.format(line.price_difference))
             elif exception.kind == 'quantity':
+                digits = self.env['decimal.precision'].precision_get('Product Unit')
                 exception.description = self.env._(
                     '%(product)s: received %(received)s, billed %(billed)s, difference %(difference)s',
                     product=line.name or '',
-                    received=line.received_qty, billed=line.billed_qty,
-                    difference=line.qty_difference)
+                    received=float_repr(line.received_qty, digits),
+                    billed=float_repr(line.billed_qty, digits),
+                    difference=float_repr(line.qty_difference, digits))
             else:
                 exception.description = self.env._(
                     'Same supplier and reference as %(bills)s',

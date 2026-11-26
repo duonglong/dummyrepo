@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from ..services import reconciliation
 from ..services.reconciliation import STATES
@@ -10,6 +10,8 @@ from .ipr_exception import EXCEPTION_KINDS
 IPR_GUARDED_FIELDS = (
     'ipr_state', 'ipr_waiting_since', 'ipr_checked_date', 'ipr_checked_by_id',
     'ipr_decided_by_id', 'ipr_decided_date', 'ipr_decision_comment')
+
+IPR_CHECK_GROUPS = 'account.group_account_invoice,purchase.group_purchase_user'
 
 
 class AccountMove(models.Model):
@@ -57,8 +59,8 @@ class AccountMove(models.Model):
         """
         labels = dict(self.env['ipr.exception']._fields['kind']._description_selection(self.env))
         for move in self:
-            kinds = [kind for kind, _label in EXCEPTION_KINDS
-                     if kind in move.ipr_exception_ids.mapped('kind')]
+            present = set(move.ipr_exception_ids.mapped('kind'))
+            kinds = [kind for kind, _label in EXCEPTION_KINDS if kind in present]
             move.ipr_exception_kinds = ', '.join(labels[kind] for kind in kinds) or False
 
     @api.depends('move_type')
@@ -108,9 +110,10 @@ class AccountMove(models.Model):
 
         Requirements: FR-IPR-0001, FR-IPR-0010
         """
+        if not self.env.user.has_groups(IPR_CHECK_GROUPS):
+            raise AccessError(self.env._('You are not allowed to run the reconciliation check.'))
         if any(not move._ipr_is_in_scope() for move in self):
             raise UserError(self.env._('Only vendor bills can be checked.'))
-        self.lock_for_update()
         if any(move.state != 'draft' for move in self):
             raise UserError(self.env._('Only draft bills can be checked.'))
         self._ipr_run_check()
@@ -119,9 +122,12 @@ class AccountMove(models.Model):
     def _ipr_run_check(self):
         """Compare each bill with its orders and receipts and record the outcome.
 
+        Takes the row lock on the bills itself, so every caller is covered.
+
         Requirements: FR-IPR-0001, FR-IPR-0003, FR-IPR-0004, FR-IPR-0005, FR-IPR-0006,
         FR-IPR-0010, FR-IPR-0020
         """
+        self.lock_for_update()
         for move in self:
             tolerances = self.env['ipr.tolerance']._ipr_for_company(move.company_id)
             rows, exceptions = reconciliation.compare(
@@ -144,13 +150,15 @@ class AccountMove(models.Model):
         Requirements: FR-IPR-0007
         """
         self.ensure_one()
-        price_fixed = tolerances['currency']._convert(
-            tolerances['price_amount'], self.currency_id, self.company_id,
-            self.invoice_date or fields.Date.context_today(self))
+        if tolerances['price_type'] == 'fixed':
+            price_value = tolerances['currency']._convert(
+                tolerances['price_amount'], self.currency_id, self.company_id,
+                self.invoice_date or fields.Date.context_today(self), round=False)
+        else:
+            price_value = tolerances['price_percent']
         return {
             'price_type': tolerances['price_type'],
-            'price_value': (price_fixed if tolerances['price_type'] == 'fixed'
-                            else tolerances['price_percent']),
+            'price_value': price_value,
             'qty_type': tolerances['qty_type'],
             'qty_value': tolerances['qty_value'],
         }
