@@ -4,6 +4,8 @@ The environment passed in is bound to the person running the profile (never
 sudo), so record rules, the selected companies and archived records are applied
 by the ORM's own search (BR-DPA-0006, NFR-SEC-0002).
 """
+from datetime import timedelta
+
 from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.orm.query import Query
@@ -35,7 +37,7 @@ def profilable_fields(env, model_name):
     ]
 
 
-def profile(env, model_name, field_names):
+def profile(env, model_name, field_names, outdated_days=None, run_date=None):
     """Profile the readable active records of a model, field by field.
 
     Returns ``{'record_count': int, 'fields': [dict, ...]}``, one dict per
@@ -47,10 +49,15 @@ def profile(env, model_name, field_names):
 
     A text field also gets its most common format and its values in another
     format, a number field its usual range and its unusual values, each value
-    as a finding dict under ``findings``.
+    as a finding dict under ``findings``. A number field adds its statistics, a
+    date field its earliest and latest dates and span in days.
+
+    With ``outdated_days``, the records not updated for that many days before ``run_date``
+    (now when not given) come as finding dicts under ``outdated``, oldest first.
 
     Requirements: FR-DPA-0002, FR-DPA-0004, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010,
-    FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, BR-DPA-0001, BR-DPA-0006, NFR-SEC-0002
+    FR-DPA-0011, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, FR-DPA-0016, FR-DPA-0017, FR-DPA-0028,
+    BR-DPA-0001, BR-DPA-0005, BR-DPA-0006, NFR-SEC-0002
     """
     model = env[model_name]
     if not model.has_access('read'):
@@ -59,8 +66,9 @@ def profile(env, model_name, field_names):
     chosen = [name for name in profilable if name in field_names] if field_names else profilable
     record_count = _store_run_ids(model)
     fields_result = [_profile_field(model, model._fields[name], record_count) for name in chosen]
+    outdated = _outdated_result(model, outdated_days, run_date or fields.Datetime.now()) if outdated_days else []
     env.cr.execute(SQL("DROP TABLE %s", SQL.identifier(RUN_IDS_TABLE)))
-    return {'record_count': record_count, 'fields': fields_result}
+    return {'record_count': record_count, 'fields': fields_result, 'outdated': outdated}
 
 
 def _store_run_ids(model):
@@ -93,6 +101,8 @@ def _profile_field(model, field, record_count):
         'empty_rate': round(100 - completeness, 1) if record_count else 0.0,
         **_format_result(model, field, filled_count),
         **_range_result(model, field, filled_count),
+        **_number_statistics(model, field, filled_count),
+        **_date_statistics(model, field, filled_count),
     }
 
 
@@ -300,4 +310,65 @@ def _findings(model, kind, rows):
             'record_name': names[record_id], 'value_label': str(value),
         }
         for record_id, value in rows
+    ]
+
+
+def _number_statistics(model, field, filled_count):
+    """Minimum, maximum, sum, average, median and population standard deviation of a number field.
+
+    Empty for any other field type or when no value is filled.
+
+    Requirements: FR-DPA-0016
+    """
+    if field.type not in NUMBER_TYPES or not filled_count:
+        return {}
+    minimum, maximum, total, mean, median, deviation = model.env.execute_query(SQL(
+        "SELECT min(v::float8), max(v::float8), sum(v::float8), avg(v::float8), "
+        "percentile_cont(0.5) WITHIN GROUP (ORDER BY v::float8), stddev_pop(v::float8) FROM (%s) filled",
+        _filled_values_sql(model, field)))[0]
+    return {
+        'min_value': minimum, 'max_value': maximum, 'sum_value': total,
+        'mean_value': mean, 'median_value': median, 'stddev_value': deviation,
+    }
+
+
+def _date_statistics(model, field, filled_count):
+    """Earliest and latest value of a date or date-time field and the days between them.
+
+    A date-time is read in the runner's time zone. Empty for any other field type or when no value is filled.
+
+    Requirements: FR-DPA-0017
+    """
+    if field.type not in ('date', 'datetime') or not filled_count:
+        return {}
+    earliest, latest = model.env.execute_query(SQL(
+        "SELECT min(v), max(v) FROM (%s) filled", _filled_values_sql(model, field)))[0]
+    if field.type == 'datetime':
+        earliest, latest = (fields.Datetime.context_timestamp(model.env.user, value).date() for value in (earliest, latest))
+    return {'earliest_date': earliest, 'latest_date': latest, 'span_days': (latest - earliest).days}
+
+
+def _outdated_result(model, outdated_days, run_date):
+    """Finding dicts of the profiled records last updated more than ``outdated_days`` days before the run, oldest first.
+
+    A record updated exactly that many days before is not outdated. A model that keeps no
+    last update date has none.
+
+    Requirements: FR-DPA-0011, BR-DPA-0005
+    """
+    if not model._log_access:
+        return []
+    last_update = SQL.identifier(model._table, 'write_date')
+    query = Query(model)
+    query.add_where(SQL("%s IN (SELECT id FROM %s)", SQL.identifier(model._table, 'id'), SQL.identifier(RUN_IDS_TABLE)))
+    query.add_where(SQL("%s < %s", last_update, run_date - timedelta(days=outdated_days)))
+    query.order = SQL("%s, %s", last_update, SQL.identifier(model._table, 'id'))
+    rows = model.env.execute_query(query.select(SQL.identifier(model._table, 'id'), last_update))
+    names = {record.id: record.display_name for record in model.browse([record_id for record_id, _date in rows])}
+    return [
+        {
+            'kind': 'outdated', 'res_model': model._name, 'res_id': record_id, 'record_name': names[record_id],
+            'last_update': updated, 'days_since_update': (run_date - updated).days,
+        }
+        for record_id, updated in rows
     ]

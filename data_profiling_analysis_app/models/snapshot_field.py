@@ -2,6 +2,11 @@ from odoo import Command, api, fields, models
 
 from ..services.profiler import NUMBER_TYPES
 
+STATISTIC_KEYS = (
+    'min_value', 'max_value', 'sum_value', 'mean_value', 'median_value', 'stddev_value',
+    'earliest_date', 'latest_date', 'span_days',
+)
+
 
 class DpaSnapshotField(models.Model):
     _name = 'dpa.snapshot.field'
@@ -14,6 +19,7 @@ class DpaSnapshotField(models.Model):
     field_name = fields.Char(required=True)
     field_label = fields.Char(string="Field")
     field_type = fields.Char(string="Type")
+    is_rated = fields.Boolean(string="Rated", help="False when the model has no records: rates and statistics show '-'.")
     record_count = fields.Integer(string="Records")
     filled_count = fields.Integer(string="Filled")
     empty_count = fields.Integer(string="Empty")
@@ -36,6 +42,15 @@ class DpaSnapshotField(models.Model):
     range_low = fields.Float(string="Usual range from", digits=(16, 4))
     range_high = fields.Float(string="Usual range to", digits=(16, 4))
     range_note = fields.Char(string="Range note", compute='_compute_notes')
+    min_value = fields.Float(string="Minimum", digits=(16, 4))
+    max_value = fields.Float(string="Maximum", digits=(16, 4))
+    sum_value = fields.Float(string="Sum", digits=(16, 4))
+    mean_value = fields.Float(string="Average", digits=(16, 4))
+    median_value = fields.Float(string="Median", digits=(16, 4))
+    stddev_value = fields.Float(string="Standard deviation", digits=(16, 4))
+    earliest_date = fields.Date(string="Earliest")
+    latest_date = fields.Date(string="Latest")
+    span_days = fields.Integer(string="Span (days)")
     unused_values = fields.Char(string="Unused values")
     value_ids = fields.One2many('dpa.snapshot.value', 'field_line_id', string="Values")
     finding_ids = fields.One2many('dpa.snapshot.finding', 'field_line_id', string="Findings")
@@ -85,7 +100,8 @@ class DpaSnapshotField(models.Model):
     def _line_values(self, line, sequence, field_ids):
         """Values of the field line of one profiled field, as the engine returned it.
 
-        Requirements: FR-DPA-0004, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015
+        Requirements: FR-DPA-0004, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015,
+        FR-DPA-0016, FR-DPA-0017, FR-DPA-0028
         """
         field = line['field']
         findings = line.get('findings', [])
@@ -95,6 +111,7 @@ class DpaSnapshotField(models.Model):
             'field_name': field.name,
             'field_label': field.string,
             'field_type': field.type,
+            'is_rated': bool(line['record_count']),
             'record_count': line['record_count'],
             'filled_count': line['filled_count'],
             'empty_count': line['empty_count'],
@@ -111,6 +128,7 @@ class DpaSnapshotField(models.Model):
             'range_low': line.get('range_low', 0.0),
             'range_high': line.get('range_high', 0.0),
             'unusual_count': sum(f['kind'] == 'unusual_number' for f in findings),
+            **{key: line[key] for key in STATISTIC_KEYS if key in line},
             'value_ids': [
                 Command.create({**value, 'sequence': position})
                 for position, value in enumerate(line['values'], start=1)
