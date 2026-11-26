@@ -114,9 +114,10 @@ def seed_profiles(srv):
     if not srv.call('dpa_anna', 'dpa.snapshot', 'search_count', [('profile_id', '=', quality), ('is_saved', '=', False)]):
         srv.call('dpa_anna', 'dpa.profile', 'action_run', [quality])  # leaves one unsaved report
     make_profile(srv, 'dpa_ben', 'Contact numbers', 'res.partner', ['color', 'name', 'type'], empty_threshold=5.0)
-    empty = make_profile(srv, 'dpa_ben', 'Bank accounts (no records)', 'res.partner.bank', [])
+    # a model that holds no record, to show the empty report; run by the administrator, who may read it
+    empty = make_profile(srv, 'admin', 'Deletion requests (no records)', 'res.users.deletion', [])
     if not srv.admin('dpa.snapshot', 'search_count', [('profile_id', '=', empty)]):
-        srv.call('dpa_ben', 'dpa.profile', 'action_run', [empty])
+        srv.call('admin', 'dpa.profile', 'action_run', [empty])
     scheduled = make_profile(srv, 'dpa_anna', 'Weekly contact check', 'res.partner', ['name', 'email', 'phone'],
                              schedule_active=True, schedule_interval_number=1, schedule_interval_type='weeks',
                              schedule_next_run='2026-12-01 02:00:00')
