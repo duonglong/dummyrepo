@@ -1,9 +1,11 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 
-MEASURES = (
+RATE_MEASURES = (
     ('completeness', 'completeness'),
     ('empty_rate', 'empty_rate'),
+)
+COUNT_MEASURES = (
     ('distinct', 'distinct_count'),
     ('inconsistent', 'inconsistent_count'),
     ('unusual', 'unusual_count'),
@@ -118,6 +120,8 @@ class DpaSnapshotCompareLine(models.TransientModel):
     in_newer = fields.Boolean(string="In newer")
     older_note = fields.Char(string="Older")
     newer_note = fields.Char(string="Newer")
+    older_rated = fields.Boolean(string="Older rated")
+    newer_rated = fields.Boolean(string="Newer rated")
     older_completeness = fields.Float(string="Completeness (older)", digits=(16, 1))
     newer_completeness = fields.Float(string="Completeness (newer)", digits=(16, 1))
     completeness_change = fields.Float(string="Completeness change", digits=(16, 1))
@@ -136,25 +140,43 @@ class DpaSnapshotCompareLine(models.TransientModel):
 
     @api.model
     def _line_values(self, sequence, older_line, newer_line):
-        """Values of one comparison line; a field in one snapshot only has no change.
+        """Values of one comparison line; a field in one snapshot only, or a side without records, has no change.
 
-        Requirements: FR-DPA-0023, FR-DPA-0025
+        Requirements: FR-DPA-0023, FR-DPA-0025, FR-DPA-0028
         """
         label = (older_line or newer_line).field_label
+        older_rated = bool(older_line and older_line.is_rated)
+        newer_rated = bool(newer_line and newer_line.is_rated)
         values = {
             'sequence': sequence,
             'field_name': (older_line or newer_line).field_name,
             'field_label': label,
             'in_older': bool(older_line),
             'in_newer': bool(newer_line),
-            'older_note': '' if older_line else self.env._("Not profiled"),
-            'newer_note': '' if newer_line else self.env._("Not profiled"),
+            'older_rated': older_rated,
+            'newer_rated': newer_rated,
+            'older_note': self._side_note(older_line, older_rated),
+            'newer_note': self._side_note(newer_line, newer_rated),
         }
-        for measure, source in MEASURES:
-            if older_line:
-                values['older_' + measure] = older_line[source]
-            if newer_line:
-                values['newer_' + measure] = newer_line[source]
-            if older_line and newer_line:
-                values[measure + '_change'] = newer_line[source] - older_line[source]
+        for measure, source in COUNT_MEASURES:
+            self._add_measure(values, measure, source, older_line, newer_line)
+        for measure, source in RATE_MEASURES:
+            self._add_measure(
+                values, measure, source, older_line if older_rated else None, newer_line if newer_rated else None)
         return values
+
+    @api.model
+    def _side_note(self, line, rated):
+        """The word shown instead of the values of a side: not profiled, or "-" for a model without records."""
+        if not line:
+            return self.env._("Not profiled")
+        return '' if rated else '-'
+
+    @api.model
+    def _add_measure(self, values, measure, source, older_line, newer_line):
+        if older_line:
+            values['older_' + measure] = older_line[source]
+        if newer_line:
+            values['newer_' + measure] = newer_line[source]
+        if older_line and newer_line:
+            values[measure + '_change'] = newer_line[source] - older_line[source]

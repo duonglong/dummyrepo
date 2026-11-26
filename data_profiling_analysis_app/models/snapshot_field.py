@@ -20,7 +20,7 @@ class DpaSnapshotField(models.Model):
     field_name = fields.Char(required=True)
     field_label = fields.Char(string="Field")
     field_type = fields.Char(string="Type")
-    is_rated = fields.Boolean(string="Rated", help="False when the model has no records: rates and statistics show '-'.")
+    is_rated = fields.Boolean(string="Rated", default=True, help="False when the model has no records: rates and statistics show '-'.")
     record_count = fields.Integer(string="Records")
     filled_count = fields.Integer(string="Filled")
     empty_count = fields.Integer(string="Empty")

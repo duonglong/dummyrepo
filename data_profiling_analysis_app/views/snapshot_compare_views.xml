@@ -27,14 +27,16 @@
                         <field name="field_label"/>
                         <field name="in_older" column_invisible="1"/>
                         <field name="in_newer" column_invisible="1"/>
-                        <field name="older_note" invisible="in_older"/>
-                        <field name="newer_note" invisible="in_newer"/>
-                        <field name="older_completeness" invisible="not in_older"/>
-                        <field name="newer_completeness" invisible="not in_newer"/>
-                        <field name="completeness_change" invisible="not (in_older and in_newer)"/>
-                        <field name="older_empty_rate" invisible="not in_older"/>
-                        <field name="newer_empty_rate" invisible="not in_newer"/>
-                        <field name="empty_rate_change" invisible="not (in_older and in_newer)"/>
+                        <field name="older_rated" column_invisible="1"/>
+                        <field name="newer_rated" column_invisible="1"/>
+                        <field name="older_note" invisible="in_older and older_rated"/>
+                        <field name="newer_note" invisible="in_newer and newer_rated"/>
+                        <field name="older_completeness" invisible="not older_rated"/>
+                        <field name="newer_completeness" invisible="not newer_rated"/>
+                        <field name="completeness_change" invisible="not (older_rated and newer_rated)"/>
+                        <field name="older_empty_rate" invisible="not older_rated"/>
+                        <field name="newer_empty_rate" invisible="not newer_rated"/>
+                        <field name="empty_rate_change" invisible="not (older_rated and newer_rated)"/>
                         <field name="older_distinct" invisible="not in_older"/>
                         <field name="newer_distinct" invisible="not in_newer"/>
                         <field name="distinct_change" invisible="not (in_older and in_newer)"/>
