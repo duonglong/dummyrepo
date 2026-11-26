@@ -22,6 +22,13 @@ class TestHistory(TransactionCase):
             'invoice_date': '2026-01-15', 'journal_id': cls.journal.id,
             'company_id': cls.company.id})
 
+    def test_bug_b_0305_deletion_scenario_cited_in_source(self):
+        """Regression test for B-0305: SC-IPR-001, the cancelled-bill deletion scenario, is cited in source.
+
+        Requirements: FR-IPR-0022
+        """
+        self.assertIn('SC-IPR-001', type(self.env['account.move']).unlink.__doc__)
+
     def test_entry_copies_bill_data_and_tolerances(self):
         """FR-IPR-0020: an entry keeps who, the bill data, the tolerances and the exceptions."""
         tolerances = self.env['ipr.tolerance']._ipr_for_company(self.company)

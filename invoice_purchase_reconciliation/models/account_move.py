@@ -568,7 +568,7 @@ class AccountMove(models.Model):
     def unlink(self):
         """Record the deletion of a vendor bill that has history, then delete it.
 
-        Requirements: FR-IPR-0022
+        Requirements: FR-IPR-0022, SC-IPR-001
         """
         # sudo: a user who deletes the bill may not hold the right to read its history
         with_history = self.sudo().filtered(
