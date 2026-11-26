@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ipr_account_move_view_form" model="ir.ui.view">
+        <field name="name">account.move.form.ipr</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_ipr_check" type="object" string="Run check"
+                        groups="account.group_account_invoice,purchase.group_purchase_user"
+                        invisible="move_type != 'in_invoice' or state != 'draft'"/>
+                <field name="ipr_state" widget="badge"
+                       decoration-muted="ipr_state == 'not_checked'"
+                       decoration-success="ipr_state in ('matched', 'approved')"
+                       decoration-warning="ipr_state == 'waiting'"
+                       decoration-danger="ipr_state == 'rejected'"
+                       invisible="move_type != 'in_invoice'"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page name="ipr_reconciliation" string="Reconciliation"
+                      invisible="move_type != 'in_invoice'">
+                    <group>
+                        <group>
+                            <field name="ipr_state" widget="badge"
+                                   decoration-muted="ipr_state == 'not_checked'"
+                                   decoration-success="ipr_state in ('matched', 'approved')"
+                                   decoration-warning="ipr_state == 'waiting'"
+                                   decoration-danger="ipr_state == 'rejected'"/>
+                            <field name="ipr_checked_by_id" widget="many2one_avatar_user"/>
+                            <field name="ipr_checked_date"/>
+                        </group>
+                        <group>
+                            <field name="ipr_decided_by_id" widget="many2one_avatar_user"
+                                   invisible="not ipr_decided_by_id"/>
+                            <field name="ipr_decided_date" invisible="not ipr_decided_by_id"/>
+                            <field name="ipr_decision_comment" invisible="not ipr_decided_by_id"/>
+                        </group>
+                    </group>
+                    <button name="action_ipr_check" type="object" string="Run check"
+                            class="oe_highlight"
+                            groups="account.group_account_invoice,purchase.group_purchase_user"
+                            invisible="move_type != 'in_invoice' or state != 'draft'"/>
+                    <field name="ipr_check_line_ids" readonly="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="name" string="Product"/>
+                            <field name="ordered_qty" string="Ordered"/>
+                            <field name="received_qty" string="Received"/>
+                            <field name="billed_qty" string="Billed"
+                                   decoration-danger="qty_exception"/>
+                            <field name="ordered_price" string="Ordered Price"/>
+                            <field name="billed_price" string="Billed Price"
+                                   decoration-danger="price_exception"/>
+                            <field name="price_difference" string="Difference"
+                                   decoration-danger="price_exception"/>
+                            <field name="result" widget="badge"
+                                   decoration-success="result == 'matched'"
+                                   decoration-muted="result == 'not_on_order'"
+                                   decoration-danger="result == 'exception'"/>
+                            <field name="price_exception" column_invisible="True"/>
+                            <field name="qty_exception" column_invisible="True"/>
+                            <field name="currency_id" column_invisible="True"/>
+                        </list>
+                    </field>
+                    <field name="ipr_exception_ids" readonly="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="kind" widget="badge"/>
+                            <field name="description"/>
+                            <field name="duplicate_move_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"/>
+                        </list>
+                    </field>
+                    <field name="ipr_history_ids" readonly="1">
+                        <list create="0" edit="0" delete="0">
+                            <field name="date"/>
+                            <field name="user_id" widget="many2one_avatar_user"/>
+                            <field name="event" widget="badge"/>
+                            <field name="tolerances_display"/>
+                            <field name="exceptions_display"/>
+                            <field name="comment"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="ipr_account_move_bill_view_list" model="ir.ui.view">
+        <field name="name">account.move.bill.list.ipr</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_in_invoice_bill_tree"/>
+        <field name="arch" type="xml">
+            <field name="currency_id" position="after">
+                <field name="ipr_state" widget="badge" optional="show"
+                       decoration-muted="ipr_state == 'not_checked'"
+                       decoration-success="ipr_state in ('matched', 'approved')"
+                       decoration-warning="ipr_state == 'waiting'"
+                       decoration-danger="ipr_state == 'rejected'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="ipr_account_move_bill_view_search" model="ir.ui.view">
+        <field name="name">account.move.bill.search.ipr</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_account_bill_filter"/>
+        <field name="arch" type="xml">
+            <filter name="in_invoice" position="after">
+                <separator/>
+                <filter name="ipr_not_checked" string="Not checked"
+                        domain="[('move_type', '=', 'in_invoice'), ('ipr_state', '=', 'not_checked')]"/>
+                <filter name="ipr_waiting" string="Waiting for approval"
+                        domain="[('ipr_state', '=', 'waiting')]"/>
+                <filter name="ipr_rejected" string="Rejected"
+                        domain="[('ipr_state', '=', 'rejected')]"/>
+            </filter>
+        </field>
+    </record>
+</odoo>
