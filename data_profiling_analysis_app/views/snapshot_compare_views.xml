@@ -27,6 +27,8 @@
                         <field name="field_label"/>
                         <field name="in_older" column_invisible="1"/>
                         <field name="in_newer" column_invisible="1"/>
+                        <field name="older_note" invisible="in_older"/>
+                        <field name="newer_note" invisible="in_newer"/>
                         <field name="older_completeness" invisible="not in_older"/>
                         <field name="newer_completeness" invisible="not in_newer"/>
                         <field name="completeness_change" invisible="not (in_older and in_newer)"/>
@@ -50,13 +52,6 @@
                 </footer>
             </form>
         </field>
-    </record>
-
-    <record id="dpa_snapshot_compare_action" model="ir.actions.act_window">
-        <field name="name">Compare</field>
-        <field name="res_model">dpa.snapshot.compare</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
     </record>
 
     <record id="dpa_snapshot_compare_selected_action" model="ir.actions.act_window">

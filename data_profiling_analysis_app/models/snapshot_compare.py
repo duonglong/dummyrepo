@@ -1,12 +1,12 @@
 from odoo import Command, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError
 
 MEASURES = (
-    ('completeness', 'completeness', 'Float'),
-    ('empty_rate', 'empty_rate', 'Float'),
-    ('distinct', 'distinct_count', 'Integer'),
-    ('inconsistent', 'inconsistent_count', 'Integer'),
-    ('unusual', 'unusual_count', 'Integer'),
+    ('completeness', 'completeness'),
+    ('empty_rate', 'empty_rate'),
+    ('distinct', 'distinct_count'),
+    ('inconsistent', 'inconsistent_count'),
+    ('unusual', 'unusual_count'),
 )
 
 
@@ -51,16 +51,35 @@ class DpaSnapshotCompare(models.TransientModel):
             compare.older_id = ordered[:1]
             compare.newer_id = ordered[1:2]
 
+    @api.onchange('snapshot_a_id', 'snapshot_b_id')
+    def _onchange_snapshots(self):
+        """Drop the lines of the previous pair and warn when the pair is unlike.
+
+        Requirements: FR-DPA-0023, FR-DPA-0024
+        """
+        self.line_ids = [Command.clear()]
+        first, second = self.snapshot_a_id, self.snapshot_b_id
+        if first and second and not self._is_valid_pair(first, second):
+            return {'warning': {'title': self.env._("Invalid comparison"), 'message': self._pair_message()}}
+
+    @api.model
+    def _pair_message(self):
+        return self.env._("Choose two different snapshots of the same model.")
+
+    @api.model
+    def _is_valid_pair(self, first, second):
+        return (first != second and first.is_saved and second.is_saved
+                and first.model_name == second.model_name)
+
     @api.constrains('snapshot_a_id', 'snapshot_b_id')
     def _check_same_model(self):
-        """Refuse a snapshot compared with itself and snapshots of different models.
+        """Refuse a snapshot compared with itself, snapshots of different models and unsaved reports.
 
         Requirements: FR-DPA-0024
         """
         for compare in self:
-            first, second = compare.snapshot_a_id, compare.snapshot_b_id
-            if first == second or first.model_name != second.model_name:
-                raise UserError(self.env._("Choose two different snapshots of the same model."))
+            if not self._is_valid_pair(compare.snapshot_a_id, compare.snapshot_b_id):
+                raise ValidationError(self._pair_message())
 
     def action_compare(self):
         """Build one line per field of the two snapshots, older snapshot's order first, and show the result.
@@ -97,6 +116,8 @@ class DpaSnapshotCompareLine(models.TransientModel):
     field_label = fields.Char(string="Field")
     in_older = fields.Boolean(string="In older")
     in_newer = fields.Boolean(string="In newer")
+    older_note = fields.Char(string="Older")
+    newer_note = fields.Char(string="Newer")
     older_completeness = fields.Float(string="Completeness (older)", digits=(16, 1))
     newer_completeness = fields.Float(string="Completeness (newer)", digits=(16, 1))
     completeness_change = fields.Float(string="Completeness change", digits=(16, 1))
@@ -126,8 +147,10 @@ class DpaSnapshotCompareLine(models.TransientModel):
             'field_label': label,
             'in_older': bool(older_line),
             'in_newer': bool(newer_line),
+            'older_note': '' if older_line else self.env._("Not profiled"),
+            'newer_note': '' if newer_line else self.env._("Not profiled"),
         }
-        for measure, source, _kind in MEASURES:
+        for measure, source in MEASURES:
             if older_line:
                 values['older_' + measure] = older_line[source]
             if newer_line:
