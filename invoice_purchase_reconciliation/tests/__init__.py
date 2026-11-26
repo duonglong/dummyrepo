@@ -10,3 +10,6 @@ from . import test_duplicate_acceptance
 from . import test_check
 from . import test_duplicate
 from . import test_reconciliation_service
+from . import test_approval_acceptance
+from . import test_posting_guard_acceptance
+from . import test_reset_acceptance
