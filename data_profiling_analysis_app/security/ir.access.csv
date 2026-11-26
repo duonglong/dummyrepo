@@ -3,3 +3,7 @@ access_ir_model_dpa,ir.model dpa,ir.model,data_profiling_analysis_app.group_data
 access_ir_model_fields_dpa,ir.model.fields dpa,ir.model.fields,data_profiling_analysis_app.group_data_profiling,r,
 access_ir_model_fields_selection_dpa,ir.model.fields.selection dpa,ir.model.fields.selection,data_profiling_analysis_app.group_data_profiling,r,
 access_dpa_profile,dpa.profile group,dpa.profile,data_profiling_analysis_app.group_data_profiling,crud,
+access_dpa_snapshot,dpa.snapshot group,dpa.snapshot,data_profiling_analysis_app.group_data_profiling,crud,
+access_dpa_snapshot_field,dpa.snapshot.field group,dpa.snapshot.field,data_profiling_analysis_app.group_data_profiling,cru,
+access_dpa_snapshot_value,dpa.snapshot.value group,dpa.snapshot.value,data_profiling_analysis_app.group_data_profiling,cru,
+access_dpa_snapshot_finding,dpa.snapshot.finding group,dpa.snapshot.finding,data_profiling_analysis_app.group_data_profiling,cru,

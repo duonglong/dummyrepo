@@ -7,4 +7,8 @@
     <menuitem id="menu_dpa_profiles" name="Profiles" parent="menu_data_profiling_root"
               action="dpa_profile_action" sequence="10"
               groups="data_profiling_analysis_app.group_data_profiling"/>
+    <!-- Requirements: FR-DPA-0018 -->
+    <menuitem id="menu_dpa_snapshots" name="Snapshots" parent="menu_data_profiling_root"
+              action="dpa_snapshot_action" sequence="20"
+              groups="data_profiling_analysis_app.group_data_profiling"/>
 </odoo>

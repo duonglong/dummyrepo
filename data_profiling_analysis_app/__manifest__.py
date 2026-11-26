@@ -10,6 +10,7 @@
         'security/security.xml',
         'security/ir.access.csv',
         'views/profile_views.xml',
+        'views/snapshot_views.xml',
         'views/menus.xml',
     ],
     'application': True,
