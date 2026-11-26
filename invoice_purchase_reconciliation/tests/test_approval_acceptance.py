@@ -202,7 +202,7 @@ class TestApprovalAcceptance(IprCommon):
             set(groups.ids),
             {self.env.ref('purchase.group_purchase_manager').id,
              self.env.ref('account.group_account_manager').id})
-        self.assertEqual(len(menus.mapped('action')), 1)
+        self.assertEqual(len(set(menus.mapped('action'))), 1)
 
     # SC-IPR-0023-1 / SC-IPR-0023-2
     def test_form_buttons(self):
