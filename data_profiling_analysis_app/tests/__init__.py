@@ -11,3 +11,7 @@ from . import test_values
 from . import test_patterns
 from . import test_ranges
 from . import test_stats
+from . import test_snapshot_acceptance
+from . import test_schedule_acceptance
+from . import test_compare_acceptance
+from . import test_export_acceptance
