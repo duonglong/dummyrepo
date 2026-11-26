@@ -2,3 +2,7 @@ from . import test_profile_acceptance
 from . import test_group_access_acceptance
 from . import test_skeleton
 from . import test_profile
+from . import test_run_acceptance
+from . import test_values_acceptance
+from . import test_format_range_acceptance
+from . import test_stats_acceptance
