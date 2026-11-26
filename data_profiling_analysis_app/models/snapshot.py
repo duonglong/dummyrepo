@@ -108,12 +108,16 @@ class DpaSnapshot(models.Model):
             report.notice = False if report.record_count else self.env._("No records to profile.")
 
     @api.model
-    def _store_report(self, profile, result, run_date):
-        """Write the report of a run of the profile, replacing its previous unsaved report.
+    def _store_report(self, profile, result, run_date, origin=None):
+        """Write the report of a run of the profile.
+
+        A shown report replaces the previous unsaved one; a scheduled run (origin 'scheduled') leaves it alone
+        and keeps its result as a saved snapshot.
 
         Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0009, FR-DPA-0010, FR-DPA-0011, NFR-REL-0001
         """
-        self.search([('profile_id', '=', profile.id), ('is_saved', '=', False)]).unlink()
+        if not origin:
+            self.search([('profile_id', '=', profile.id), ('is_saved', '=', False)]).unlink()
         local_day = fields.Datetime.context_timestamp(self, run_date).date().isoformat()
         model = profile.model_id
         field_ids = {
@@ -141,6 +145,8 @@ class DpaSnapshot(models.Model):
             ],
         })
         report._store_findings(result)
+        if origin:
+            super(DpaSnapshotFrozen, report).write({'is_saved': True, 'origin': origin})
         return report
 
     def _store_findings(self, result):
