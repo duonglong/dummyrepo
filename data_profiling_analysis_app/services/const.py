@@ -14,3 +14,6 @@ PROFILABLE_TYPES = (
 TEXT_TYPES = ('char', 'text')
 WHITESPACE = ' \t\r\n'  # what a text made only of these characters is empty of (BR-DPA-0001)
 RUN_IDS_TABLE = 'dpa_run_ids'
+
+PDF_TOP_VALUES = 10  # most frequent values of each field in the PDF (FR-DPA-0027)
+PDF_MAX_LINES = 100  # flagged values and outdated records listed in the PDF (FR-DPA-0027)

@@ -11,6 +11,7 @@
         'security/ir.access.csv',
         'views/profile_views.xml',
         'views/snapshot_views.xml',
+        'report/snapshot_report.xml',
         'views/menus.xml',
     ],
     'application': True,
