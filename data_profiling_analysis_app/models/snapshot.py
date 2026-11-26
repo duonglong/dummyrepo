@@ -21,14 +21,29 @@ class DpaSnapshot(models.Model):
     empty_threshold = fields.Float(string="Empty-value threshold (%)")
     outdated_days = fields.Integer(string="Outdated period (days)")
     record_count = fields.Integer(string="Records profiled")
+    outdated_count = fields.Integer(string="Outdated records")
+    has_log_access = fields.Boolean(
+        string="Keeps last update date", default=True, help="False when the model keeps no last update date.")
+    notice = fields.Char(compute='_compute_notice')
     field_line_ids = fields.One2many('dpa.snapshot.field', 'snapshot_id', string="Fields")
     finding_ids = fields.One2many('dpa.snapshot.finding', 'snapshot_id', string="Findings")
+    outdated_ids = fields.One2many(
+        'dpa.snapshot.finding', 'snapshot_id', string="Outdated records", domain=[('kind', '=', 'outdated')])
+
+    @api.depends('record_count')
+    def _compute_notice(self):
+        """Say that a report of a model without records holds nothing to rate.
+
+        Requirements: FR-DPA-0028
+        """
+        for report in self:
+            report.notice = False if report.record_count else self.env._("No records to profile.")
 
     @api.model
     def _store_report(self, profile, result, run_date):
         """Write the report of a run of the profile, replacing its previous unsaved report.
 
-        Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0009, FR-DPA-0010, NFR-REL-0001
+        Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0009, FR-DPA-0010, FR-DPA-0011, NFR-REL-0001
         """
         self.search([('profile_id', '=', profile.id), ('is_saved', '=', False)]).unlink()
         local_day = fields.Datetime.context_timestamp(self, run_date).date().isoformat()
@@ -50,6 +65,8 @@ class DpaSnapshot(models.Model):
             'empty_threshold': profile.empty_threshold,
             'outdated_days': profile.outdated_days,
             'record_count': result['record_count'],
+            'outdated_count': len(result['outdated']),
+            'has_log_access': self.env[profile.model_name]._log_access,
             'field_line_ids': [
                 Command.create(self.env['dpa.snapshot.field']._line_values(line, sequence, field_ids))
                 for sequence, line in enumerate(result['fields'], start=1)
@@ -61,11 +78,11 @@ class DpaSnapshot(models.Model):
     def _store_findings(self, result):
         """Create the findings the engine returned, each on the line of its field.
 
-        Requirements: FR-DPA-0009, FR-DPA-0010
+        Requirements: FR-DPA-0009, FR-DPA-0010, FR-DPA-0011
         """
         self.ensure_one()
         lines = {line.field_name: line for line in self.field_line_ids}
         self.env['dpa.snapshot.finding'].create([
             {**finding, 'snapshot_id': self.id, 'field_line_id': lines[line['field'].name].id}
             for line in result['fields'] for finding in line.get('findings', [])
-        ])
+        ] + [{**finding, 'snapshot_id': self.id} for finding in result['outdated']])

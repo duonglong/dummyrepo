@@ -16,3 +16,5 @@ class DpaSnapshotFinding(models.Model):
     res_id = fields.Many2oneReference(model_field='res_model')
     record_name = fields.Char()
     value_label = fields.Char(string="Value")
+    last_update = fields.Datetime(string="Last update")
+    days_since_update = fields.Integer(string="Days since update")

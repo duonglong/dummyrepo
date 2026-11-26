@@ -90,8 +90,10 @@ class DpaProfile(models.Model):
         """
         self.ensure_one()
         self._take_run_lock()
-        result = profiler.profile(self.env, self.model_name, self.field_ids.mapped('name'))
-        report = self.env['dpa.snapshot']._store_report(self, result, fields.Datetime.now())
+        run_date = fields.Datetime.now()
+        result = profiler.profile(
+            self.env, self.model_name, self.field_ids.mapped('name'), self.outdated_days, run_date)
+        report = self.env['dpa.snapshot']._store_report(self, result, run_date)
         return {
             'type': 'ir.actions.act_window',
             'name': report.name,

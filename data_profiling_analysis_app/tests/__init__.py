@@ -10,3 +10,4 @@ from . import test_run
 from . import test_values
 from . import test_patterns
 from . import test_ranges
+from . import test_stats
