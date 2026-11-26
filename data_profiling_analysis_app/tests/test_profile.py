@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 
@@ -57,3 +59,18 @@ class TestProfile(DpaCase):
         transient = self.env['ir.model']._get_id('base.language.install')
         with self.assertRaises(ValidationError):
             profile.write({'model_id': transient})
+
+
+@tagged('post_install', '-at_install')
+class TestProfileArchive(DpaCase):
+    """Requirements: FR-DPA-0031."""
+
+    def test_bug_b_0302_profile_form_offers_archive(self):
+        """Regression test for B-0302: the form menu offers Archive, which needs the active field in the view.
+
+        Walk state: opened the Profile form view as a member. The test does not render the action menu.
+        Requirements: FR-DPA-0031
+        """
+        view = self.env['dpa.profile'].with_user(self.member).get_view(view_type='form')
+        names = etree.fromstring(view['arch']).xpath('//field/@name')
+        self.assertIn('active', names)
