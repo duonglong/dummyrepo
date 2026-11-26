@@ -21,4 +21,4 @@ class DpaSnapshotFinding(models.Model):
     days_since_update = fields.Integer(string="Days since update")
 
     def _frozen_snapshots(self):
-        return self.snapshot_id
+        return self.snapshot_id | self.field_line_id.snapshot_id

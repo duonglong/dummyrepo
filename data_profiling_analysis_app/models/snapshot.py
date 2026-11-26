@@ -16,11 +16,14 @@ class DpaSnapshotFrozen(models.AbstractModel):
         Requirements: FR-DPA-0018
         """
         if self._frozen_snapshots().filtered('is_saved'):
-            raise UserError(self.env._("A saved snapshot never changes."))
+            raise UserError(self.env._("A saved snapshot cannot be changed."))
 
     def write(self, vals):
+        """Judge the records before and after the write, so a line cannot be moved into a saved snapshot."""
         self._check_not_saved()
-        return super().write(vals)
+        result = super().write(vals)
+        self._check_not_saved()
+        return result
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -66,6 +69,18 @@ class DpaSnapshot(models.Model):
     def _frozen_snapshots(self):
         return self
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Create every snapshot unsaved with its lines, then save those that asked for it.
+
+        Requirements: FR-DPA-0018
+        """
+        saved_flags = [bool(vals.get('is_saved')) for vals in vals_list]
+        records = super().create([{**vals, 'is_saved': False} for vals in vals_list])
+        to_save = records.browse([record.id for record, saved in zip(records, saved_flags) if saved])
+        super(DpaSnapshotFrozen, to_save).write({'is_saved': True})
+        return records
+
     def unlink(self):
         """Delete snapshots with all their lines: the one change a saved snapshot allows.
 
@@ -79,7 +94,9 @@ class DpaSnapshot(models.Model):
         Requirements: FR-DPA-0018
         """
         self.ensure_one()
-        self.write({'is_saved': True})
+        if self.is_saved:
+            raise UserError(self.env._("This report is already saved as a snapshot."))
+        super(DpaSnapshotFrozen, self).write({'is_saved': True, 'origin': 'manual', 'user_id': self.env.uid})
 
     @api.depends('record_count')
     def _compute_notice(self):
