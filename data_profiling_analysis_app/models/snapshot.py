@@ -28,7 +28,7 @@ class DpaSnapshot(models.Model):
     def _store_report(self, profile, result, run_date):
         """Write the report of a run of the profile, replacing its previous unsaved report.
 
-        Requirements: FR-DPA-0003, FR-DPA-0004, NFR-REL-0001
+        Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0009, FR-DPA-0010, NFR-REL-0001
         """
         self.search([('profile_id', '=', profile.id), ('is_saved', '=', False)]).unlink()
         local_day = fields.Datetime.context_timestamp(self, run_date).date().isoformat()
@@ -37,7 +37,7 @@ class DpaSnapshot(models.Model):
             field.name: field.id
             for field in self.env['ir.model.fields'].search([('model_id', '=', model.id)])
         }
-        return self.create({
+        report = self.create({
             'name': "%s %s" % (profile.name, local_day),
             'profile_id': profile.id,
             'profile_name': profile.name,
@@ -55,3 +55,17 @@ class DpaSnapshot(models.Model):
                 for sequence, line in enumerate(result['fields'], start=1)
             ],
         })
+        report._store_findings(result)
+        return report
+
+    def _store_findings(self, result):
+        """Create the findings the engine returned, each on the line of its field.
+
+        Requirements: FR-DPA-0009, FR-DPA-0010
+        """
+        self.ensure_one()
+        lines = {line.field_name: line for line in self.field_line_ids}
+        self.env['dpa.snapshot.finding'].create([
+            {**finding, 'snapshot_id': self.id, 'field_line_id': lines[line['field'].name].id}
+            for line in result['fields'] for finding in line.get('findings', [])
+        ])

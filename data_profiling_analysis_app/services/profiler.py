@@ -9,10 +9,15 @@ from odoo.exceptions import AccessError
 from odoo.orm.query import Query
 from odoo.tools import SQL
 
-from .const import MAX_LISTED_VALUES, PROFILABLE_TYPES, RUN_IDS_TABLE, TECHNICAL_FIELDS, TEXT_TYPES, WHITESPACE
+from . import patterns, stats
+from .const import (
+    COMMON_FORMAT_SHARE, MAX_LISTED_VALUES, PROFILABLE_TYPES, RUN_IDS_TABLE, TECHNICAL_FIELDS, TEXT_TYPES,
+    USUAL_RANGE_MIN_VALUES, WHITESPACE,
+)
 
 LONG_TEXT_TYPES = ('text', 'html')  # their distinct values are counted, never listed (FR-DPA-0007)
 RELATIONAL_TYPES = ('many2one', 'many2many')
+NUMBER_TYPES = ('integer', 'float', 'monetary')
 
 
 def profilable_fields(env, model_name):
@@ -40,8 +45,12 @@ def profile(env, model_name, field_names):
     Each dict also holds the distinct count, the listed values, the number of
     values beyond the listed ones and, for a selection, the unused values.
 
-    Requirements: FR-DPA-0002, FR-DPA-0004, FR-DPA-0007, FR-DPA-0013, FR-DPA-0014,
-    FR-DPA-0015, BR-DPA-0001, BR-DPA-0006, NFR-SEC-0002
+    A text field also gets its most common format and its values in another
+    format, a number field its usual range and its unusual values, each value
+    as a finding dict under ``findings``.
+
+    Requirements: FR-DPA-0002, FR-DPA-0004, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010,
+    FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, BR-DPA-0001, BR-DPA-0006, NFR-SEC-0002
     """
     model = env[model_name]
     if not model.has_access('read'):
@@ -82,6 +91,8 @@ def _profile_field(model, field, record_count):
         'empty_count': empty_count,
         'completeness': completeness,
         'empty_rate': round(100 - completeness, 1) if record_count else 0.0,
+        **_format_result(model, field, filled_count),
+        **_range_result(model, field, filled_count),
     }
 
 
@@ -114,8 +125,11 @@ def _empty_sql(field, value):
     return SQL("%s IS NULL", value)
 
 
-def _filled_values_sql(model, field):
-    """SQL selecting the filled value of the field (column ``v``), one row per record and value."""
+def _filled_values_sql(model, field, with_record_id=False):
+    """SQL selecting the filled value of the field (column ``v``), one row per record and value.
+
+    With ``with_record_id`` the record's id comes as column ``record_id`` (not for a many2many).
+    """
     run_ids = SQL.identifier(RUN_IDS_TABLE)
     if field.type == 'many2many':
         return SQL(
@@ -128,6 +142,8 @@ def _filled_values_sql(model, field):
         value = SQL("COALESCE(%s, FALSE)", value)
     query.add_where(SQL("%s IN (SELECT id FROM %s)", SQL.identifier(model._table, 'id'), run_ids))
     query.add_where(SQL("NOT (%s)", _empty_sql(field, value)))
+    if with_record_id:
+        return query.select(SQL("%s AS record_id, %s AS v", SQL.identifier(model._table, 'id'), value))
     return query.select(SQL("%s AS v", value))
 
 
@@ -210,3 +226,78 @@ def _unused_selection_labels(env, field, groups):
     used = {value for value, _count in groups}
     unused = [label for key, label in field._description_selection(env) if key not in used]
     return ', '.join(unused) if unused else env._("None")
+
+
+def _pattern_sql(value):
+    """SQL expression of ``patterns.pattern_of`` on a value."""
+    letters = SQL("regexp_replace(btrim(%s, %s), '[[:alpha:]]', 'A', 'g')", value, WHITESPACE)
+    return SQL("regexp_replace(%s, '[[:digit:]]', '9', 'g')", letters)
+
+
+def _format_result(model, field, filled_count):
+    """Most common format of a single-line text field and the values in another format.
+
+    Values are flagged only while the most common format is held by at least
+    COMMON_FORMAT_SHARE of the filled values. Empty for any other field type.
+
+    Requirements: FR-DPA-0008, FR-DPA-0009, BR-DPA-0003
+    """
+    if field.type != 'char':
+        return {}
+    pattern = _pattern_sql(SQL.identifier('filled', 'v'))
+    top = model.env.execute_query(SQL(
+        'SELECT pat, count(*) FROM (SELECT %(pattern)s AS pat FROM (%(source)s) filled) patterns '
+        'GROUP BY pat ORDER BY count(*) DESC, pat COLLATE "C" LIMIT 1',
+        pattern=pattern, source=_filled_values_sql(model, field)))
+    if not top:
+        return {'main_pattern': False, 'main_pattern_share': 0.0, 'has_common_format': False, 'findings': []}
+    main_pattern, main_count = top[0]
+    has_common_format = main_count / filled_count >= COMMON_FORMAT_SHARE
+    flagged = model.env.execute_query(SQL(
+        "SELECT record_id, v FROM (%(source)s) filled WHERE %(pattern)s <> %(main)s ORDER BY record_id",
+        source=_filled_values_sql(model, field, with_record_id=True), pattern=pattern, main=main_pattern,
+    )) if has_common_format else []
+    return {
+        'main_pattern': main_pattern,
+        'main_pattern_share': _share(main_count, filled_count),
+        'has_common_format': has_common_format,
+        'findings': _findings(model, 'inconsistent_format', flagged),
+    }
+
+
+def _range_result(model, field, filled_count):
+    """Usual range of a number field and the values outside it, from enough filled values.
+
+    The quartiles are the database's linear percentiles, as a spreadsheet's QUARTILE.INC.
+    Empty for any other field type.
+
+    Requirements: FR-DPA-0010, BR-DPA-0004
+    """
+    if field.type not in NUMBER_TYPES:
+        return {}
+    if filled_count < USUAL_RANGE_MIN_VALUES:
+        return {'range_computed': False, 'findings': []}
+    source = _filled_values_sql(model, field, with_record_id=True)
+    q1, q3 = model.env.execute_query(SQL(
+        "SELECT percentile_cont(ARRAY[0.25, 0.75]) WITHIN GROUP (ORDER BY v::float8) FROM (%s) filled",
+        source))[0][0]
+    low, high = stats.usual_range(q1, q3)
+    outside = model.env.execute_query(SQL(
+        "SELECT record_id, v FROM (%(source)s) filled WHERE v::float8 < %(low)s OR v::float8 > %(high)s "
+        "ORDER BY record_id", source=source, low=low, high=high))
+    return {
+        'range_computed': True, 'range_low': low, 'range_high': high,
+        'findings': _findings(model, 'unusual_number', outside),
+    }
+
+
+def _findings(model, kind, rows):
+    """Finding dicts of ``(record id, value)`` rows, with the name of each record."""
+    names = {record.id: record.display_name for record in model.browse([record_id for record_id, _v in rows])}
+    return [
+        {
+            'kind': kind, 'res_model': model._name, 'res_id': record_id,
+            'record_name': names[record_id], 'value_label': str(value),
+        }
+        for record_id, value in rows
+    ]
