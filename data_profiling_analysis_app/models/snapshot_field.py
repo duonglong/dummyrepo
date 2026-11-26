@@ -10,6 +10,7 @@ STATISTIC_KEYS = (
 
 class DpaSnapshotField(models.Model):
     _name = 'dpa.snapshot.field'
+    _inherit = 'dpa.snapshot.frozen'
     _description = 'Profiled field of a report or snapshot'
     _order = 'snapshot_id, sequence, id'
 
@@ -134,3 +135,6 @@ class DpaSnapshotField(models.Model):
                 for position, value in enumerate(line['values'], start=1)
             ],
         }
+
+    def _frozen_snapshots(self):
+        return self.snapshot_id

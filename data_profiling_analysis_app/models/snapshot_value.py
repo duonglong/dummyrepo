@@ -3,6 +3,7 @@ from odoo import fields, models
 
 class DpaSnapshotValue(models.Model):
     _name = 'dpa.snapshot.value'
+    _inherit = 'dpa.snapshot.frozen'
     _description = 'Distinct value of a profiled field'
     _order = 'field_line_id, sequence, id'
 
@@ -12,3 +13,6 @@ class DpaSnapshotValue(models.Model):
     is_empty = fields.Boolean(string="Empty")
     count = fields.Integer(string="Records")
     share = fields.Float(string="Share (%)", digits=(16, 1))
+
+    def _frozen_snapshots(self):
+        return self.field_line_id.snapshot_id
