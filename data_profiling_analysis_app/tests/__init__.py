@@ -19,3 +19,5 @@ from . import test_snapshot
 from . import test_export
 from . import test_compare
 from . import test_schedule
+from . import test_polish
+from . import test_benchmark
