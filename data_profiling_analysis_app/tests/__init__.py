@@ -16,5 +16,6 @@ from . import test_schedule_acceptance
 from . import test_compare_acceptance
 from . import test_export_acceptance
 from . import test_snapshot
+from . import test_export
 from . import test_compare
 from . import test_schedule

@@ -24,6 +24,8 @@
                 <header>
                     <button name="action_save_snapshot" type="object" string="Save as snapshot"
                             class="btn-primary" invisible="is_saved"/>
+                    <button name="action_export_xlsx" type="object" string="Export XLSX"/>
+                    <button name="action_export_pdf" type="object" string="Export PDF"/>
                     <field name="is_saved" invisible="1"/>
                 </header>
                 <sheet>

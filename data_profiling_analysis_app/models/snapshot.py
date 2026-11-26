@@ -1,6 +1,9 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
 
+from ..services import xlsx
+from ..services.const import PDF_MAX_LINES, PDF_TOP_VALUES
+
 
 class DpaSnapshotFrozen(models.AbstractModel):
     _name = 'dpa.snapshot.frozen'
@@ -97,6 +100,102 @@ class DpaSnapshot(models.Model):
         if self.is_saved:
             raise UserError(self.env._("This report is already saved as a snapshot."))
         super(DpaSnapshotFrozen, self).write({'is_saved': True, 'origin': 'manual', 'user_id': self.env.uid})
+
+    def export_basename(self):
+        """The file name of an export without its extension: the profile name and the run day.
+
+        Requirements: FR-DPA-0026, FR-DPA-0027
+        """
+        self.ensure_one()
+        run_day = fields.Datetime.context_timestamp(self, self.run_date).date().isoformat()
+        return "%s %s" % (self.profile_name, run_day)
+
+    def _export_xlsx(self):
+        """The XLSX of the report as (file name, content), read as the caller.
+
+        Requirements: FR-DPA-0026
+        """
+        self.ensure_one()
+        self.check_access('read')
+        return "%s.xlsx" % self.export_basename(), xlsx.build(self)
+
+    def _export_pdf(self):
+        """The PDF of the report as (file name, content), read as the caller.
+
+        Requirements: FR-DPA-0027
+        """
+        self.ensure_one()
+        self.check_access('read')
+        report = self.env.ref('data_profiling_analysis_app.action_report_snapshot')
+        content, _report_type = self.env['ir.actions.report']._render_qweb_pdf(report, self.ids)
+        return "%s.pdf" % self.export_basename(), content
+
+    def action_export_xlsx(self):
+        """Open the download of the XLSX of the shown report.
+
+        Requirements: FR-DPA-0026
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/data_profiling/snapshot/%d/xlsx' % self.id,
+            'target': 'self',
+        }
+
+    def action_export_pdf(self):
+        """Open the download of the PDF of the shown report.
+
+        Requirements: FR-DPA-0027
+        """
+        self.ensure_one()
+        # sudo: a Data Profiling member cannot read report actions; only the action is read, the data stays the caller's
+        # config=False: under sudo Odoo takes everyone for an admin and would open the admin-only layout setup
+        report = self.env.ref('data_profiling_analysis_app.action_report_snapshot').sudo()
+        return report.report_action(self, config=False)
+
+    def type_label(self, line):
+        """The label Odoo gives the field type stored on a line ("char" reads "Text"), as the exports print it.
+
+        Requirements: FR-DPA-0026, FR-DPA-0027
+        """
+        env = self.env
+        labels = {
+            'char': env._("Text"), 'text': env._("Long text"), 'html': env._("HTML"),
+            'integer': env._("Integer"), 'float': env._("Decimal"), 'monetary': env._("Amount"),
+            'boolean': env._("Yes/No"), 'date': env._("Date"), 'datetime': env._("Date and time"),
+            'selection': env._("Selection"), 'many2one': env._("Link to one record"),
+            'many2many': env._("Links to many records"),
+        }
+        return labels.get(line.field_type, line.field_type)
+
+    def _pdf_top_values(self, line):
+        """The most frequent values of a field line, as many as the PDF lists.
+
+        Requirements: FR-DPA-0027
+        """
+        return line.value_ids[:PDF_TOP_VALUES]
+
+    def _pdf_values_more(self, line):
+        """How many distinct values of a field line the PDF leaves out: stored lines past the cut and unstored ones.
+
+        Requirements: FR-DPA-0027
+        """
+        return max(len(line.value_ids) - PDF_TOP_VALUES, 0) + line.more_count
+
+    def _pdf_flagged(self):
+        """The flagged values and the outdated records the PDF lists, each with how many more there are.
+
+        Requirements: FR-DPA-0027
+        """
+        self.ensure_one()
+        flagged = self.finding_ids.filtered(lambda finding: finding.kind != 'outdated')
+        outdated = self.finding_ids - flagged
+        return [
+            {'title': self.env._("Flagged values"), 'listed': flagged[:PDF_MAX_LINES],
+             'more': max(len(flagged) - PDF_MAX_LINES, 0)},
+            {'title': self.env._("Outdated records"), 'listed': outdated[:PDF_MAX_LINES],
+             'more': max(len(outdated) - PDF_MAX_LINES, 0)},
+        ]
 
     @api.depends('record_count')
     def _compute_notice(self):

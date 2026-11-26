@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0027 -->
+    <record id="action_report_snapshot" model="ir.actions.report">
+        <field name="name">Profiling report</field>
+        <field name="model">dpa.snapshot</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">data_profiling_analysis_app.report_snapshot</field>
+        <field name="print_report_name">object.export_basename()</field>
+        <field name="group_ids" eval="[(4, ref('data_profiling_analysis_app.group_data_profiling'))]"/>
+    </record>
+
+    <template id="report_snapshot">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <t t-foreach="docs" t-as="doc">
+                    <div class="page">
+                        <h2><t t-out="doc.profile_name"/> <t t-out="doc.run_date" t-options="{'widget': 'datetime'}"/></h2>
+                        <table class="table table-sm">
+                            <tr><th>Model</th><td><t t-out="doc.model_label"/></td></tr>
+                            <tr><th>Records profiled</th><td><t t-out="doc.record_count"/></td></tr>
+                            <tr t-if="doc.has_log_access"><th>Outdated records</th><td><t t-out="doc.outdated_count"/></td></tr>
+                            <tr><th>Empty-value threshold (%)</th><td><t t-out="doc.empty_threshold"/></td></tr>
+                            <tr><th>Outdated period (days)</th><td><t t-out="doc.outdated_days"/></td></tr>
+                            <tr><th>Author</th><td><t t-out="doc.user_id.name"/></td></tr>
+                        </table>
+                        <p t-if="doc.notice"><t t-out="doc.notice"/></p>
+
+                        <h3>Field statistics</h3>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Field</th><th>Type</th><th>Filled</th><th>Empty</th>
+                                    <th>Completeness (%)</th><th>Distinct</th><th>Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="doc.field_line_ids" t-as="line">
+                                    <td><t t-out="line.field_label"/></td>
+                                    <td><t t-out="doc.type_label(line)"/></td>
+                                    <t t-if="line.is_rated">
+                                        <td><t t-out="line.filled_count"/></td>
+                                        <td><t t-out="line.empty_count"/></td>
+                                        <td><t t-out="line.completeness"/></td>
+                                    </t>
+                                    <t t-else="">
+                                        <td>-</td><td>-</td><td>-</td>
+                                    </t>
+                                    <td><t t-out="line.distinct_count"/></td>
+                                    <td><t t-out="line.flag_labels"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3>Flagged fields</h3>
+                        <ul>
+                            <li t-foreach="doc.field_line_ids.filtered('flag_labels')" t-as="line">
+                                <t t-out="line.field_label"/>: <t t-out="line.flag_labels"/>
+                            </li>
+                        </ul>
+
+                        <t t-foreach="doc.field_line_ids.filtered('value_ids')" t-as="line">
+                            <h4><t t-out="line.field_label"/></h4>
+                            <table class="table table-sm">
+                                <tr t-foreach="doc._pdf_top_values(line)" t-as="value">
+                                    <td><t t-out="'-' if value.is_empty else value.value_label"/></td>
+                                    <td><t t-out="value.count"/></td>
+                                    <td><t t-out="value.share"/></td>
+                                </tr>
+                            </table>
+                            <p t-if="doc._pdf_values_more(line)">and <t t-out="doc._pdf_values_more(line)"/> more</p>
+                        </t>
+
+                        <t t-foreach="doc._pdf_flagged()" t-as="section">
+                            <h3 t-if="section['listed']"><t t-out="section['title']"/></h3>
+                            <table class="table table-sm" t-if="section['listed']">
+                                <tr t-foreach="section['listed']" t-as="finding">
+                                    <td><t t-out="finding.record_name"/></td>
+                                    <td><t t-out="finding.value_label"/></td>
+                                    <td><t t-out="finding.last_update" t-options="{'widget': 'datetime'}"/></td>
+                                </tr>
+                            </table>
+                            <p t-if="section['more']">and <t t-out="section['more']"/> more</p>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
