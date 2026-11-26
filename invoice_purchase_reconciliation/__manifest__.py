@@ -12,6 +12,7 @@
         'views/ipr_tolerance_views.xml',
         'views/ipr_history_views.xml',
         'views/account_move_views.xml',
+        'views/ipr_approval_views.xml',
     ],
     'application': True,
 }

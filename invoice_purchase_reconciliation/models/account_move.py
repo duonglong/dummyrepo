@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.tools import format_datetime
 
 from ..services import reconciliation
 from ..services.reconciliation import STATES
@@ -12,6 +13,7 @@ IPR_GUARDED_FIELDS = (
     'ipr_decided_by_id', 'ipr_decided_date', 'ipr_decision_comment')
 
 IPR_CHECK_GROUPS = 'account.group_account_invoice,purchase.group_purchase_user'
+IPR_DECISION_GROUPS = 'purchase.group_purchase_manager,account.group_account_manager'
 
 
 class AccountMove(models.Model):
@@ -40,6 +42,20 @@ class AccountMove(models.Model):
     ipr_exception_kinds = fields.Char(
         string='Exception Kinds', compute='_compute_ipr_exception_kinds')
     ipr_in_scope = fields.Boolean(string='Reconciled', compute='_compute_ipr_in_scope')
+    ipr_can_decide = fields.Boolean(string='Can Decide', compute='_compute_ipr_can_decide')
+
+    @api.depends('ipr_state', 'create_uid')
+    @api.depends_context('uid')
+    def _compute_ipr_can_decide(self):
+        """Tell whether the current user may approve or reject the bill now.
+
+        Requirements: BR-IPR-0003, FR-IPR-0023
+        """
+        is_approver = self.env.user.has_groups(IPR_DECISION_GROUPS)
+        for move in self:
+            move.ipr_can_decide = (
+                is_approver and move.ipr_state == 'waiting'
+                and move.create_uid != self.env.user)
 
     @api.depends('ipr_exception_ids')
     def _compute_ipr_exception_count(self):
@@ -144,6 +160,66 @@ class AccountMove(models.Model):
                 'ipr_waiting_since': fields.Datetime.now() if state == 'waiting' else False,
             })
             move._ipr_add_history('check', state, exceptions=exception_data, tolerances=tolerances)
+
+    def action_ipr_approve(self, comment=None):
+        """Approve the exceptions of the bill; the comment is optional.
+
+        Requirements: BR-IPR-0003, FR-IPR-0012, FR-IPR-0014, FR-IPR-0015
+        """
+        return self._ipr_decide('approve', comment)
+
+    def action_ipr_reject(self, reason):
+        """Reject the exceptions of the bill; a reason is required.
+
+        Requirements: BR-IPR-0003, FR-IPR-0013, FR-IPR-0014, FR-IPR-0015
+        """
+        return self._ipr_decide('reject', reason)
+
+    def _ipr_decide(self, decision, comment):
+        """Check the caller, the creator and the state on the server, then record the decision.
+
+        The row lock makes a concurrent second decision wait for the first and see its result.
+
+        Requirements: BR-IPR-0003, FR-IPR-0012, FR-IPR-0013, FR-IPR-0014, FR-IPR-0015
+        """
+        self.ensure_one()
+        if not self.env.user.has_groups(IPR_DECISION_GROUPS):
+            raise AccessError(self.env._(
+                'Only a purchase or accounting manager can approve or reject reconciliation exceptions.'))
+        if self.create_uid == self.env.user:
+            raise UserError(self.env._('You entered this bill: another manager must decide.'))
+        comment = (comment or '').strip()
+        if decision == 'reject' and not comment:
+            raise UserError(self.env._('Give a reason for the rejection.'))
+        self.lock_for_update()
+        self.invalidate_recordset(IPR_GUARDED_FIELDS)
+        if self.ipr_state != 'waiting':
+            raise UserError(self._ipr_not_waiting_message())
+        state = 'approved' if decision == 'approve' else 'rejected'
+        # sudo: approvers hold no write right on the status, only a decision changes it
+        self.sudo().write({
+            'ipr_state': state,
+            'ipr_decided_by_id': self.env.user.id,
+            'ipr_decided_date': fields.Datetime.now(),
+            'ipr_decision_comment': comment or False,
+        })
+        self._ipr_add_history(decision, state, comment=comment or None)
+        return True
+
+    def _ipr_not_waiting_message(self):
+        """Name the reason a decision is refused on a bill that no longer waits.
+
+        Requirements: FR-IPR-0015
+        """
+        self.ensure_one()
+        if self.ipr_state == 'not_checked':
+            return self.env._('This bill was changed and must be checked again.')
+        if not self.ipr_decided_by_id:
+            return self.env._('This bill is not waiting for approval.')
+        return self.env._(
+            'This bill was already decided by %(user)s on %(date)s.',
+            user=self.ipr_decided_by_id.name,
+            date=format_datetime(self.env, self.ipr_decided_date))
 
     def _ipr_find_duplicates(self):
         """Return the other vendor bills of the company with the same supplier and reference.
