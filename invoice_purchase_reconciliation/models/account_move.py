@@ -153,26 +153,39 @@ class AccountMove(models.Model):
         bills.filtered(lambda move: move.ipr_state == 'not_checked')._ipr_run_check()
         return bills._ipr_held()
 
+    def _ipr_hold_notification(self, fresh_only=False):
+        """Check the Not checked bills; return the 'not posted' notification when a bill is held.
+
+        The notification names each held bill with its open exceptions and the results of the
+        check stay: nothing is raised. With fresh_only, only a bill this call has just checked
+        triggers it; a bill already held is then left to the posting guard, which refuses.
+
+        Requirements: FR-IPR-0002, FR-IPR-0016
+        """
+        fresh = self.filtered(lambda move: move.ipr_state == 'not_checked')
+        held = self._ipr_prepare_post()
+        if not (held & fresh if fresh_only else held):
+            return False
+        bills = ', '.join(
+            '%s (%s)' % (move._ipr_bill_label(), move.ipr_exception_kinds or '') for move in held)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'warning',
+                'sticky': True,
+                'message': self.env._(
+                    "Not posted: %(bills)s wait for a manager's approval.", bills=bills),
+                'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
+            },
+        }
+
     def action_post(self):
         """Check the Not checked vendor bills, then post only when none is held.
 
         Requirements: FR-IPR-0002, FR-IPR-0016
         """
-        held = self._ipr_prepare_post()
-        if held:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'type': 'warning',
-                    'sticky': True,
-                    'message': self.env._(
-                        "Not posted: %(bills)s wait for a manager's approval.",
-                        bills=', '.join(held.mapped(lambda move: move._ipr_bill_label()))),
-                    'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
-                },
-            }
-        return super().action_post()
+        return self._ipr_hold_notification() or super().action_post()
 
     def _post(self, soft=True):
         """Refuse to post a vendor bill whose exceptions are not approved, whatever the route.
@@ -204,11 +217,19 @@ class AccountMove(models.Model):
             ('ipr_state', '=', 'not_checked'),
         ], limit=batch_size)
         for move in due:
-            try:
-                with self.env.cr.savepoint():
-                    move._ipr_run_check()
-            except Exception:  # noqa: BLE001 - one bill's failed check must not stop the job
-                _logger.error('Reconciliation check failed for bill %s', move.id, exc_info=True)
+            # the job's own try-lock: a bill someone is editing waits for the next run
+            move.invalidate_recordset(IPR_GUARDED_FIELDS)
+            move = move.try_lock_for_update().filtered(lambda m: m.ipr_state == 'not_checked')
+            if move:
+                try:
+                    with self.env.cr.savepoint():
+                        move._ipr_run_check()
+                except Exception:  # noqa: BLE001 - one bill's failed check must not stop the job
+                    _logger.error(
+                        'Reconciliation check failed for bill %s of company %s',
+                        move.id, move.company_id.id, exc_info=True)
+            # keep the check: Odoo rolls back when it cannot post a held bill
+            self.env['ir.cron']._commit_progress()
         return super()._autopost_draft_entries(batch_size=batch_size)
 
     def _ipr_refuse_payment(self):

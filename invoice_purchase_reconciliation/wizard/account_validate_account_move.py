@@ -9,5 +9,4 @@ class ValidateAccountMove(models.TransientModel):
 
         Requirements: FR-IPR-0002, FR-IPR-0016
         """
-        self.move_ids._ipr_prepare_post()
-        return super().validate_move()
+        return self.move_ids._ipr_hold_notification(fresh_only=True) or super().validate_move()
