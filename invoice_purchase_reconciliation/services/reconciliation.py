@@ -24,6 +24,13 @@ EVENTS = [
 
 PRECISION_DIGITS = 6
 
+# What a checked draft bill may not change without a new check (FR-IPR-0018).
+WATCHED_MOVE_FIELDS = ('partner_id', 'ref', 'currency_id')
+WATCHED_LINE_FIELDS = (
+    'product_id', 'quantity', 'price_unit', 'discount', 'product_uom_id', 'purchase_line_id')
+WATCHED_MOVE_FIELDS_SET = frozenset(WATCHED_MOVE_FIELDS)
+WATCHED_LINE_FIELDS_SET = frozenset(WATCHED_LINE_FIELDS)
+
 
 def within_tolerance(difference: float, reference: float, kind: str, value: float) -> bool:
     """Tell whether a difference is within the tolerance; equality is accepted.

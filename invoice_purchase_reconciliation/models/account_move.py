@@ -116,11 +116,55 @@ class AccountMove(models.Model):
     def write(self, vals):
         """Refuse a change of the status or decision fields that does not come from the app.
 
-        Requirements: FR-IPR-0010
+        A change of the supplier, reference or currency of a checked draft bill that really
+        differs from the stored value sends the bill back to Not checked.
+
+        Requirements: FR-IPR-0010, FR-IPR-0018
         """
         if not self.env.su and any(name in vals for name in IPR_GUARDED_FIELDS):
             raise UserError(self._ipr_status_write_message())
-        return super().write(vals)
+        if not reconciliation.WATCHED_MOVE_FIELDS_SET.intersection(vals):
+            return super().write(vals)
+        names = reconciliation.WATCHED_MOVE_FIELDS
+        before = {move: [move[name] for name in names] for move in self._ipr_resettable()}
+        result = super().write(vals)
+        for move, old in before.items():
+            if old != [move[name] for name in names]:
+                move._ipr_reset()
+        return result
+
+    def _ipr_resettable(self):
+        """Return the checked draft vendor bills: the ones a change makes obsolete.
+
+        Requirements: FR-IPR-0018
+        """
+        return self.filtered(
+            lambda move: move.state == 'draft' and move._ipr_is_in_scope()
+            and move.ipr_state != 'not_checked')
+
+    def _ipr_reset(self):
+        """Set the checked draft bills back to Not checked and record one 'reset' entry each.
+
+        Bills already Not checked are left alone, so one write adds one entry per bill.
+
+        Requirements: FR-IPR-0018, FR-IPR-0020
+        """
+        bills = self._ipr_resettable()
+        if not bills:
+            return
+        # sudo: users may not write the status nor the results, only a reset clears them
+        bills_sudo = bills.sudo()
+        bills_sudo.ipr_exception_ids.unlink()
+        bills_sudo.ipr_check_line_ids.unlink()
+        bills_sudo.write({
+            'ipr_state': 'not_checked',
+            'ipr_waiting_since': False,
+            'ipr_decided_by_id': False,
+            'ipr_decided_date': False,
+            'ipr_decision_comment': False,
+        })
+        bills._ipr_add_history(
+            'reset', 'not_checked', comment=self.env._('The bill changed after the check.'))
 
     def _ipr_status_write_message(self):
         return self.env._('The reconciliation status can only be changed by a check or a decision.')
@@ -534,4 +578,5 @@ class AccountMove(models.Model):
             by_last_state[move.ipr_history_ids.sorted('id')[-1].state_after] |= move
         for last_state, moves in by_last_state.items():
             moves._ipr_add_history('delete', last_state, comment=self.env._('Bill deleted'))
-        return super().unlink()
+        # the lines go with the bill: that is a deletion, not a change to reset on
+        return super(AccountMove, self.with_context(ipr_skip_reset=True)).unlink()

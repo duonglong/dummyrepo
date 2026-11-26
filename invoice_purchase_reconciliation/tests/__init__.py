@@ -13,5 +13,6 @@ from . import test_reconciliation_service
 from . import test_approval_acceptance
 from . import test_posting_guard_acceptance
 from . import test_reset_acceptance
+from . import test_reset
 from . import test_approval
 from . import test_posting_guard
