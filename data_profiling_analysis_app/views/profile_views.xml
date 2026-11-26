@@ -47,6 +47,24 @@
                             <field name="outdated_days"/>
                         </group>
                     </group>
+                    <div class="alert alert-warning" role="alert" invisible="not schedule_notice">
+                        <field name="schedule_notice" nolabel="1"/>
+                    </div>
+                    <group string="Snapshot schedule">
+                        <group>
+                            <field name="schedule_active"/>
+                            <label for="schedule_interval_number" invisible="not schedule_active"/>
+                            <div class="o_row" invisible="not schedule_active">
+                                <field name="schedule_interval_number"/>
+                                <field name="schedule_interval_type"/>
+                            </div>
+                            <field name="schedule_next_run" required="schedule_active"
+                                   invisible="not schedule_active"/>
+                        </group>
+                        <group invisible="not schedule_active">
+                            <field name="schedule_owner_id"/>
+                        </group>
+                    </group>
                 </sheet>
             </form>
         </field>

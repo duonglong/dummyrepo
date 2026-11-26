@@ -1,9 +1,17 @@
-from odoo import api, fields, models
+import logging
+
+from dateutil.relativedelta import relativedelta
+
+from odoo import api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
+from odoo.tools.misc import format_date
 
 from ..services import profiler
 from ..services.const import RUN_LOCK_KEY
+from .snapshot import DpaSnapshotFrozen
+
+_logger = logging.getLogger(__name__)
 
 OWN_MODEL_PREFIX = 'dpa.'
 
@@ -28,6 +36,23 @@ class DpaProfile(models.Model):
     outdated_days = fields.Integer(
         string="Outdated period (days)", required=True, default=365,
         help="A record is outdated when it was not updated for more than this many days.")
+
+    schedule_active = fields.Boolean(string="Schedule")
+    schedule_interval_number = fields.Integer(string="Every", default=1)
+    schedule_interval_type = fields.Selection(
+        [('days', "Days"), ('weeks', "Weeks"), ('months', "Months")],
+        string="Interval", default='weeks', required=True)
+    schedule_next_run = fields.Datetime(string="Next run")
+    schedule_owner_id = fields.Many2one(
+        'res.users', string="Schedule owner", readonly=True, ondelete='set null',
+        help="The scheduled run counts what this person may read.")
+    schedule_company_ids = fields.Many2many(
+        'res.company', string="Companies counted", readonly=True,
+        help="The companies the owner had selected when the schedule was turned on.")
+    schedule_stop_date = fields.Datetime(readonly=True)
+    schedule_failure_date = fields.Datetime(readonly=True)
+    schedule_failure_message = fields.Char(readonly=True)
+    schedule_notice = fields.Char(compute='_compute_schedule_notice')
 
     snapshot_ids = fields.One2many(
         'dpa.snapshot', 'profile_id', string="Snapshots", domain=[('is_saved', '=', True)])
@@ -134,13 +159,20 @@ class DpaProfile(models.Model):
             'view_mode': 'form',
         }
 
+    def _try_run_lock(self):
+        """Take the run lock of this profile until the transaction ends; False when another run holds it.
+
+        Requirements: FR-DPA-0029
+        """
+        self.env.cr.execute(SQL("SELECT pg_try_advisory_xact_lock(%s, %s)", RUN_LOCK_KEY, self.id))
+        return self.env.cr.fetchone()[0]
+
     def _take_run_lock(self):
         """Hold the run lock of this profile until the transaction ends, or refuse the run.
 
         Requirements: FR-DPA-0029
         """
-        self.env.cr.execute(SQL("SELECT pg_try_advisory_xact_lock(%s, %s)", RUN_LOCK_KEY, self.id))
-        if not self.env.cr.fetchone()[0]:
+        if not self._try_run_lock():
             raise UserError(self.env._("This profile is already running. Try again when it has finished."))
 
     @api.onchange('model_id')
@@ -155,7 +187,141 @@ class DpaProfile(models.Model):
         """
         profiles = super().create(vals_list)
         profiles._check_model_readable()
+        profiles.filtered('schedule_active')._start_schedule()
         return profiles
+
+    def write(self, vals):
+        """Archiving stops the schedule; turning it on makes the current user its owner.
+
+        Requirements: FR-DPA-0019, FR-DPA-0031
+        """
+        if 'active' in vals and not vals['active']:
+            vals = {**vals, 'schedule_active': False}
+        turning_on = self.filtered(lambda profile: not profile.schedule_active) if vals.get('schedule_active') \
+            else self.browse()
+        result = super().write(vals)
+        if turning_on:
+            turning_on._start_schedule()
+        return result
+
+    def _start_schedule(self):
+        """Make the current user the owner of the schedule, with the companies selected now.
+
+        Requirements: FR-DPA-0019
+        """
+        self.write({
+            'schedule_owner_id': self.env.user.id,
+            'schedule_company_ids': [fields.Command.set(self.env.companies.ids)],
+            'schedule_stop_date': False,
+            'schedule_failure_date': False,
+            'schedule_failure_message': False,
+        })
+
+    @api.constrains('schedule_interval_number')
+    def _check_schedule_interval(self):
+        """Refuse a schedule interval below one.
+
+        Requirements: FR-DPA-0020
+        """
+        if any(profile.schedule_interval_number < 1 for profile in self):
+            raise ValidationError(self.env._("The schedule interval must be at least 1."))
+
+    @api.constrains('schedule_active', 'schedule_next_run')
+    def _check_schedule_next_run(self):
+        """Refuse a schedule that has no next run date.
+
+        Requirements: FR-DPA-0019
+        """
+        if any(profile.schedule_active and not profile.schedule_next_run for profile in self):
+            raise ValidationError(self.env._("Set the next run date of the schedule."))
+
+    @api.depends('schedule_active', 'schedule_stop_date', 'schedule_failure_date', 'schedule_failure_message')
+    def _compute_schedule_notice(self):
+        """Say why the schedule stopped, or that its last run failed.
+
+        Requirements: FR-DPA-0022, NFR-REL-0001
+        """
+        for profile in self:
+            if profile.schedule_stop_date and not profile.schedule_active:
+                profile.schedule_notice = self.env._(
+                    "The schedule was stopped on %s because its owner can no longer run profiling.",
+                    profile._local_date(profile.schedule_stop_date))
+            elif profile.schedule_failure_date:
+                profile.schedule_notice = self.env._(
+                    "The scheduled run of %(date)s failed: %(message)s. It is tried again at the next check.",
+                    date=profile._local_date(profile.schedule_failure_date),
+                    message=profile.schedule_failure_message)
+            else:
+                profile.schedule_notice = False
+
+    def _local_date(self, moment):
+        """The date of a moment in the reader's time zone, formatted for the reader's language."""
+        return format_date(self.env, fields.Datetime.context_timestamp(self, moment).date())
+
+    @api.model
+    def _cron_take_snapshots(self):
+        """Take a snapshot of every scheduled profile that is due, one profile at a time.
+
+        Requirements: FR-DPA-0021, FR-DPA-0022, FR-DPA-0029, NFR-REL-0001
+        """
+        now = fields.Datetime.now()
+        # sudo: the scheduled action reads the profiles of every analyst and writes their schedule state;
+        # the profiling itself runs as the owner of each schedule.
+        due = self.sudo().search(
+            [('schedule_active', '=', True), ('schedule_next_run', '<=', now)], order='schedule_next_run, id')
+        for profile in due:
+            profile._run_due_schedule(now)
+            if not modules.module.current_test:  # a test may not commit its transaction
+                self.env['ir.cron']._commit_progress(1)
+
+    def _run_due_schedule(self, now):
+        """Stop the schedule of an owner without access, or take the scheduled snapshot as the owner.
+
+        Requirements: FR-DPA-0021, FR-DPA-0022, FR-DPA-0029, NFR-REL-0001
+        """
+        self.ensure_one()
+        owner = self.schedule_owner_id
+        group = self.env.ref('data_profiling_analysis_app.group_data_profiling')
+        if not owner.active or group not in owner.all_group_ids:
+            self.write({'schedule_active': False, 'schedule_stop_date': now})
+            return
+        if not self._try_run_lock():
+            return
+        try:
+            with self.env.cr.savepoint():
+                self._take_scheduled_snapshot(owner, now)
+        except Exception as error:  # noqa: BLE001 - one failing profile must not stop the others
+            _logger.exception(
+                "Scheduled profiling of profile %s (model %s, owner %s) failed", self.id, self.model_name, owner.id)
+            self.write({'schedule_failure_date': now, 'schedule_failure_message': str(error)})
+
+    def _take_scheduled_snapshot(self, owner, now):
+        """Run the profile as its owner, keep the result as a scheduled snapshot and move the next run.
+
+        Requirements: FR-DPA-0021
+        """
+        companies = self.schedule_company_ids & owner.company_ids or owner.company_id
+        as_owner = self.with_user(owner).with_context(allowed_company_ids=companies.ids)
+        result = profiler.profile(
+            as_owner.env, self.model_name, self.field_ids.mapped('name'), self.outdated_days, now)
+        report = as_owner.env['dpa.snapshot']._store_report(as_owner, result, now)
+        super(DpaSnapshotFrozen, report).write({'is_saved': True, 'origin': 'scheduled'})
+        self.write({
+            'schedule_next_run': self._next_run_after(now),
+            'schedule_failure_date': False,
+            'schedule_failure_message': False,
+        })
+
+    def _next_run_after(self, now):
+        """The first run date after now, a whole number of intervals after the current one.
+
+        Requirements: FR-DPA-0021
+        """
+        step = 1
+        while (candidate := self.schedule_next_run + relativedelta(
+                **{self.schedule_interval_type: step * self.schedule_interval_number})) <= now:
+            step += 1
+        return candidate
 
     @api.constrains('model_id')
     def _check_model_readable(self):
