@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0023, FR-DPA-0024, FR-DPA-0025 -->
+    <record id="dpa_snapshot_compare_view_form" model="ir.ui.view">
+        <field name="name">dpa.snapshot.compare.form</field>
+        <field name="model">dpa.snapshot.compare</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="snapshot_a_id" options="{'no_create': True}"/>
+                    <field name="snapshot_b_id" options="{'no_create': True}"/>
+                </group>
+                <group invisible="not line_ids">
+                    <group>
+                        <field name="older_id"/>
+                        <field name="older_record_count"/>
+                        <field name="older_outdated_count"/>
+                    </group>
+                    <group>
+                        <field name="newer_id"/>
+                        <field name="newer_record_count"/>
+                        <field name="newer_outdated_count"/>
+                    </group>
+                </group>
+                <field name="line_ids" invisible="1">
+                    <list>
+                        <field name="field_label"/>
+                    </list>
+                </field>
+                <field name="result_html" nolabel="1" readonly="1" invisible="not result_html"/>
+                <footer>
+                    <button name="action_compare" type="object" string="Compare" class="btn-primary"/>
+                    <button special="cancel" string="Close"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <template id="dpa_compare_table">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th rowspan="2"><t t-out="field_title"/></th>
+                        <th t-foreach="measures" t-as="measure" colspan="3" class="text-center">
+                            <t t-out="measure"/>
+                        </th>
+                    </tr>
+                    <tr>
+                        <t t-foreach="measures" t-as="measure">
+                            <th class="text-end"><t t-out="older_title"/></th>
+                            <th class="text-end"><t t-out="newer_title"/></th>
+                            <th class="text-end"><t t-out="change_title"/></th>
+                        </t>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="rows" t-as="row">
+                        <td><t t-out="row[0]"/></td>
+                        <td t-foreach="row[1]" t-as="cell" class="text-end"><t t-out="cell"/></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </template>
+
+    <record id="dpa_snapshot_compare_selected_action" model="ir.actions.act_window">
+        <field name="name">Compare</field>
+        <field name="res_model">dpa.snapshot.compare</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_dpa_snapshot"/>
+        <field name="binding_view_types">list</field>
+        <field name="context">{'dialog_size': 'extra-large'}</field>
+        <field name="group_ids" eval="[(4, ref('data_profiling_analysis_app.group_data_profiling'))]"/>
+    </record>
+</odoo>

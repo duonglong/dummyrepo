@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0018, FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0011, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, FR-DPA-0016, FR-DPA-0017, FR-DPA-0028, NFR-USE-0001 -->
+    <record id="dpa_snapshot_view_list" model="ir.ui.view">
+        <field name="name">dpa.snapshot.list</field>
+        <field name="model">dpa.snapshot</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="name"/>
+                <field name="model_label"/>
+                <field name="run_date"/>
+                <field name="origin"/>
+                <field name="user_id"/>
+                <field name="record_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_view_form" model="ir.ui.view">
+        <field name="name">dpa.snapshot.form</field>
+        <field name="model">dpa.snapshot</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <header>
+                    <button name="action_save_snapshot" type="object" string="Save as snapshot"
+                            class="btn-primary" invisible="is_saved"/>
+                    <button name="action_export_xlsx" type="object" string="Export XLSX"/>
+                    <button name="action_export_pdf" type="object" string="Export PDF"/>
+                    <field name="is_saved" invisible="1"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_fields" type="object" class="oe_stat_button"
+                                invisible="not flagged_count">
+                            <field name="flagged_count" widget="statinfo" string="Flagged fields"/>
+                        </button>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="not notice">
+                        <field name="notice" nolabel="1"/>
+                    </div>
+                    <h1><field name="name"/></h1>
+                    <group>
+                        <group>
+                            <field name="profile_name"/>
+                            <field name="model_label"/>
+                            <field name="run_date"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="record_count"/>
+                            <field name="outdated_count" invisible="not has_log_access"/>
+                            <field name="has_log_access" invisible="1"/>
+                            <field name="empty_threshold"/>
+                            <field name="outdated_days"/>
+                            <field name="company_ids" widget="many2many_tags"/>
+                        </group>
+                    </group>
+                    <notebook>
+                    <page string="Fields" name="fields">
+                    <field name="field_line_ids">
+                        <list>
+                            <field name="field_label"/>
+                            <field name="field_type_label"/>
+                            <field name="is_rated" column_invisible="1"/>
+                            <field name="filled_count" invisible="not is_rated"/>
+                            <field name="empty_count" invisible="not is_rated"/>
+                            <field name="completeness" invisible="not is_rated"/>
+                            <field name="distinct_count"/>
+                            <field name="flag_labels"/>
+                        </list>
+                        <form>
+                            <group>
+                                <field name="field_label"/>
+                                <field name="field_type_label"/>
+                                <field name="is_rated" invisible="1"/>
+                                <field name="completeness" invisible="not is_rated"/>
+                                <field name="filled_count" invisible="not is_rated"/>
+                                <field name="empty_count" invisible="not is_rated"/>
+                                <field name="distinct_count"/>
+                                <field name="flag_labels" invisible="not flag_labels"/>
+                                <field name="unused_values" invisible="not unused_values"/>
+                                <field name="field_type" invisible="1"/>
+                                <field name="main_pattern" invisible="not main_pattern"/>
+                                <field name="main_pattern_share" invisible="not main_pattern"/>
+                                <field name="format_note" nolabel="1" colspan="2" invisible="not format_note"/>
+                                <field name="range_computed" invisible="1"/>
+                                <field name="range_low" invisible="not range_computed"/>
+                                <field name="range_high" invisible="not range_computed"/>
+                                <field name="range_note" nolabel="1" colspan="2" invisible="not range_note"/>
+                            </group>
+                            <group invisible="field_type not in ('integer', 'float', 'monetary') or not filled_count">
+                                <field name="min_value"/>
+                                <field name="max_value"/>
+                                <field name="sum_value"/>
+                                <field name="mean_value"/>
+                                <field name="median_value"/>
+                                <field name="stddev_value"/>
+                            </group>
+                            <group invisible="field_type not in ('date', 'datetime') or not filled_count">
+                                <field name="earliest_date"/>
+                                <field name="latest_date"/>
+                                <field name="span_days"/>
+                            </group>
+                            <field name="value_ids">
+                                <list>
+                                    <field name="value_label"/>
+                                    <field name="count"/>
+                                    <field name="share"/>
+                                </list>
+                            </field>
+                            <field name="finding_ids" invisible="not finding_ids">
+                                <list>
+                                    <field name="kind"/>
+                                    <field name="value_label"/>
+                                    <field name="record_name"/>
+                                    <field name="res_model" column_invisible="1"/>
+                                    <field name="res_id" widget="many2one_reference"/>
+                                </list>
+                            </field>
+                            <field name="more_count" invisible="1"/>
+                            <field name="more_note" nolabel="1" invisible="not more_count"/>
+                        </form>
+                    </field>
+                    </page>
+                    <page string="Outdated records" name="outdated" invisible="not has_log_access">
+                        <field name="outdated_ids">
+                            <list>
+                                <field name="record_name"/>
+                                <field name="last_update"/>
+                                <field name="days_since_update"/>
+                                <field name="res_model" column_invisible="1"/>
+                                <field name="res_id" widget="many2one_reference"/>
+                            </list>
+                        </field>
+                    </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_view_search" model="ir.ui.view">
+        <field name="name">dpa.snapshot.search</field>
+        <field name="model">dpa.snapshot</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="profile_id"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_field_view_list" model="ir.ui.view">
+        <field name="name">dpa.snapshot.field.list</field>
+        <field name="model">dpa.snapshot.field</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0">
+                <field name="field_label"/>
+                <field name="field_type_label"/>
+                <field name="is_rated" column_invisible="1"/>
+                <field name="filled_count" invisible="not is_rated"/>
+                <field name="empty_count" invisible="not is_rated"/>
+                <field name="completeness" invisible="not is_rated"/>
+                <field name="distinct_count"/>
+                <field name="flag_labels"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_field_view_search" model="ir.ui.view">
+        <field name="name">dpa.snapshot.field.search</field>
+        <field name="model">dpa.snapshot.field</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="field_label"/>
+                <filter name="flagged" string="Flagged" domain="[('flag_labels', '!=', False)]"/>
+                <separator/>
+                <filter name="high_empty" string="High empty rate" domain="[('high_empty', '=', True)]"/>
+                <filter name="inconsistent" string="Inconsistent format" domain="[('inconsistent_count', '&gt;', 0)]"/>
+                <filter name="unusual" string="Unusual number" domain="[('unusual_count', '&gt;', 0)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_field_action" model="ir.actions.act_window">
+        <field name="name">Fields</field>
+        <field name="res_model">dpa.snapshot.field</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="dpa_snapshot_action" model="ir.actions.act_window">
+        <field name="name">Snapshots</field>
+        <field name="res_model">dpa.snapshot</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_saved', '=', True)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Run a profile and save its report</p>
+        </field>
+    </record>
+</odoo>

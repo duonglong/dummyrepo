@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0001, FR-DPA-0006, FR-DPA-0012, BR-DPA-0002 -->
+    <record id="dpa_profile_view_list" model="ir.ui.view">
+        <field name="name">dpa.profile.list</field>
+        <field name="model">dpa.profile</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="empty_threshold"/>
+                <field name="outdated_days"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="dpa_profile_view_form" model="ir.ui.view">
+        <field name="name">dpa.profile.form</field>
+        <field name="model">dpa.profile</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_run" type="object" string="Run" class="btn-primary"
+                            invisible="not id"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_report" type="object" string="Latest report"
+                                class="oe_stat_button" invisible="not report_id"/>
+                        <button name="action_open_snapshots" type="object"
+                                class="oe_stat_button" invisible="not snapshot_count">
+                            <field name="snapshot_count" widget="statinfo" string="Snapshots"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="active" invisible="1"/>
+                            <field name="name"/>
+                            <field name="allowed_model_domain" invisible="1"/>
+                            <field name="allowed_field_domain" invisible="1"/>
+                            <field name="model_id" options="{'no_create': True, 'no_open': True}"
+                                   domain="allowed_model_domain"/>
+                            <field name="field_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"
+                                   domain="allowed_field_domain"
+                                   invisible="not model_id"/>
+                        </group>
+                        <group>
+                            <field name="empty_threshold"/>
+                            <field name="outdated_days"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert" invisible="not schedule_notice">
+                        <field name="schedule_notice" nolabel="1"/>
+                    </div>
+                    <group string="Snapshot schedule">
+                        <group>
+                            <field name="schedule_active"/>
+                            <label for="schedule_interval_number" invisible="not schedule_active"/>
+                            <div class="o_row" invisible="not schedule_active">
+                                <field name="schedule_interval_number"/>
+                                <field name="schedule_interval_type"/>
+                            </div>
+                            <field name="schedule_next_run" required="schedule_active"
+                                   invisible="not schedule_active"/>
+                        </group>
+                        <group invisible="not schedule_active">
+                            <field name="schedule_owner_id"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="dpa_profile_view_search" model="ir.ui.view">
+        <field name="name">dpa.profile.search</field>
+        <field name="model">dpa.profile</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="model_id"/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="dpa_profile_action" model="ir.actions.act_window">
+        <field name="name">Profiles</field>
+        <field name="res_model">dpa.profile</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a profile</p>
+        </field>
+    </record>
+</odoo>
