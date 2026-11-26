@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Requirements: FR-DPA-0003, FR-DPA-0004 -->
+    <!-- Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015 -->
     <record id="dpa_snapshot_view_list" model="ir.ui.view">
         <field name="name">dpa.snapshot.list</field>
         <field name="model">dpa.snapshot</field>
@@ -44,7 +44,26 @@
                             <field name="filled_count"/>
                             <field name="empty_count"/>
                             <field name="completeness"/>
+                            <field name="distinct_count"/>
+                            <field name="flag_labels"/>
                         </list>
+                        <form>
+                            <group>
+                                <field name="field_label"/>
+                                <field name="field_type"/>
+                                <field name="distinct_count"/>
+                                <field name="unused_values" invisible="not unused_values"/>
+                            </group>
+                            <field name="value_ids">
+                                <list>
+                                    <field name="value_label"/>
+                                    <field name="count"/>
+                                    <field name="share"/>
+                                </list>
+                            </field>
+                            <field name="more_count" invisible="1"/>
+                            <field name="more_note" nolabel="1" invisible="not more_count"/>
+                        </form>
                     </field>
                 </sheet>
             </form>
