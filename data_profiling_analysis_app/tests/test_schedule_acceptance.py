@@ -213,8 +213,11 @@ class TestScheduleAcceptance(TransactionCase):
 
     # -- FR-DPA-0022 -------------------------------------------------------
     def test_owner_left_the_group(self):
-        """Requirements: FR-DPA-0022, SC-DPA-0022-1."""
-        profile = self._profile()
+        """Requirements: FR-DPA-0022, SC-DPA-0022-1.
+
+        The profile is read as the superuser: Anna, out of the group, may no longer read it.
+        """
+        profile = self._profile().sudo()
         with freeze_time('2026-11-28 10:00:00'):
             self.anna.write({'group_ids': [(3, self.group.id)]})
         self._check('2026-12-01 02:30:00')
@@ -237,8 +240,11 @@ class TestScheduleAcceptance(TransactionCase):
         self.assertTrue(profile.schedule_stop_date)
 
     def test_another_analyst_takes_the_schedule_over(self):
-        """Requirements: FR-DPA-0022, FR-DPA-0019 (turned on again, the other analyst becomes the owner)."""
-        profile = self._profile()
+        """Requirements: FR-DPA-0022, FR-DPA-0019 (turned on again, the other analyst becomes the owner).
+
+        The profile is read as the superuser: Anna, out of the group, may no longer read it.
+        """
+        profile = self._profile().sudo()
         self.anna.write({'group_ids': [(3, self.group.id)]})
         self._check('2026-12-01 02:30:00')
         form = Form(profile.with_user(self.ben))
