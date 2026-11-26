@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 from odoo import Command, api, fields, models
@@ -8,11 +9,14 @@ from ..services import reconciliation
 from ..services.reconciliation import STATES
 from .ipr_exception import EXCEPTION_KINDS
 
+_logger = logging.getLogger(__name__)
+
 IPR_GUARDED_FIELDS = (
     'ipr_state', 'ipr_waiting_since', 'ipr_checked_date', 'ipr_checked_by_id',
     'ipr_decided_by_id', 'ipr_decided_date', 'ipr_decision_comment')
 
 IPR_CHECK_GROUPS = 'account.group_account_invoice,purchase.group_purchase_user'
+IPR_HELD_STATES = ('waiting', 'rejected')
 IPR_DECISION_GROUPS = 'purchase.group_purchase_manager,account.group_account_manager'
 
 
@@ -120,6 +124,111 @@ class AccountMove(models.Model):
 
     def _ipr_status_write_message(self):
         return self.env._('The reconciliation status can only be changed by a check or a decision.')
+
+    def _ipr_held(self):
+        """Return the vendor bills whose exceptions are waiting or were rejected.
+
+        Requirements: FR-IPR-0016, FR-IPR-0017
+        """
+        return self.filtered(
+            lambda move: move._ipr_is_in_scope() and move.ipr_state in IPR_HELD_STATES)
+
+    def _ipr_bill_label(self):
+        """Name a bill for a message: its number, else its reference, else its display name."""
+        self.ensure_one()
+        return self.name if self.name and self.name != '/' else (self.ref or self.display_name)
+
+    def _ipr_prepare_post(self):
+        """Lock and check the Not checked vendor bills of the selection; return the held bills.
+
+        The results stay: this step raises nothing on a Waiting bill.
+
+        Requirements: FR-IPR-0002, FR-IPR-0016
+        """
+        bills = self.filtered(lambda move: move.state == 'draft' and move._ipr_is_in_scope())
+        if not bills:
+            return bills
+        bills.lock_for_update()
+        bills.invalidate_recordset(IPR_GUARDED_FIELDS)
+        bills.filtered(lambda move: move.ipr_state == 'not_checked')._ipr_run_check()
+        return bills._ipr_held()
+
+    def action_post(self):
+        """Check the Not checked vendor bills, then post only when none is held.
+
+        Requirements: FR-IPR-0002, FR-IPR-0016
+        """
+        held = self._ipr_prepare_post()
+        if held:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'type': 'warning',
+                    'sticky': True,
+                    'message': self.env._(
+                        "Not posted: %(bills)s wait for a manager's approval.",
+                        bills=', '.join(held.mapped(lambda move: move._ipr_bill_label()))),
+                    'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
+                },
+            }
+        return super().action_post()
+
+    def _post(self, soft=True):
+        """Refuse to post a vendor bill whose exceptions are not approved, whatever the route.
+
+        Requirements: FR-IPR-0002, FR-IPR-0016
+        """
+        drafts = self.filtered(lambda move: move.state == 'draft' and move._ipr_is_in_scope())
+        drafts.filtered(lambda move: move.ipr_state == 'not_checked')._ipr_run_check()
+        held = drafts._ipr_held()
+        if held:
+            raise UserError('\n'.join(
+                self.env._(
+                    '%(bill)s cannot be posted: its reconciliation exceptions are not approved (%(exceptions)s).',
+                    bill=move._ipr_bill_label(), exceptions=move.ipr_exception_kinds or '')
+                for move in held))
+        return super()._post(soft=soft)
+
+    @api.model
+    def _autopost_draft_entries(self, batch_size=100):
+        """Check the due Not checked vendor bills, one savepoint each, before Odoo posts them.
+
+        Requirements: FR-IPR-0002, FR-IPR-0016
+        """
+        due = self.search([
+            ('state', '=', 'draft'),
+            ('date', '<=', fields.Date.context_today(self)),
+            ('auto_post', '!=', 'no'),
+            ('move_type', '=', 'in_invoice'),
+            ('ipr_state', '=', 'not_checked'),
+        ], limit=batch_size)
+        for move in due:
+            try:
+                with self.env.cr.savepoint():
+                    move._ipr_run_check()
+            except Exception:  # noqa: BLE001 - one bill's failed check must not stop the job
+                _logger.error('Reconciliation check failed for bill %s', move.id, exc_info=True)
+        return super()._autopost_draft_entries(batch_size=batch_size)
+
+    def _ipr_refuse_payment(self):
+        """Refuse a payment when a vendor bill of the selection is held; name the held bills.
+
+        Requirements: FR-IPR-0017
+        """
+        held = self._ipr_held()
+        if held:
+            raise UserError(self.env._(
+                'Payment refused: %(bills)s wait for approval of their reconciliation exceptions or were rejected.',
+                bills=', '.join(held.mapped(lambda move: move._ipr_bill_label()))))
+
+    def action_force_register_payment(self):
+        """Refuse to register a payment for a held vendor bill.
+
+        Requirements: FR-IPR-0017
+        """
+        self._ipr_refuse_payment()
+        return super().action_force_register_payment()
 
     def action_ipr_check(self):
         """Run the reconciliation check on draft vendor bills.
