@@ -16,3 +16,4 @@ from . import test_reset_acceptance
 from . import test_reset
 from . import test_approval
 from . import test_posting_guard
+from . import test_menu_counter
