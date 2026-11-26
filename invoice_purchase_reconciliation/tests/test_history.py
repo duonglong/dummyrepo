@@ -84,7 +84,7 @@ class TestHistory(TransactionCase):
         entry = self.bill._ipr_add_history('check', 'matched')
         self.assertEqual(entry.move_name, self.bill.name)
 
-    def test_delete_trail_only_for_draft_vendor_bills(self):
+    def test_delete_trail_only_for_vendor_bills(self):
         """FR-IPR-0022: a credit note with history leaves no delete entry."""
         note = self.bill.copy({'move_type': 'in_refund', 'ref': 'CN-1'})
         note._ipr_add_history('check', 'matched')
@@ -101,3 +101,11 @@ class TestHistory(TransactionCase):
         deleted = self.env['ipr.history'].search([('event', '=', 'delete')])
         self.assertEqual(
             sorted(deleted.mapped('state_after')), ['matched', 'rejected'])
+
+    def test_delete_cancelled_bill_adds_entry(self):
+        """FR-IPR-0022: a cancelled never-posted bill with history also gets a delete entry."""
+        self.bill._ipr_add_history('check', 'waiting')
+        self.bill.button_cancel()
+        self.bill.unlink()
+        deleted = self.env['ipr.history'].search([('event', '=', 'delete')])
+        self.assertEqual(deleted.state_after, 'waiting')

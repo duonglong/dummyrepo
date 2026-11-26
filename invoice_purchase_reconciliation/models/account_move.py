@@ -40,14 +40,13 @@ class AccountMove(models.Model):
         return self.env['ipr.history'].sudo().create(vals_list)
 
     def unlink(self):
-        """Record the deletion of a draft vendor bill that has history, then delete it.
+        """Record the deletion of a vendor bill that has history, then delete it.
 
         Requirements: FR-IPR-0022
         """
         # sudo: a user who deletes the bill may not hold the right to read its history
         with_history = self.sudo().filtered(
-            lambda move: move.move_type == 'in_invoice' and move.state == 'draft'
-            and move.ipr_history_ids)
+            lambda move: move.move_type == 'in_invoice' and move.ipr_history_ids)
         by_last_state = defaultdict(lambda: self.browse())
         for move in with_history:
             by_last_state[move.ipr_history_ids.sorted('id')[-1].state_after] |= move
