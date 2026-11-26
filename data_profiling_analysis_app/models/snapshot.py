@@ -1,8 +1,44 @@
 from odoo import Command, api, fields, models
+from odoo.exceptions import UserError
+
+
+class DpaSnapshotFrozen(models.AbstractModel):
+    _name = 'dpa.snapshot.frozen'
+    _description = 'Lines that never change once their snapshot is saved'
+
+    def _frozen_snapshots(self):
+        """The snapshots these records belong to."""
+        return self.env['dpa.snapshot']
+
+    def _check_not_saved(self):
+        """Refuse the change when one of the records belongs to a saved snapshot.
+
+        Requirements: FR-DPA-0018
+        """
+        if self._frozen_snapshots().filtered('is_saved'):
+            raise UserError(self.env._("A saved snapshot cannot be changed."))
+
+    def write(self, vals):
+        """Judge the records before and after the write, so a line cannot be moved into a saved snapshot."""
+        self._check_not_saved()
+        result = super().write(vals)
+        self._check_not_saved()
+        return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._check_not_saved()
+        return records
+
+    def unlink(self):
+        self._check_not_saved()
+        return super().unlink()
 
 
 class DpaSnapshot(models.Model):
     _name = 'dpa.snapshot'
+    _inherit = 'dpa.snapshot.frozen'
     _description = 'Profile report or snapshot'
     _order = 'run_date desc, id desc'
 
@@ -29,6 +65,38 @@ class DpaSnapshot(models.Model):
     finding_ids = fields.One2many('dpa.snapshot.finding', 'snapshot_id', string="Findings")
     outdated_ids = fields.One2many(
         'dpa.snapshot.finding', 'snapshot_id', string="Outdated records", domain=[('kind', '=', 'outdated')])
+
+    def _frozen_snapshots(self):
+        return self
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Create every snapshot unsaved with its lines, then save those that asked for it.
+
+        Requirements: FR-DPA-0018
+        """
+        saved_flags = [bool(vals.get('is_saved')) for vals in vals_list]
+        records = super().create([{**vals, 'is_saved': False} for vals in vals_list])
+        to_save = records.browse([record.id for record, saved in zip(records, saved_flags) if saved])
+        super(DpaSnapshotFrozen, to_save).write({'is_saved': True})
+        return records
+
+    def unlink(self):
+        """Delete snapshots with all their lines: the one change a saved snapshot allows.
+
+        Requirements: FR-DPA-0030
+        """
+        return super(DpaSnapshotFrozen, self).unlink()
+
+    def action_save_snapshot(self):
+        """Keep the shown report as a snapshot, once, with every line as it is now.
+
+        Requirements: FR-DPA-0018
+        """
+        self.ensure_one()
+        if self.is_saved:
+            raise UserError(self.env._("This report is already saved as a snapshot."))
+        super(DpaSnapshotFrozen, self).write({'is_saved': True, 'origin': 'manual', 'user_id': self.env.uid})
 
     @api.depends('record_count')
     def _compute_notice(self):

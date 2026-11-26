@@ -3,6 +3,7 @@ from odoo import fields, models
 
 class DpaSnapshotFinding(models.Model):
     _name = 'dpa.snapshot.finding'
+    _inherit = 'dpa.snapshot.frozen'
     _description = 'Flagged value or outdated record'
     _order = 'snapshot_id, id'
 
@@ -18,3 +19,6 @@ class DpaSnapshotFinding(models.Model):
     value_label = fields.Char(string="Value")
     last_update = fields.Datetime(string="Last update")
     days_since_update = fields.Integer(string="Days since update")
+
+    def _frozen_snapshots(self):
+        return self.snapshot_id | self.field_line_id.snapshot_id

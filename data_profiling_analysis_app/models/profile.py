@@ -29,6 +29,38 @@ class DpaProfile(models.Model):
         string="Outdated period (days)", required=True, default=365,
         help="A record is outdated when it was not updated for more than this many days.")
 
+    snapshot_ids = fields.One2many(
+        'dpa.snapshot', 'profile_id', string="Snapshots", domain=[('is_saved', '=', True)])
+    snapshot_count = fields.Integer(compute='_compute_snapshot_count')
+
+    @api.depends('snapshot_ids')
+    def _compute_snapshot_count(self):
+        """Count the saved snapshots of each profile.
+
+        Requirements: FR-DPA-0031
+        """
+        for profile in self:
+            profile.snapshot_count = len(profile.snapshot_ids)
+
+    def action_open_snapshots(self):
+        """Open the saved snapshots of this profile.
+
+        Requirements: FR-DPA-0018
+        """
+        self.ensure_one()
+        action = self.env['ir.actions.act_window']._for_xml_id('data_profiling_analysis_app.dpa_snapshot_action')
+        return {**action, 'context': {'search_default_profile_id': self.id}}
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_snapshots(self):
+        """Keep a profile that has snapshots; drop only its unsaved report.
+
+        Requirements: FR-DPA-0031
+        """
+        if self.snapshot_ids:
+            raise UserError(self.env._("This profile has snapshots. Archive it, or delete its snapshots first."))
+        self.env['dpa.snapshot'].search([('profile_id', 'in', self.ids), ('is_saved', '=', False)]).unlink()
+
     def _model_is_profilable(self, model_name):
         """Whether the current user may profile the model: a real table, readable, not an app model."""
         registry_model = self.env.registry.get(model_name)

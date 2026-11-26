@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0011, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, FR-DPA-0016, FR-DPA-0017, FR-DPA-0028 -->
+    <!-- Requirements: FR-DPA-0018, FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0011, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015, FR-DPA-0016, FR-DPA-0017, FR-DPA-0028 -->
     <record id="dpa_snapshot_view_list" model="ir.ui.view">
         <field name="name">dpa.snapshot.list</field>
         <field name="model">dpa.snapshot</field>
@@ -21,6 +21,11 @@
         <field name="model">dpa.snapshot</field>
         <field name="arch" type="xml">
             <form create="0" edit="0">
+                <header>
+                    <button name="action_save_snapshot" type="object" string="Save as snapshot"
+                            class="btn-primary" invisible="is_saved"/>
+                    <field name="is_saved" invisible="1"/>
+                </header>
                 <sheet>
                     <div class="alert alert-info" role="alert" invisible="not notice">
                         <field name="notice" nolabel="1"/>
@@ -119,6 +124,17 @@
                     </notebook>
                 </sheet>
             </form>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_view_search" model="ir.ui.view">
+        <field name="name">dpa.snapshot.search</field>
+        <field name="model">dpa.snapshot</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="profile_id"/>
+            </search>
         </field>
     </record>
 
