@@ -64,6 +64,7 @@ class DpaSnapshot(models.Model):
     has_log_access = fields.Boolean(
         string="Keeps last update date", default=True, help="False when the model keeps no last update date.")
     notice = fields.Char(compute='_compute_notice')
+    flagged_count = fields.Integer(string="Flagged fields", compute='_compute_flagged_count')
     field_line_ids = fields.One2many('dpa.snapshot.field', 'snapshot_id', string="Fields")
     finding_ids = fields.One2many('dpa.snapshot.finding', 'snapshot_id', string="Findings")
     outdated_ids = fields.One2many(
@@ -101,6 +102,29 @@ class DpaSnapshot(models.Model):
             raise UserError(self.env._("This report is already saved as a snapshot."))
         super(DpaSnapshotFrozen, self).write({'is_saved': True, 'origin': 'manual', 'user_id': self.env.uid})
         self.profile_id.invalidate_recordset(['report_id'])
+
+    @api.depends('field_line_ids.flag_labels')
+    def _compute_flagged_count(self):
+        """Count the fields of each report that carry a flag.
+
+        Requirements: NFR-USE-0001
+        """
+        for report in self:
+            report.flagged_count = len(report.field_line_ids.filtered('flag_labels'))
+
+    def action_open_fields(self):
+        """Open the field statistics of this report as a list that can be searched and filtered by flag.
+
+        Requirements: FR-DPA-0015, NFR-USE-0001
+        """
+        self.ensure_one()
+        action = self.env['ir.actions.act_window']._for_xml_id('data_profiling_analysis_app.dpa_snapshot_field_action')
+        return {
+            **action,
+            'name': self.env._("Fields of %s", self.name),
+            'domain': [('snapshot_id', '=', self.id)],
+            'context': {'search_default_flagged': 1},
+        }
 
     def export_basename(self):
         """The file name of an export without its extension: the profile name and the run day.
