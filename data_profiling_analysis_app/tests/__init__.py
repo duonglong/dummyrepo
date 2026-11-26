@@ -8,3 +8,5 @@ from . import test_format_range_acceptance
 from . import test_stats_acceptance
 from . import test_run
 from . import test_values
+from . import test_patterns
+from . import test_ranges

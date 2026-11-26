@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015 -->
+    <!-- Requirements: FR-DPA-0003, FR-DPA-0004, FR-DPA-0005, FR-DPA-0007, FR-DPA-0008, FR-DPA-0009, FR-DPA-0010, FR-DPA-0013, FR-DPA-0014, FR-DPA-0015 -->
     <record id="dpa_snapshot_view_list" model="ir.ui.view">
         <field name="name">dpa.snapshot.list</field>
         <field name="model">dpa.snapshot</field>
@@ -53,12 +53,29 @@
                                 <field name="field_type"/>
                                 <field name="distinct_count"/>
                                 <field name="unused_values" invisible="not unused_values"/>
+                                <field name="field_type" invisible="1"/>
+                                <field name="main_pattern" invisible="not main_pattern"/>
+                                <field name="main_pattern_share" invisible="not main_pattern"/>
+                                <field name="format_note" nolabel="1" colspan="2" invisible="not format_note"/>
+                                <field name="range_computed" invisible="1"/>
+                                <field name="range_low" invisible="not range_computed"/>
+                                <field name="range_high" invisible="not range_computed"/>
+                                <field name="range_note" nolabel="1" colspan="2" invisible="not range_note"/>
                             </group>
                             <field name="value_ids">
                                 <list>
                                     <field name="value_label"/>
                                     <field name="count"/>
                                     <field name="share"/>
+                                </list>
+                            </field>
+                            <field name="finding_ids" invisible="not finding_ids">
+                                <list>
+                                    <field name="kind"/>
+                                    <field name="value_label"/>
+                                    <field name="record_name"/>
+                                    <field name="res_model" column_invisible="1"/>
+                                    <field name="res_id" widget="many2one_reference"/>
                                 </list>
                             </field>
                             <field name="more_count" invisible="1"/>
