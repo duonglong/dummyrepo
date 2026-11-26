@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.misc import format_datetime
 
 RATE_MEASURES = (
     ('completeness', 'completeness'),
@@ -27,6 +28,7 @@ class DpaSnapshotCompare(models.TransientModel):
     older_outdated_count = fields.Integer(string="Outdated (older)", related='older_id.outdated_count')
     newer_outdated_count = fields.Integer(string="Outdated (newer)", related='newer_id.outdated_count')
     line_ids = fields.One2many('dpa.snapshot.compare.line', 'compare_id', string="Fields")
+    result_html = fields.Html(compute='_compute_result_html', sanitize=False)
 
     @api.model
     def default_get(self, fields_list):
@@ -52,6 +54,36 @@ class DpaSnapshotCompare(models.TransientModel):
             ordered = (compare.snapshot_a_id | compare.snapshot_b_id).sorted(lambda s: (s.run_date, s.id))
             compare.older_id = ordered[:1]
             compare.newer_id = ordered[1:2]
+
+    @api.depends('line_ids', 'older_id', 'newer_id')
+    def _compute_result_html(self):
+        """Lay the lines out as one table: a title per measure, the two snapshot dates and the change under it.
+
+        Requirements: FR-DPA-0023, FR-DPA-0025
+        """
+        titles = self._measure_titles()
+        for compare in self:
+            if not compare.line_ids:
+                compare.result_html = False
+                continue
+            compare.result_html = self.env['ir.qweb']._render('data_profiling_analysis_app.dpa_compare_table', {
+                'field_title': self.env._("Field"),
+                'change_title': self.env._("Change"),
+                'measures': [titles[measure] for measure, _source in RATE_MEASURES + COUNT_MEASURES],
+                'older_title': format_datetime(self.env, compare.older_id.run_date),
+                'newer_title': format_datetime(self.env, compare.newer_id.run_date),
+                'rows': [(line.field_label, line._cells()) for line in compare.line_ids],
+            })
+
+    @api.model
+    def _measure_titles(self):
+        return {
+            'completeness': self.env._("Completeness"),
+            'empty_rate': self.env._("Empty rate"),
+            'distinct': self.env._("Distinct values"),
+            'inconsistent': self.env._("Inconsistent values"),
+            'unusual': self.env._("Unusual numbers"),
+        }
 
     @api.onchange('snapshot_a_id', 'snapshot_b_id')
     def _onchange_snapshots(self):
@@ -104,6 +136,7 @@ class DpaSnapshotCompare(models.TransientModel):
             'res_id': self.id,
             'view_mode': 'form',
             'target': 'new',
+            'context': {'dialog_size': 'extra-large'},
         }
 
 
@@ -164,6 +197,27 @@ class DpaSnapshotCompareLine(models.TransientModel):
             self._add_measure(
                 values, measure, source, older_line if older_rated else None, newer_line if newer_rated else None)
         return values
+
+    def _cells(self):
+        """The older value, newer value and change of each measure, as the table shows them.
+
+        A side without a value shows its note ("Not profiled" or "-"); a change needs both sides.
+
+        Requirements: FR-DPA-0023, FR-DPA-0025, FR-DPA-0028
+        """
+        self.ensure_one()
+        cells = []
+        for measures, value_format, change_format, older_ok, newer_ok in (
+            (RATE_MEASURES, '%.1f', '%+.1f', self.older_rated, self.newer_rated),
+            (COUNT_MEASURES, '%d', '%+d', self.in_older, self.in_newer),
+        ):
+            for measure, _source in measures:
+                cells += [
+                    value_format % self['older_' + measure] if older_ok else self.older_note,
+                    value_format % self['newer_' + measure] if newer_ok else self.newer_note,
+                    change_format % self[measure + '_change'] if older_ok and newer_ok else '',
+                ]
+        return cells
 
     @api.model
     def _side_note(self, line, rated):

@@ -24,3 +24,4 @@ from . import test_benchmark
 from . import test_latest_report
 from . import test_field_details
 from . import test_field_table
+from . import test_compare_table
