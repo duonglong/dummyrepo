@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import fields, models
 
 
@@ -16,7 +18,7 @@ class AccountMove(models.Model):
         exceptions = exceptions or []
         vals_list = [{
             'move_id': move.id,
-            'move_name': move.display_name,
+            'move_name': move.name if move.name and move.name != '/' else False,
             'partner_id': move.partner_id.id,
             'partner_name': move.partner_id.name,
             'bill_reference': move.ref,
@@ -46,7 +48,9 @@ class AccountMove(models.Model):
         with_history = self.sudo().filtered(
             lambda move: move.move_type == 'in_invoice' and move.state == 'draft'
             and move.ipr_history_ids)
+        by_last_state = defaultdict(lambda: self.browse())
         for move in with_history:
-            last_state = move.ipr_history_ids.sorted('id')[-1].state_after
-            move._ipr_add_history('delete', last_state, comment=self.env._('Bill deleted'))
+            by_last_state[move.ipr_history_ids.sorted('id')[-1].state_after] |= move
+        for last_state, moves in by_last_state.items():
+            moves._ipr_add_history('delete', last_state, comment=self.env._('Bill deleted'))
         return super().unlink()

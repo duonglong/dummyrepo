@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.misc import formatLang
 
 from ..services.reconciliation import EVENTS, STATES
 
@@ -44,7 +45,6 @@ class IprHistory(models.Model):
     exception_count = fields.Integer(string='Exceptions Count', readonly=True)
     exceptions_display = fields.Text(string='Exceptions', compute='_compute_exceptions_display')
 
-    _move_index = models.Index('(move_id)')
     _company_date_index = models.Index('(company_id, date)')
     _event_index = models.Index('(event)')
 
@@ -61,13 +61,13 @@ class IprHistory(models.Model):
                 entry.tolerances_display = False
                 continue
             if entry.price_tolerance_type == 'percent':
-                price = f'{entry.price_tolerance_percent:g} %'
+                price = f'{formatLang(self.env, entry.price_tolerance_percent)} %'
             else:
                 price = entry.tolerance_currency_id.format(entry.price_tolerance_amount)
             unit = '%' if entry.qty_tolerance_type == 'percent' else self.env._('units')
             entry.tolerances_display = self.env._(
                 'Price: %(price)s, Quantity: %(qty)s',
-                price=price, qty=f'{entry.qty_tolerance_value:g} {unit}')
+                price=price, qty=f'{formatLang(self.env, entry.qty_tolerance_value)} {unit}')
 
     @api.depends('exceptions_data')
     def _compute_exceptions_display(self):

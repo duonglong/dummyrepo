@@ -34,7 +34,7 @@ class TestHistory(TransactionCase):
         self.assertEqual(entry.bill_reference, 'INV-9')
         self.assertEqual(entry.company_id, self.company)
         self.assertEqual(entry.price_tolerance_percent, 5.0)
-        self.assertIn('5 %', entry.tolerances_display)
+        self.assertIn('5.00 %', entry.tolerances_display)
         self.assertEqual(entry.exception_count, 1)
         self.assertIn('Desk', entry.exceptions_display)
 
@@ -66,3 +66,38 @@ class TestHistory(TransactionCase):
         search = self.env['ipr.history'].get_view(view_type='search')['arch']
         self.assertIn('filter_check', search)
         self.assertIn('partner_name', search)
+
+    def test_bill_name_is_raw_number_not_display_label(self):
+        """FR-IPR-0020: a draft bill has no number; two drafts with one reference stay apart."""
+        twin = self.bill.copy({'ref': 'INV-9'})
+        first = self.bill._ipr_add_history('check', 'matched')
+        second = twin._ipr_add_history('check', 'matched')
+        self.assertFalse(first.move_name)
+        self.assertFalse(second.move_name)
+        groups = self.env['ipr.history']._read_group(
+            [('id', 'in', (first | second).ids)], ['move_id'], ['__count'])
+        self.assertEqual(len(groups), 2)
+
+    def test_posted_bill_keeps_its_number(self):
+        """FR-IPR-0020: a posted bill's entry stores its number."""
+        self.bill.name = 'BILL/2026/0001'
+        entry = self.bill._ipr_add_history('check', 'matched')
+        self.assertEqual(entry.move_name, self.bill.name)
+
+    def test_delete_trail_only_for_draft_vendor_bills(self):
+        """FR-IPR-0022: a credit note with history leaves no delete entry."""
+        note = self.bill.copy({'move_type': 'in_refund', 'ref': 'CN-1'})
+        note._ipr_add_history('check', 'matched')
+        note.unlink()
+        self.assertFalse(self.env['ipr.history'].search(
+            [('bill_reference', '=', 'CN-1'), ('event', '=', 'delete')]))
+
+    def test_delete_several_bills_adds_one_entry_each(self):
+        """FR-IPR-0022: deleting two bills at once records both deletions."""
+        twin = self.bill.copy({'ref': 'INV-11'})
+        self.bill._ipr_add_history('check', 'matched')
+        twin._ipr_add_history('reject', 'rejected')
+        (self.bill | twin).unlink()
+        deleted = self.env['ipr.history'].search([('event', '=', 'delete')])
+        self.assertEqual(
+            sorted(deleted.mapped('state_after')), ['matched', 'rejected'])
