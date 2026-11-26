@@ -31,7 +31,7 @@ class TestCompareAcceptance(TransactionCase):
         cls.profile = cls.env['dpa.profile'].create({'name': 'Customer quality', 'model_id': cls.partner_model.id})
 
     # -- helpers ---------------------------------------------------------
-    def _snapshot(self, run_date, lines, model='res.partner', records=100, outdated=0, profile=None):
+    def _snapshot(self, run_date, lines, model='res.partner', records=100, outdated=0, profile=None, origin='manual'):
         """A saved snapshot; ``lines`` maps a field name to its stored numbers."""
         model_rec = self.env['ir.model']._get(model)
         return self.env['dpa.snapshot'].create({
@@ -43,7 +43,7 @@ class TestCompareAcceptance(TransactionCase):
             'model_label': model_rec.name,
             'run_date': run_date,
             'is_saved': True,
-            'origin': 'manual',
+            'origin': origin,
             'record_count': records,
             'outdated_count': outdated,
             'field_line_ids': [(0, 0, {
@@ -126,8 +126,7 @@ class TestCompareAcceptance(TransactionCase):
         """Requirements: FR-DPA-0023 (a manual and a scheduled snapshot of two profiles of one model compare)."""
         other = self.env['dpa.profile'].create({'name': 'Other', 'model_id': self.partner_model.id})
         first = self._snapshot('2026-11-01 09:00:00', {'email': {'completeness': 50.0}})
-        second = self._snapshot('2026-12-01 09:00:00', {'email': {'completeness': 70.0}}, profile=other)
-        second.origin = 'scheduled'
+        second = self._snapshot('2026-12-01 09:00:00', {'email': {'completeness': 70.0}}, profile=other, origin='scheduled')
         line = self._line(self._compare(first, second), 'email')
         self.assertAlmostEqual(line.completeness_change, 20.0)
 
