@@ -15,7 +15,8 @@ class TestExportAcceptance(TransactionCase):
     returning ``(file name, content bytes)``; the download routes and buttons
     only call them, and the HTTP route itself is left to the build. In Odoo's
     test mode a PDF report is rendered as its HTML, so the PDF test reads the
-    text of that content. The snapshot is created directly with its lines.
+    text of that content. The snapshot is created directly with its lines and findings while unsaved, then saved
+    with ``action_save_snapshot`` (a saved snapshot refuses new lines, FR-DPA-0018).
     """
 
     @classmethod
@@ -39,7 +40,7 @@ class TestExportAcceptance(TransactionCase):
             'model_name': 'res.partner',
             'model_label': 'Contact',
             'run_date': '2026-12-01 12:00:00',
-            'is_saved': True,
+            'is_saved': False,
             'origin': 'manual',
             'user_id': self.anna.id,
             'empty_threshold': 20.0,
@@ -66,7 +67,10 @@ class TestExportAcceptance(TransactionCase):
             'res_id': 2000 + i, 'record_name': 'Old %03d' % (i + 1),
             'last_update': '2025-01-01 10:00:00', 'days_since_update': 700 - i,
         } for i in range(outdated)])
+        # A saved snapshot is frozen (FR-DPA-0018): the findings go in first, then it is saved.
+        snapshot.with_user(self.anna).action_save_snapshot()
         self.env.flush_all()
+        self.assertTrue(snapshot.is_saved)
         return snapshot
 
     def _workbook(self, content):
