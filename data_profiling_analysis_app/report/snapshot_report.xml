@@ -37,7 +37,7 @@
                             <tbody>
                                 <tr t-foreach="doc.field_line_ids" t-as="line">
                                     <td><t t-out="line.field_label"/></td>
-                                    <td><t t-out="line.field_type"/></td>
+                                    <td><t t-out="doc.type_label(line)"/></td>
                                     <t t-if="line.is_rated">
                                         <td><t t-out="line.filled_count"/></td>
                                         <td><t t-out="line.empty_count"/></td>
@@ -68,7 +68,7 @@
                                     <td><t t-out="value.share"/></td>
                                 </tr>
                             </table>
-                            <p t-if="line.more_note"><t t-out="line.more_note"/></p>
+                            <p t-if="doc._pdf_values_more(line)">and <t t-out="doc._pdf_values_more(line)"/> more</p>
                         </t>
 
                         <t t-foreach="doc._pdf_flagged()" t-as="section">

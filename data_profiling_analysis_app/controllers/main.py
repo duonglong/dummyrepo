@@ -13,6 +13,8 @@ class DataProfilingExport(http.Controller):
 
         Requirements: FR-DPA-0026
         """
+        if not request.env.user.has_group('data_profiling_analysis_app.group_data_profiling'):
+            return request.not_found()
         snapshot = request.env['dpa.snapshot'].browse(snapshot_id).exists()
         if not snapshot:
             return request.not_found()

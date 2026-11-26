@@ -1,6 +1,11 @@
-from odoo.exceptions import AccessError
+import io
+import zipfile
+from unittest.mock import patch
+
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import HttpCase, tagged
 
+from ..services import xlsx
 from .common import DpaCase
 
 
@@ -35,12 +40,51 @@ class TestExport(DpaCase):
         self.assertIn('val09', text)
         self.assertNotIn('val10', text)
 
+    def test_pdf_says_how_many_values_it_leaves_out(self):
+        """Requirements: FR-DPA-0027 (12 values: 10 listed, 2 more; exactly 10: nothing more)."""
+        line = self.snapshot.field_line_ids
+        self.assertEqual(self.snapshot._pdf_values_more(line), 2)
+        _name, content = self.snapshot.with_user(self.member)._export_pdf()
+        self.assertIn('and 2 more', content.decode())
+        ten = self.env['dpa.snapshot'].create({
+            'name': 'T', 'profile_name': 'T', 'model_name': 'res.partner', 'run_date': '2026-12-01 12:00:00',
+            'field_line_ids': [(0, 0, {
+                'field_name': 'phone', 'field_label': 'Phone', 'field_type': 'char',
+                'value_ids': [(0, 0, {'sequence': n, 'value_label': 'v%02d' % n, 'count': 1}) for n in range(10)],
+            })],
+        })
+        self.assertEqual(ten._pdf_values_more(ten.field_line_ids), 0)
+
+    def test_exports_show_the_type_as_the_screen_does(self):
+        """Requirements: FR-DPA-0026 (the type reads Text, not char)."""
+        self.assertEqual(self.snapshot.type_label(self.snapshot.field_line_ids), 'Text')
+
+    def test_xlsx_text_is_never_a_formula(self):
+        """Requirements: FR-DPA-0026 (profiled text starting with '=' stays text)."""
+        snapshot = self.env['dpa.snapshot'].create({
+            'name': 'F', 'profile_name': 'F', 'model_name': 'res.partner', 'run_date': '2026-12-01 12:00:00',
+            'field_line_ids': [(0, 0, {
+                'field_name': 'name', 'field_label': 'Name', 'field_type': 'char',
+                'value_ids': [(0, 0, {'sequence': 1, 'value_label': '=1+1', 'count': 1})],
+            })],
+        })
+        _name, content = snapshot._export_xlsx()
+        archive = zipfile.ZipFile(io.BytesIO(content))
+        self.assertNotIn('<f>', archive.read('xl/worksheets/sheet3.xml').decode())
+        self.assertIn('=1+1', archive.read('xl/sharedStrings.xml').decode())
+
+    def test_xlsx_refuses_a_sheet_past_the_row_limit(self):
+        """Requirements: FR-DPA-0026 (no row is dropped without a word)."""
+        rows = [[0]] * xlsx.ROW_LIMIT
+        with patch.object(xlsx, '_sheets', return_value=[('Big', ['h'], rows)]), self.assertRaises(UserError):
+            xlsx.build(self.snapshot)
+
     def test_download_buttons(self):
         """Requirements: FR-DPA-0026, FR-DPA-0027 (the buttons open the download and the report)."""
         snapshot = self.snapshot.with_user(self.member)
         self.assertEqual(snapshot.action_export_xlsx()['url'], '/data_profiling/snapshot/%d/xlsx' % snapshot.id)
-        # Odoo first opens its layout setup when the company has none: still an action, never an error.
-        self.assertIn(snapshot.action_export_pdf()['type'], ('ir.actions.report', 'ir.actions.act_window'))
+        self.member.company_id.external_report_layout_id = False
+        self.assertEqual(snapshot.action_export_pdf()['type'], 'ir.actions.report')
 
 
 @tagged('post_install', '-at_install')
@@ -63,4 +107,4 @@ class TestExportRoute(HttpCase):
         self.assertIn('R%202026-12-01.xlsx', member.headers['Content-Disposition'])
         self.assertEqual(self.url_open('/data_profiling/snapshot/0/xlsx').status_code, 404)
         self.authenticate('dpa_route_out', 'dpa_route_out')
-        self.assertIn(self.url_open(url).status_code, (403, 404))
+        self.assertEqual(self.url_open(url).status_code, 404)

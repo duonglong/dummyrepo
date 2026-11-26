@@ -149,11 +149,38 @@ class DpaSnapshot(models.Model):
         """
         self.ensure_one()
         # sudo: a Data Profiling member cannot read report actions; only the action is read, the data stays the caller's
-        return self.env.ref('data_profiling_analysis_app.action_report_snapshot').sudo().report_action(self)
+        # config=False: under sudo Odoo takes everyone for an admin and would open the admin-only layout setup
+        report = self.env.ref('data_profiling_analysis_app.action_report_snapshot').sudo()
+        return report.report_action(self, config=False)
+
+    def type_label(self, line):
+        """The label Odoo gives the field type stored on a line ("char" reads "Text"), as the exports print it.
+
+        Requirements: FR-DPA-0026, FR-DPA-0027
+        """
+        env = self.env
+        labels = {
+            'char': env._("Text"), 'text': env._("Long text"), 'html': env._("HTML"),
+            'integer': env._("Integer"), 'float': env._("Decimal"), 'monetary': env._("Amount"),
+            'boolean': env._("Yes/No"), 'date': env._("Date"), 'datetime': env._("Date and time"),
+            'selection': env._("Selection"), 'many2one': env._("Link to one record"),
+            'many2many': env._("Links to many records"),
+        }
+        return labels.get(line.field_type, line.field_type)
 
     def _pdf_top_values(self, line):
-        """The most frequent values of a field line, as many as the PDF lists."""
+        """The most frequent values of a field line, as many as the PDF lists.
+
+        Requirements: FR-DPA-0027
+        """
         return line.value_ids[:PDF_TOP_VALUES]
+
+    def _pdf_values_more(self, line):
+        """How many distinct values of a field line the PDF leaves out: stored lines past the cut and unstored ones.
+
+        Requirements: FR-DPA-0027
+        """
+        return max(len(line.value_ids) - PDF_TOP_VALUES, 0) + line.more_count
 
     def _pdf_flagged(self):
         """The flagged values and the outdated records the PDF lists, each with how many more there are.

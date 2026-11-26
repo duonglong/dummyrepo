@@ -4,8 +4,10 @@ import io
 import xlsxwriter
 
 from odoo import fields
+from odoo.exceptions import UserError
 
 NOT_RATED = '-'
+ROW_LIMIT = 1_048_576  # rows of an XLSX sheet, the header row included
 
 SHEET_SUMMARY = 'Summary'
 SHEET_STATISTICS = 'Field statistics'
@@ -48,7 +50,7 @@ def _statistics_header(env):
     ]
 
 
-def _statistics_row(line):
+def _statistics_row(snapshot, line):
     if not line.is_rated:
         rated = [NOT_RATED] * 4
     else:
@@ -56,7 +58,7 @@ def _statistics_row(line):
     numeric = line.field_type in ('integer', 'float', 'monetary') and line.is_rated
     dated = line.field_type in ('date', 'datetime') and line.is_rated and line.filled_count
     return [
-        line.field_label, line.field_type, line.record_count, *rated, line.distinct_count,
+        line.field_label, snapshot.type_label(line), line.record_count, *rated, line.distinct_count,
         line.flag_labels or '', line.main_pattern or '',
         line.range_low if line.range_computed else '', line.range_high if line.range_computed else '',
         line.min_value if numeric else '', line.max_value if numeric else '', line.sum_value if numeric else '',
@@ -75,7 +77,7 @@ def _sheets(snapshot):
     flagged = findings.filtered(lambda finding: finding.kind != 'outdated')
     outdated = findings - flagged
     return [
-        (SHEET_STATISTICS, _statistics_header(env), [_statistics_row(line) for line in snapshot.field_line_ids]),
+        (SHEET_STATISTICS, _statistics_header(env), [_statistics_row(snapshot, line) for line in snapshot.field_line_ids]),
         (SHEET_VALUES, [env._("Field"), env._("Value"), env._("Records"), env._("Share (%)")], [
             [line.field_label, NOT_RATED if value.is_empty else value.value_label or '', value.count, value.share]
             for line in snapshot.field_line_ids for value in line.value_ids]),
@@ -94,13 +96,16 @@ def build(snapshot):
     Requirements: FR-DPA-0026
     """
     output = io.BytesIO()
-    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True, 'strings_to_formulas': False, 'strings_to_urls': False})
     bold = workbook.add_format({'bold': True})
     summary = workbook.add_worksheet(SHEET_SUMMARY)
     for row, (label, value) in enumerate(_summary_rows(snapshot)):
         summary.write(row, 0, label, bold)
         summary.write(row, 1, value)
     for name, header, rows in _sheets(snapshot):
+        if len(rows) >= ROW_LIMIT:
+            raise UserError(snapshot.env._(
+                "The sheet %(sheet)s has more rows than a spreadsheet holds (%(limit)s).", sheet=name, limit=ROW_LIMIT - 1))
         sheet = workbook.add_worksheet(name)
         sheet.write_row(0, 0, header, bold)
         for number, row in enumerate(rows, start=1):
