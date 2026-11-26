@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Requirements: FR-DPA-0023, FR-DPA-0024, FR-DPA-0025 -->
+    <record id="dpa_snapshot_compare_view_form" model="ir.ui.view">
+        <field name="name">dpa.snapshot.compare.form</field>
+        <field name="model">dpa.snapshot.compare</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="snapshot_a_id" options="{'no_create': True}"/>
+                    <field name="snapshot_b_id" options="{'no_create': True}"/>
+                </group>
+                <group invisible="not line_ids">
+                    <group>
+                        <field name="older_id"/>
+                        <field name="older_record_count"/>
+                        <field name="older_outdated_count"/>
+                    </group>
+                    <group>
+                        <field name="newer_id"/>
+                        <field name="newer_record_count"/>
+                        <field name="newer_outdated_count"/>
+                    </group>
+                </group>
+                <field name="line_ids" invisible="not line_ids" readonly="1">
+                    <list>
+                        <field name="field_label"/>
+                        <field name="in_older" column_invisible="1"/>
+                        <field name="in_newer" column_invisible="1"/>
+                        <field name="older_note" invisible="in_older"/>
+                        <field name="newer_note" invisible="in_newer"/>
+                        <field name="older_completeness" invisible="not in_older"/>
+                        <field name="newer_completeness" invisible="not in_newer"/>
+                        <field name="completeness_change" invisible="not (in_older and in_newer)"/>
+                        <field name="older_empty_rate" invisible="not in_older"/>
+                        <field name="newer_empty_rate" invisible="not in_newer"/>
+                        <field name="empty_rate_change" invisible="not (in_older and in_newer)"/>
+                        <field name="older_distinct" invisible="not in_older"/>
+                        <field name="newer_distinct" invisible="not in_newer"/>
+                        <field name="distinct_change" invisible="not (in_older and in_newer)"/>
+                        <field name="older_inconsistent" invisible="not in_older"/>
+                        <field name="newer_inconsistent" invisible="not in_newer"/>
+                        <field name="inconsistent_change" invisible="not (in_older and in_newer)"/>
+                        <field name="older_unusual" invisible="not in_older"/>
+                        <field name="newer_unusual" invisible="not in_newer"/>
+                        <field name="unusual_change" invisible="not (in_older and in_newer)"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_compare" type="object" string="Compare" class="btn-primary"/>
+                    <button special="cancel" string="Close"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="dpa_snapshot_compare_selected_action" model="ir.actions.act_window">
+        <field name="name">Compare</field>
+        <field name="res_model">dpa.snapshot.compare</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_dpa_snapshot"/>
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[(4, ref('data_profiling_analysis_app.group_data_profiling'))]"/>
+    </record>
+</odoo>
