@@ -4,3 +4,7 @@ access_ipr_tolerance_invoice,ipr.tolerance billing user,ipr.tolerance,account.gr
 access_ipr_tolerance_purchase_user,ipr.tolerance purchase user,ipr.tolerance,purchase.group_purchase_user,r,
 access_ipr_tolerance_purchase_manager,ipr.tolerance purchase manager,ipr.tolerance,purchase.group_purchase_manager,r,
 ipr_tolerance_comp_rule,Bill reconciliation tolerances: company,ipr.tolerance,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_history_invoice,ipr.history billing user,ipr.history,account.group_account_invoice,r,"[('move_id', '!=', False)]"
+access_ipr_history_purchase_user,ipr.history purchase user,ipr.history,purchase.group_purchase_user,r,"[('move_id', '!=', False)]"
+access_ipr_history_manager,ipr.history account manager,ipr.history,account.group_account_manager,r,
+ipr_history_comp_rule,Bill reconciliation history: company,ipr.history,,crud,"[('company_id', 'in', company_ids)]"
