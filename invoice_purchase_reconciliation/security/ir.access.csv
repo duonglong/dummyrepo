@@ -14,3 +14,5 @@ ipr_check_line_comp_rule,Bill reconciliation comparison lines: company,ipr.check
 access_ipr_exception_invoice,ipr.exception billing user,ipr.exception,account.group_account_invoice,r,
 access_ipr_exception_purchase_user,ipr.exception purchase user,ipr.exception,purchase.group_purchase_user,r,
 ipr_exception_comp_rule,Bill reconciliation exceptions: company,ipr.exception,,crud,"[('company_id', 'in', company_ids)]"
+access_ipr_reject_wizard_purchase_manager,ipr.reject.wizard purchase manager,ipr.reject.wizard,purchase.group_purchase_manager,cru,
+access_ipr_reject_wizard_account_manager,ipr.reject.wizard account manager,ipr.reject.wizard,account.group_account_manager,cru,
