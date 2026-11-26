@@ -9,6 +9,7 @@
     'depends': ['purchase_stock'],
     'data': [
         'security/ir.access.csv',
+        'views/ipr_tolerance_views.xml',
     ],
     'application': True,
 }

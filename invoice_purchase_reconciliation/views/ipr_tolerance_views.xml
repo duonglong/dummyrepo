@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ipr_tolerance_view_list" model="ir.ui.view">
+        <field name="name">ipr.tolerance.list</field>
+        <field name="model">ipr.tolerance</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="price_tolerance_type"/>
+                <field name="price_tolerance_percent" invisible="price_tolerance_type != 'percent'"/>
+                <field name="price_tolerance_amount" invisible="price_tolerance_type != 'fixed'"
+                       help="Fixed price tolerance: amount per unit, in the company currency, converted to the bill currency."/>
+                <field name="qty_tolerance_type"/>
+                <field name="qty_tolerance_value"
+                       help="Fixed quantity tolerance: units of the order line."/>
+            </list>
+        </field>
+    </record>
+
+    <record id="ipr_tolerance_action" model="ir.actions.act_window">
+        <field name="name">Bill Reconciliation</field>
+        <field name="res_model">ipr.tolerance</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Set the company's tolerances</p>
+            <p>Fixed price tolerance: amount per unit, in the company currency, converted to the bill currency.</p>
+            <p>Fixed quantity tolerance: units of the order line.</p>
+        </field>
+    </record>
+
+    <menuitem id="ipr_tolerance_menu_account"
+              name="Bill Reconciliation"
+              parent="account.menu_finance_configuration"
+              action="ipr_tolerance_action"
+              groups="account.group_account_manager"
+              sequence="90"/>
+    <menuitem id="ipr_tolerance_menu_purchase"
+              name="Bill Reconciliation"
+              parent="purchase.menu_purchase_config"
+              action="ipr_tolerance_action"
+              groups="purchase.group_purchase_manager"
+              sequence="90"/>
+</odoo>

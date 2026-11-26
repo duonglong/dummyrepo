@@ -1,1 +1,6 @@
 id,name,model_id,group_id/id,operation,domain
+access_ipr_tolerance_manager,ipr.tolerance account manager,ipr.tolerance,account.group_account_manager,crud,
+access_ipr_tolerance_invoice,ipr.tolerance billing user,ipr.tolerance,account.group_account_invoice,r,
+access_ipr_tolerance_purchase_user,ipr.tolerance purchase user,ipr.tolerance,purchase.group_purchase_user,r,
+access_ipr_tolerance_purchase_manager,ipr.tolerance purchase manager,ipr.tolerance,purchase.group_purchase_manager,r,
+ipr_tolerance_comp_rule,Bill reconciliation tolerances: company,ipr.tolerance,,crud,"[('company_id', 'in', company_ids)]"
