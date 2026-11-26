@@ -20,6 +20,7 @@ class DpaSnapshotField(models.Model):
     field_name = fields.Char(required=True)
     field_label = fields.Char(string="Field")
     field_type = fields.Char(string="Type")
+    field_type_label = fields.Char(string="Type", compute='_compute_field_type_label')
     is_rated = fields.Boolean(string="Rated", default=True, help="False when the model has no records: rates and statistics show '-'.")
     record_count = fields.Integer(string="Records")
     filled_count = fields.Integer(string="Filled")
@@ -97,6 +98,23 @@ class DpaSnapshotField(models.Model):
                     (line.unusual_count, self.env._("Unusual number")),
                 ) if flagged]
             line.flag_labels = ', '.join(labels) or False
+
+    @api.depends('field_type')
+    def _compute_field_type_label(self):
+        """The label Odoo gives the stored field type ("char" reads "Text"), shown on screens and exports.
+
+        Requirements: FR-DPA-0015, FR-DPA-0026, FR-DPA-0027
+        """
+        env = self.env
+        labels = {
+            'char': env._("Text"), 'text': env._("Long text"), 'html': env._("HTML"),
+            'integer': env._("Integer"), 'float': env._("Decimal"), 'monetary': env._("Amount"),
+            'boolean': env._("Yes/No"), 'date': env._("Date"), 'datetime': env._("Date and time"),
+            'selection': env._("Selection"), 'many2one': env._("Link to one record"),
+            'many2many': env._("Links to many records"),
+        }
+        for line in self:
+            line.field_type_label = labels.get(line.field_type, line.field_type)
 
     def _line_values(self, line, sequence, field_ids):
         """Values of the field line of one profiled field, as the engine returned it.

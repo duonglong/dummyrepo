@@ -72,3 +72,25 @@ class TestPolish(DpaCase):
         profile = self.env['dpa.profile'].with_user(other).create({
             'name': 'Shared', 'model_id': self.env['ir.model']._get('res.country').id})
         self.assertEqual(self.env['dpa.profile'].with_user(self.member).search([('id', '=', profile.id)]), profile)
+
+    def test_b_0296_report_line_type_reads_as_a_label(self):
+        """Regression test for B-0296: the type the report screens show is the label, not the technical name.
+
+        Walk state: created a contact with a text and a link field profiled, ran the profile as a member
+        (action_run). The test reads the line's shown type; it cannot render the form.
+
+        Requirements: FR-DPA-0015
+        """
+        report = self._report([{'name': 'A', 'email': 'a@x.com'}], ['email', 'parent_id'])
+        shown = {line.field_name: line.field_type_label for line in report.field_line_ids}
+        self.assertEqual(shown, {'email': 'Text', 'parent_id': 'Link to one record'})
+        self.assertEqual(report.field_line_ids.filtered(lambda l: l.field_name == 'email').field_type, 'char')
+
+    def test_b_0296_views_show_the_type_label_not_the_technical_name(self):
+        """Regression test for B-0296: the field list and the field details form show the label field.
+
+        Requirements: FR-DPA-0015
+        """
+        arch = self.env['dpa.snapshot'].get_view(view_type='form')['arch']
+        self.assertEqual(arch.count('name="field_type_label"'), 2)
+        self.assertNotIn('<field name="field_type"/>', arch)

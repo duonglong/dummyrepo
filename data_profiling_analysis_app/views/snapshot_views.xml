@@ -54,7 +54,7 @@
                     <field name="field_line_ids">
                         <list>
                             <field name="field_label"/>
-                            <field name="field_type"/>
+                            <field name="field_type_label"/>
                             <field name="is_rated" column_invisible="1"/>
                             <field name="filled_count" invisible="not is_rated"/>
                             <field name="empty_count" invisible="not is_rated"/>
@@ -65,7 +65,7 @@
                         <form>
                             <group>
                                 <field name="field_label"/>
-                                <field name="field_type"/>
+                                <field name="field_type_label"/>
                                 <field name="distinct_count"/>
                                 <field name="flag_labels" invisible="not flag_labels"/>
                                 <field name="unused_values" invisible="not unused_values"/>

@@ -158,15 +158,7 @@ class DpaSnapshot(models.Model):
 
         Requirements: FR-DPA-0026, FR-DPA-0027
         """
-        env = self.env
-        labels = {
-            'char': env._("Text"), 'text': env._("Long text"), 'html': env._("HTML"),
-            'integer': env._("Integer"), 'float': env._("Decimal"), 'monetary': env._("Amount"),
-            'boolean': env._("Yes/No"), 'date': env._("Date"), 'datetime': env._("Date and time"),
-            'selection': env._("Selection"), 'many2one': env._("Link to one record"),
-            'many2many': env._("Links to many records"),
-        }
-        return labels.get(line.field_type, line.field_type)
+        return line.field_type_label
 
     def _pdf_top_values(self, line):
         """The most frequent values of a field line, as many as the PDF lists.
