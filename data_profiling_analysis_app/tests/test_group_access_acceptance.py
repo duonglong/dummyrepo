@@ -37,6 +37,7 @@ class TestGroupAccessAcceptance(TransactionCase):
             'profile_id': self.profile.id,
             'model_name': 'res.partner',
             'run_date': '2026-12-01 08:00:00',
+            'is_saved': True,
         })
 
     def _root_names(self, user):
