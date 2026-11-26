@@ -4,6 +4,7 @@ The environment passed in is bound to the person running the profile (never
 sudo), so record rules, the selected companies and archived records are applied
 by the ORM's own search (BR-DPA-0006, NFR-SEC-0002).
 """
+from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.orm.query import Query
 from odoo.tools import SQL
@@ -133,9 +134,9 @@ def _filled_values_sql(model, field):
 def _group_values(model, field):
     """Number of distinct filled values of a field and its ``(value, records)`` groups.
 
-    The groups come most frequent first, equal counts by value. A selection
-    returns every group, so that its unused values can be told; any other field
-    returns them all too and the caller lists the first ones. A long text
+    The groups come most frequent first, equal counts by value (a selection by
+    label). A selection returns every group, so that its unused values can be
+    told; any other field returns the first MAX_LISTED_VALUES only. A long text
     returns no group: its count only is shown.
 
     Requirements: FR-DPA-0007, FR-DPA-0013, FR-DPA-0014
@@ -144,8 +145,13 @@ def _group_values(model, field):
     distinct_count = model.env.execute_query(SQL("SELECT count(DISTINCT v) FROM (%s) filled", source))[0][0]
     if field.type in LONG_TEXT_TYPES:
         return distinct_count, []
+    is_selection = field.type == 'selection'
     groups = model.env.execute_query(SQL(
-        "SELECT v, count(*) FROM (%s) filled GROUP BY v ORDER BY count(*) DESC, v", source))
+        "SELECT v, count(*) FROM (%(source)s) filled GROUP BY v ORDER BY count(*) DESC, v %(limit)s",
+        source=source, limit=SQL("") if is_selection else SQL("LIMIT %s", MAX_LISTED_VALUES)))
+    if is_selection:
+        labels = dict(field._description_selection(model.env))
+        groups.sort(key=lambda group: (-group[1], labels.get(group[0], group[0])))
     return distinct_count, groups
 
 
@@ -182,6 +188,8 @@ def _value_labels(env, field, values):
         return _linked_record_labels(env, field.comodel_name, values)
     if field.type == 'boolean':
         return {value: env._("Yes") if value else env._("No") for value in values}
+    if field.type == 'datetime':
+        return {value: str(fields.Datetime.context_timestamp(env.user, value).replace(tzinfo=None)) for value in values}
     return {value: str(value) for value in values}
 
 

@@ -52,7 +52,6 @@
                                 <field name="field_label"/>
                                 <field name="field_type"/>
                                 <field name="distinct_count"/>
-                                <field name="more_count" invisible="not more_count"/>
                                 <field name="unused_values" invisible="not unused_values"/>
                             </group>
                             <field name="value_ids">
@@ -62,6 +61,8 @@
                                     <field name="share"/>
                                 </list>
                             </field>
+                            <field name="more_count" invisible="1"/>
+                            <field name="more_note" nolabel="1" invisible="not more_count"/>
                         </form>
                     </field>
                 </sheet>

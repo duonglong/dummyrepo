@@ -19,6 +19,7 @@ class DpaSnapshotField(models.Model):
     empty_rate = fields.Float(string="Empty rate (%)", digits=(16, 1))
     distinct_count = fields.Integer(string="Distinct")
     more_count = fields.Integer(string="More values", help="Distinct values beyond the ones listed.")
+    more_note = fields.Char(string="More values note", compute='_compute_more_note')
     high_empty = fields.Boolean(
         string="High empty rate", compute='_compute_high_empty', store=True,
         help="The share of empty values is above the empty-value threshold of the report.")
@@ -29,6 +30,15 @@ class DpaSnapshotField(models.Model):
 
     _snapshot_field_unique = models.Constraint(
         'unique (snapshot_id, field_name)', "A field is profiled once per report.")
+
+    @api.depends('more_count')
+    def _compute_more_note(self):
+        """Text shown after the value list when more distinct values exist than are listed.
+
+        Requirements: FR-DPA-0007
+        """
+        for line in self:
+            line.more_note = self.env._("and %s more values", line.more_count) if line.more_count else False
 
     @api.depends('empty_count', 'record_count', 'snapshot_id.empty_threshold')
     def _compute_high_empty(self):

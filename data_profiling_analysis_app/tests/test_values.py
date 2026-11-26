@@ -1,4 +1,8 @@
+from unittest.mock import patch
+
 from odoo.tests import tagged
+
+from ..services import profiler
 
 from .common import DpaCase
 
@@ -65,3 +69,34 @@ class TestValueLists(DpaCase):
         line = self._line('type')
         self.assertIn('Contact', line.unused_values)
         self.assertIn('Other', line.unused_values)
+
+    def test_listing_is_cut_in_sql_and_counts_the_rest(self):
+        """Requirements: FR-DPA-0007, NFR-PERF-0001 (only the listed values are fetched; the rest is counted)."""
+        self.env['res.partner'].create([{'name': n, 'city': n} for n in ('A', 'B', 'C', 'D')])
+        with patch.object(profiler, 'MAX_LISTED_VALUES', 2):
+            line = self._line('city')
+        self.assertEqual(line.value_ids.sorted('sequence').mapped('value_label'), ['A', 'B'])
+        self.assertEqual((line.distinct_count, line.more_count), (4, 2))
+        self.assertEqual(line.more_note, "and 2 more values")
+
+    def test_selection_ties_ordered_by_label(self):
+        """Requirements: FR-DPA-0007 (selection values with equal counts are ordered by the label shown)."""
+        labels = dict(self.env['res.partner']._fields['type']._description_selection(self.env))
+        keys = ['contact', 'invoice', 'delivery']
+        self.env['res.partner'].create([{'name': key, 'type': key} for key in keys])
+        shown = self._line('type').value_ids.sorted('sequence').mapped('value_label')
+        self.assertEqual(shown, sorted(labels[key] for key in keys))
+
+    def test_datetime_values_listed_in_user_time_zone(self):
+        """Requirements: FR-DPA-0007 (date-times are shown in the runner's time zone)."""
+        runner = self.env.ref('base.user_admin')
+        runner.write({'tz': 'Asia/Tokyo', 'group_ids': [(4, self.env.ref('data_profiling_analysis_app.group_data_profiling').id)]})
+        self.env.cr.execute("UPDATE ir_cron SET nextcall = '2026-01-01 00:00:00'")
+        self.env.invalidate_all()
+        profile = self.env['dpa.profile'].create({
+            'name': 'Dates', 'model_id': self.env['ir.model']._get('ir.cron').id,
+            'field_ids': [(6, 0, [self.env['ir.model.fields']._get('ir.cron', 'nextcall').id])],
+        })
+        profile.with_user(runner).action_run()
+        report = self.env['dpa.snapshot'].search([('profile_id', '=', profile.id)])
+        self.assertEqual(report.field_line_ids.value_ids[0].value_label, '2026-01-01 09:00:00')
